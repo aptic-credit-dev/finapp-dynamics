@@ -13,5 +13,9 @@
     "emitDecoratorMetadata": true
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
-  "references": [{ "path": "../../packages/kernel" }, { "path": "../../packages/contracts" }]
+  "references": [
+    { "path": "../../packages/kernel" },
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/m01-tenant" }
+  ]
 }
