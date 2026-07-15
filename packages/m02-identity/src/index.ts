@@ -90,6 +90,21 @@ export { MembershipService } from './membership.service.ts';
 export { ActorResolver, contextFromActor, UUID_PATTERN } from './actor-resolver.ts';
 export type { AuthenticatedActor, ResolveInput } from './actor-resolver.ts';
 
+// The API's actor boundary — the one place a request becomes a context.
+export {
+  ActorContextFactory,
+  requireUuidParam,
+  CORRELATION_HEADER,
+  TENANT_HEADER,
+  PERMISSIONS_HEADER,
+} from './actor-context.ts';
+export type {
+  ActorSource,
+  ScopedRequest,
+  TenantScopedRequest,
+  PlatformScopedRequest,
+} from './actor-context.ts';
+
 // Development-only adapter. DELETE IN STAGE 1C — see dev-actor-adapter.ts.
 export {
   DevActorAdapter,
