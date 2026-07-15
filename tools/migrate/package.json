@@ -1,0 +1,24 @@
+{
+  "name": "@finapp/migrate",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Migration runner — ordered, checksummed, idempotent, advisory-locked.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/test-runner": "*",
+    "pg": "^8.13.1"
+  }
+}

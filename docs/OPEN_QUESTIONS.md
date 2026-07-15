@@ -43,3 +43,8 @@ has a suggested default so work is not blocked; the default should be confirmed,
     re-generate module-by-module through the stage prompts? *(Default: import as a baseline, then validate and
     harden stage-by-stage; see HANDOVER_REPORT.md risks.)*
 16. **Hosting & infra target** — cloud provider, orchestration, and IaC toolchain for the environments.
+17. **Frontend stack** — no document in `docs/` or `manifests/` names one, so Stage 0 did not invent one:
+    `apps/web` is a framework-free TypeScript shell and no bundler is wired up. The choice (framework,
+    bundler, component library, and how `SCREEN_CATALOGUE.md` maps onto it) shapes every later UI stage and
+    should be decided before Stage 2, when the first screens arrive. *(Default: none — this one genuinely
+    needs an owner's decision rather than a default, and it will need an ADR.)*

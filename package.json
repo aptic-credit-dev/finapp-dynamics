@@ -1,0 +1,43 @@
+{
+  "name": "finapp-dynamics",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Finapp Dynamics — enterprise SaaS platform (modular monolith, TypeScript/NestJS, PostgreSQL 16)",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.6.0",
+    "npm": ">=10.0.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "tools/*"
+  ],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "rebuild": "npm run clean && npm run build",
+    "typecheck": "tsc --build --dry",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test:smoke",
+    "test:smoke": "node --experimental-strip-types --disable-warning=ExperimentalWarning --conditions=source tools/test-runner/src/smoke-cli.ts",
+    "test:db": "node --experimental-strip-types --disable-warning=ExperimentalWarning --conditions=source tools/test-runner/src/db-cli.ts",
+    "migrate": "node --experimental-strip-types --disable-warning=ExperimentalWarning --conditions=source tools/migrate/src/cli.ts",
+    "verify": "npm run lint && npm run build && npm run test:smoke"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1"
+  }
+}

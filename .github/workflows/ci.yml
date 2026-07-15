@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22.x'
+
+jobs:
+  # The fast lane on every PR: lint, build, and the PURE smoke suites. No database — a contributor must
+  # be able to run exactly this locally with `npm run verify` (docs/07-engineering/TEST_STRATEGY.md).
+  smoke:
+    name: Smoke lane
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Format check
+        run: npm run format:check
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+      - name: PURE smoke suites
+        run: npm run test:smoke
+
+  # The DB lane: integration specs against a real PostgreSQL 16. Runs on merges to main/develop, where
+  # tenant isolation and the audit trail have to be proven rather than assumed.
+  db:
+    name: DB lane
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: finapp
+          POSTGRES_PASSWORD: finapp
+          POSTGRES_DB: finapp_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://finapp:finapp@localhost:5432/finapp_ci
+      DATABASE_OWNER_ROLE: finapp_owner
+      DATABASE_APP_ROLE: finapp_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Migrations (dry run — ordering and checksums)
+        run: npm run migrate -- --dry-run
+      - name: Migrations
+        run: npm run migrate
+      - name: DB integration specs
+        run: npm run test:db

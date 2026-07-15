@@ -2,12 +2,14 @@
 project: Finapp Dynamics
 description: >
   Machine-readable implementation plan for the Finapp Dynamics enterprise SaaS platform. This manifest is the
-  authoritative build plan for a NEW repository. No item is marked `implemented`, because no code exists in the
-  target repository yet — an extensive in-session REFERENCE implementation exists and informs the specs, but the
-  handover repo starts from design. Statuses: documented | approved_for_build | deferred | requires_review.
+  authoritative build plan for the repository. Stage 0 (toolchain) is implemented and tested; every business
+  module is still design-only — an extensive in-session REFERENCE implementation informs the specs, but no
+  business code exists in the target repo. Statuses: documented | approved_for_build | implemented | deferred |
+  requires_review.
 status_legend:
   documented: Specified and consolidated; not yet approved for build in the target repo.
   approved_for_build: Cleared to build next, in dependency order.
+  implemented: Real, tested code exists in this repo. Never set without passing tests.
   deferred: Designed but intentionally later (post-MVP / commercial / Phase 7).
   requires_review: Needs a business/security/engineering decision before build (see OPEN_QUESTIONS.md).
 
@@ -23,7 +25,7 @@ conventions:
 stages:
   - stage: 0
     name: Repository & toolchain foundation
-    status: approved_for_build
+    status: implemented
     priority: P0
     mvp: true
     target_location: repo root, packages/kernel, packages/contracts, apps/api, apps/web, tools/
@@ -31,6 +33,43 @@ stages:
     dependencies: []
     shared_services_consumed: []
     testing_required: [smoke_lane_skeleton, db_lane_skeleton]
+    delivered:
+      monorepo: npm workspaces — packages/{kernel,contracts}, apps/{api,web}, tools/{migrate,test-runner}
+      module_placeholders: packages/<module>/README.md for all 43 business modules (no code)
+      typescript: project references, strict + noUncheckedIndexedAccess + exactOptionalPropertyTypes
+      kernel: DI tokens (DB, AUDIT, AUTHZ, OUTBOX), RequestContext/SystemContext, ProblemError (RFC 9457),
+        Endpoint decorator (permission + auditCode), ambient-transaction Db (withTenant/withSystem)
+      contracts: DomainEvent union — deliberately empty (`never`) at Stage 0
+      migration_runner: ordered by module (dependency order), checksummed + immutable, idempotent,
+        atomic per migration, advisory-locked
+      test_harness: framework-free PURE runner (node --experimental-strip-types, runs off source with no
+        build) + DB integration lane (skipped without DATABASE_URL)
+      ci: .github/workflows/ci.yml — smoke lane on PR, DB lane (postgres:16) on push
+    verification:
+      build: clean
+      lint: clean
+      format: clean
+      smoke_lane: 3 suites / 73 assertions passing
+      db_lane: 1 spec / 26 assertions passing — RLS convention proven, sample tables removed
+      api_boot: verified — GET /api/v1/health 200; unrouted paths 404 as application/problem+json
+      caveat: >
+        The RLS proof was executed locally against PostgreSQL 15.2 (the only server available on the
+        build machine); the platform targets PostgreSQL 16 and CI runs postgres:16. RLS FORCE, the
+        tenant_isolation policy, and composite FK semantics are identical across 15 and 16, but the
+        first CI DB-lane run on 16 is the authoritative confirmation.
+    findings:
+      - The tenant_isolation policy REQUIRES NULLIF(current_setting('app.tenant_id', true), ''). A
+        transaction-local GUC reverts to the empty string, not NULL, so on a pooled connection the
+        policy would raise `invalid input syntax for type uuid` instead of matching zero rows. Found by
+        the db-spec; the convention and the sample were corrected.
+      - RLS FORCE does not constrain a SUPERUSER — only the table owner. The app and owner roles are
+        therefore both non-superuser and NOBYPASSRLS. Asserted explicitly in the db-spec.
+    not_included:
+      - No business tables, routes, permissions, events, or audit codes (by design).
+      - Kernel tokens are declared but unbound — their owning modules land in Stage 1.
+      - Boot-time validation of @Endpoint against naming-map.yaml + audit-code-registry.yaml lands with
+        the first module that declares a route (Stage 1); there is nothing to validate until then.
+      - apps/web is a framework-free shell — the frontend stack is undecided (OPEN_QUESTIONS.md #17).
 
   - stage: 1
     name: SaaS foundation

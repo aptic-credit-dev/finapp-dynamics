@@ -1,0 +1,137 @@
+# schema: finapp-dynamics/audit-code-registry/v1
+# Audit-code registry. Single authoritative registry, owned by m03-audit (SHARED_SERVICE_OWNERSHIP.md).
+# Every mutating route carries a registered `auditCode`; UNREGISTERED CODES FAIL CI (ADR-005, CLAUDE.md).
+#
+# STATUS: Stage 0 — intentionally EMPTY of codes.
+#   `codes:` is empty by design, not by omission. STAGE_0_PROMPT.md:20 requires Stage 0 to ship with
+#   "no business tables, routes, permissions, events, or audit codes yet". Codes are appended per-module
+#   from Stage 1 onward, alongside the code that emits them (CLAUDE.md "ships_with_every_module").
+#
+# PROVENANCE NOTE (read before use):
+#   docs/06-data-and-contracts/AUDIT_CODE_CATALOGUE.md specifies the FORMAT, severity rules, and domain
+#   coverage of the ~916 reference codes, but does not ENUMERATE any of them. No audit code literal exists
+#   anywhere in the handover corpus. The 916 codes live only in the in-session reference implementation.
+#   Therefore: `rules`, `severity`, and `reason_required` below are TRANSCRIBED from the catalogue and are
+#   authoritative. The `prefixes` taxonomy is DERIVED (see `prefix_provenance` on each entry) and requires
+#   sign-off before Stage 1 seeds the first codes.
+registry_version: 1
+owner_module: m03-audit
+reference_code_count: 916 # in the reference implementation; 0 registered in this repo
+registered_code_count: 0 # MUST equal len(codes); enforced by the conformance check
+
+format: <PREFIX>_<ENTITY>_<ACTION>
+format_notes:
+  - SCREAMING_SNAKE only; ASCII A-Z, 0-9 and underscore.
+  - Every code carries a module tag, a severity, and a reason_required flag.
+  - Codes are immutable once registered: never renamed, renumbered, or reused. Supersede, never edit.
+
+rules: # transcribed from AUDIT_CODE_CATALOGUE.md:6-12 — authoritative
+  - One registry; append-only; every controlled action writes an audit entry.
+  - Every mutating route's `auditCode` must be registered before it can ship.
+  - Audit history is append-only and tamper-evident (chain anchors).
+  - Evidence is never overwritten or silently deleted.
+  - No security event disappears silently (SECURITY_AND_GRC.md).
+
+severity:
+  normal: Routine controlled action. Audited, not alerted.
+  critical: |
+    Security-sensitive. Audited + alerted; never suppressible. Per AUDIT_CODE_CATALOGUE.md:9-10 the
+    critical set covers: GO/NO-GO issuance, self-signoff blocks, production release, key compromise,
+    DLP blocks, and privileged access.
+critical_triggers: # transcribed — any code matching these MUST be severity: critical
+  - go_nogo_decision_issuance
+  - self_signoff_block
+  - production_release
+  - key_compromise
+  - dlp_block
+  - privileged_access
+
+reason_required:
+  description: When true, the actor must supply a free-text justification persisted with the audit entry.
+  default: false
+  mandatory_for: [critical] # derived from the deny-by-default posture (ADR-009); confirm at Stage 1.
+
+# Reserved code prefixes, one namespace per owning module. Prevents collision when 45 packages append
+# to a single registry. SEC_/GRC_/PRIV_/CERT_ are documented at AUDIT_CODE_CATALOGUE.md:16-17; the rest
+# are derived from the domain-coverage line (:15-17) and aligned to naming-map.yaml.
+prefixes:
+  # --- Stage 1 — SaaS foundation ---
+  - { prefix: TENANT_, module: m01-tenant, mvp: true, prefix_provenance: derived }
+  - { prefix: IDENTITY_, module: m02-identity, mvp: true, prefix_provenance: derived }
+  - { prefix: RBAC_, module: m02-identity, mvp: true, prefix_provenance: derived }
+  - { prefix: AUDIT_, module: m03-audit, mvp: true, prefix_provenance: derived }
+  - { prefix: ADMIN_, module: m04-admin, mvp: true, prefix_provenance: derived }
+  - { prefix: WORKFLOW_, module: m06-workflow, mvp: true, prefix_provenance: derived }
+  - { prefix: RULES_, module: m07-rules, mvp: true, prefix_provenance: derived }
+  - { prefix: NOTIFY_, module: m08-notify, mvp: true, prefix_provenance: derived }
+  - { prefix: DOC_, module: m09-docs, mvp: true, prefix_provenance: derived }
+  - {
+      prefix: REPORT_,
+      module: m10-report,
+      mvp: true,
+      prefix_provenance: derived,
+      note: m10 absent from implementation-manifest — see OPEN ISSUE 3,
+    }
+  # --- Stage 2 — Operational ---
+  - { prefix: FEEDBACK_, module: m12-feedback, mvp: true, prefix_provenance: derived }
+  - { prefix: CASE_, module: m13-case, mvp: true, prefix_provenance: derived }
+  # --- Stage 3 — Finance ---
+  - { prefix: FIN_, module: m19-finance, mvp: true, prefix_provenance: derived }
+  - { prefix: RECON_, module: m15-recon, mvp: true, prefix_provenance: derived }
+  - { prefix: GLRECON_, module: m20-glrecon, mvp: true, prefix_provenance: derived }
+  - { prefix: JOURNAL_, module: m21-journal, mvp: true, prefix_provenance: derived }
+  - { prefix: APPROVAL_, module: m22-approval, mvp: true, prefix_provenance: derived }
+  # --- Stage 4 — Legal ---
+  - { prefix: LEGAL_, module: m14-legal, mvp: partial, prefix_provenance: derived }
+  - { prefix: LITIGATION_, module: m16-litigation, mvp: false, prefix_provenance: derived }
+  - { prefix: RECOVERY_, module: m17-recovery, mvp: false, prefix_provenance: derived }
+  - { prefix: LEGALDOC_, module: m18-legaldocs, mvp: false, prefix_provenance: derived }
+  # --- Stage 5 — AI ---
+  - { prefix: AI_, module: m24-ai-foundation, mvp: partial, prefix_provenance: derived }
+  # --- Stage 6 — Enterprise platform ---
+  - { prefix: PLATFORM_, module: m30-platform, mvp: false, prefix_provenance: derived }
+  - { prefix: STUDIO_, module: m31-studio, mvp: false, prefix_provenance: derived }
+  - { prefix: ANALYTICS_, module: m32-analytics, mvp: false, prefix_provenance: derived }
+  - { prefix: INTEGRATION_, module: m33-integration, mvp: false, prefix_provenance: derived }
+  - { prefix: MARKETPLACE_, module: m34-marketplace, mvp: false, prefix_provenance: derived }
+  - { prefix: DEVPORTAL_, module: m35-devportal, mvp: false, prefix_provenance: derived }
+  - { prefix: WEBHOOK_, module: m36-events, mvp: false, prefix_provenance: derived }
+  - { prefix: EVENTSTREAM_, module: m36-events, mvp: false, prefix_provenance: derived }
+  - { prefix: AUTOMATION_, module: m38-automation, mvp: false, prefix_provenance: derived }
+  - { prefix: EXTENSION_, module: m38-automation, mvp: false, prefix_provenance: derived }
+  - { prefix: SAAS_, module: m39-saas, mvp: false, prefix_provenance: derived }
+  - { prefix: RESILIENCE_, module: m40-resilience, mvp: false, prefix_provenance: derived }
+  - { prefix: SEC_, module: m41-security, mvp: false, prefix_provenance: documented } # :16-17
+  - { prefix: GRC_, module: m41-security, mvp: false, prefix_provenance: documented } # :16-17
+  - { prefix: PRIV_, module: m41-security, mvp: false, prefix_provenance: documented } # :16-17
+  - { prefix: CERT_, module: m42-certification, mvp: false, prefix_provenance: documented } # :16-17
+
+# Append-only. Each entry:
+#   {code, module, severity, reason_required, description, stage_added}
+# A code may only be added in the same change as the route that emits it (CLAUDE.md).
+codes: []
+
+# Enforced by tools/conformance in the CI smoke lane:
+conformance_checks:
+  - registered_code_count equals len(codes)
+  - every code matches ^[A-Z][A-Z0-9_]*$ and starts with a registered prefix
+  - every code's `module` matches the module owning its prefix
+  - every code matching a critical_trigger has severity: critical
+  - every critical code has reason_required: true
+  - no duplicate codes; no code removed or renamed across commits (append-only)
+  - every `@Endpoint({auditCode})` in source resolves to a registered code # the "unregistered codes fail CI" gate
+  - every registered code is referenced by at least one route (no orphans) # warn-only until Stage 1 completes
+
+open_issues:
+  - id: 1
+    issue: The ~916 reference codes are not enumerated in any handover document; only format and coverage are specified.
+    impact: Stage 1+ must author codes module-by-module rather than import them. Reaching the 916 baseline cannot be verified against a list.
+    resolution_needed_by: Stage 1 (m01 seeds the first codes)
+  - id: 2
+    issue: Prefix taxonomy is derived, not documented (except SEC_/GRC_/PRIV_/CERT_).
+    impact: Codes seeded under an unratified prefix would need renaming — but codes are immutable once registered.
+    resolution_needed_by: Stage 1 (before the first code is seeded)
+  - id: 3
+    issue: m10-report is mvp:true and holds a REPORT_ prefix here, but appears in no stage of implementation-manifest.yaml.
+    impact: MVP reporting has no build home; its audit codes have no owning stage.
+    resolution_needed_by: Stage 1 approval

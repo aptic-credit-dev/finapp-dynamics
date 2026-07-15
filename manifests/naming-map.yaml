@@ -1,0 +1,519 @@
+# schema: finapp-dynamics/naming-map/v1
+# Explicit module -> (api prefix, permission namespace, event family, audit prefix) mapping.
+#
+# WHY THIS FILE EXISTS
+#   The three existing registries name the same domain three different ways, and NO mechanical rule
+#   converts between them:
+#       m20-glrecon  ->  /api/v1/gl-reconciliation  |  gl_reconciliation.*  |  glrecon.lifecycle
+#       m13-case     ->  /api/v1/cases              |  cases.*              |  case.lifecycle
+#       m21-journal  ->  /api/v1/journals           |  journals.*           |  journal.lifecycle
+#   API paths are kebab-case + plural; permission namespaces are snake_case + plural; event families are
+#   singular. A derivation function is impossible; the kernel needs this lookup table instead.
+#
+# AUTHORITY
+#   This file is DERIVED and must not drift. api-registry.yaml, permission-registry.yaml and
+#   event-registry.yaml remain authoritative for their own axis; implementation-manifest.yaml is
+#   authoritative for event_ownership. `tools/conformance` re-derives this map from those four files and
+#   fails CI on any disagreement. Fix the source registry, never this file alone.
+#
+# KERNEL CONTRACT
+#   @Endpoint({ permission, auditCode }) is validated at boot against the owning module's row:
+#     - the route's prefix must belong to the declaring module
+#     - `permission` must fall under one of that module's permission_namespaces
+#     - `auditCode` must start with one of that module's audit_prefixes AND be registered in
+#       audit-code-registry.yaml
+#     - events published via OUTBOX must belong to that module's event_families
+#   A mismatch is a boot-time failure, not a warning (fail-closed, ADR-009).
+registry_version: 1
+derived_from: [api-registry.yaml, permission-registry.yaml, event-registry.yaml, implementation-manifest.yaml]
+
+conventions:
+  api_prefix: kebab-case, plural, under /api/v1
+  permission_namespace: snake_case, plural, format <domain>.<entity>.<action>
+  event_family: dot-lowercase-snake, singular domain, <domain>.<aggregate>_lifecycle | <domain>.<event>
+  audit_prefix: SCREAMING_SNAKE with trailing underscore
+
+# gap: capability is required but the axis has no registered entry — MUST be resolved before that module ships.
+# n/a: module legitimately owns nothing on that axis (e.g. m04-admin owns no tables and emits no events).
+modules:
+  # ---------- Stage 0 — foundation packages (own nothing on any axis, by design) ----------
+  - module: kernel
+    stage: 0
+    mvp: true
+    api_prefixes: []
+    permission_namespaces: []
+    event_families: []
+    audit_prefixes: []
+    note: >
+      Owns the DI tokens (DB, AUDIT, AUTHZ, OUTBOX), RequestContext, ProblemError, @Endpoint and the
+      ambient-transaction Db. Enforces this map; never appears in it as a claimant.
+
+  - module: contracts
+    stage: 0
+    mvp: true
+    api_prefixes: []
+    permission_namespaces: []
+    event_families: []
+    audit_prefixes: []
+    note: Declares the typed event union. Empty at Stage 0; families append at the tail, never renumbered.
+
+  # ---------- Stage 1 — SaaS foundation (approved_for_build) ----------
+  - module: m01-tenant
+    stage: 1
+    mvp: true
+    api_prefixes: [/api/v1/tenants]
+    permission_namespaces: ['tenant.*']
+    event_families: [tenant.lifecycle]
+    event_family_registered: false # GAP-1: declared in manifest:48, absent from event-registry.yaml
+    audit_prefixes: [TENANT_]
+
+  - module: m02-identity
+    stage: 1
+    mvp: true
+    api_prefixes: [/api/v1/auth, /api/v1/users, /api/v1/roles]
+    permission_namespaces: ['identity.*', 'rbac.*']
+    event_families: [identity.lifecycle]
+    event_family_registered: false # GAP-1: manifest:58, absent from event-registry.yaml
+    audit_prefixes: [IDENTITY_, RBAC_]
+    note: /api/v1/auth is auth:mixed — pre-auth routes are the documented exception to tenant resolution.
+
+  - module: m03-audit
+    stage: 1
+    mvp: true
+    api_prefixes: [/api/v1/audit]
+    permission_namespaces: ['audit.*']
+    event_families: [] # n/a — manifest:68 declares event_ownership: []
+    audit_prefixes: [AUDIT_]
+
+  - module: m06-workflow
+    stage: 1
+    mvp: true
+    api_prefixes: [/api/v1/workflow]
+    permission_namespaces: ['workflow.*']
+    event_families: [workflow.lifecycle]
+    event_family_registered: false # GAP-1: manifest:77, absent from event-registry.yaml
+    audit_prefixes: [WORKFLOW_]
+    note: Owns OUTBOX — the only event-delivery path (ADR-004). All other modules publish through it.
+
+  - module: m07-rules
+    stage: 1
+    mvp: true
+    api_prefixes: [] # GAP-2: no prefix registered; rules are tenant-configurable via m04-admin
+    permission_namespaces: ['rules.*']
+    event_families: []
+    audit_prefixes: [RULES_]
+
+  - module: m08-notify
+    stage: 1
+    mvp: true
+    api_prefixes: [/api/v1/notifications]
+    permission_namespaces: ['notifications.*']
+    event_families: [notification.lifecycle]
+    event_family_registered: false # GAP-1: manifest:95, absent from event-registry.yaml
+    audit_prefixes: [NOTIFY_]
+
+  - module: m09-docs
+    stage: 1
+    mvp: true
+    api_prefixes: [/api/v1/documents]
+    permission_namespaces: ['documents.*']
+    event_families: [document.lifecycle]
+    event_family_registered: false # GAP-1: manifest:106, absent from event-registry.yaml
+    audit_prefixes: [DOC_]
+
+  - module: m04-admin
+    stage: 1
+    mvp: true
+    api_prefixes: [/api/v1/admin]
+    permission_namespaces: ['admin.*']
+    event_families: [] # n/a — console over m01/m02/m03/m06/m07/m08
+    audit_prefixes: [ADMIN_]
+
+  - module: m10-report
+    stage: null # GAP-3: mvp:true but in NO manifest stage
+    mvp: true
+    api_prefixes: [/api/v1/reports]
+    permission_namespaces: ['reports.*']
+    event_families: []
+    audit_prefixes: [REPORT_]
+
+  - module: m05-hub
+    stage: null # GAP-3: mvp:true, phase 1, in NO manifest stage
+    mvp: true
+    api_prefixes: []
+    permission_namespaces: []
+    event_families: []
+    audit_prefixes: []
+    note: >
+      Registry defines m05-hub as "Entity registry / adapter seam" with reference_tables:0, but
+      DATABASE_SCHEMA_CATALOGUE.md:17 attributes entity_type_registry to m06. Ownership unresolved.
+
+  # ---------- Stage 2 — Operational ----------
+  - module: m12-feedback
+    stage: 2
+    mvp: true
+    api_prefixes: [/api/v1/feedback]
+    permission_namespaces: ['feedback.*']
+    event_families: [feedback.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [FEEDBACK_]
+
+  - module: m13-case
+    stage: 2
+    mvp: true
+    api_prefixes: [/api/v1/cases]
+    permission_namespaces: ['cases.*']
+    event_families: [case.lifecycle, case.converted_to_matter]
+    event_family_registered: true
+    audit_prefixes: [CASE_]
+    note: Consumes feedback.escalated. Emits case.converted_to_matter for m14.
+
+  # ---------- Stage 3 — Finance ----------
+  - module: m19-finance
+    stage: 3
+    mvp: true
+    api_prefixes: [] # GAP-2: no prefix registered
+    permission_namespaces: ['finance.*']
+    permission_namespace_registered: false # GAP-4: manifest:160 requires finance.*, absent from permission-registry.yaml
+    event_families: []
+    audit_prefixes: [FIN_]
+    note: No module spec exists in docs/04-modules/ — first module of Stage 3 is unspecified.
+
+  - module: m15-recon
+    stage: 3
+    mvp: true
+    api_prefixes: [/api/v1/reconciliation]
+    permission_namespaces: ['reconciliation.*']
+    event_families: [reconciliation.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [RECON_]
+
+  - module: m15a-matching
+    stage: 3
+    mvp: true
+    api_prefixes: [] # n/a — engine behind m15-recon
+    permission_namespaces: []
+    event_families: []
+    audit_prefixes: [RECON_] # shares m15's prefix
+
+  - module: m20-glrecon
+    stage: 3
+    mvp: true
+    api_prefixes: [/api/v1/gl-reconciliation]
+    permission_namespaces: ['gl_reconciliation.*']
+    event_families: [glrecon.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [GLRECON_]
+    note: The canonical three-way divergence — gl-reconciliation / gl_reconciliation / glrecon.
+
+  - module: m21-journal
+    stage: 3
+    mvp: true
+    api_prefixes: [/api/v1/journals]
+    permission_namespaces: ['journals.*']
+    event_families: [journal.lifecycle, posting_request.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [JOURNAL_]
+    note: DRAFT-ONLY in MVP. posting_request.lifecycle is registered but posting is deferred.
+
+  - module: m22-approval
+    stage: 3
+    mvp: true
+    api_prefixes: [/api/v1/approvals]
+    permission_namespaces: ['approvals.*']
+    event_families: [approval.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [APPROVAL_]
+
+  - module: m23-finance-integration
+    stage: 3
+    mvp: false
+    api_prefixes: []
+    permission_namespaces: []
+    event_families: []
+    audit_prefixes: [FIN_]
+
+  # ---------- Stage 4 — Legal ----------
+  - module: m14-legal
+    stage: 4
+    mvp: partial
+    api_prefixes: [/api/v1/legal]
+    permission_namespaces: ['legal.*']
+    event_families: [legal.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [LEGAL_]
+    note: >
+      API_CATALOGUE.md:13 also documents /matters, which is absent from api-registry.yaml.
+      Read-only in MVP. Enforces privilege + ethical walls.
+
+  - module: m16-litigation
+    stage: 4
+    mvp: false
+    api_prefixes: [] # GAP-2
+    permission_namespaces: [] # GAP-2
+    event_families: [litigation.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [LITIGATION_]
+
+  - module: m17-recovery
+    stage: 4
+    mvp: false
+    api_prefixes: [/api/v1/recovery]
+    permission_namespaces: ['recovery.*']
+    event_families: [recovery.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [RECOVERY_]
+
+  - module: m18-legaldocs
+    stage: 4
+    mvp: false
+    api_prefixes: [] # GAP-2
+    permission_namespaces: [] # GAP-2
+    event_families: [legaldocs.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [LEGALDOC_]
+
+  # ---------- Stage 5 — AI ----------
+  - module: m24-ai-foundation
+    stage: 5
+    mvp: partial
+    api_prefixes: [/api/v1/ai]
+    permission_namespaces: ['ai.*']
+    event_families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle]
+    event_family_registered: true
+    audit_prefixes: [AI_]
+
+  - module: m25-operational-ai
+    stage: 5
+    mvp: partial
+    api_prefixes: []
+    permission_namespaces: ['ai.*'] # shares m24's namespace
+    event_families: []
+    audit_prefixes: [AI_]
+
+  - module: m26-legal-ai
+    stage: 5
+    mvp: false
+    api_prefixes: []
+    permission_namespaces: ['ai.*']
+    event_families: []
+    audit_prefixes: [AI_]
+
+  - module: m27-finance-ai
+    stage: 5
+    mvp: partial
+    api_prefixes: []
+    permission_namespaces: ['ai.*']
+    event_families: []
+    audit_prefixes: [AI_]
+    note: Recon suggestions only. NEVER auto-posts (ADR-006, ADR-007).
+
+  - module: m28-executive-ai
+    stage: 5
+    mvp: partial
+    api_prefixes: [/api/v1/copilot]
+    permission_namespaces: [] # GAP-4: /copilot has no permission namespace
+    event_families: []
+    audit_prefixes: [AI_]
+    note: Read-only, cited, RLS-masked.
+
+  - module: m29-ai-governance
+    stage: 5
+    mvp: false
+    api_prefixes: []
+    permission_namespaces: ['ai.*']
+    event_families: [ai.governance_lifecycle]
+    event_family_registered: true
+    audit_prefixes: [AI_]
+
+  # ---------- Stage 6 — Enterprise platform ----------
+  - module: m30-platform
+    stage: 6
+    mvp: false
+    api_prefixes: []
+    permission_namespaces: [] # GAP-2
+    event_families: [platform.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [PLATFORM_]
+    note: >
+      ENTERPRISE_PLATFORM_PHASE_6.md:7 assigns feature flags + secrets seam here, but STAGE_1_PROMPT.md:16
+      assigns feature flags to m04-admin (Stage 1). Unresolved — duplicate-service hazard. See GAP-5.
+
+  - module: m31-studio
+    stage: 6
+    mvp: false
+    api_prefixes: []
+    permission_namespaces: []
+    event_families: [studio.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [STUDIO_]
+
+  - module: m32-analytics
+    stage: 6
+    mvp: false
+    api_prefixes: [/api/v1/analytics]
+    permission_namespaces: ['analytics.*']
+    event_families: [analytics.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [ANALYTICS_]
+
+  - module: m33-integration
+    stage: 6
+    mvp: false
+    api_prefixes: [/api/v1/integration]
+    permission_namespaces: ['integration.*']
+    event_families: [connector.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [INTEGRATION_]
+
+  - module: m34-marketplace
+    stage: 6
+    mvp: false
+    api_prefixes: [/api/v1/connectors]
+    permission_namespaces: [] # GAP-4: /connectors has no permission namespace
+    event_families: [marketplace.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [MARKETPLACE_]
+
+  - module: m35-devportal
+    stage: 6
+    mvp: false
+    api_prefixes: []
+    permission_namespaces: []
+    event_families: [devportal.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [DEVPORTAL_]
+
+  - module: m36-events
+    stage: 6
+    mvp: false
+    api_prefixes: [/api/v1/webhooks, /api/v1/events]
+    permission_namespaces: [] # GAP-4: /webhooks + /events have no permission namespace
+    event_families: [webhook.lifecycle, eventstream.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [WEBHOOK_, EVENTSTREAM_]
+
+  - module: m37-govrelease
+    stage: 6
+    mvp: false
+    api_prefixes: []
+    permission_namespaces: []
+    event_families: [govrelease.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [INTEGRATION_]
+
+  - module: m38-automation
+    stage: 6
+    mvp: false
+    api_prefixes: [/api/v1/automation, /api/v1/extensions]
+    permission_namespaces: ['automation.*', 'extensions.*']
+    event_families: [automation.lifecycle, extension.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [AUTOMATION_, EXTENSION_]
+
+  - module: m39-saas
+    stage: 6
+    mvp: false
+    api_prefixes: [] # GAP-2
+    permission_namespaces: ['saas.*']
+    event_families: [subscription.lifecycle, usage.lifecycle, billing.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [SAAS_]
+    note: >
+      Owns entitlements/quotas + usage metering per SHARED_SERVICE_OWNERSHIP.md:22-23, but manifest:46
+      gives subscription_plans/tenant_subscriptions/usage_meters to m01-tenant in Stage 1. See GAP-6.
+
+  - module: m40-resilience
+    stage: 6
+    mvp: false
+    api_prefixes: []
+    permission_namespaces: []
+    event_families: [mobile.lifecycle, backup.lifecycle, dr.lifecycle]
+    event_family_registered: true
+    audit_prefixes: [RESILIENCE_]
+
+  - module: m41-security
+    stage: 6
+    mvp: false
+    api_prefixes: [/api/v1/security, /api/v1/grc, /api/v1/privacy]
+    permission_namespaces: ['security.*', 'grc.*', 'privacy.*']
+    event_families:
+      [
+        security.identity_lifecycle,
+        security.privileged_lifecycle,
+        security.dlp_lifecycle,
+        security.crypto_lifecycle,
+        security.grc_lifecycle,
+        security.privacy_lifecycle,
+        security.soc_lifecycle,
+      ]
+    event_family_registered: true
+    audit_prefixes: [SEC_, GRC_, PRIV_]
+    note: Posture over RBAC — never replaces the authoritative control (ADR-009).
+
+  - module: m42-certification
+    stage: 6
+    mvp: false
+    api_prefixes: [/api/v1/platform-certification]
+    permission_namespaces: ['platform_certification.*']
+    event_families:
+      [
+        certification.programme_lifecycle,
+        certification.migration_lifecycle,
+        certification.uat_lifecycle,
+        certification.pilot_lifecycle,
+        certification.release_lifecycle,
+      ]
+    event_family_registered: true
+    audit_prefixes: [CERT_]
+
+  - module: m11-ai
+    stage: null # GAP-3: in registry (phase 2), in NO manifest stage
+    mvp: false
+    api_prefixes: []
+    permission_namespaces: []
+    event_families: []
+    audit_prefixes: []
+    note: Early AI seam, 14 reference tables. Superseded by m24? Unresolved.
+
+conformance_checks:
+  - every api_prefix here exists in api-registry.yaml, and vice versa
+  - every permission_namespace here exists in permission-registry.yaml, and vice versa
+  - every event_family here appears in implementation-manifest.yaml event_ownership
+  - every audit_prefix here exists in audit-code-registry.yaml prefixes
+  - no api_prefix, permission_namespace or audit_prefix is claimed by two modules
+  - every module with api_prefixes has at least one permission_namespace # currently FAILS — see GAP-4
+
+# Gaps blocking a clean derivation. Each needs an owner decision; none blocks Stage 0 itself.
+gaps:
+  - id: GAP-1
+    severity: blocks_stage_1
+    issue: >
+      event-registry.yaml enumerates 44 of its declared 81 families and omits the ENTIRE foundation group.
+      tenant.lifecycle, identity.lifecycle, workflow.lifecycle, notification.lifecycle and
+      document.lifecycle are all declared in implementation-manifest.yaml event_ownership but appear in
+      no family_group. Every Stage 1 module that emits events emits an unregistered family.
+    affects: [m01-tenant, m02-identity, m06-workflow, m08-notify, m09-docs]
+  - id: GAP-2
+    severity: blocks_owning_stage
+    issue: Modules with no registered API prefix and/or no permission namespace.
+    affects: [m07-rules, m16-litigation, m18-legaldocs, m19-finance, m30-platform, m39-saas]
+  - id: GAP-3
+    severity: blocks_stage_1
+    issue: m05-hub and m10-report are mvp:true but appear in no manifest stage; m11-ai likewise absent.
+    affects: [m05-hub, m10-report, m11-ai]
+  - id: GAP-4
+    severity: blocks_owning_stage
+    issue: >
+      Route families with no permission namespace (/copilot, /connectors, /webhooks, /events) and a
+      required namespace with no registry entry (finance.*). Every controlled route needs a permission,
+      so these are un-shippable as specified.
+    affects: [m28-executive-ai, m34-marketplace, m36-events, m19-finance]
+  - id: GAP-5
+    severity: blocks_stage_1
+    issue: Feature-flag ownership claimed by both m04-admin (Stage 1) and m30-platform (Stage 6); absent from SHARED_SERVICE_OWNERSHIP.md.
+    affects: [m04-admin, m30-platform]
+  - id: GAP-6
+    severity: blocks_stage_1
+    issue: Subscription/entitlement tables owned by m01 (Stage 1) but the service is owned by m39-saas (Stage 6, deferred).
+    affects: [m01-tenant, m39-saas]

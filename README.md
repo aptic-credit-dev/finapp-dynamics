@@ -40,10 +40,38 @@ business modules, the AI layer, the enterprise platform (6A–6H), and the final
 
 ## What has not yet been built
 
-No GitHub repository, no CI/CD running against real infrastructure, no deployed environments, no live external
-integrations (connectors are framework + contract only), no executed data migration, no completed
-penetration/DR/load testing, and no Phase 7 vertical business solutions. These are the first real-world
-engineering activities, and several are explicit CONDITIONAL-GO conditions.
+**Stage 0 (repository & toolchain) is now implemented and tested** — see "Getting started" below. Everything
+beyond it is still design-only: no business module, table, route, permission, event, or audit code exists in this
+repository yet.
+
+Also outstanding: CI/CD running against real infrastructure, deployed environments, live external integrations
+(connectors are framework + contract only), executed data migration, completed penetration/DR/load testing, and
+Phase 7 vertical business solutions. These are the first real-world engineering activities, and several are
+explicit CONDITIONAL-GO conditions.
+
+## Getting started
+
+Requires **Node.js >= 22.6** (the test harness uses `--experimental-strip-types`). PostgreSQL 16 is optional for
+day-to-day work — the DB lane skips without it.
+
+```bash
+npm install
+npm run verify        # lint + build + PURE smoke suites. No database needed.
+
+# Individually:
+npm run build         # tsc project references
+npm run lint          # ESLint (type-aware)
+npm run test:smoke    # PURE suites — run straight off source, no build required
+npm run test:db       # DB integration specs; SKIPPED (green) unless DATABASE_URL is set
+npm run migrate -- --dry-run   # print the ordered migration plan
+npm run migrate       # apply migrations; refuses to run without DATABASE_URL
+
+npm run build && node apps/api/dist/src/main.js   # API on :3000, health at /api/v1/health
+```
+
+Before touching the database, read `docs/07-engineering/DATABASE_CONVENTIONS.md` — the tenant-isolation
+convention has two non-obvious traps (a pooled-connection GUC that reverts to `''`, and RLS not applying to
+superusers) that it explains and that `tools/migrate/test/rls-convention.db-spec.ts` proves.
 
 ## Recommended MVP
 
@@ -92,12 +120,16 @@ releasable. One branch per stage/module (`feature/stage-1-saas-foundation`, `fea
 Conventional Commits. Tag release candidates (`v0.1.0-rc.1`) at each MVP release gate. CI must pass the full
 smoke lane on every PR and the DB-integration lane on merges to `develop`.
 
-## The first development stage
+## Stages
 
-**Stage 0 — Repository & toolchain foundation.** Scaffold the monorepo (package manager, TypeScript project
-references, lint/format, the migration runner, the CI skeleton, and the test harness) with **no business logic**.
-This establishes the conventions every later module depends on. See `docs/08-prompts/STAGE_0_PROMPT.md`.
+- **Stage 0 — Repository & toolchain foundation. Implemented.** The monorepo, TypeScript project references,
+  lint/format, the kernel, the contracts event union (empty by design), the migration runner, the CI skeleton,
+  and the test harness — with no business logic. See `docs/08-prompts/STAGE_0_PROMPT.md` and the `delivered` /
+  `verification` blocks under stage 0 in `manifests/implementation-manifest.yaml`.
+- **Stage 1 — SaaS foundation. Approved, not started.** m01 → m02 → m03 → m06 → m07 → m08 → m09 → m04. Proves
+  tenant isolation + audit against real tables. See `docs/08-prompts/STAGE_1_PROMPT.md`.
 
-> **Status statement:** Finapp Dynamics is currently a design-and-architecture package plus an in-session
-> reference implementation. It is **not** a completed, deployed software system. Repository initialization and
-> staged, validated re-build/hardening in Claude Code is the recommended next step.
+> **Status statement:** Finapp Dynamics is a design-and-architecture package plus an in-session reference
+> implementation, on top of an implemented Stage 0 toolchain. It is **not** a completed, deployed software
+> system. Staged, validated re-build/hardening in Claude Code — one approved stage at a time — is the way
+> forward.
