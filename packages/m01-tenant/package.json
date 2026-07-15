@@ -1,8 +1,8 @@
 {
-  "name": "@finapp/kernel",
+  "name": "@finapp/m01-tenant",
   "version": "0.0.0",
   "private": true,
-  "description": "Shared kernel — DI tokens, RequestContext, ProblemError, @Endpoint, ambient-transaction Db.",
+  "description": "M01 — tenancy control plane, tenant lifecycle, environments and organisational scope.",
   "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/src/index.js",
@@ -12,23 +12,21 @@
       "source": "./src/index.ts",
       "types": "./dist/src/index.d.ts",
       "default": "./dist/src/index.js"
-    },
-    "./pg": {
-      "source": "./src/pg-db.ts",
-      "types": "./dist/src/pg-db.d.ts",
-      "default": "./dist/src/pg-db.js"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "migrations"
   ],
   "scripts": {
     "build": "tsc --build"
   },
   "dependencies": {
-    "pg": "^8.13.1"
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*"
   },
   "devDependencies": {
-    "@finapp/test-runner": "*"
+    "@finapp/test-runner": "*",
+    "yaml": "^2.6.1"
   }
 }

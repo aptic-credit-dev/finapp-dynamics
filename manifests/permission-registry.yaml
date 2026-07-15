@@ -10,7 +10,19 @@ grant_rules:
   auditor: read (*.view) grants
   hard_rules_never_overridden: [no_self_approval, no_self_signoff_of_own_assessed_domain, immutable_decisions, no_ai_executed_controlled_actions, maker_not_checker]
 namespaces:
-  - {namespace: "tenant.*", module: m01-tenant, mvp: true, status: documented}
+  # Stage 1A registered the concrete codes under this namespace. NOTE the entity segment: the kernel's
+  # @Endpoint validator requires <domain>.<entity>.<action>, so the tenant record's own permissions are
+  # `tenant.registry.*` — `tenant.view` has two segments and is rejected at class-definition time.
+  # Declared, not granted: no role holds these until m02-identity ships the RBAC model.
+  - {namespace: "tenant.*", module: m01-tenant, mvp: true, status: implemented,
+     codes: ["tenant.registry.view", "tenant.registry.create", "tenant.registry.edit",
+             "tenant.registry.review", "tenant.registry.approve", "tenant.registry.provision",
+             "tenant.registry.activate", "tenant.registry.restrict", "tenant.registry.suspend",
+             "tenant.registry.reactivate", "tenant.registry.close",
+             "tenant.environment.view", "tenant.environment.manage",
+             "tenant.entity.view", "tenant.entity.manage",
+             "tenant.department.view", "tenant.department.manage",
+             "tenant.branch.view", "tenant.branch.manage"]}
   - {namespace: "identity.*", module: m02-identity, mvp: true, status: documented}
   - {namespace: "rbac.*", module: m02-identity, mvp: true, status: documented}
   - {namespace: "audit.*", module: m03-audit, mvp: true, status: documented}

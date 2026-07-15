@@ -67,3 +67,34 @@ of one's own assessed domain; issued decisions are immutable. **Rationale:** Con
 ## ADR-013 — Reconciliation colour law
 **Decision:** The five-colour reconciliation status law is extended with exactly three reserved tones (dark-green
 exact, orange exception, purple escalated), mapped once. **Rationale:** Consistent, unambiguous recon status.
+
+## ADR-014 — The tenant registry and org scope are RLS-protected (Stage 1A)
+**Status:** Approved by the product owner during Stage 1A. Diverges from ADR-001, `SAAS_FOUNDATION.md` and
+`STAGE_1_PROMPT.md`, which permit these tables to be global and non-FORCE.
+
+**Decision — two parts:**
+
+1. **`tenants` is RLS ENABLED + FORCED**, with a `tenant_isolation` policy admitting either the caller's own
+   tenant row **or** an explicit system context:
+   ```sql
+   USING (    id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+           OR COALESCE(NULLIF(current_setting('app.system_context', true), ''), 'off') = 'on')
+   ```
+   `app.system_context` is set **only** by `Db.withSystem`, which requires a stated reason.
+2. **`tenant_entities` (subsidiaries), `tenant_departments`, `tenant_branches`, `tenant_environments` and
+   `tenant_status_history` are ordinary tenant-scoped tables** — RLS FORCE, `tenant_isolation` with **no**
+   escape, composite `(tenant_id, id)` keys and composite FKs.
+
+**Rationale:** "Global and unprotected" means any query made in tenant context can read, count and enumerate
+every other tenant. The tenant list *is* the customer list, and a tenant's corporate structure is its own — so
+leaving either readable across tenants is a commercial disclosure, not just an isolation gap. The prior model
+left that to application-layer filtering, which is the class of mistake ADR-001 exists to make impossible.
+`tenants` genuinely needs cross-tenant reads (a platform administrator must list and create), so it gets an
+explicit, reason-bearing escape rather than no policy at all.
+
+**Consequence:** The escape is asymmetric and deliberately so — `withSystem` sees the control plane but sees
+**nothing** in tenant-scoped tables, so it cannot quietly become a way to read another tenant's business data.
+Lifecycle writes therefore bind the *target* tenant's context even for platform administrators, because
+`tenant_status_history` has no escape. `tenant_type_catalogue` remains a global reference registry with no RLS
+(ADR-001, unchanged). Proven by `packages/m01-tenant/test/m01-tenant.db-spec.ts` through the non-owner
+application role — the only role a leak could happen through.

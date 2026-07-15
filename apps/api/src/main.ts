@@ -15,7 +15,7 @@ async function bootstrap(): Promise<void> {
 
   const port: number = Number.parseInt(process.env['API_PORT'] ?? '3000', 10);
   await app.listen(port);
-  console.log(`api: listening on http://localhost:${port}/api/v1 (stage 0 — health only)`);
+  console.log(`api: listening on http://localhost:${port}/api/v1 (stage 1A — health + tenants)`);
 }
 
 await bootstrap();

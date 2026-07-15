@@ -7,6 +7,7 @@
     { "path": "./tools/migrate" },
     { "path": "./packages/kernel" },
     { "path": "./packages/contracts" },
+    { "path": "./packages/m01-tenant" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

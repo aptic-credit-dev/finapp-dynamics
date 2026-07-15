@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 0 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 18 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -109,7 +109,34 @@ prefixes:
 # Append-only. Each entry:
 #   {code, module, severity, reason_required, description, stage_added}
 # A code may only be added in the same change as the route that emits it (CLAUDE.md).
-codes: []
+# Codes are appended per-module, alongside the code that emits them. Immutable once registered: never
+# renamed, renumbered or reused — supersede, never edit (ADR-005).
+#
+# FORMAT NOTE for readers expecting `TENANT_CREATED`: the registry format is <PREFIX>_<ENTITY>_<ACTION>
+# and m01's registered prefix is `TENANT_`, so the tenant record's own entity segment is `REGISTRY`.
+# `TENANT_CREATED` has only two segments and does not satisfy the format. These pair one-to-one with the
+# m01 permissions (`tenant.registry.create` -> `TENANT_REGISTRY_CREATED`).
+codes:
+  # --- m01-tenant — Stage 1A ---
+  - { code: TENANT_REGISTRY_CREATED, module: m01-tenant, severity: normal, reason_required: false }
+  - { code: TENANT_REGISTRY_UPDATED, module: m01-tenant, severity: normal, reason_required: false }
+  - { code: TENANT_REGISTRY_SUBMITTED_FOR_REVIEW, module: m01-tenant, severity: normal, reason_required: false }
+  - { code: TENANT_REGISTRY_APPROVED, module: m01-tenant, severity: normal, reason_required: false }
+  # Adverse or terminal outcomes carry the justification into the permanent record.
+  - { code: TENANT_REGISTRY_REJECTED, module: m01-tenant, severity: normal, reason_required: true }
+  - { code: TENANT_REGISTRY_PROVISIONING_STARTED, module: m01-tenant, severity: normal, reason_required: false }
+  - { code: TENANT_REGISTRY_PROVISIONED, module: m01-tenant, severity: normal, reason_required: false }
+  - { code: TENANT_REGISTRY_PROVISIONING_FAILED, module: m01-tenant, severity: normal, reason_required: true }
+  - { code: TENANT_REGISTRY_ACTIVATED, module: m01-tenant, severity: normal, reason_required: false }
+  - { code: TENANT_REGISTRY_RESTRICTED, module: m01-tenant, severity: normal, reason_required: true }
+  - { code: TENANT_REGISTRY_SUSPENDED, module: m01-tenant, severity: normal, reason_required: true }
+  - { code: TENANT_REGISTRY_REACTIVATED, module: m01-tenant, severity: normal, reason_required: false }
+  - { code: TENANT_REGISTRY_CLOSED, module: m01-tenant, severity: normal, reason_required: true }
+  - { code: TENANT_ENVIRONMENT_CREATED, module: m01-tenant, severity: normal, reason_required: false }
+  - { code: TENANT_ENTITY_CREATED, module: m01-tenant, severity: normal, reason_required: false }
+  - { code: TENANT_DEPARTMENT_CREATED, module: m01-tenant, severity: normal, reason_required: false }
+  - { code: TENANT_BRANCH_CREATED, module: m01-tenant, severity: normal, reason_required: false }
+  - { code: TENANT_ORG_STATUS_CHANGED, module: m01-tenant, severity: normal, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
