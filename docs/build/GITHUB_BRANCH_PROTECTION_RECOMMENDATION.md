@@ -39,24 +39,30 @@ open the Stage 0 pull request first, then add these.
 
 | Check | Job | When it runs | Required? |
 |---|---|---|---|
-| **Smoke lane** | `smoke` | Every pull request | **Yes — required.** Runs format check, lint, build, and the PURE smoke suites. No database needed. |
-| **DB lane** | `db` | `push` to `main`/`develop` only | **See the caveat below.** Runs migrations and the DB integration specs against `postgres:16`. |
+| **Smoke lane** | `smoke` | Pull requests + pushes to `main`/`develop` | **Yes — required.** Runs format check, lint, build, and the PURE smoke suites. No database needed. |
+| **DB lane** | `db` | Pull requests + pushes to `main`/`develop` | **Yes — required.** Runs migrations and the DB integration specs against `postgres:16`, including the RLS convention proof. |
 
-### The DB lane caveat — read before requiring it
+Add **both** as required status checks.
 
-As currently written, the DB lane is gated on `if: github.event_name == 'push'`, so **it does not run on
-pull requests**. If you mark it required while it never runs on a PR, every PR will block forever waiting
-for a check that cannot report.
+### The DB lane caveat — RESOLVED
 
-Pick one before requiring it:
+Previously the DB lane was gated on `if: github.event_name == 'push'`, so it never ran on pull requests.
+Marking it required in that state would have blocked every PR forever on a check that could not report.
 
-- **Option A (recommended).** Change the DB lane's condition so it also runs on pull requests, then mark
-  it required. This is the honest reading of "tenant isolation is proven, not assumed" — the DB lane is
-  the only thing that proves RLS, and a PR that breaks isolation should not be mergeable.
-- **Option B.** Leave it push-only and do **not** mark it required. `main` is then protected only by the
-  smoke lane, and an RLS regression is caught after merge rather than before.
+**Option A has been applied** (commit `fix(ci): run the PostgreSQL 16 database lane on pull requests
+too`). The gate is removed, so the lane now runs on pull requests as well as pushes, and it is safe —
+and correct — to require it. This is the honest reading of "tenant isolation is proven, not assumed":
+the DB lane is the only thing that proves RLS, so a PR that breaks isolation must not be mergeable.
 
-Either way, the **first successful `postgres:16` DB-lane run is a hard precondition for merging Stage 1**
+The same commit added two fail-closed guards to that lane, because `npm run test:db` deliberately
+*skips and reports green* when `DATABASE_URL` is absent (so contributors need no database). In the DB
+lane that default would let a broken env or service container report a false green:
+
+- It fails if `DATABASE_URL` is empty, and waits for the service container to be ready.
+- It asserts `server_version_num` is 16.x rather than trusting the image tag, so the lane's log is real
+  evidence of what it ran against.
+
+The **first successful `postgres:16` DB-lane run remains a hard precondition for merging Stage 1**
 (see §6).
 
 ---
@@ -131,11 +137,13 @@ platform targets, and Stage 1 is the first stage that creates actual tenant tabl
    - Block force pushes
    - Block deletions
    - Do not allow bypassing the above settings
-5. Under **Status checks that are required**, search for and add **`Smoke lane`**.
-   *If it does not appear, the workflow has not run yet — open the Stage 0 pull request first, let CI
-   run, then return to this step.*
-6. Decide the DB lane per §2, then add **`DB lane`** if you chose Option A.
-7. Save.
+5. Under **Status checks that are required**, search for and add **both**:
+   - **`Smoke lane`**
+   - **`DB lane`**
+
+   *If they do not appear, the workflow has not run yet — open the Stage 0 pull request first, let CI
+   run, then return to this step. GitHub only offers checks it has actually seen.*
+6. Save.
 8. Verify: `https://github.com/aptic-credit-dev/finapp-dynamics/settings/branches` shows the rule as
    active, and a test push directly to `main` is rejected.
 
@@ -147,7 +155,7 @@ Requires `gh` installed and authenticated with admin rights on the repository:
 gh api -X PUT repos/aptic-credit-dev/finapp-dynamics/branches/main/protection \
   --input - <<'JSON'
 {
-  "required_status_checks": { "strict": true, "contexts": ["Smoke lane"] },
+  "required_status_checks": { "strict": true, "contexts": ["Smoke lane", "DB lane"] },
   "enforce_admins": true,
   "required_pull_request_reviews": {
     "dismiss_stale_reviews": true,
@@ -169,7 +177,9 @@ JSON
 - [ ] Rule exists on `main` and shows as **Active**.
 - [ ] A direct `git push origin main` is rejected.
 - [ ] A pull request cannot merge while **Smoke lane** is failing.
+- [ ] A pull request cannot merge while **DB lane** is failing.
+- [ ] Both `Smoke lane` and `DB lane` are listed as required status checks.
 - [ ] A pull request cannot merge without an approval.
 - [ ] A force push to `main` is rejected.
-- [ ] The DB lane decision (§2) is made and recorded.
+- [ ] Branch deletion of `main` is rejected.
 - [ ] The compromised PAT has been revoked (see the completion report).
