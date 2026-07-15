@@ -1,29 +1,23 @@
-import type { DomainEventEnvelope } from './envelope.ts';
+import type { TenantLifecycleEvent } from './tenant-events.ts';
+import { TENANT_LIFECYCLE_FAMILY } from './tenant-events.ts';
 
 /**
  * THE typed domain-event union.
  *
- * Stage 0 declares zero families: no business events exist yet, and inventing one here would be a
- * business decision the toolchain has no business making. The reference baseline has 81 families.
+ * Stage 0 declared this `never` — no business events existed. Stage 1A appends the first family,
+ * `tenant.lifecycle`, in the same change as the module that owns it (CLAUDE.md: events ship with their
+ * module). The reference baseline has 81 families.
  *
  * TO ADD A FAMILY (with the module that owns it — never ahead of it):
  *   1. Register it in manifests/event-registry.yaml under its owning module.
- *   2. Declare its payload and envelope alias below.
- *   3. Append the alias to `DomainEvent`. Append at the tail; never renumber or reorder — consumers
- *      and the outbox key off the family name.
- *
- *   export interface CaseOpenedPayload { readonly caseId: string; readonly openedBy: string }
- *   export type CaseLifecycleEvent = DomainEventEnvelope<'case.lifecycle', CaseOpenedPayload>;
- *   export type DomainEvent = CaseLifecycleEvent;
- *
- * `never` is the honest empty union: it makes `publish(event: DomainEvent)` uncallable until a real
- * family exists, so nothing can slip an untyped event through the outbox in the meantime.
+ *   2. Declare its payloads and envelope alias in its own `*-events.ts`.
+ *   3. Append the alias to `DomainEvent` and its family name to `DOMAIN_EVENT_FAMILIES`, at the TAIL.
+ *      Never renumber or reorder — consumers and the outbox key off the family name.
  */
-export type DomainEvent = never;
+export type DomainEvent = TenantLifecycleEvent;
 
-/** Every family name currently declared. Empty at Stage 0; the conformance suite cross-checks it. */
-export const DOMAIN_EVENT_FAMILIES: readonly string[] = [];
+/** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
+export const DOMAIN_EVENT_FAMILIES: readonly string[] = [TENANT_LIFECYCLE_FAMILY];
 
-/** Narrowing helper — `DomainEvent['family']` stays accurate as families are appended. */
-export type DomainEventFamily =
-  DomainEvent extends DomainEventEnvelope<infer TFamily, unknown> ? TFamily : never;
+/** Narrowing helper — stays accurate as families are appended. */
+export type DomainEventFamily = DomainEvent['family'];

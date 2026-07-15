@@ -12,6 +12,11 @@
       "source": "./src/index.ts",
       "types": "./dist/src/index.d.ts",
       "default": "./dist/src/index.js"
+    },
+    "./pg": {
+      "source": "./src/pg-db.ts",
+      "types": "./dist/src/pg-db.d.ts",
+      "default": "./dist/src/pg-db.js"
     }
   },
   "files": [
@@ -19,6 +24,9 @@
   ],
   "scripts": {
     "build": "tsc --build"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@finapp/test-runner": "*"
