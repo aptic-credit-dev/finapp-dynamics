@@ -46,6 +46,16 @@ export interface DbSpecContext {
 
   /** Runs `fn` in a transaction as the superuser, with no role change. Setup and bypass assertions only. */
   asSuperuser<T>(tenantId: string | null, fn: (tx: SpecTx) => Promise<T>): Promise<T>;
+
+  /**
+   * Runs `fn` as the non-superuser APPLICATION role with `app.system_context = 'on'` and no tenant bound
+   * — mirroring exactly what the kernel's `Db.withSystem` does.
+   *
+   * This is how a spec exercises the control-plane escape (ADR-014) through the same role production
+   * uses. It is deliberately NOT the superuser path: the escape must be proven to work because of the
+   * POLICY, not because the connection could see everything anyway.
+   */
+  asSystem<T>(fn: (tx: SpecTx) => Promise<T>): Promise<T>;
 }
 
 export interface DbSpec {
@@ -67,6 +77,7 @@ export function createSpecContext(pool: pg.Pool, ownerRole: string, appRole: str
     role: string | null,
     tenantId: string | null,
     fn: (tx: SpecTx) => Promise<T>,
+    systemContext = false,
   ): Promise<T> {
     const client = await pool.connect();
     try {
@@ -76,6 +87,7 @@ export function createSpecContext(pool: pg.Pool, ownerRole: string, appRole: str
       // `true` = local to this transaction.
       if (tenantId !== null)
         await client.query('SELECT set_config($1, $2, true)', ['app.tenant_id', tenantId]);
+      if (systemContext) await client.query('SELECT set_config($1, $2, true)', ['app.system_context', 'on']);
       const result = await fn(client);
       await client.query('COMMIT');
       return result;
@@ -94,5 +106,6 @@ export function createSpecContext(pool: pg.Pool, ownerRole: string, appRole: str
     asTenant: (tenantId, fn) => inTransaction(appRole, tenantId, fn),
     asOwner: (tenantId, fn) => inTransaction(ownerRole, tenantId, fn),
     asSuperuser: (tenantId, fn) => inTransaction(null, tenantId, fn),
+    asSystem: (fn) => inTransaction(appRole, null, fn, true),
   };
 }
