@@ -76,11 +76,21 @@ modules:
   - module: m02-identity
     stage: 1
     mvp: true
-    api_prefixes: [/api/v1/auth, /api/v1/users, /api/v1/roles]
+    api_prefixes: [/api/v1/identities, /api/v1/accounts, /api/v1/tenant-memberships, /api/v1/auth, /api/v1/users, /api/v1/roles]
     permission_namespaces: ['identity.*', 'rbac.*']
     event_families: [identity.lifecycle]
-    event_family_registered: false # GAP-1: manifest:58, absent from event-registry.yaml
+    event_family_registered: true # GAP-1 closed in Stage 1B: registered in event-registry.yaml
     audit_prefixes: [IDENTITY_, RBAC_]
+    # Stage 1B registered three NEW prefixes. The original set had only /api/v1/users for all of identity,
+    # and collapsing identities + accounts + memberships behind it would be exactly the "one generic user
+    # service" the architecture forbids — identity, account and membership are distinct resources with
+    # distinct lifecycles and permissions. /api/v1/users and /api/v1/roles remain reserved for 1C/1D.
+    permission_entities: [registry, account, membership] # rbac.* entities land in Stage 1D
+    audit_entities: [REGISTRY, ACCOUNT, MEMBERSHIP, SUBJECT]
+    substage_owners:
+      1B: [/api/v1/identities, /api/v1/accounts, /api/v1/tenant-memberships]
+      1C: [/api/v1/auth, /api/v1/users]
+      1D: [/api/v1/roles]
     note: /api/v1/auth is auth:mixed — pre-auth routes are the documented exception to tenant resolution.
 
   - module: m03-audit

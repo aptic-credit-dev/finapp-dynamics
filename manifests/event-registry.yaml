@@ -16,6 +16,15 @@ family_groups:
   - {group: tenancy, families: [tenant.lifecycle], mvp: true, status: implemented, owner: m01-tenant,
      note: "17 event types in one family; payload v1. Types discriminate within the family — a new
             lifecycle event is a new type, never a new family, so consumer subscriptions stay stable."}
+  # GAP-1 CLOSED for m02 (Stage 1B) — identity.lifecycle was declared in implementation-manifest but was
+  # absent here; naming-map flagged it as event_family_registered: false. Registered alongside the module
+  # that owns and emits it, per CLAUDE.md (events ship with their module).
+  - {group: identity, families: [identity.lifecycle], mvp: true, status: implemented, owner: m02-identity,
+     classification: confidential,
+     note: "18 event types in one family; payload v1. Payloads carry identifiers and transitions ONLY —
+            never email, phone or names: these events concern natural persons (Kenya DPA) and must not
+            reach an unapproved AI provider (ADR-006). Identity/account events are platform-scoped and
+            carry the all-zero PLATFORM_TENANT sentinel; membership events carry the real tenant."}
   - {group: operational, families: [feedback.lifecycle, case.lifecycle, case.converted_to_matter], mvp: true, status: documented}
   - {group: legal, families: [legal.lifecycle, litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}

@@ -11,6 +11,12 @@ rules:
 route_families:
   - {prefix: /api/v1/tenants, module: m01-tenant, mvp: true, auth: required, status: documented}
   - {prefix: /api/v1/admin, module: m04-admin, mvp: true, auth: required, status: documented}
+  # Stage 1B. Distinct prefixes because identity, account and membership are distinct resources — see
+  # naming-map.yaml m02-identity. auth: dev_adapter means the actor is resolved by the Stage 1B
+  # development adapter, which refuses to load outside NODE_ENV=development|test and is deleted in 1C.
+  - {prefix: /api/v1/identities, module: m02-identity, mvp: true, auth: dev_adapter, status: implemented}
+  - {prefix: /api/v1/accounts, module: m02-identity, mvp: true, auth: dev_adapter, status: implemented}
+  - {prefix: /api/v1/tenant-memberships, module: m02-identity, mvp: true, auth: dev_adapter, status: implemented}
   - {prefix: /api/v1/auth, module: m02-identity, mvp: true, auth: mixed, status: documented}
   - {prefix: /api/v1/users, module: m02-identity, mvp: true, auth: required, status: documented}
   - {prefix: /api/v1/roles, module: m02-identity, mvp: true, auth: required, status: documented}
