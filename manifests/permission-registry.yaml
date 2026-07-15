@@ -1,0 +1,40 @@
+# schema: finapp-dynamics/permission-registry/v1
+# Permission namespace registry. Format module.entity.action; seeded in the identity catalogue (m02); enforced
+# server-side. Reference baseline: ~1234 permissions. status is for the target repo. Grants: tenant_admin -> full
+# module grants (never business-approval overrides); auditor -> *.view. No permission overrides a hard rule.
+registry_version: 1
+reference_permission_count: 1234
+format: module.entity.action
+grant_rules:
+  tenant_admin: full module grants except business approvals
+  auditor: read (*.view) grants
+  hard_rules_never_overridden: [no_self_approval, no_self_signoff_of_own_assessed_domain, immutable_decisions, no_ai_executed_controlled_actions, maker_not_checker]
+namespaces:
+  - {namespace: "tenant.*", module: m01-tenant, mvp: true, status: documented}
+  - {namespace: "identity.*", module: m02-identity, mvp: true, status: documented}
+  - {namespace: "rbac.*", module: m02-identity, mvp: true, status: documented}
+  - {namespace: "audit.*", module: m03-audit, mvp: true, status: documented}
+  - {namespace: "workflow.*", module: m06-workflow, mvp: true, status: documented}
+  - {namespace: "rules.*", module: m07-rules, mvp: true, status: documented}
+  - {namespace: "notifications.*", module: m08-notify, mvp: true, status: documented}
+  - {namespace: "documents.*", module: m09-docs, mvp: true, status: documented}
+  - {namespace: "admin.*", module: m04-admin, mvp: true, status: documented}
+  - {namespace: "feedback.*", module: m12-feedback, mvp: true, status: documented}
+  - {namespace: "cases.*", module: m13-case, mvp: true, status: documented}
+  - {namespace: "legal.*", module: m14-legal, mvp: partial, status: documented}
+  - {namespace: "recovery.*", module: m17-recovery, mvp: false, status: deferred}
+  - {namespace: "reconciliation.*", module: m15-recon, mvp: true, status: documented}
+  - {namespace: "gl_reconciliation.*", module: m20-glrecon, mvp: true, status: documented}
+  - {namespace: "journals.*", module: m21-journal, mvp: true, status: documented}
+  - {namespace: "approvals.*", module: m22-approval, mvp: true, status: documented}
+  - {namespace: "ai.*", module: m24-ai-foundation, mvp: partial, status: documented}
+  - {namespace: "reports.*", module: m10-report, mvp: true, status: documented}
+  - {namespace: "analytics.*", module: m32-analytics, mvp: false, status: documented}
+  - {namespace: "integration.*", module: m33-integration, mvp: false, status: documented}
+  - {namespace: "automation.*", module: m38-automation, mvp: false, status: documented}
+  - {namespace: "extensions.*", module: m38-automation, mvp: false, status: documented}
+  - {namespace: "saas.*", module: m39-saas, mvp: false, status: deferred}
+  - {namespace: "security.*", module: m41-security, mvp: false, status: documented}
+  - {namespace: "grc.*", module: m41-security, mvp: false, status: documented}
+  - {namespace: "privacy.*", module: m41-security, mvp: false, status: documented}
+  - {namespace: "platform_certification.*", module: m42-certification, mvp: false, status: documented}

@@ -1,0 +1,58 @@
+# schema: finapp-dynamics/module-registry/v1
+# Module registry for Finapp Dynamics. reference_tables = table count in the in-session reference implementation
+# (the baseline a rebuilt module should reach). status is for the TARGET repo (no code exists there yet).
+registry_version: 1
+modules:
+  - {code: kernel, name: Shared kernel, phase: 1, reference_tables: 0, mvp: true, status: documented}
+  - {code: contracts, name: Event/DTO contracts, phase: 1, reference_tables: 0, mvp: true, status: documented}
+  - {code: m01-tenant, name: Tenancy control plane, phase: 1, reference_tables: 10, mvp: true, status: documented}
+  - {code: m02-identity, name: Auth + RBAC, phase: 1, reference_tables: 8, mvp: true, status: documented}
+  - {code: m03-audit, name: Audit spine, phase: 1, reference_tables: 7, mvp: true, status: documented}
+  - {code: m04-admin, name: Admin console, phase: 1, reference_tables: 0, mvp: true, status: documented}
+  - {code: m05-hub, name: Entity registry / adapter seam, phase: 1, reference_tables: 0, mvp: true, status: documented}
+  - {code: m06-workflow, name: Status/workflow/SLA/timeline/outbox, phase: 2, reference_tables: 18, mvp: true, status: documented}
+  - {code: m07-rules, name: Rules engine, phase: 2, reference_tables: 0, mvp: true, status: documented}
+  - {code: m08-notify, name: Notifications + escalation, phase: 2, reference_tables: 8, mvp: true, status: documented}
+  - {code: m09-docs, name: Document service, phase: 2, reference_tables: 7, mvp: true, status: documented}
+  - {code: m10-report, name: Reporting, phase: 2, reference_tables: 0, mvp: true, status: documented}
+  - {code: m11-ai, name: AI seam (early), phase: 2, reference_tables: 14, mvp: false, status: documented}
+  - {code: m12-feedback, name: Feedback Management, phase: 2, reference_tables: 17, mvp: true, status: documented}
+  - {code: m13-case, name: Case Management, phase: 2, reference_tables: 18, mvp: true, status: documented}
+  - {code: m14-legal, name: Legal Matter Management, phase: 4, reference_tables: 23, mvp: partial, status: documented}
+  - {code: m15-recon, name: Bank Reconciliation, phase: 3, reference_tables: 18, mvp: true, status: documented}
+  - {code: m15a-matching, name: Matching engine, phase: 3, reference_tables: 0, mvp: true, status: documented}
+  - {code: m16-litigation, name: Litigation & Court, phase: 4, reference_tables: 31, mvp: false, status: documented}
+  - {code: m17-recovery, name: Recovery & Enforcement, phase: 4, reference_tables: 38, mvp: false, status: deferred}
+  - {code: m18-legaldocs, name: Legal Documents & Knowledge, phase: 4, reference_tables: 49, mvp: false, status: documented}
+  - {code: m19-finance, name: Finance Operations, phase: 3, reference_tables: 18, mvp: true, status: documented}
+  - {code: m20-glrecon, name: GL Reconciliation, phase: 3, reference_tables: 24, mvp: true, status: documented}
+  - {code: m21-journal, name: Journal Engine (draft-only MVP), phase: 3, reference_tables: 18, mvp: true, status: documented}
+  - {code: m22-approval, name: Finance Approval Workflow, phase: 3, reference_tables: 24, mvp: true, status: documented}
+  - {code: m23-finance-integration, name: Finance integration/QA/release, phase: 3, reference_tables: 3, mvp: false, status: documented}
+  - {code: m24-ai-foundation, name: Enterprise AI Foundation, phase: 5, reference_tables: 21, mvp: partial, status: documented}
+  - {code: m25-operational-ai, name: Operational AI, phase: 5, reference_tables: 9, mvp: partial, status: documented}
+  - {code: m26-legal-ai, name: Legal AI, phase: 5, reference_tables: 11, mvp: false, status: documented}
+  - {code: m27-finance-ai, name: Finance AI, phase: 5, reference_tables: 12, mvp: partial, status: documented}
+  - {code: m28-executive-ai, name: Executive Copilot, phase: 5, reference_tables: 7, mvp: partial, status: documented}
+  - {code: m29-ai-governance, name: AI governance & release, phase: 5, reference_tables: 7, mvp: false, status: documented}
+  - {code: m30-platform, name: Enterprise Platform Foundation (6A), phase: 6, reference_tables: 26, mvp: false, status: documented}
+  - {code: m31-studio, name: Workflow/BPM/Forms/Rules Studio (6B), phase: 6, reference_tables: 25, mvp: false, status: documented}
+  - {code: m32-analytics, name: Reporting & Analytics Builder (6C), phase: 6, reference_tables: 42, mvp: false, status: documented}
+  - {code: m33-integration, name: Integration Foundation (6D-1), phase: 6, reference_tables: 38, mvp: false, status: documented}
+  - {code: m34-marketplace, name: Connector Marketplace (6D-2), phase: 6, reference_tables: 25, mvp: false, status: documented}
+  - {code: m35-devportal, name: Public APIs & Developer Portal (6D-3), phase: 6, reference_tables: 18, mvp: false, status: documented}
+  - {code: m36-events, name: Webhooks & Event Streaming (6D-4), phase: 6, reference_tables: 34, mvp: false, status: documented}
+  - {code: m37-govrelease, name: Integration Governance/QA/Release (6D-5), phase: 6, reference_tables: 12, mvp: false, status: documented}
+  - {code: m38-automation, name: Scheduler/Automation/Extensions (6E), phase: 6, reference_tables: 44, mvp: false, status: documented}
+  - {code: m39-saas, name: Commercial SaaS (6F), phase: 6, reference_tables: 72, mvp: false, status: deferred}
+  - {code: m40-resilience, name: Mobile/Offline/Observability/Backup/BC (6G), phase: 6, reference_tables: 20, mvp: false, status: documented}
+  - {code: m41-security, name: Security/Privacy/Compliance/GRC (6H), phase: 6, reference_tables: 79, mvp: false, status: documented}
+  - {code: m42-certification, name: Integration/Certification/Release (6I), phase: 6, reference_tables: 43, mvp: false, status: documented}
+totals:
+  packages: 45
+  reference_tables: 898
+  reference_tables_force_rls: 886
+  reference_event_families: 81
+  reference_audit_codes: 916
+  reference_permissions: 1234
+  reference_test_suites: 37

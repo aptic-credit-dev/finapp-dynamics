@@ -1,0 +1,42 @@
+# schema: finapp-dynamics/api-registry/v1
+# API route-family registry. All routes under /api/v1/*; every mutating route is an audited endpoint carrying a
+# permission + a registered audit code. The full generated OpenAPI catalogue is produced from route metadata
+# during Stage 0/1. status is for the target repo.
+registry_version: 1
+base_path: /api/v1
+rules:
+  - Every mutating route: permission + registered audit code + tenant resolution + input/output validation.
+  - Idempotency on high-risk actions (posting, payments, migrations, event ingestion).
+  - Security tests: BOLA, BFLA, mass-assignment, injection, excessive-exposure, rate-limit bypass, tenant leakage, replay, SSRF, auth bypass.
+route_families:
+  - {prefix: /api/v1/tenants, module: m01-tenant, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/admin, module: m04-admin, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/auth, module: m02-identity, mvp: true, auth: mixed, status: documented}
+  - {prefix: /api/v1/users, module: m02-identity, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/roles, module: m02-identity, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/audit, module: m03-audit, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/workflow, module: m06-workflow, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/notifications, module: m08-notify, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/documents, module: m09-docs, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/feedback, module: m12-feedback, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/cases, module: m13-case, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/legal, module: m14-legal, mvp: partial, auth: required, status: documented}
+  - {prefix: /api/v1/recovery, module: m17-recovery, mvp: false, auth: required, status: deferred}
+  - {prefix: /api/v1/reconciliation, module: m15-recon, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/gl-reconciliation, module: m20-glrecon, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/journals, module: m21-journal, mvp: true, auth: required, status: documented, note: draft-only in MVP}
+  - {prefix: /api/v1/approvals, module: m22-approval, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/ai, module: m24-ai-foundation, mvp: partial, auth: required, status: documented}
+  - {prefix: /api/v1/copilot, module: m28-executive-ai, mvp: partial, auth: required, status: documented}
+  - {prefix: /api/v1/reports, module: m10-report, mvp: true, auth: required, status: documented}
+  - {prefix: /api/v1/analytics, module: m32-analytics, mvp: false, auth: required, status: documented}
+  - {prefix: /api/v1/integration, module: m33-integration, mvp: false, auth: required, status: documented}
+  - {prefix: /api/v1/connectors, module: m34-marketplace, mvp: false, auth: required, status: documented}
+  - {prefix: /api/v1/webhooks, module: m36-events, mvp: false, auth: required, status: documented}
+  - {prefix: /api/v1/events, module: m36-events, mvp: false, auth: required, status: documented}
+  - {prefix: /api/v1/automation, module: m38-automation, mvp: false, auth: required, status: documented}
+  - {prefix: /api/v1/extensions, module: m38-automation, mvp: false, auth: required, status: documented}
+  - {prefix: /api/v1/security, module: m41-security, mvp: false, auth: required, status: documented}
+  - {prefix: /api/v1/grc, module: m41-security, mvp: false, auth: required, status: documented}
+  - {prefix: /api/v1/privacy, module: m41-security, mvp: false, auth: required, status: documented}
+  - {prefix: /api/v1/platform-certification, module: m42-certification, mvp: false, auth: required, status: documented}

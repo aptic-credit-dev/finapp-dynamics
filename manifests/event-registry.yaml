@@ -1,0 +1,23 @@
+# schema: finapp-dynamics/event-registry/v1
+# Domain-event family registry. One typed envelope per family, declared in the contracts event union, published
+# through the single m06 transactional outbox, versioned payloads (v:1), idempotent consumers, tenant +
+# correlation context. Reference baseline: 81 families. status is for the target repo.
+registry_version: 1
+delivery: transactional_outbox (m06)
+reference_family_count: 81
+rules:
+  - Append new families to the union tail; never reuse or renumber.
+  - Publish in-transaction with the state change (exactly-once intent).
+  - No cross-tenant subscription; dead-letter + replay supported.
+family_groups:
+  - {group: operational, families: [feedback.lifecycle, case.lifecycle, case.converted_to_matter], mvp: true, status: documented}
+  - {group: legal, families: [legal.lifecycle, litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
+  - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
+  - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}
+  - {group: platform, families: [platform.lifecycle, studio.lifecycle, analytics.lifecycle], mvp: false, status: documented}
+  - {group: integration, families: [connector.lifecycle, marketplace.lifecycle, devportal.lifecycle, webhook.lifecycle, eventstream.lifecycle, govrelease.lifecycle], mvp: false, status: documented}
+  - {group: automation, families: [automation.lifecycle, extension.lifecycle], mvp: false, status: documented}
+  - {group: commercial_saas, families: [subscription.lifecycle, usage.lifecycle, billing.lifecycle], mvp: false, status: deferred}
+  - {group: resilience, families: [mobile.lifecycle, backup.lifecycle, dr.lifecycle], mvp: false, status: documented}
+  - {group: security, families: [security.identity_lifecycle, security.privileged_lifecycle, security.dlp_lifecycle, security.crypto_lifecycle, security.grc_lifecycle, security.privacy_lifecycle, security.soc_lifecycle], mvp: false, status: documented}
+  - {group: certification, families: [certification.programme_lifecycle, certification.migration_lifecycle, certification.uat_lifecycle, certification.pilot_lifecycle, certification.release_lifecycle], mvp: false, status: documented}

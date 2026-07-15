@@ -1,0 +1,333 @@
+# schema: finapp-dynamics/implementation-manifest/v1
+project: Finapp Dynamics
+description: >
+  Machine-readable implementation plan for the Finapp Dynamics enterprise SaaS platform. This manifest is the
+  authoritative build plan for a NEW repository. No item is marked `implemented`, because no code exists in the
+  target repository yet — an extensive in-session REFERENCE implementation exists and informs the specs, but the
+  handover repo starts from design. Statuses: documented | approved_for_build | deferred | requires_review.
+status_legend:
+  documented: Specified and consolidated; not yet approved for build in the target repo.
+  approved_for_build: Cleared to build next, in dependency order.
+  deferred: Designed but intentionally later (post-MVP / commercial / Phase 7).
+  requires_review: Needs a business/security/engineering decision before build (see OPEN_QUESTIONS.md).
+
+conventions:
+  language: TypeScript (NestJS) + PostgreSQL 16
+  isolation: RLS FORCE + tenant_isolation policy + composite (tenant_id, id) keys + composite FKs
+  events: single transactional outbox (m06); typed event union in contracts
+  audit: single registry (m03); registered SCREAMING_SNAKE codes; append-only
+  money: decimal-safe (minor units / exact decimal); no float
+  api: /api/v1/*; audited endpoints with permission + audit code
+  ships_with_every_module: [permissions, events, audit_codes, tests, docs_update, manifest_update]
+
+stages:
+  - stage: 0
+    name: Repository & toolchain foundation
+    status: approved_for_build
+    priority: P0
+    mvp: true
+    target_location: repo root, packages/kernel, packages/contracts, apps/api, apps/web, tools/
+    description: Scaffold monorepo, TS project refs, migration runner, CI skeleton, test harness. No business logic.
+    dependencies: []
+    shared_services_consumed: []
+    testing_required: [smoke_lane_skeleton, db_lane_skeleton]
+
+  - stage: 1
+    name: SaaS foundation
+    status: approved_for_build
+    priority: P0
+    mvp: true
+    depends_on_stage: 0
+    modules:
+      - module: m01-tenant
+        capability: Tenancy control plane + org hierarchy + provisioning
+        status: documented
+        mvp: true
+        db_ownership: [tenants(global), subsidiaries(global), subscription_plans(global), tenant_subscriptions(global), usage_meters(global), department, branch]
+        api_ownership: [/api/v1/tenants]
+        event_ownership: [tenant.lifecycle]
+        shared_services_consumed: [kernel]
+        permissions_required: [tenant.*]
+        testing_required: [smoke, db_spec_isolation]
+      - module: m02-identity
+        capability: Authentication + RBAC + permission catalogue + SoD
+        status: documented
+        mvp: true
+        db_ownership: [users, roles, permissions, user_roles, login_attempts(global), sessions]
+        api_ownership: [/api/v1/auth, /api/v1/users, /api/v1/roles]
+        event_ownership: [identity.lifecycle]
+        shared_services_consumed: [kernel, m01, m03]
+        permissions_required: [identity.*, rbac.*]
+        testing_required: [smoke, db_spec_authz]
+      - module: m03-audit
+        capability: Audit spine + code registry (append-only, tamper-evident)
+        status: documented
+        mvp: true
+        db_ownership: [audit_code_registry(global), audit_logs(partitioned, global), chain_anchors(global)]
+        api_ownership: [/api/v1/audit]
+        event_ownership: []
+        shared_services_consumed: [kernel, m01]
+        permissions_required: [audit.view]
+        testing_required: [smoke, db_spec_audit_chain]
+      - module: m06-workflow
+        capability: Status, workflow, SLA, timeline, transactional outbox, idempotency
+        status: documented
+        mvp: true
+        db_ownership: [entity_type_registry(global), status_defs, workflow_defs, workflow_instances, sla_timers, timeline_events, outbox, idempotency_keys]
+        api_ownership: [/api/v1/workflow]
+        event_ownership: [workflow.lifecycle]
+        shared_services_consumed: [kernel, m01, m03]
+        permissions_required: [workflow.*]
+        testing_required: [smoke, db_spec_outbox_idempotency]
+      - module: m07-rules
+        capability: Versioned explainable rules + decision tables
+        status: documented
+        mvp: true
+        shared_services_consumed: [kernel, m01, m03, m06]
+        permissions_required: [rules.*]
+        testing_required: [smoke]
+      - module: m08-notify
+        capability: Notifications + escalation
+        status: documented
+        mvp: true
+        db_ownership: [notification_templates, notifications, escalations]
+        api_ownership: [/api/v1/notifications]
+        event_ownership: [notification.lifecycle]
+        shared_services_consumed: [kernel, m01, m03, m06]
+        permissions_required: [notifications.*]
+        testing_required: [smoke, db_spec]
+      - module: m09-docs
+        capability: Document service (classified, linked, versioned)
+        status: documented
+        mvp: true
+        db_ownership: [documents, document_versions, document_links]
+        api_ownership: [/api/v1/documents]
+        event_ownership: [document.lifecycle]
+        shared_services_consumed: [kernel, m01, m03, m06]
+        permissions_required: [documents.*]
+        testing_required: [smoke, db_spec_isolation]
+      - module: m04-admin
+        capability: Admin console (tenant/user/role/config)
+        status: documented
+        mvp: true
+        api_ownership: [/api/v1/admin]
+        shared_services_consumed: [m01, m02, m03, m06, m07, m08]
+        permissions_required: [admin.*]
+        testing_required: [smoke]
+
+  - stage: 2
+    name: Operational modules
+    status: documented
+    priority: P0
+    mvp: true
+    depends_on_stage: 1
+    modules:
+      - module: m12-feedback
+        capability: Feedback Management (closed loop)
+        status: documented
+        mvp: true
+        db_ownership: [feedback_records, feedback_categories, feedback_escalations, feedback_sentiment, ...]
+        api_ownership: [/api/v1/feedback]
+        event_ownership: [feedback.lifecycle]
+        shared_services_consumed: [m02, m03, m06, m08, m09]
+        permissions_required: [feedback.*]
+        testing_required: [smoke, db_spec]
+      - module: m13-case
+        capability: Case Management
+        status: documented
+        mvp: true
+        db_ownership: [cases, case_activities, case_documents, case_notes, ...]
+        api_ownership: [/api/v1/cases]
+        event_ownership: [case.lifecycle, case.converted_to_matter]
+        shared_services_consumed: [m02, m03, m06, m08, m09]
+        consumes_events: [feedback.escalated]
+        permissions_required: [cases.*]
+        testing_required: [smoke, db_spec]
+
+  - stage: 3
+    name: Finance
+    status: documented
+    priority: P0
+    mvp: true
+    mvp_note: Reconciliation + draft journals in MVP; posting to core systems is DEFERRED.
+    depends_on_stage: 1
+    modules:
+      - module: m19-finance
+        capability: Finance operations foundation
+        status: documented
+        mvp: true
+        shared_services_consumed: [m02, m03, m06]
+        permissions_required: [finance.*]
+        testing_required: [smoke, db_spec]
+      - module: m15-recon + m15a-matching
+        capability: Bank reconciliation + matching engine
+        status: documented
+        mvp: true
+        db_ownership: [bank_accounts, bank_statement_imports, bank_statement_lines, reconciliation_runs, reconciliation_matches, reconciliation_exceptions]
+        api_ownership: [/api/v1/reconciliation]
+        event_ownership: [reconciliation.lifecycle]
+        shared_services_consumed: [m06, m07, m09, m19, m27]
+        permissions_required: [reconciliation.*]
+        testing_required: [smoke, db_spec]
+      - module: m20-glrecon
+        capability: GL reconciliation
+        status: documented
+        mvp: true
+        db_ownership: [gl_imports, gl_lines, gl_reconciliation_runs, gl_exceptions]
+        api_ownership: [/api/v1/gl-reconciliation]
+        shared_services_consumed: [m06, m07, m19, m21, m22]
+        permissions_required: [gl_reconciliation.*]
+        testing_required: [smoke, db_spec]
+      - module: m21-journal
+        capability: Journal engine (DRAFT ONLY in MVP)
+        status: documented
+        mvp: true
+        db_ownership: [journal_recommendations, journal_drafts, journal_lines, posting_requests, posting_results]
+        api_ownership: [/api/v1/journals]
+        event_ownership: [journal.lifecycle]
+        shared_services_consumed: [m06, m07, m19, m20, m33]
+        permissions_required: [journals.*]
+        testing_required: [smoke, db_spec_balanced_no_autopost]
+        hard_rules: [decimal_safe, balanced_before_post, no_autopost, no_closed_period_post, no_duplicate_post, maker_not_checker]
+      - module: m22-approval
+        capability: Finance approval workflow (maker-checker + SoD)
+        status: documented
+        mvp: true
+        shared_services_consumed: [m06]
+        permissions_required: [approvals.*]
+        testing_required: [smoke, db_spec_sod]
+      - module: m23-finance-integration
+        capability: Finance integration, QA & release
+        status: documented
+        mvp: false
+        shared_services_consumed: [m19, m20, m21, m22, m33]
+        testing_required: [smoke, db_spec]
+
+  - stage: 4
+    name: Legal
+    status: documented
+    priority: P1
+    mvp: partial
+    mvp_note: Read-only legal portfolio in MVP; write/convert/file DEFERRED.
+    depends_on_stage: 2
+    modules:
+      - module: m14-legal
+        capability: Legal matter management (read-only in MVP)
+        status: documented
+        mvp: partial
+        db_ownership: [legal_matters, legal_deadlines, matter_parties, matter_documents]
+        api_ownership: [/api/v1/legal]
+        event_ownership: [legal.lifecycle]
+        shared_services_consumed: [m02, m03, m06, m09, m13, m26]
+        permissions_required: [legal.*]
+        hard_rules: [privilege, ethical_walls]
+        testing_required: [smoke, db_spec_privilege]
+      - module: m16-litigation
+        capability: Litigation & court management
+        status: documented
+        mvp: false
+        shared_services_consumed: [m14]
+        testing_required: [smoke, db_spec]
+      - module: m17-recovery
+        capability: Recovery & enforcement
+        status: deferred
+        mvp: false
+        shared_services_consumed: [m14, m16]
+        testing_required: [smoke, db_spec]
+      - module: m18-legaldocs
+        capability: Legal documents & knowledge
+        status: documented
+        mvp: false
+        shared_services_consumed: [m09, m14]
+        testing_required: [smoke, db_spec]
+
+  - stage: 5
+    name: AI layer
+    status: documented
+    priority: P1
+    mvp: partial
+    mvp_note: Governed summaries/suggestions only; no AI-executed controlled actions ever.
+    depends_on_stage: 2
+    requires_review: [approved_ai_providers_and_routing, data_residency, ai_quotas]
+    modules:
+      - module: m24-ai-foundation
+        capability: AI gateway, model/prompt registries, RAG/vector, governance
+        status: documented
+        mvp: partial
+        shared_services_consumed: [m02, m03, m06, m09, m41]
+        permissions_required: [ai.*]
+        hard_rules: [human_in_the_loop, confidence_and_citations, dlp, no_restricted_data_to_unapproved_providers]
+        testing_required: [smoke, db_spec]
+      - module: m25-operational-ai
+        capability: Operational AI (feedback/case)
+        status: documented
+        mvp: partial
+        shared_services_consumed: [m24, m12, m13]
+        testing_required: [smoke, db_spec]
+      - module: m26-legal-ai
+        capability: Legal AI
+        status: documented
+        mvp: false
+        shared_services_consumed: [m24, m14]
+        testing_required: [smoke, db_spec]
+      - module: m27-finance-ai
+        capability: Finance AI (recon suggestions; NO auto-post)
+        status: documented
+        mvp: partial
+        shared_services_consumed: [m24, m15, m20]
+        hard_rules: [no_autopost, explainable_matches]
+        testing_required: [smoke, db_spec]
+      - module: m28-executive-ai
+        capability: Executive Copilot (read-only, cited)
+        status: documented
+        mvp: partial
+        shared_services_consumed: [m24, m32]
+        hard_rules: [read_only, cited, rls_masking]
+        testing_required: [smoke, db_spec]
+      - module: m29-ai-governance
+        capability: AI governance & release
+        status: documented
+        mvp: false
+        shared_services_consumed: [m24]
+        testing_required: [smoke, db_spec]
+
+  - stage: 6
+    name: Enterprise platform (6A-6I)
+    status: documented
+    priority: P1_to_P2
+    mvp: false
+    depends_on_stage: 1
+    modules:
+      - {module: m30-platform, capability: Platform foundation (6A), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      - {module: m31-studio, capability: Workflow/BPM/Forms/Rules Studio (6B), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      - {module: m32-analytics, capability: Reporting & analytics builder (6C), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      - {module: m33-integration, capability: Integration foundation (6D-1), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: deferred, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
+      - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+
+  - stage: 7
+    name: Hardening (CONDITIONAL-GO conditions)
+    status: requires_review
+    priority: P0_for_GA
+    mvp: false
+    depends_on_stage: 6
+    items:
+      - {item: penetration_test, status: requires_review}
+      - {item: dr_failover_failback_drill, status: requires_review}
+      - {item: load_and_chaos_at_scale, status: requires_review}
+      - {item: real_data_migration_execution, status: requires_review, requires: [finance_signoff, legal_signoff]}
+
+  - stage: 8
+    name: Phase 7 — Vertical business solutions
+    status: deferred
+    priority: P2
+    mvp: false
+    depends_on_stage: 7
+    note: Begins only after a live, stable platform meets the Phase 7 entry criteria.
