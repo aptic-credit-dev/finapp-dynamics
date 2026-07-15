@@ -7,6 +7,8 @@ import {
   TENANT_LIFECYCLE_FAMILY,
   TENANT_LIFECYCLE_EVENT_TYPES,
   TENANT_LIFECYCLE_VERSION,
+  IDENTITY_LIFECYCLE_FAMILY,
+  IDENTITY_LIFECYCLE_EVENT_TYPES,
 } from '@finapp/contracts';
 
 /**
@@ -16,11 +18,26 @@ import {
  * the same change as the module that owns and emits it (CLAUDE.md — events ship with their module). If
  * this number changes on its own, someone has declared an event ahead of its module.
  *
- * Stage 0: 0 families. Stage 1A: 1 (`tenant.lifecycle`, m01-tenant).
+ * Stage 0: 0 families. Stage 1A: 1 (`tenant.lifecycle`, m01-tenant). Stage 1B: 2 (+ `identity.lifecycle`,
+ * m02-identity).
  */
 export default defineSuite('contracts', (t) => {
-  t.equal(DOMAIN_EVENT_FAMILIES.length, 1, 'Stage 1A declares exactly one event family');
-  t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'the family is tenant.lifecycle');
+  t.equal(DOMAIN_EVENT_FAMILIES.length, 2, 'Stage 1B declares exactly two event families');
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
+  // Order is append-only: consumers and the outbox key off the family name, and reordering the union is
+  // how a replay silently reinterprets history.
+  t.equal(
+    DOMAIN_EVENT_FAMILIES[0],
+    TENANT_LIFECYCLE_FAMILY,
+    'tenant.lifecycle stays first — families append at the tail',
+  );
+  t.equal(IDENTITY_LIFECYCLE_EVENT_TYPES.length, 18, 'identity.lifecycle declares 18 event types');
+  t.equal(
+    new Set(IDENTITY_LIFECYCLE_EVENT_TYPES).size,
+    IDENTITY_LIFECYCLE_EVENT_TYPES.length,
+    'no identity event type is declared twice',
+  );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');
 
