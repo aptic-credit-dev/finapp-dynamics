@@ -161,7 +161,7 @@ export class DevActorAdapter {
     nowSeconds?: number;
   }): Promise<AuthenticatedActor> {
     if (input.token === undefined || input.token === '') {
-      throw ProblemError.forbidden('Unknown or inaccessible actor.', input.correlationId);
+      throw ProblemError.unauthorized('Unknown or inaccessible actor.', input.correlationId);
     }
 
     const now = input.nowSeconds ?? Math.floor(Date.now() / 1000);
@@ -170,7 +170,7 @@ export class DevActorAdapter {
       // Same opaque refusal as the resolver's: a caller must not learn whether the signature or the
       // account was the problem.
       console.warn('[dev-actor-rejected]', { correlationId: input.correlationId, why: verified.reason });
-      throw ProblemError.forbidden('Unknown or inaccessible actor.', input.correlationId);
+      throw ProblemError.unauthorized('Unknown or inaccessible actor.', input.correlationId);
     }
 
     return this.resolver.resolve({

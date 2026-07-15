@@ -85,6 +85,13 @@ export class ActorResolver {
       // looks like a server fault.
       throw this.refuse(input.correlationId, 'claimed account id is not a uuid');
     }
+    // The same hazard on the tenant claim, and the one that is actually reachable from a header. Every
+    // `tenant_isolation` policy reads `app.tenant_id` through `NULLIF(...)::uuid`, so binding a malformed
+    // value raises inside the policy — a 500 for what is a bad request, and a signal to a prober that
+    // their input reached the database.
+    if (input.tenantId !== undefined && !UUID_PATTERN.test(input.tenantId)) {
+      throw this.refuse(input.correlationId, 'claimed tenant id is not a uuid');
+    }
 
     // The lookup runs in system context because the identity control plane is global and there is no
     // tenant context to enter yet — resolving the actor is what PRODUCES the context. This is the
@@ -146,14 +153,19 @@ export class ActorResolver {
   }
 
   /**
-   * One refusal, one message.
+   * One refusal, one message, one status.
    *
    * `detail` never varies, so no probe can distinguish the cases. The real reason is logged next to the
    * correlation id.
+   *
+   * 401, not 403: every case reaching here means no actor was established — unknown account, suspended
+   * account, suspended identity, no membership. "Who are you" is unanswered, so authorization never got a
+   * turn. 403 is reserved for a PROVEN actor who lacks a permission, and keeping the two apart is what
+   * stops a permission denial and an identity probe looking the same.
    */
   private refuse(correlationId: string, why: string): ProblemError {
     console.warn('[actor-resolution-refused]', { correlationId, why });
-    return ProblemError.forbidden('Unknown or inaccessible actor.', correlationId);
+    return ProblemError.unauthorized('Unknown or inaccessible actor.', correlationId);
   }
 }
 
