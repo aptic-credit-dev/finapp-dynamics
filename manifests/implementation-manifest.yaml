@@ -82,6 +82,14 @@ stages:
         capability: Tenancy control plane + org hierarchy + provisioning
         status: implemented
         implemented_in: Stage 1A
+        merged: {pr: 2, merge_commit: 251decf, base: main}
+        certified:
+          postgres_version: 16
+          evidence: "CI run 29417746720 (push, main) and 29417651716 (pull_request, PR #2) — DB lane PASS;
+            'Assert PostgreSQL 16' asserted server_version_num is 16.x; 'DB integration specs' passed; no step skipped."
+          note: >
+            Developed against local PostgreSQL 15.2; the CI runs above are the authoritative certification.
+            The Stage 1A caveat is discharged.
         delivered:
           tables: [tenant_type_catalogue(global reference), tenants(control plane, RLS FORCE + system escape per ADR-014),
                    tenant_status_history(append-only), tenant_environments, tenant_entities, tenant_departments, tenant_branches]
@@ -90,19 +98,26 @@ stages:
           audit_codes: 18 under TENANT_ (all registered in audit-code-registry.yaml)
           events: tenant.lifecycle family, 17 types, payload v1 (GAP-1 closed)
           tests: PURE smoke (251 assertions) + DB spec (46 assertions)
+        # Each entry is a QUOTED scalar. Unquoted, a line like `- ADR-014: tenants is ...` is a YAML map
+        # key, and the continuation line under it is a parse error — which is exactly how this file was
+        # broken between Stage 1A and Stage 1B. tools/conformance now parses every manifest in the smoke
+        # lane, so it cannot happen silently again.
         deviations:
-          - ADR-014: tenants is RLS FORCE with an explicit system escape; org tables are tenant-scoped FORCE.
-            Both are STRICTER than ADR-001/SAAS_FOUNDATION, which permit them to be global non-FORCE.
-          - Permissions are tenant.<entity>.<action> (e.g. tenant.registry.view) because the kernel's
-            @Endpoint validator requires three segments; audit codes are TENANT_<ENTITY>_<ACTION> because the
-            audit registry format requires three segments. The two-segment names in the Stage 1A prompt are
-            invalid under the repository's own conventions.
-          - API prefix is /api/v1/tenants per naming-map.yaml, not /api/v1/admin/tenants.
+          - "ADR-014: tenants is RLS FORCE with an explicit system escape; org tables are tenant-scoped
+             FORCE. Both are STRICTER than ADR-001/SAAS_FOUNDATION, which permit them to be global
+             non-FORCE."
+          - "Permissions are tenant.<entity>.<action> (e.g. tenant.registry.view) because the kernel's
+             @Endpoint validator requires three segments; audit codes are TENANT_<ENTITY>_<ACTION> because
+             the audit registry format requires three segments. The two-segment names in the Stage 1A
+             prompt are invalid under the repository's own conventions."
+          - "API prefix is /api/v1/tenants per naming-map.yaml, not /api/v1/admin/tenants."
         not_included:
-          - No authentication: the API reads actor + permissions from headers. m02-identity replaces this.
-          - AUTHZ/AUDIT/OUTBOX are bound to clearly-marked Stage 1A stand-ins (m01-tenant/src/adapters.ts).
-            Audit is not persisted to a spine; events are not durably queued. No second outbox table exists.
-          - No down-migrations: the Stage 0 migration runner does not support them.
+          - "No authentication: the API reads actor + permissions from headers. m02-identity replaces
+             this."
+          - "AUTHZ/AUDIT/OUTBOX are bound to clearly-marked Stage 1A stand-ins
+             (m01-tenant/src/adapters.ts). Audit is not persisted to a spine; events are not durably
+             queued. No second outbox table exists."
+          - "No down-migrations: the Stage 0 migration runner does not support them."
         mvp: true
         db_ownership: [tenants(global), subsidiaries(global), subscription_plans(global), tenant_subscriptions(global), usage_meters(global), department, branch]
         api_ownership: [/api/v1/tenants]
@@ -113,6 +128,31 @@ stages:
       - module: m02-identity
         capability: Authentication + RBAC + permission catalogue + SoD
         status: documented
+        # SPLIT APPROVED 2026-07-15 (product owner) — planning only, no code yet.
+        # This row's capability spans identity + authentication + RBAC, which is one very large stage and
+        # conflicts with the Stage 1B prompt's exclusion list. Resolved by splitting into three sub-stages.
+        # Recorded here so the manifest and the build do not disagree; see
+        # docs/build/stages/STAGE_1B_M02_IDENTITY_READINESS.md §10.
+        substages:
+          - {substage: 1B, module: m02-identity, status: approved_for_build,
+             owns: [identities(global), accounts(global), account_identity_links, account_tenant_memberships,
+                    account_environment_memberships, identity_status_history, auth_subjects(references only)],
+             api: [/api/v1/users], events: [identity.lifecycle], permissions: ["identity.*"], audit: [IDENTITY_],
+             ends_with: "x-actor-id deleted; actor enters RequestContext via a signed, environment-gated dev adapter"}
+          - {substage: 1C, module: m02-auth, status: documented,
+             owns: [sessions, login_attempts(global, pre-auth), service_account_credentials],
+             api: [/api/v1/auth], ends_with: "dev adapter deleted; real authenticated session"}
+          - {substage: 1D, module: m02-rbac, status: documented,
+             owns: [roles, permissions, user_roles, sod_catalogue],
+             api: [/api/v1/roles], permissions: ["rbac.*"], audit: [RBAC_],
+             ends_with: "x-permissions deleted; ContextAuthz DELETED and AUTHZ bound to RbacAuthz"}
+        open_gaps:
+          - "GAP-1: event_ownership declares identity.lifecycle but event-registry.yaml does not register it
+             (naming-map event_family_registered: false). Close in 1B, in the same commit as the first event."
+        blocks_removal_of:
+          - "packages/m01-tenant/src/adapters.ts ContextAuthz — a temporary AUTHZ binding that MUST NOT
+             outlive substage 1D. Until then it is a live authorization-bypass surface wherever the API is
+             reachable, because its permission input (x-permissions) is unauthenticated."
         mvp: true
         db_ownership: [users, roles, permissions, user_roles, login_attempts(global), sessions]
         api_ownership: [/api/v1/auth, /api/v1/users, /api/v1/roles]

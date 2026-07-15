@@ -5,6 +5,7 @@
   "references": [
     { "path": "./tools/test-runner" },
     { "path": "./tools/migrate" },
+    { "path": "./tools/conformance" },
     { "path": "./packages/kernel" },
     { "path": "./packages/contracts" },
     { "path": "./packages/m01-tenant" },
