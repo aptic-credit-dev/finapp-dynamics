@@ -1,0 +1,22 @@
+# Normalise line endings to LF in the repository and in the working tree.
+#
+# Without this, a Windows checkout with core.autocrlf=true gets CRLF working files while CI on Linux
+# gets LF. Two things then break in ways that look like someone else's fault:
+#   - `prettier --check` enforces endOfLine: lf, so it fails locally on Windows but passes in CI.
+#   - The migration runner checksums SQL. (It normalises CRLF before hashing for exactly this reason,
+#     but the files should not diverge in the first place.)
+* text=auto eol=lf
+
+# Binary — never touch these.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.woff  binary
+*.woff2 binary
+
+# Generated; collapse in review and keep out of language stats.
+package-lock.json -diff linguist-generated=true
