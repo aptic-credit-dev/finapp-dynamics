@@ -10,6 +10,12 @@ rules:
   - Publish in-transaction with the state change (exactly-once intent).
   - No cross-tenant subscription; dead-letter + replay supported.
 family_groups:
+  # GAP-1 CLOSED (Stage 1A). implementation-manifest.yaml declared tenant.lifecycle as m01's family, but
+  # it was absent from this registry — naming-map.yaml flagged the disagreement as
+  # `event_family_registered: false`. Registered here alongside the module that owns and emits it.
+  - {group: tenancy, families: [tenant.lifecycle], mvp: true, status: implemented, owner: m01-tenant,
+     note: "17 event types in one family; payload v1. Types discriminate within the family — a new
+            lifecycle event is a new type, never a new family, so consumer subscriptions stay stable."}
   - {group: operational, families: [feedback.lifecycle, case.lifecycle, case.converted_to_matter], mvp: true, status: documented}
   - {group: legal, families: [legal.lifecycle, litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}

@@ -80,7 +80,29 @@ stages:
     modules:
       - module: m01-tenant
         capability: Tenancy control plane + org hierarchy + provisioning
-        status: documented
+        status: implemented
+        implemented_in: Stage 1A
+        delivered:
+          tables: [tenant_type_catalogue(global reference), tenants(control plane, RLS FORCE + system escape per ADR-014),
+                   tenant_status_history(append-only), tenant_environments, tenant_entities, tenant_departments, tenant_branches]
+          api: /api/v1/tenants — registry CRUD + 11 lifecycle actions + status history
+          permissions: 19 under tenant.* (declared, NOT granted — no role model until m02)
+          audit_codes: 18 under TENANT_ (all registered in audit-code-registry.yaml)
+          events: tenant.lifecycle family, 17 types, payload v1 (GAP-1 closed)
+          tests: PURE smoke (251 assertions) + DB spec (46 assertions)
+        deviations:
+          - ADR-014: tenants is RLS FORCE with an explicit system escape; org tables are tenant-scoped FORCE.
+            Both are STRICTER than ADR-001/SAAS_FOUNDATION, which permit them to be global non-FORCE.
+          - Permissions are tenant.<entity>.<action> (e.g. tenant.registry.view) because the kernel's
+            @Endpoint validator requires three segments; audit codes are TENANT_<ENTITY>_<ACTION> because the
+            audit registry format requires three segments. The two-segment names in the Stage 1A prompt are
+            invalid under the repository's own conventions.
+          - API prefix is /api/v1/tenants per naming-map.yaml, not /api/v1/admin/tenants.
+        not_included:
+          - No authentication: the API reads actor + permissions from headers. m02-identity replaces this.
+          - AUTHZ/AUDIT/OUTBOX are bound to clearly-marked Stage 1A stand-ins (m01-tenant/src/adapters.ts).
+            Audit is not persisted to a spine; events are not durably queued. No second outbox table exists.
+          - No down-migrations: the Stage 0 migration runner does not support them.
         mvp: true
         db_ownership: [tenants(global), subsidiaries(global), subscription_plans(global), tenant_subscriptions(global), usage_meters(global), department, branch]
         api_ownership: [/api/v1/tenants]

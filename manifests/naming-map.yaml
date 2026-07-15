@@ -64,8 +64,14 @@ modules:
     api_prefixes: [/api/v1/tenants]
     permission_namespaces: ['tenant.*']
     event_families: [tenant.lifecycle]
-    event_family_registered: false # GAP-1: declared in manifest:48, absent from event-registry.yaml
+    event_family_registered: true # GAP-1 closed in Stage 1A: registered in event-registry.yaml
     audit_prefixes: [TENANT_]
+    # Concrete names registered in Stage 1A. Both entity segments exist because the two authorities
+    # disagree with the obvious name: the kernel requires <domain>.<entity>.<action> (so `tenant.view`
+    # is invalid) and the audit registry requires <PREFIX>_<ENTITY>_<ACTION> (so `TENANT_CREATED` is
+    # invalid). `registry` / `REGISTRY` is the tenant record itself.
+    permission_entities: [registry, environment, entity, department, branch]
+    audit_entities: [REGISTRY, ENVIRONMENT, ENTITY, DEPARTMENT, BRANCH, ORG]
 
   - module: m02-identity
     stage: 1
