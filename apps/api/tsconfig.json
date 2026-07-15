@@ -12,10 +12,14 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  // `test/**` is deliberately NOT compiled. The API's integration spec runs under
+  // `node --experimental-strip-types` and loads the app from `dist/` at runtime, so compiling it here
+  // would make tsc's inputs and outputs overlap for no gain. See test/api-identity.db-spec.ts.
+  "include": ["src/**/*.ts"],
   "references": [
     { "path": "../../packages/kernel" },
     { "path": "../../packages/contracts" },
-    { "path": "../../packages/m01-tenant" }
+    { "path": "../../packages/m01-tenant" },
+    { "path": "../../packages/m02-identity" }
   ]
 }
