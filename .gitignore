@@ -14,6 +14,11 @@ build/
 out/
 *.tsbuildinfo
 
+# `build/` above matches a directory named "build" at ANY depth, which silently swallowed
+# docs/build/ — the stage build records. Those are deliverables, not build output.
+!docs/build/
+!docs/build/**
+
 # TypeScript project references / declaration maps
 *.js.map
 *.d.ts.map
