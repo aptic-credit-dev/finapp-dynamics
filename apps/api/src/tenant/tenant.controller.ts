@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
-import { Endpoint, ProblemError, type SystemContext } from '@finapp/kernel';
+import { Endpoint, ProblemError } from '@finapp/kernel';
 import {
   TENANT_AUDIT_CODES,
   TENANT_PERMISSIONS,
@@ -8,10 +8,9 @@ import {
   // design-time metadata that `emitDecoratorMetadata` writes, and a type-only import is erased before
   // that metadata is emitted — leaving Nest with `Function` and an UnknownDependenciesException at boot.
   TenantService,
-  TenantContextResolver,
   type TenantAction,
 } from '@finapp/m01-tenant';
-import { randomUUID } from 'node:crypto';
+import { ActorContextFactory } from '@finapp/m02-identity';
 
 /**
  * The tenant administration API, under `/api/v1/tenants` (ADR-008).
@@ -25,8 +24,27 @@ import { randomUUID } from 'node:crypto';
  * mutating route ships without a permission and a registered audit code — rather than trusting review to
  * notice every time.
  *
- * This is the one place in the repo that applies decorator syntax. The kernel deliberately never does,
- * so kernel source stays loadable under `node --experimental-strip-types` for the PURE suites.
+ * The kernel deliberately never applies decorator syntax, so kernel source stays loadable under
+ * `node --experimental-strip-types` for the PURE suites. Application happens here and in m02's
+ * controllers, which tsc compiles.
+ *
+ * ============================================================================================
+ * STAGE 1B — `x-actor-id` IS GONE.
+ * ============================================================================================
+ * Stage 1A read the actor from `x-actor-id` and believed it. Anyone who could reach this API could claim
+ * to be anyone: the authorization checks were real, but their INPUT was not.
+ *
+ * That header is now meaningless. Every handler obtains its actor from `ActorContextFactory`, which
+ * verifies a signed assertion and then puts the claimed account through m02's `ActorResolver` — account
+ * active, identity active, membership of the named tenant active — before any context exists. Sending
+ * `x-actor-id` today does exactly what sending any other unknown header does: nothing.
+ *
+ * WHAT IS STILL NOT FIXED, stated plainly rather than left to be discovered:
+ *   - `x-permissions` still carries the caller's PRIVILEGES. Identity is proven; permission is claimed.
+ *     Stage 1D replaces it with RBAC and deletes `ContextAuthz` (see m02's actor-context.ts).
+ *   - The actor source is a development stopgap, not authentication. Stage 1C.
+ * So M01 is multi-actor-safe now — it was not before — and is still not exposable to an untrusted
+ * network. The completion report says so in those words.
  */
 
 interface CreateTenantBody {
@@ -48,18 +66,20 @@ interface ActionBody {
 @Controller('tenants')
 export class TenantController {
   private readonly service: TenantService;
-  private readonly resolver: TenantContextResolver;
+  private readonly actors: ActorContextFactory;
 
-  constructor(service: TenantService, resolver: TenantContextResolver) {
+  constructor(service: TenantService, actors: ActorContextFactory) {
     this.service = service;
-    this.resolver = resolver;
+    this.actors = actors;
   }
 
   /**
    * Creates a tenant draft.
    *
-   * Platform-level: it runs in system context because no tenant exists yet to be in the context of.
-   * The permissions come from the caller's headers, which is honest only until m02 — see systemContext().
+   * Platform-level: it runs in system context because no tenant exists yet to be in the context of. The
+   * ACTOR is still fully proven — `ActorContextFactory` resolves account and identity exactly as
+   * strictly here as anywhere else; only the membership gate is absent, because there is no tenant to be
+   * a member of yet. "No tenant context" has never meant "no actor", and in Stage 1A it accidentally did.
    */
   @Endpoint({
     permission: TENANT_PERMISSIONS.registryCreate,
@@ -68,8 +88,11 @@ export class TenantController {
   })
   @Post()
   async create(@Body() body: CreateTenantBody, @Headers() headers: Record<string, string>) {
-    const ctx = systemContext(headers, 'create tenant draft');
-    return this.service.createDraft(ctx, actorOf(headers), {
+    // Platform-level BY CONTRACT: `createDraft` takes a `SystemContext`, because the tenant being created
+    // cannot be the tenant you are acting inside. The actor is proven; only the membership gate is moot.
+    const scoped = await this.actors.forPlatformRequest(headers, 'create tenant draft');
+    const ctx = scoped.ctx;
+    return this.service.createDraft(ctx, scoped.actor.identityId, {
       code: requireString(body.code, 'code', ctx),
       legalName: requireString(body.legalName, 'legalName', ctx),
       tenantType: requireString(body.tenantType, 'tenantType', ctx),
@@ -87,7 +110,7 @@ export class TenantController {
     @Query('limit') limit: string | undefined,
     @Headers() headers: Record<string, string>,
   ) {
-    const ctx = await this.contextFor(headers, 'list tenants');
+    const { ctx } = await this.actors.forRequest(headers, 'list tenants');
     return this.service.list(ctx, {
       ...(status === undefined ? {} : { status }),
       ...(limit === undefined ? {} : { limit: Number.parseInt(limit, 10) }),
@@ -96,13 +119,13 @@ export class TenantController {
 
   @Get(':tenantId')
   async get(@Param('tenantId') tenantId: string, @Headers() headers: Record<string, string>) {
-    const ctx = await this.contextFor(headers, 'read tenant');
+    const { ctx } = await this.actors.forRequest(headers, 'read tenant');
     return this.service.get(ctx, requireUuid(tenantId, ctx.correlationId));
   }
 
   @Get(':tenantId/status-history')
   async history(@Param('tenantId') tenantId: string, @Headers() headers: Record<string, string>) {
-    const ctx = await this.contextFor(headers, 'read tenant status history');
+    const { ctx } = await this.actors.forRequest(headers, 'read tenant status history');
     return this.service.statusHistory(ctx, requireUuid(tenantId, ctx.correlationId));
   }
 
@@ -117,17 +140,23 @@ export class TenantController {
     @Body() body: Record<string, unknown>,
     @Headers() headers: Record<string, string>,
   ) {
-    const ctx = await this.contextFor(headers, 'update tenant');
-    return this.service.updateProfile(ctx, actorOf(headers), requireUuid(tenantId, ctx.correlationId), {
-      expectedVersion: requireVersion(body['expectedVersion'], ctx.correlationId),
-      ...optionalString(body['legalName'], 'legalName'),
-      ...optionalString(body['defaultTimezone'], 'defaultTimezone'),
-      ...optionalString(body['defaultCurrency'], 'defaultCurrency'),
-      ...optionalString(body['country'], 'country'),
-      ...(isRecord(body['metadata']) ? { metadata: body['metadata'] } : {}),
-      // tradingName is passed through even when null: "clear it" and "leave it" are different requests.
-      ...('tradingName' in body ? { tradingName: body['tradingName'] as string | null } : {}),
-    });
+    const scoped = await this.actors.forRequest(headers, 'update tenant');
+    const ctx = scoped.ctx;
+    return this.service.updateProfile(
+      ctx,
+      scoped.actor.identityId,
+      requireUuid(tenantId, ctx.correlationId),
+      {
+        expectedVersion: requireVersion(body['expectedVersion'], ctx.correlationId),
+        ...optionalString(body['legalName'], 'legalName'),
+        ...optionalString(body['defaultTimezone'], 'defaultTimezone'),
+        ...optionalString(body['defaultCurrency'], 'defaultCurrency'),
+        ...optionalString(body['country'], 'country'),
+        ...(isRecord(body['metadata']) ? { metadata: body['metadata'] } : {}),
+        // tradingName is passed through even when null: "clear it" and "leave it" are different requests.
+        ...('tradingName' in body ? { tradingName: body['tradingName'] as string | null } : {}),
+      },
+    );
   }
 
   // --- lifecycle -----------------------------------------------------------------------------------
@@ -256,66 +285,35 @@ export class TenantController {
     body: ActionBody,
     headers: Record<string, string>,
   ) {
-    const ctx = await this.contextFor(headers, `tenant action: ${action}`);
-    return this.service.applyAction(ctx, actorOf(headers), requireUuid(tenantId, ctx.correlationId), action, {
-      expectedVersion: requireVersion(body.expectedVersion, ctx.correlationId),
-      ...(typeof body.reason === 'string' ? { reason: body.reason } : {}),
-    });
-  }
-
-  /**
-   * Resolves the request's context.
-   *
-   * With `x-tenant-id`, the claim is VALIDATED server-side by the resolver before it becomes context.
-   * Without one, the request is treated as platform-level and runs in system context.
-   */
-  private async contextFor(headers: Record<string, string>, reason: string) {
-    const claimed = headers['x-tenant-id'];
-    if (claimed === undefined) return systemContext(headers, reason);
-    const actor = actorOf(headers);
-    return this.resolver.resolve({
-      claimedTenantId: claimed,
-      correlationId: correlationOf(headers),
-      permissions: permissionsOf(headers),
-      ...(actor === null ? {} : { actor }),
-    });
+    const scoped = await this.actors.forRequest(headers, `tenant action: ${action}`);
+    const ctx = scoped.ctx;
+    return this.service.applyAction(
+      ctx,
+      scoped.actor.identityId,
+      requireUuid(tenantId, ctx.correlationId),
+      action,
+      {
+        expectedVersion: requireVersion(body.expectedVersion, ctx.correlationId),
+        ...(typeof body.reason === 'string' ? { reason: body.reason } : {}),
+      },
+    );
   }
 }
 
 /**
- * ============================================================================================
- * STAGE 1A ONLY — HEADER-DERIVED IDENTITY. NOT SHIPPABLE.
- * ============================================================================================
- * `x-actor-id` and `x-permissions` are read straight from the request. There is no authentication in
- * M01 (§4 excludes it), so anyone who can reach this API can claim any actor and any permission — the
- * authorization checks below them are real, but their INPUT is not trustworthy.
+ * `contextFor`, `systemContext`, `actorOf`, `permissionsOf` and `correlationOf` USED TO LIVE HERE.
  *
- * m02-identity replaces this with an authenticated session: the actor and their permissions come from a
- * verified token, and the tenant claim is additionally checked against that actor's membership. Until
- * then the API must not be exposed outside a trusted network. Stated plainly in the completion report.
+ * They are gone, not moved, and this note is the only thing left of them. `actorOf` read `x-actor-id` and
+ * returned it as the acting identity if it merely looked like a uuid — the single largest hole in Stage
+ * 1A, and the reason Stage 1B exists. The rest built context around it.
+ *
+ * All five are now one call: `ActorContextFactory.forRequest()` in `@finapp/m02-identity`, which is the
+ * only code in the platform allowed to turn a request into a context. There is deliberately no local
+ * helper here that a future handler could reach for instead — the way to get a context is to ask the
+ * thing that verifies one, or to not have one.
+ *
+ * The conformance suite asserts no live source reads `x-actor-id`, so this cannot come back quietly.
  */
-function permissionsOf(headers: Record<string, string>): string[] {
-  const raw = headers['x-permissions'];
-  return raw === undefined || raw.trim() === '' ? [] : raw.split(',').map((p) => p.trim());
-}
-
-function actorOf(headers: Record<string, string>): string | null {
-  const raw = headers['x-actor-id'];
-  return raw !== undefined && UUID_PATTERN.test(raw) ? raw : null;
-}
-
-function correlationOf(headers: Record<string, string>): string {
-  // Minted when absent so that every audit entry and event has one — a request with no correlation id
-  // is a request that cannot be traced afterwards.
-  return headers['x-correlation-id'] ?? randomUUID();
-}
-
-function systemContext(
-  headers: Record<string, string>,
-  reason: string,
-): SystemContext & { permissions: string[] } {
-  return { reason, correlationId: correlationOf(headers), permissions: permissionsOf(headers) };
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
