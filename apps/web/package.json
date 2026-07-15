@@ -1,0 +1,12 @@
+{
+  "name": "@finapp/web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Web shell. Framework-free pending the stack decision — see OPEN_QUESTIONS.md #17.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/main.js",
+  "scripts": {
+    "build": "tsc --build"
+  }
+}

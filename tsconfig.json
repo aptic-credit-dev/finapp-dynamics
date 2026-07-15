@@ -1,0 +1,13 @@
+{
+  // Solution-style root: no files of its own, just the build graph. `npm run build` walks these in
+  // dependency order. Business modules are added here as they land, stage by stage.
+  "files": [],
+  "references": [
+    { "path": "./tools/test-runner" },
+    { "path": "./tools/migrate" },
+    { "path": "./packages/kernel" },
+    { "path": "./packages/contracts" },
+    { "path": "./apps/api" },
+    { "path": "./apps/web" }
+  ]
+}

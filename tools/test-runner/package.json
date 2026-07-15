@@ -1,0 +1,23 @@
+{
+  "name": "@finapp/test-runner",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Framework-free PURE smoke harness + the DB integration lane.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}

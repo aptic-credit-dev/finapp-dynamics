@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+package-lock.json
+
+# The handover docs and the manifests are authoritative deliverables with deliberate hand-authored
+# layout — aligned tables, wrapped prose, flow-mapped registry rows. Prettier reflows all of it and the
+# churn buries real changes in review. They are maintained by hand; CI checks their content, not their
+# whitespace.
+docs/
+manifests/
+*.md
+

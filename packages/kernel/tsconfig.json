@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // rootDir is the package root, not src/, so the PURE smoke suites under test/ are typechecked and
+    // linted like any other source. Emit therefore lands at dist/src/** and dist/test/**.
+    "rootDir": ".",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  // The kernel's runtime depends on nothing. The reference is for the smoke suite's harness only.
+  "references": [{ "path": "../../tools/test-runner" }]
+}

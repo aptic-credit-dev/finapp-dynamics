@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+
+    // NestJS DI reads design-time type metadata emitted by the legacy decorator transform. This is the
+    // one place in the repo that needs it — which is exactly why the kernel defines decorators but never
+    // applies one: kernel source must stay loadable by `node --experimental-strip-types`, and neither
+    // decorator syntax nor `emitDecoratorMetadata` survives type stripping.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [{ "path": "../../packages/kernel" }, { "path": "../../packages/contracts" }]
+}

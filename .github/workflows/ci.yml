@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22.x'
+
+jobs:
+  # The fast lane on every PR: lint, build, and the PURE smoke suites. No database — a contributor must
+  # be able to run exactly this locally with `npm run verify` (docs/07-engineering/TEST_STRATEGY.md).
+  smoke:
+    name: Smoke lane
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Format check
+        run: npm run format:check
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+      - name: PURE smoke suites
+        run: npm run test:smoke
+
+  # The DB lane: integration specs against a real PostgreSQL 16.
+  #
+  # Runs on pull requests AND on pushes to main/develop. It must run on pull requests for two reasons:
+  # this lane is the only thing that proves tenant isolation, so an RLS regression has to be caught
+  # BEFORE merge rather than after; and a required status check that never runs on a PR would block
+  # every PR forever waiting on a check that cannot report.
+  db:
+    name: DB lane
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: finapp
+          POSTGRES_PASSWORD: finapp
+          POSTGRES_DB: finapp_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://finapp:finapp@localhost:5432/finapp_ci
+      DATABASE_OWNER_ROLE: finapp_owner
+      DATABASE_APP_ROLE: finapp_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # `npm run test:db` SKIPS (and reports green) when DATABASE_URL is absent — deliberate, so that
+      # contributors and the smoke lane need no database. In THIS lane that behaviour is a hazard: if
+      # the env or the service container ever breaks, the lane would go green having proven nothing,
+      # and "green" would quietly mean "never ran". Fail closed instead.
+      - name: Assert the database lane can actually run
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "::error::DATABASE_URL is empty — the DB lane would skip and report a false green."
+            exit 1
+          fi
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U finapp && break
+            echo "waiting for postgres ($i/30)"; sleep 2
+          done
+          pg_isready -h localhost -p 5432 -U finapp
+
+      # The platform targets PostgreSQL 16 and the RLS convention's certification depends on it. Assert
+      # the major version rather than trusting the image tag, so this lane's log is real evidence of
+      # what it ran against.
+      - name: Assert PostgreSQL 16
+        run: |
+          VERSION=$(psql "${DATABASE_URL}" -tAc "SHOW server_version_num")
+          echo "server_version_num=${VERSION}"
+          psql "${DATABASE_URL}" -tAc "SELECT version()"
+          if [ "${VERSION}" -lt 160000 ] || [ "${VERSION}" -ge 170000 ]; then
+            echo "::error::Expected PostgreSQL 16.x, got server_version_num=${VERSION}."
+            exit 1
+          fi
+
+      - name: Migrations (dry run — ordering and checksums)
+        run: npm run migrate -- --dry-run
+      - name: Migrations
+        run: npm run migrate
+      - name: DB integration specs
+        run: npm run test:db

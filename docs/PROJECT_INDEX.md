@@ -20,10 +20,26 @@ reference implementation and are the baseline a rebuilt repository should reach.
 | `docs/04-modules/` | Feedback, Case, Legal, Recovery, Bank Recon, GL Recon, Journal |
 | `docs/05-ai/` | AI foundation, Operational/Legal/Finance AI, Executive Copilot |
 | `docs/06-data-and-contracts/` | DB schema, API, event, permission, audit-code, integration catalogues |
-| `docs/07-engineering/` | Backlog, build sequence, release gates, test/UAT/migration strategy |
+| `docs/07-engineering/` | Backlog, build sequence, release gates, database conventions, test/UAT/migration strategy |
 | `docs/08-prompts/` | Build-orchestration + stage prompts + module-build index |
 | `docs/09-phase-7/` | Vertical solutions foundation + portfolio |
-| `manifests/` | Machine-readable manifest + module/API/event/permission registries |
+| `manifests/` | Machine-readable manifest + module/API/event/permission/audit-code registries + naming map |
+
+## Code (Stage 0 — implemented)
+
+| Location | What |
+|---|---|
+| `packages/kernel/` | DI tokens (DB, AUDIT, AUTHZ, OUTBOX), RequestContext, ProblemError, `@Endpoint`, ambient-transaction `Db` |
+| `packages/contracts/` | The typed domain-event union — empty at Stage 0, appended to per module |
+| `packages/m*/` | Placeholder READMEs. No code until the owning stage is approved. |
+| `apps/api/` | NestJS host under `/api/v1` (ADR-008). Health only. |
+| `apps/web/` | Framework-free shell — stack undecided (OPEN_QUESTIONS.md #17) |
+| `tools/migrate/` | Migration runner + the RLS convention sample and its proof |
+| `tools/test-runner/` | PURE smoke harness + DB integration lane |
+
+**`docs/07-engineering/DATABASE_CONVENTIONS.md` is required reading before any schema work** — it carries the
+tenant-isolation convention and the two traps (a pooled-connection GUC reverting to `''`; RLS not applying to
+superusers) that `tools/migrate/test/rls-convention.db-spec.ts` proves.
 
 ## Module inventory (reference baseline)
 
