@@ -1,3 +1,4 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineSuite } from '@finapp/test-runner';
 import {
@@ -252,5 +253,31 @@ export default defineSuite('conformance', (t) => {
       m02Sources.some((f) => f.name.endsWith('actor-resolver.ts')),
       'm02-identity is marked implemented and ships the actor resolver the stage is defined by',
     );
+  }
+
+  // --- every workspace's tests live inside its own tsconfig (lint needs no prior build) ------------
+  // REGRESSION GUARD for the Stage 1B CI failure. apps/api excluded test/** from its tsconfig, so its
+  // integration spec could only be type-aware-linted through a separate classic-`project` eslint tsconfig
+  // that resolved `@finapp/*` types via BUILT dist/*.d.ts. CI's Smoke lane lints BEFORE it builds, so dist
+  // was absent and lint failed with 173 "type that cannot be resolved" errors — while every developer
+  // machine passed because a prior build had left dist in place. Keeping each test dir inside its own
+  // workspace tsconfig means projectService redirects those imports to SOURCE, so `npm run lint` succeeds
+  // on a clean checkout. This asserts that invariant so the same trap cannot be reintroduced silently.
+  for (const group of ['apps', 'packages', 'tools']) {
+    const groupDir = resolve(REPO_ROOT, group);
+    if (!existsSync(groupDir)) continue;
+    for (const ws of readdirSync(groupDir, { withFileTypes: true })) {
+      if (!ws.isDirectory()) continue;
+      const testDir = resolve(groupDir, ws.name, 'test');
+      const tsconfigPath = resolve(groupDir, ws.name, 'tsconfig.json');
+      if (!existsSync(testDir) || !existsSync(tsconfigPath)) continue;
+      if (!readdirSync(testDir).some((f) => f.endsWith('.ts'))) continue;
+      // Collapse whitespace and comment lines, then require an `include` array that names `test/`.
+      const cleaned = stripCommentLines(readFileSync(tsconfigPath, 'utf8')).replace(/\s+/g, ' ');
+      t.ok(
+        /"include"\s*:\s*\[[^\]]*test\//.test(cleaned),
+        `${group}/${ws.name}/tsconfig.json includes its test/ dir (type-aware lint must not need a prior build)`,
+      );
+    }
   }
 });
