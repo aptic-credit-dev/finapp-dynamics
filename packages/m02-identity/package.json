@@ -1,0 +1,33 @@
+{
+  "name": "@finapp/m02-identity",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M02 — identity registry, user accounts, tenant membership and actor resolution.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/test-runner": "*",
+    "yaml": "^2.6.1"
+  }
+}

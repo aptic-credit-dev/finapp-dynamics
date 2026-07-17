@@ -1,0 +1,24 @@
+{
+  "name": "@finapp/conformance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Platform-wide structural checks that run in the smoke lane.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "devDependencies": {
+    "@finapp/test-runner": "*",
+    "yaml": "^2.6.1"
+  }
+}

@@ -18,3 +18,21 @@ export type {
   TenantEnvironmentCreatedPayload,
   TenantOrgNodeCreatedPayload,
 } from './tenant-events.ts';
+
+export {
+  IDENTITY_LIFECYCLE_FAMILY,
+  IDENTITY_LIFECYCLE_VERSION,
+  IDENTITY_LIFECYCLE_EVENT_TYPES,
+  PLATFORM_TENANT,
+} from './identity-events.ts';
+export type {
+  IdentityLifecycleEvent,
+  IdentityLifecycleEventType,
+  IdentityLifecyclePayload,
+  IdentityStatusChangePayload,
+  IdentityUpdatedPayload,
+  AccountStatusChangePayload,
+  MembershipStatusChangePayload,
+  MembershipScopeChangedPayload,
+  AuthenticationSubjectLinkedPayload,
+} from './identity-events.ts';

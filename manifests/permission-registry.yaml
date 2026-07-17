@@ -23,8 +23,19 @@ namespaces:
              "tenant.entity.view", "tenant.entity.manage",
              "tenant.department.view", "tenant.department.manage",
              "tenant.branch.view", "tenant.branch.manage"]}
-  - {namespace: "identity.*", module: m02-identity, mvp: true, status: documented}
-  - {namespace: "rbac.*", module: m02-identity, mvp: true, status: documented}
+  # Stage 1B registered the concrete identity.* codes. Three segments, per the kernel's @Endpoint
+  # validator. Declared, NOT granted: no role holds them until Stage 1D ships the RBAC model.
+  - {namespace: "identity.*", module: m02-identity, mvp: true, status: implemented, substage: 1B,
+     codes: ["identity.registry.view", "identity.registry.create", "identity.registry.edit",
+             "identity.registry.activate", "identity.registry.suspend", "identity.registry.reactivate",
+             "identity.registry.close",
+             "identity.account.view", "identity.account.create", "identity.account.activate",
+             "identity.account.suspend", "identity.account.reactivate", "identity.account.deactivate",
+             "identity.membership.view", "identity.membership.create", "identity.membership.activate",
+             "identity.membership.suspend", "identity.membership.reactivate", "identity.membership.end",
+             "identity.membership.scope"]}
+  # Stage 1D. Deliberately untouched by 1B — roles and permission assignment are not identity.
+  - {namespace: "rbac.*", module: m02-identity, mvp: true, status: documented, substage: 1D}
   - {namespace: "audit.*", module: m03-audit, mvp: true, status: documented}
   - {namespace: "workflow.*", module: m06-workflow, mvp: true, status: documented}
   - {namespace: "rules.*", module: m07-rules, mvp: true, status: documented}

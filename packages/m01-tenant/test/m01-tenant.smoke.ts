@@ -299,7 +299,8 @@ export default defineSuite('m01-tenant', (t) => {
   // The event family must be declared in the union AND registered — naming-map flagged GAP-1 precisely
   // because the manifest claimed a family the event registry had never heard of.
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is in the contracts union');
-  t.equal(DOMAIN_EVENT_FAMILIES.length, 1, 'exactly one family is declared at Stage 1A');
+  // Deliberately NOT asserting the total family count: that belongs to the contracts suite. A module
+  // that policed the global total would go red every time an unrelated module added its own family.
   const eventRegistry = readYaml('manifests/event-registry.yaml') as {
     family_groups?: { families: string[] }[];
   };

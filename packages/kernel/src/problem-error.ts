@@ -48,6 +48,24 @@ export class ProblemError extends Error {
     return out as unknown as ProblemDetails;
   }
 
+  /**
+   * The caller is not a proven actor: no assertion, a bad one, or one that resolves to nothing.
+   *
+   * Kept distinct from `forbidden` on purpose. 401 means "we do not know who you are"; 403 means "we know,
+   * and the answer is no". Collapsing them costs the difference between a caller who should authenticate
+   * and one who should stop asking — and makes actor-resolution failures indistinguishable from
+   * permission failures in a log.
+   */
+  static unauthorized(detail: string, correlationId?: string): ProblemError {
+    return new ProblemError({
+      type: 'https://finapp.dynamics/problems/unauthorized',
+      title: 'Unauthorized',
+      status: 401,
+      detail,
+      ...(correlationId === undefined ? {} : { correlationId }),
+    });
+  }
+
   static forbidden(detail: string, correlationId?: string): ProblemError {
     return new ProblemError({
       type: 'https://finapp.dynamics/problems/forbidden',

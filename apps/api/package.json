@@ -19,6 +19,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "@finapp/m01-tenant": "*",
+    "@finapp/m02-identity": "*",
     "pg": "^8.13.1"
   },
   "devDependencies": {

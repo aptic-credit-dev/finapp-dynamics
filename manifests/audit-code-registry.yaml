@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 18 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 39 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -137,6 +137,31 @@ codes:
   - { code: TENANT_DEPARTMENT_CREATED, module: m01-tenant, severity: normal, reason_required: false }
   - { code: TENANT_BRANCH_CREATED, module: m01-tenant, severity: normal, reason_required: false }
   - { code: TENANT_ORG_STATUS_CHANGED, module: m01-tenant, severity: normal, reason_required: false }
+  # --- m02-identity — Stage 1B ---
+  # Format <PREFIX>_<ENTITY>_<ACTION>; m02's registered prefix is IDENTITY_, so the identity record's own
+  # entity segment is REGISTRY. IDENTITY_CREATED has two segments and does not satisfy the format.
+  - { code: IDENTITY_REGISTRY_CREATED, module: m02-identity, severity: normal, reason_required: false }
+  - { code: IDENTITY_REGISTRY_UPDATED, module: m02-identity, severity: normal, reason_required: false }
+  - { code: IDENTITY_REGISTRY_ACTIVATED, module: m02-identity, severity: normal, reason_required: false }
+  - { code: IDENTITY_REGISTRY_SUSPENDED, module: m02-identity, severity: normal, reason_required: true }
+  - { code: IDENTITY_REGISTRY_REACTIVATED, module: m02-identity, severity: normal, reason_required: false }
+  - { code: IDENTITY_REGISTRY_DEACTIVATED, module: m02-identity, severity: normal, reason_required: true }
+  - { code: IDENTITY_REGISTRY_REJECTED, module: m02-identity, severity: normal, reason_required: true }
+  - { code: IDENTITY_REGISTRY_ARCHIVED, module: m02-identity, severity: normal, reason_required: true }
+  - { code: IDENTITY_REGISTRY_CLOSED, module: m02-identity, severity: normal, reason_required: true }
+  - { code: IDENTITY_ACCOUNT_CREATED, module: m02-identity, severity: normal, reason_required: false }
+  - { code: IDENTITY_ACCOUNT_ACTIVATED, module: m02-identity, severity: normal, reason_required: false }
+  - { code: IDENTITY_ACCOUNT_SUSPENDED, module: m02-identity, severity: normal, reason_required: true }
+  - { code: IDENTITY_ACCOUNT_REACTIVATED, module: m02-identity, severity: normal, reason_required: false }
+  - { code: IDENTITY_ACCOUNT_DEACTIVATED, module: m02-identity, severity: normal, reason_required: true }
+  - { code: IDENTITY_MEMBERSHIP_CREATED, module: m02-identity, severity: normal, reason_required: false }
+  - { code: IDENTITY_MEMBERSHIP_ACTIVATED, module: m02-identity, severity: normal, reason_required: false }
+  - { code: IDENTITY_MEMBERSHIP_SUSPENDED, module: m02-identity, severity: normal, reason_required: true }
+  - { code: IDENTITY_MEMBERSHIP_REACTIVATED, module: m02-identity, severity: normal, reason_required: false }
+  - { code: IDENTITY_MEMBERSHIP_ENDED, module: m02-identity, severity: normal, reason_required: true }
+  - { code: IDENTITY_MEMBERSHIP_SCOPE_CHANGED, module: m02-identity, severity: normal, reason_required: false }
+  # Readiness (§4.4): the link is recorded; nothing authenticates against it until Stage 1C.
+  - { code: IDENTITY_SUBJECT_LINKED, module: m02-identity, severity: normal, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
