@@ -283,3 +283,73 @@ Stage 1C replaces the dev adapter with real sessions; it can begin now because t
 real and consumed on every request. **1B must not merge to `main` until C-CI, C1 and C2 are closed.**
 
 **Do not start Stage 1C implementation until this gate is formally accepted.**
+
+---
+
+# STAGE 1B CERTIFICATION (2026-07-17)
+
+This section records the push / PR / CI-certification pass. **The PostgreSQL 16 CI has not yet run for
+this branch** — the workflow triggers on `pull_request` (and on pushes to `main`/`develop`), not on
+feature-branch pushes, and **no pull request has been created** because the GitHub CLI is unavailable and
+the remote is deliberately credential-free. Everything that can be done without authenticated GitHub
+access is done; the PR-creation and CI observation are a single manual step, detailed below.
+
+| # | Item | Evidence |
+|---|---|---|
+| 1 | **Branch head commit** | `6cd3918b3d4b94b13df910b49c30d062234d24bf` |
+| 2 | **Remote branch verification** | `git ls-remote origin refs/heads/feature/stage-1b-m02-identity` → `6cd3918…` (matches local HEAD; not merely the push message). Pushed `af24e24..6cd3918`, non-force. |
+| 3 | **Pull-request number and link** | **NOT YET CREATED** (no `gh`, credential-free remote). Create at: `https://github.com/aptic-credit-dev/finapp-dynamics/compare/main...feature/stage-1b-m02-identity?expand=1` — title/body in `docs/build/stages/STAGE_1B_PR.md`. |
+| 4 | **Pull-request head SHA** | Will be `6cd3918` (branch is 17 ahead of `main`, 0 behind — fast-forwardable). |
+| 5 | **Build lane run ID and result** | **NOT YET RUN** — awaits the PR. The Smoke lane ran green on PRs #1 and #2, so the `pull_request` trigger is proven. |
+| 6 | **PostgreSQL 16 lane run ID and result** | **NOT YET RUN** — awaits the PR. |
+| 7 | **PostgreSQL server version evidence** | Local certification: **15.2** (`SELECT version()`), all lanes green. CI asserts `server_version_num` ∈ [160000,170000) via the `Assert PostgreSQL 16` step against `postgres:16`. |
+| 8 | **Database roles used** | Owner `finapp_owner`, application `finapp_app` (**NOLOGIN, NOBYPASSRLS**). The API/specs connect as the login role (`finapp` in CI, `postgres` locally) and drop to `finapp_app` via `SET LOCAL ROLE` per transaction — RLS is exercised as a non-superuser. `DATABASE_APP_ROLE`/`DATABASE_OWNER_ROLE` are set in the DB-lane env. |
+| 9 | **Test suites discovered** | Smoke: **7** (contracts, kernel, m01-tenant, m02-actor-context, m02-identity, conformance, migrate). DB: **5** (m01-tenant, m02-actor-resolution, m02-identity, api-identity, rls-convention). |
+| 10 | **Test assertion totals** | Smoke **919**, DB **254** (0 failures each). |
+| 11 | **No DB test skipped** | Confirmed locally (5/5 ran). CI fails closed if `DATABASE_URL` is empty (`Assert the database lane can actually run`), and `db-cli` now **also fails closed if zero specs are discovered** with `DATABASE_URL` set (commit `6cd3918`) — no silent green. |
+| 12 | **RLS results** | Pass. Cross-tenant read/write refused (`401`/`404`); another tenant's membership invisible (`count`=0 from the wrong context); pooled-connection non-leak proven; app role is not superuser and NOBYPASSRLS. |
+| 13 | **Actor-resolution results** | `m02-actor-resolution.db-spec.ts` — **52 assertions**: three independent gates, forgery/tamper/expiry, non-enumeration, permission-injection resistance, system-actor behaviour, production-refusal, pooled non-leak. |
+| 14 | **Identity API integration results** | `api-identity.db-spec.ts` — **85 assertions**: real `AppModule` over HTTP; identity/account/membership + M01 lifecycles; authorization-vs-identity separation; data minimisation; error hygiene. |
+| 15 | **`x-actor-id` removal evidence** | No `src/**` reference (only comments + tests that send it and assert `401`); conformance asserts no live source use; API spec proves a real active account id via `x-actor-id` → `401`. |
+| 16 | **Remaining Stage 1C / 1D debt** | 1C: sessions/tokens/lockout/`login_attempts`; delete `DevActorAdapter` + `x-dev-actor`. 1D: roles/permissions/`user_roles`/SoD; delete `x-permissions` + `ContextAuthz`. |
+| 17 | **Branch-protection status** | ❌ **`main` is NOT protected** (`GET /branches/main` → `"protected": false`; detail endpoint 401 unauthenticated). Unchanged since Stage 0. |
+| 18 | **PAT-revocation status** | ❓ **Unverifiable from here** — needs authenticated access to the issuing account's token list. Treated as **unrevoked**. Eight reports. |
+| 19 | **Repository-visibility status** | ⚠️ **Public** (`"private": false`, `"visibility": "public"`). Not recorded as an approved decision. |
+| 20 | **Open defects** | **None.** The three DB-spec defects and the lint-project gap found this cycle are fixed and green. |
+| 21 | **Known limitations** | Per §27: no authentication until 1C; audit/outbox are in-memory stand-ins; `x-permissions`/`ContextAuthz` live until 1D; `AuthenticationSubjectLinked` unemitted; PG16 CI not yet run for this branch. |
+| 22 | **Final merge recommendation** | **CONDITIONAL GO** — see below. |
+| 23 | **Stage 1C-start recommendation** | **GO after merge** — see below. |
+
+## Final gate — merge of Stage 1B
+
+### CONDITIONAL GO for merge
+
+The code is complete and locally certified green (919 smoke + 254 DB, build/lint/format clean, RLS proven
+on the non-superuser role, cross-tenant isolation and actor resolution proven, `x-actor-id` gone, M01
+intact, no critical defect). GO for merge cannot be issued **only** because the authoritative
+**PostgreSQL 16 CI has not yet run** and `main` has no protection policy. Each condition names its owner,
+action, merge restriction and how it is discharged:
+
+| # | Condition | Owner | Action | Merge restriction | Resolution evidence |
+|---|---|---|---|---|---|
+| C-CI | PG16 CI not run for this branch | Engineer | Open the PR (link above); let both lanes run | **Blocks merge** | DB lane conclusion `success` with `Assert PostgreSQL 16` passed and the `DB integration specs` step showing **5 specs / 254 assertions**, no skip |
+| C1 | Compromised PAT (`ghp_0jL…`) | Repository owner | Revoke it in the issuing account | Security blocker on merge | Token absent from the account's PAT list |
+| C2 | `main` unprotected | Repository admin | Require the Smoke and DB lanes; block force-push and deletion; require review | **Blocks merge** (or a formally recorded exception) | `GET /branches/main` → `"protected": true` with both checks required |
+| C3 | Repository public, undecided | Repository owner | Decide and record visibility | None (advisory) | An explicit, owned decision |
+
+**Stage 1B must not merge while the PG16 CI is unproven for this branch, a critical security defect
+exists, or `main` protection is absent without a recorded exception.** Given local green and the identical
+lane having passed on 16 for PRs #1 and #2, C-CI is expected to pass on first run; it must still be
+**observed green**, not assumed.
+
+### GO for beginning Stage 1C — after merge
+
+Stage 1C (`m02-auth`: sessions, tokens, `login_attempts`, deleting the dev adapter) may begin **once 1B is
+merged**. The boundary it replaces is real and consumed on every request, so 1C builds on solid ground.
+Do not start 1C implementation before 1B merges and this gate is formally accepted.
+
+## Manual step required (cannot be automated here)
+
+1. Open the PR: `https://github.com/aptic-credit-dev/finapp-dynamics/compare/main...feature/stage-1b-m02-identity?expand=1` (title/body in `STAGE_1B_PR.md`).
+2. Watch both lanes. For the DB lane, confirm from the **step logs** (not just the green tick): `Assert PostgreSQL 16` passed; `DB integration specs` shows `5 specs, 254 assertions passed, 0 specs failed`; no step skipped.
+3. Close C1 (revoke PAT) and C2 (protect `main`) before merging.
