@@ -174,17 +174,43 @@ stages:
           module: m02-identity
           substage: 1B
           branch: feature/stage-1b-m02-identity
-          remote_head: 586faee
-          implementation_status: implemented_on_feature_branch
-          certification_status: pending_postgresql_16_ci
-          merge_status: not_merged
-          stage_gate: conditional_go
-          stage_1c_readiness: go_only_after_stage_1b_merge
-          pull_request: not_opened
-          postgres16_ci: not_run   # workflow triggers on pull_request / push-to-main; no PR exists yet
+          remote_head: 586faee   # feature-branch head at PR time; merged as 9baf98c via PR #3
+          # STATUS MODEL (mapped to fields; the substage `status: implemented` above stays — it is the
+          # closest legend value and real tested code exists and is now on main):
+          #   implementation_status:        implemented   (merged to main via PR #3)
+          #   postgresql_16_certification:  passed         (DB lane green on the PR and post-merge run)
+          #   smoke_certification:          pending_remediation  (Smoke lane failed at Lint)
+          #   merge_status:                 merged_with_failed_required_lane
+          #   stage_gate:                   no_go_pending_remediation
+          implementation_status: implemented
+          postgresql_16_certification: passed
+          smoke_certification: pending_remediation
+          merge_status: merged_with_failed_required_lane
+          stage_gate: no_go_pending_remediation
+          stage_1c_readiness: no_go_until_smoke_remediation_merged
+          merged_pr: 3
+          merge_commit: a94c0ab
+          remediation:
+            branch: fix/stage-1b-ci-remediation
+            reason: "PR #3 merged with a RED required Smoke lane (Lint failed; Build + smoke skipped)"
+            failed_run: 29575596082      # pull_request run for PR #3 head 9baf98c
+            post_merge_failed_run: 29575701016   # push run on main a94c0ab, same failure
+            root_cause: "apps/api excluded test/** from its build tsconfig; the integration spec was
+                         type-aware-linted via a classic-`project` eslint tsconfig that resolved @finapp/*
+                         types through BUILT dist. CI lints before building, so dist was absent and lint
+                         produced 173 unresolved-type errors."
+            fix: "include apps/api test/** in its tsconfig + reference test-runner (uniform with all
+                  workspaces); delete tsconfig.eslint.json and the eslint override; declare the Nest app
+                  surface the spec drives (3 latent TS2352 casts). projectService now resolves to source and
+                  lint needs no prior build."
+            regression_guard: "conformance asserts every workspace with a test/ dir includes it in tsconfig"
+            local_reverification: {smoke_suites: 7, smoke_assertions: 926, db_specs: 5, db_assertions: 254,
+                                   fresh_checkout: true, postgres_version: "15.2"}
+          pull_request: merged_pr_3_then_remediation_pr_pending
+          postgres16_ci: passed   # DB lane green on run 29575596082 and 29575701016
           local_verification:
             smoke_suites: 7
-            smoke_assertions: 919
+            smoke_assertions: 926   # +7 conformance assertions from the regression guard
             db_specs: 5
             db_assertions: 254
             postgres_version: "15.2"   # local only; PostgreSQL 16 in CI is the authoritative gate

@@ -147,7 +147,16 @@ async function bootApi(): Promise<{ client: Client; close: () => Promise<void> }
   process.env['FINAPP_DEV_ACTOR_SECRET'] = SECRET;
 
   const distDir = resolvePath(import.meta.dirname, '../dist/src');
-  let app: { listen: (port: number) => Promise<unknown>; close: () => Promise<void>; [k: string]: unknown };
+  // The slice of Nest's application surface this spec drives. Declared explicitly (rather than cast at each
+  // call site) so the compiled build type-checks it — the spec is now part of apps/api's tsconfig.
+  let app: {
+    listen: (port: number) => Promise<unknown>;
+    close: () => Promise<void>;
+    setGlobalPrefix: (p: string) => void;
+    useGlobalFilters: (f: unknown) => void;
+    getHttpServer: () => { address: () => { port: number } };
+    [k: string]: unknown;
+  };
   try {
     await import(
       pathToFileURL(resolvePath(distDir, '../../../node_modules/reflect-metadata/lib/index.js')).href
@@ -169,14 +178,14 @@ async function bootApi(): Promise<{ client: Client; close: () => Promise<void> }
 
     app = await core.NestFactory.create(appModule.AppModule, { logger: false });
     // Exactly what main.ts does. A test that skipped these would be testing a different application.
-    (app as { setGlobalPrefix: (p: string) => void }).setGlobalPrefix('api/v1');
-    (app as { useGlobalFilters: (f: unknown) => void }).useGlobalFilters(new filter.ProblemFilter());
+    app.setGlobalPrefix('api/v1');
+    app.useGlobalFilters(new filter.ProblemFilter());
     await app.listen(0);
   } catch (error: unknown) {
     return { error: error instanceof Error ? error.message : String(error) };
   }
 
-  const server = (app as { getHttpServer: () => { address: () => { port: number } } }).getHttpServer();
+  const server = app.getHttpServer();
   const port = server.address().port;
   const base = `http://127.0.0.1:${port}/api/v1`;
 
