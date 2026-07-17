@@ -81,8 +81,17 @@ async function main(): Promise<void> {
     return;
   }
 
+  // DATABASE_URL is set, so this is the DB lane and its whole purpose is to run integration specs.
+  // Discovering none means the glob, the checkout or the build is broken — the lane would otherwise go
+  // green having proven nothing, which is the exact "silent green" the fail-closed guard above exists to
+  // prevent. Fail instead. (With DATABASE_URL unset, the earlier branch already returned green, so a
+  // contributor with no specs yet is unaffected.)
   if (files.length === 0) {
-    console.log('db lane: 0 specs, nothing to run (green).');
+    console.error(
+      'db lane: DATABASE_URL is set but NO *.db-spec.ts files were discovered. ' +
+        'The lane would prove nothing — failing closed rather than reporting a false green.',
+    );
+    process.exitCode = 1;
     return;
   }
 
