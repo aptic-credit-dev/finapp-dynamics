@@ -74,6 +74,23 @@ export default tseslint.config(
     },
   },
 
+  // The API's integration spec is deliberately NOT part of the app's build tsconfig (that would make the
+  // shipped app depend on the test-runner tool). projectService cannot find a program that includes it, so
+  // this block points those files at a dedicated eslint-only project instead. The spec is a runtime script.
+  {
+    files: ['apps/api/test/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+        project: ['./apps/api/tsconfig.eslint.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-non-null-assertion': 'off',
+    },
+  },
+
   // Config files are not part of any tsconfig, so type-aware rules cannot run on them.
   {
     files: ['**/*.mjs', '**/*.js'],
