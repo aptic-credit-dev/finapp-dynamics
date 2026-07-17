@@ -58,9 +58,18 @@ export default tseslint.config(
     },
   },
 
-  // The CLIs and specs are scripts, not library code.
+  // The CLIs and specs are scripts, not library code. `apps/api/test/**` is included here (not in a
+  // separate block) so its integration spec is linted by the same projectService as everything else —
+  // apps/api/tsconfig.json includes test/** and references test-runner, so its `@finapp/*` imports resolve
+  // to SOURCE and lint needs no prior build. See apps/api/tsconfig.json for why the earlier eslint-only
+  // project was removed.
   {
-    files: ['tools/**/src/*-cli.ts', 'tools/**/test/**/*.ts', 'packages/**/test/**/*.ts'],
+    files: [
+      'tools/**/src/*-cli.ts',
+      'tools/**/test/**/*.ts',
+      'packages/**/test/**/*.ts',
+      'apps/api/test/**/*.ts',
+    ],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',
     },
@@ -71,23 +80,6 @@ export default tseslint.config(
     files: ['apps/api/**/*.ts'],
     rules: {
       '@typescript-eslint/no-extraneous-class': 'off',
-    },
-  },
-
-  // The API's integration spec is deliberately NOT part of the app's build tsconfig (that would make the
-  // shipped app depend on the test-runner tool). projectService cannot find a program that includes it, so
-  // this block points those files at a dedicated eslint-only project instead. The spec is a runtime script.
-  {
-    files: ['apps/api/test/**/*.ts'],
-    languageOptions: {
-      parserOptions: {
-        projectService: false,
-        project: ['./apps/api/tsconfig.eslint.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-    rules: {
-      '@typescript-eslint/no-non-null-assertion': 'off',
     },
   },
 

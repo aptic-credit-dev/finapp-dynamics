@@ -12,14 +12,19 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  // `test/**` is deliberately NOT compiled. The API's integration spec runs under
-  // `node --experimental-strip-types` and loads the app from `dist/` at runtime, so compiling it here
-  // would make tsc's inputs and outputs overlap for no gain. See test/api-identity.db-spec.ts.
-  "include": ["src/**/*.ts"],
+  // `test/**` is compiled here, exactly as every package tsconfig does (m01, m02, …). This is what lets
+  // ESLint's projectService type-check the integration spec by redirecting its `@finapp/*` imports to
+  // SOURCE through the project references below — so `npm run lint` succeeds on a clean checkout with no
+  // prior build, which is the order CI's Smoke lane runs (lint before build). A previous attempt kept the
+  // spec out of the build and linted it via a separate classic-`project` tsconfig; that resolved `@finapp/*`
+  // types through built `dist/*.d.ts`, so lint failed in CI whenever dist was absent. The spec still RUNS
+  // from source under strip-types (db-cli ignores dist), so its emitted `dist/test/*.js` is unused.
+  "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [
     { "path": "../../packages/kernel" },
     { "path": "../../packages/contracts" },
     { "path": "../../packages/m01-tenant" },
-    { "path": "../../packages/m02-identity" }
+    { "path": "../../packages/m02-identity" },
+    { "path": "../../tools/test-runner" }
   ]
 }
