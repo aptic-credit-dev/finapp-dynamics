@@ -353,3 +353,53 @@ Do not start 1C implementation before 1B merges and this gate is formally accept
 1. Open the PR: `https://github.com/aptic-credit-dev/finapp-dynamics/compare/main...feature/stage-1b-m02-identity?expand=1` (title/body in `STAGE_1B_PR.md`).
 2. Watch both lanes. For the DB lane, confirm from the **step logs** (not just the green tick): `Assert PostgreSQL 16` passed; `DB integration specs` shows `5 specs, 254 assertions passed, 0 specs failed`; no step skipped.
 3. Close C1 (revoke PAT) and C2 (protect `main`) before merging.
+
+---
+
+# STAGE 1B CI REMEDIATION (2026-07-17)
+
+PR #3 was **merged into `main` with a red required lane**: the Smoke lane failed at Lint, so Build and the
+PURE smoke suites were skipped. The DB lane was fully green. Stage 1B is therefore implemented and merged
+but **not yet fully certified** — a second, remediation PR is required.
+
+1. **PR #3 merge evidence** — `pull/3` state `closed`, `merged: true`; head `9baf98c` (feature branch)
+   merged into `main` as merge commit **`a94c0ab`**.
+2. **Original CI run ID** — `29575596082` (`pull_request`, head `9baf98c`) — conclusion **failure**. The
+   post-merge push run `29575701016` (`main`, `a94c0ab`) failed identically.
+3. **PostgreSQL 16 lane result** — **PASS** on both runs. Steps `Assert PostgreSQL 16`, `Migrations (dry
+   run)`, `Migrations` and `DB integration specs` all succeeded; no DB step skipped.
+4. **Smoke lane failure** — job `Smoke lane` → **failure**. Steps: `npm ci` ✅, `Format check` ✅,
+   **`Lint` ❌**, `Build` ⏭ skipped, `PURE smoke suites` ⏭ skipped.
+5. **Exact lint defect** — 173 errors, all `@typescript-eslint/no-unsafe-call` /
+   `no-unsafe-member-access` — *"Unsafe call/member access on a type that cannot be resolved"* — in
+   `apps/api/test/api-identity.db-spec.ts` (the `Assert` helper `t.equal`/`t.ok` typed as unresolved).
+6. **Root cause** — `apps/api/tsconfig.json` excluded `test/**` from the build, so the spec could only be
+   type-aware-linted through a separate classic-`project` config (`apps/api/tsconfig.eslint.json`) that
+   resolved `@finapp/*` types via **built** `dist/*.d.ts`. CI's Smoke lane runs **lint before build**, so
+   on a clean checkout `dist/` did not exist and every `@finapp/*` type was unresolved. Developer machines
+   passed only because a prior build had left `dist/` in place — a classic "green locally, red in CI".
+7. **Remediation implemented** — align `apps/api` with every other workspace: include `test/**` in
+   `apps/api/tsconfig.json` and add the `tools/test-runner` project reference, so ESLint's `projectService`
+   redirects the spec's imports to **source** and lint needs no prior build. Deleted
+   `apps/api/tsconfig.eslint.json` and its eslint override; folded `apps/api/test/**` into the standard
+   test-file rule block. Compiling the now-included spec surfaced three latent unsafe casts (TS2352) never
+   checked while it was excluded — replaced by declaring the Nest application surface the spec drives.
+8. **Files changed** — `apps/api/tsconfig.json`, `eslint.config.mjs`,
+   `apps/api/test/api-identity.db-spec.ts`, `apps/api/tsconfig.eslint.json` (deleted),
+   `tools/conformance/test/conformance.smoke.ts` (regression guard).
+9. **Local validation evidence** — reproduced the failure on a wiped-`dist` `npm ci` tree (173 errors),
+   then confirmed the fix on the same clean condition: `format:check` ✅, `lint` **0 errors**, `build` ✅,
+   smoke **7 suites / 926 assertions**, DB lane **5 specs / 254 assertions** on PostgreSQL 15.2. (Smoke rose
+   919 → 926: seven new conformance assertions from the guard.)
+10. **Regression protection** — a conformance check now asserts every workspace with a non-empty `test/`
+    directory includes it in its own `tsconfig.json`; verified it fails when a test dir is dropped. This
+    catches the exact trap in the Smoke lane before merge instead of after.
+11. **Remediation branch** — `fix/stage-1b-ci-remediation`, from certified-base `main` (`a94c0ab`).
+12. **Remediation commit SHA** — `792217f` (fix), `bf7300d` (guard), plus this docs/manifest commit.
+13. **Remaining governance conditions** — unchanged: `main` unprotected (C2), PAT revocation unconfirmed
+    (C1), repository public (C3). See the certification table above.
+14. **Updated Stage 1B gate recommendation** — **NO-GO for "fully certified" until the remediation PR runs
+    green and merges.** Manifest now records `smoke_certification: pending_remediation`,
+    `merge_status: merged_with_failed_required_lane`, `stage_gate: no_go_pending_remediation`. Stage 1C must
+    not begin until the remediation PR's Smoke **and** DB lanes are both green and merged, and `main`
+    protection is active (or an approved exception recorded).
