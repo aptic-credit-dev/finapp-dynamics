@@ -176,20 +176,26 @@ stages:
           branch: feature/stage-1b-m02-identity
           remote_head: 586faee   # feature-branch head at PR time; merged as 9baf98c via PR #3
           # STATUS MODEL (mapped to fields; the substage `status: implemented` above stays — it is the
-          # closest legend value and real tested code exists and is now on main):
-          #   implementation_status:        implemented   (merged to main via PR #3)
-          #   postgresql_16_certification:  passed         (DB lane green on the PR and post-merge run)
-          #   smoke_certification:          pending_remediation  (Smoke lane failed at Lint)
-          #   merge_status:                 merged_with_failed_required_lane
-          #   stage_gate:                   no_go_pending_remediation
+          # closest legend value and real tested code exists and is on main):
+          #   implementation_status:        implemented   (merged to main; PR #3 then remediation PR #4)
+          #   postgresql_16_certification:  passed         (DB lane green on PR #3, PR #4 and both main runs)
+          #   smoke_certification:          passed         (Smoke lane green on PR #4 after remediation)
+          #   merge_status:                 merged
+          #   stage_gate:                   go
+          #   status:                       certified_and_complete
           implementation_status: implemented
           postgresql_16_certification: passed
-          smoke_certification: pending_remediation
-          merge_status: merged_with_failed_required_lane
-          stage_gate: no_go_pending_remediation
-          stage_1c_readiness: no_go_until_smoke_remediation_merged
-          merged_pr: 3
-          merge_commit: a94c0ab
+          smoke_certification: passed
+          merge_status: merged
+          stage_gate: go
+          status: certified_and_complete
+          stage_1c_readiness: go   # Stage 1B is certified on main; 1C may begin from e3e51a5
+          branch_protection: active   # main requires the Smoke and PostgreSQL 16 lanes (2026-07-17)
+          certified_ci_run: 29585327815   # PR #4 pull_request run — Smoke AND DB lanes success, no skips
+          post_merge_ci_run: 29585408515   # push run on main e3e51a5 — success
+          merged_pr: [3, 4]   # PR #3 implemented (merged red); PR #4 remediated the Smoke lane
+          merge_commit: a94c0ab   # PR #3
+          remediation_merge_commit: e3e51a5   # PR #4 — the certified baseline
           remediation:
             branch: fix/stage-1b-ci-remediation
             reason: "PR #3 merged with a RED required Smoke lane (Lint failed; Build + smoke skipped)"
@@ -206,8 +212,9 @@ stages:
             regression_guard: "conformance asserts every workspace with a test/ dir includes it in tsconfig"
             local_reverification: {smoke_suites: 7, smoke_assertions: 926, db_specs: 5, db_assertions: 254,
                                    fresh_checkout: true, postgres_version: "15.2"}
-          pull_request: merged_pr_3_then_remediation_pr_pending
-          postgres16_ci: passed   # DB lane green on run 29575596082 and 29575701016
+          pull_request: merged_pr_3_and_remediation_pr_4
+          postgres16_ci: passed   # DB lane green on PR #3, PR #4 (29585327815) and both main push runs
+          smoke_ci: passed   # Smoke lane green on PR #4 (29585327815): format, lint, build, PURE smoke all ran
           local_verification:
             smoke_suites: 7
             smoke_assertions: 926   # +7 conformance assertions from the regression guard
@@ -226,24 +233,22 @@ stages:
             - "audit persistence -> m03 (deferred)"
             - "outbox delivery -> m06 (deferred)"
           conditions:
-            - {id: C-CI, name: PostgreSQL 16 certification, owner: repository_maintainer,
+            - {id: C-CI, name: PostgreSQL 16 certification, owner: repository_maintainer, status: RESOLVED,
                action: "open the Stage 1B pull request; confirm the PostgreSQL 16 DB lane passes with all
                         expected M01 and M02 specs discovered and no skipped database steps",
-               merge_restriction: "Stage 1B must not merge until green",
-               evidence_required: "GitHub Actions run id, server_version_num assertion, passing test counts"}
-            - {id: C1, name: PAT revocation, owner: repository_or_org_admin,
+               resolution: "PR #4 run 29585327815 — DB lane success: Assert PostgreSQL 16, migrations and
+                            'DB integration specs' (5 specs) all passed, no step skipped; Smoke lane also green"}
+            - {id: C1, name: PAT revocation, owner: repository_or_org_admin, status: OPEN,
                action: "revoke the previously exposed GitHub Personal Access Token",
                merge_restriction: "treat as unresolved security exposure until confirmed",
-               evidence_required: "confirmation from the token owner or GitHub settings"}
-            - {id: C2, name: main branch protection, owner: repository_admin,
+               evidence_required: "confirmation from the token owner or GitHub settings — NOT verifiable from here"}
+            - {id: C2, name: main branch protection, owner: repository_admin, status: RESOLVED,
                action: "protect main and require the Smoke and PostgreSQL 16 checks before merge",
-               merge_restriction: "should not merge until protection is active unless a formally approved
-                                   exception is documented",
-               evidence_required: "GitHub branch-protection status"}
-            - {id: C3, name: repository visibility, owner: repository_owner,
+               resolution: "GET /branches/main -> protected: true (2026-07-17). PR #4 merged under protection."}
+            - {id: C3, name: repository visibility, owner: repository_owner, status: OPEN,
                action: "confirm whether public visibility is intentional or make the repository private",
                merge_restriction: "apply the organization's approved security decision",
-               evidence_required: "repository visibility status and owner decision"}
+               evidence_required: "repository still public; owner decision not recorded"}
           docs: docs/build/stages/STAGE_1B_M02_IDENTITY_COMPLETION.md
         # -------------------------------------------------------------------------------------------------
         open_gaps:

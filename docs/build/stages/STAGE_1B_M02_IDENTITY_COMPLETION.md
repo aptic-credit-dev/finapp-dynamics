@@ -2,7 +2,17 @@
 
 **2026-07-17** · Branch `feature/stage-1b-m02-identity` · M02 (substage 1B) only.
 
-## Verdict: CONDITIONAL GO for Stage 1C
+## FINAL STATUS: CERTIFIED AND COMPLETE — Stage gate GO
+
+> **Certified on `main` at `e3e51a5` (2026-07-17).** Implemented via PR #3, its CI-lint regression
+> remediated via **PR #4**, which merged under active branch protection after **both** the Smoke lane
+> (format, lint, build, PURE smoke) and the PostgreSQL **16** DB lane passed green (run `29585327815`; post-
+> merge main run `29585408515`). Local re-verification on the certified baseline: smoke **7 suites / 926
+> assertions**, DB **5 specs / 254 assertions**, 0 failures. **Stage 1B is complete; Stage 1C may begin.**
+> Full evidence in the "STAGE 1B CERTIFICATION COMPLETE" section at the end of this report. The historical
+> verdicts below are preserved as the record of how the gate was reached.
+
+## Verdict (historical, superseded by FINAL STATUS above): CONDITIONAL GO for Stage 1C
 
 Stage 1B is **functionally complete**. The identity foundation is bound into the running API, actors are
 resolved through the M02 identity/account/membership model on every request, raw `x-actor-id` trust is
@@ -403,3 +413,36 @@ but **not yet fully certified** — a second, remediation PR is required.
     `merge_status: merged_with_failed_required_lane`, `stage_gate: no_go_pending_remediation`. Stage 1C must
     not begin until the remediation PR's Smoke **and** DB lanes are both green and merged, and `main`
     protection is active (or an approved exception recorded).
+
+---
+
+# STAGE 1B CERTIFICATION COMPLETE (2026-07-17)
+
+The remediation PR merged after both required lanes passed, under active branch protection. Stage 1B is
+**certified and complete**.
+
+| Item | Evidence |
+|---|---|
+| **Remediation PR** | **#4** — `fix/stage-1b-ci-remediation` → `main`, state `closed`, `merged: true`. |
+| **Remediation merge SHA** | **`e3e51a5`** — merge commit of PR #4; the certified Stage 1B baseline. |
+| **Certified CI run** | **`29585327815`** (PR #4, `pull_request`). Post-merge push run **`29585408515`** (`main` `e3e51a5`) also green. |
+| **Smoke lane** | **PASSED** — `Format check` ✅, **`Lint` ✅** (the previously failing step), `Build` ✅, `PURE smoke suites` ✅. No relevant step skipped. |
+| **PostgreSQL 16 lane** | **PASSED** — `Assert PostgreSQL 16` ✅, `Migrations (dry run)` ✅, `Migrations` ✅, `DB integration specs` ✅ (5 specs). No DB step skipped. |
+| **Local re-verification** | Fresh `npm ci`, `dist` wiped: `format:check` ✅, `lint` **0 errors** ✅, `build` ✅, smoke **7 suites / 926 assertions**, DB **5 specs / 254 assertions** (PostgreSQL 15.2). |
+| **Suite/assertion totals** | Smoke **926** (contracts 26, kernel 35, m01-tenant 250, m02-actor-context 33, m02-identity 249, conformance 307, migrate 26). DB **254** (m01-tenant 46, m02-actor-resolution 52, m02-identity 45, api-identity 85, rls-convention 26). |
+| **No tests skipped** | Confirmed in CI (both lanes) and locally (5/5 DB specs ran; the fail-closed guards make a silent skip impossible). |
+| **Branch protection** | **ACTIVE** — `GET /branches/main` → `"protected": true`. PR #4 merged under it. |
+| **Stage 1B gate** | **GO.** |
+| **Stage 1B status** | **CERTIFIED AND COMPLETE.** |
+
+## Remaining governance (not gating Stage 1B, tracked as standing obligations)
+
+- **C1 — PAT revocation:** still not verifiable from here (needs the issuing account's token list). Treat as
+  unrevoked until confirmed.
+- **C3 — repository visibility:** still public; no recorded owner decision.
+
+## Stage 1C
+
+Stage 1C (`m02-auth`: sessions, tokens, `login_attempts`; retire `DevActorAdapter` / `x-dev-actor`) may now
+begin from certified `main` (`e3e51a5`). It was correctly blocked until this point: the boundary it replaces
+is real, consumed on every request, and now certified.
