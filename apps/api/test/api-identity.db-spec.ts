@@ -2,7 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { resolve as resolvePath } from 'node:path';
 import { defineDbSpec, type Assert, type DbSpecContext } from '@finapp/test-runner';
-import { signDevAssertion } from '@finapp/m02-identity';
+import { argon2idHasher } from '@finapp/m02-auth';
+
+/**
+ * STAGE 1C: this spec authenticates through the REAL login flow. Every request that needs an actor first
+ * logs in (POST /api/v1/auth/login) and rides the resulting Secure HttpOnly session cookie plus the CSRF
+ * token — the Stage 1B `x-dev-actor` assertion is gone. Session/refresh/CSRF/lockout boundary behaviour is
+ * proven in `api-auth.db-spec.ts`; this file proves the identity/account/membership/M01 APIs THROUGH a real
+ * session.
+ */
+const PASSWORD = 'correct-horse-battery-staple';
 
 /**
  * THE API, OVER HTTP, END TO END.
@@ -25,7 +34,6 @@ import { signDevAssertion } from '@finapp/m02-identity';
  * rather than through a testing harness that might paper over a composition mistake.
  */
 
-const SECRET = 'x'.repeat(48);
 const PLATFORM_ADMIN = [
   'identity.registry.view',
   'identity.registry.create',
@@ -64,6 +72,7 @@ interface Reply {
   readonly status: number;
   readonly body: Record<string, unknown>;
   readonly contentType: string;
+  readonly setCookies: string[];
 }
 
 type Client = (
@@ -72,8 +81,25 @@ type Client = (
   opts?: { headers?: Record<string, string>; body?: unknown },
 ) => Promise<Reply>;
 
-function assertionFor(accountId: string, secondsFromNow = 300): string {
-  return signDevAssertion({ accountId, expiresAt: Math.floor(Date.now() / 1000) + secondsFromNow }, SECRET);
+/** Auth material captured at login: the cookie header to replay and the CSRF token to echo. */
+interface Auth {
+  readonly cookie: string;
+  readonly csrf: string;
+}
+
+/** Builds the `Cookie` header value from a login response's Set-Cookie list. */
+function cookieHeader(setCookies: string[]): string {
+  return setCookies
+    .map((c) => c.split(';')[0] ?? '')
+    .filter((c) => c !== '')
+    .join('; ');
+}
+
+/** Logs in through the real endpoint and returns the session cookie + CSRF token. */
+async function login(api: Client, loginIdentifier: string): Promise<Auth> {
+  const reply = await api('POST', '/auth/login', { body: { loginIdentifier, password: PASSWORD } });
+  if (reply.status !== 200) throw new Error(`login failed for ${loginIdentifier}: ${reply.status}`);
+  return { cookie: cookieHeader(reply.setCookies), csrf: String(reply.body['csrfToken']) };
 }
 
 interface Seeded {
@@ -131,6 +157,13 @@ async function seedActor(
         membershipStatus === 'ended' ? new Date(Date.now() + 1000) : null,
       ],
     );
+    // A real password credential so the account can authenticate through /auth/login.
+    const hashed = await argon2idHasher.hash(PASSWORD);
+    await tx.query(
+      `INSERT INTO authentication_credentials (account_id, algorithm, params, secret_hash)
+       VALUES ($1, $2, $3::jsonb, $4)`,
+      [accountId, hashed.algorithm, JSON.stringify(hashed.params), hashed.encoded],
+    );
   });
 
   return { tenantId, identityId, accountId };
@@ -144,7 +177,6 @@ async function seedActor(
  */
 async function bootApi(): Promise<{ client: Client; close: () => Promise<void> } | { error: string }> {
   process.env['NODE_ENV'] = 'test';
-  process.env['FINAPP_DEV_ACTOR_SECRET'] = SECRET;
 
   const distDir = resolvePath(import.meta.dirname, '../dist/src');
   // The slice of Nest's application surface this spec drives. Declared explicitly (rather than cast at each
@@ -205,10 +237,12 @@ async function bootApi(): Promise<{ client: Client; close: () => Promise<void> }
     } catch {
       body = { raw: text };
     }
+    const getSetCookie = (response.headers as { getSetCookie?: () => string[] }).getSetCookie;
     return {
       status: response.status,
       body,
       contentType: response.headers.get('content-type') ?? '',
+      setCookies: typeof getSetCookie === 'function' ? getSetCookie.call(response.headers) : [],
     };
   };
 
@@ -233,10 +267,12 @@ export default defineDbSpec('api-identity (Stage 1B)', async (ctx, t) => {
 
 async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
   const admin = await seedActor(ctx, 'api_admin');
+  const adminAuth = await login(api, 'api_admin_login');
 
-  /** The headers a legitimate, fully-privileged caller sends. */
+  /** The headers a legitimate, fully-privileged caller sends: session cookie + CSRF + permissions. */
   const asAdmin = (extra: Record<string, string> = {}): Record<string, string> => ({
-    'x-dev-actor': assertionFor(admin.accountId),
+    cookie: adminAuth.cookie,
+    'x-csrf-token': adminAuth.csrf,
     'x-permissions': PLATFORM_ADMIN,
     ...extra,
   });
@@ -244,27 +280,23 @@ async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<v
     asAdmin({ 'x-tenant-id': admin.tenantId, ...extra });
 
   // --- the boundary --------------------------------------------------------------------------------
-  // These come first because everything after them depends on the API being genuinely closed.
+  // Detailed session/login boundary behaviour lives in api-auth.db-spec.ts; here we prove the identity
+  // API is genuinely closed and that a REAL session opens it.
 
   {
     const health = await api('GET', '/health');
     t.equal(health.status, 200, 'health is up — the app booted and is serving');
 
     const anonymous = await api('GET', '/identities');
-    t.equal(anonymous.status, 401, 'an anonymous request is refused');
+    t.equal(anonymous.status, 401, 'an anonymous request (no session cookie) is refused');
+    t.ok(anonymous.contentType.includes('application/problem+json'), 'refusals are RFC 9457 problems');
 
-    // THE ONE. A real, live, active account id — the exact value Stage 1A would have believed.
+    // x-actor-id is dead: naming a REAL, live account in the header buys nothing without a session.
     const headerOnly = await api('GET', '/identities', {
       headers: { 'x-actor-id': admin.accountId, 'x-permissions': PLATFORM_ADMIN },
     });
     t.equal(headerOnly.status, 401, 'x-actor-id alone is refused, even naming a REAL active account');
 
-    const headerOnlyIdentity = await api('GET', '/identities', {
-      headers: { 'x-actor-id': admin.identityId, 'x-permissions': PLATFORM_ADMIN },
-    });
-    t.equal(headerOnlyIdentity.status, 401, 'and naming a real identity id is refused too');
-
-    // M01, specifically — the controller this stage changed.
     const tenantHeaderOnly = await api('GET', `/tenants/${admin.tenantId}`, {
       headers: {
         'x-actor-id': admin.accountId,
@@ -274,66 +306,17 @@ async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<v
     });
     t.equal(tenantHeaderOnly.status, 401, 'M01 rejects a request carrying only x-actor-id');
 
-    const forged = await api('GET', '/identities', {
-      headers: {
-        'x-dev-actor': signDevAssertion(
-          { accountId: admin.accountId, expiresAt: Math.floor(Date.now() / 1000) + 300 },
-          'w'.repeat(48),
-        ),
-        'x-permissions': PLATFORM_ADMIN,
-      },
-    });
-    t.equal(forged.status, 401, 'a forged assertion is refused');
-
-    const expired = await api('GET', '/identities', {
-      headers: { 'x-dev-actor': assertionFor(admin.accountId, -60), 'x-permissions': PLATFORM_ADMIN },
-    });
-    t.equal(expired.status, 401, 'an expired assertion is refused');
-
-    const unknown = await api('GET', '/identities', {
-      headers: { 'x-dev-actor': assertionFor(randomUUID()), 'x-permissions': PLATFORM_ADMIN },
-    });
-    t.equal(unknown.status, 401, 'a signed assertion for an account that does not exist is refused');
-
-    t.ok(anonymous.contentType.includes('application/problem+json'), 'refusals are RFC 9457 problems');
-    t.equal(
-      new Set([anonymous.body['detail'], forged.body['detail'], unknown.body['detail']]).size,
-      1,
-      'anonymous, forged and unknown-account refusals are IDENTICAL — no enumeration oracle',
-    );
-  }
-
-  {
-    // Suspended states, over HTTP, through the whole stack.
-    const suspendedAccount = await seedActor(ctx, 'api_susp_acct', { accountStatus: 'suspended' });
-    const suspendedIdentity = await seedActor(ctx, 'api_susp_idt', { identityStatus: 'suspended' });
-    const endedMembership = await seedActor(ctx, 'api_ended_mem', { membershipStatus: 'ended' });
-
-    for (const [label, seeded] of [
-      ['a suspended account', suspendedAccount],
-      ['a suspended identity', suspendedIdentity],
-    ] as const) {
-      const reply = await api('GET', '/identities', {
-        headers: { 'x-dev-actor': assertionFor(seeded.accountId), 'x-permissions': PLATFORM_ADMIN },
-      });
-      t.equal(reply.status, 401, `${label} cannot resolve, even correctly signed`);
-    }
-
-    const ended = await api('GET', '/tenant-memberships', {
-      headers: {
-        'x-dev-actor': assertionFor(endedMembership.accountId),
-        'x-tenant-id': endedMembership.tenantId,
-        'x-permissions': PLATFORM_ADMIN,
-      },
-    });
-    t.equal(ended.status, 401, 'an ended membership cannot resolve into its former tenant');
+    // A real session opens the API.
+    const authed = await api('GET', '/identities', { headers: asAdmin() });
+    t.equal(authed.status, 200, 'a real session resolves the actor — the identity API is reachable');
   }
 
   // --- authorization is still enforced, and is a DIFFERENT answer -----------------------------------
 
   {
+    // A PROVEN actor (real session) with no permissions header → 403, not 401. Identity != authorization.
     const noPermissions = await api('GET', '/identities', {
-      headers: { 'x-dev-actor': assertionFor(admin.accountId) },
+      headers: { cookie: adminAuth.cookie, 'x-csrf-token': adminAuth.csrf },
     });
     t.equal(
       noPermissions.status,
@@ -438,7 +421,7 @@ async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<v
     t.equal(updated.body['displayName'], 'Ada L.', 'with the new value');
 
     const forbidden = await api('POST', `/identities/${identityId}/close`, {
-      headers: { 'x-dev-actor': assertionFor(admin.accountId), 'x-permissions': 'identity.registry.view' },
+      headers: asAdmin({ 'x-permissions': 'identity.registry.view' }),
       body: { expectedVersion: 1 },
     });
     t.equal(forbidden.status, 403, 'closing without identity.registry.close is 403');
@@ -610,10 +593,12 @@ async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<v
 
   {
     const other = await seedActor(ctx, 'api_other_tenant');
+    const otherAuth = await login(api, 'api_other_tenant_login');
 
     const otherMembership = await api('GET', '/tenant-memberships', {
       headers: {
-        'x-dev-actor': assertionFor(other.accountId),
+        cookie: otherAuth.cookie,
+        'x-csrf-token': otherAuth.csrf,
         'x-tenant-id': other.tenantId,
         'x-permissions': PLATFORM_ADMIN,
       },

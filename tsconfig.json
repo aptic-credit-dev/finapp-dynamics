@@ -10,6 +10,7 @@
     { "path": "./packages/contracts" },
     { "path": "./packages/m01-tenant" },
     { "path": "./packages/m02-identity" },
+    { "path": "./packages/m02-auth" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

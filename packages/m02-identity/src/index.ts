@@ -103,15 +103,9 @@ export type {
   ScopedRequest,
   TenantScopedRequest,
   PlatformScopedRequest,
+  TokenExtractor,
 } from './actor-context.ts';
 
-// Development-only adapter. DELETE IN STAGE 1C — see dev-actor-adapter.ts.
-export {
-  DevActorAdapter,
-  DEV_ACTOR_HEADER,
-  isDevActorAdapterAllowed,
-  devActorAdapterRejectionReason,
-  signDevAssertion,
-  verifyDevAssertion,
-} from './dev-actor-adapter.ts';
-export type { DevAssertion, DevVerifyResult } from './dev-actor-adapter.ts';
+// The Stage 1B development actor adapter (DevActorAdapter, x-dev-actor, signDevAssertion) was DELETED in
+// Stage 1C. Authentication is now a real session (m02-auth SessionActorAdapter). A conformance check
+// forbids `x-dev-actor` from reappearing in live source.

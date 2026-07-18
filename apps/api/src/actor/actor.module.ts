@@ -1,32 +1,30 @@
 import { Module } from '@nestjs/common';
-import { DB } from '@finapp/kernel';
-import type { Db } from '@finapp/kernel';
+import { AUDIT, DB, OUTBOX } from '@finapp/kernel';
+import type { Audit, Db, Outbox } from '@finapp/kernel';
+import type { DomainEvent } from '@finapp/contracts';
 import { TenantContextResolver } from '@finapp/m01-tenant';
-import {
-  ActorContextFactory,
-  ActorResolver,
-  DevActorAdapter,
-  devActorAdapterRejectionReason,
-  isDevActorAdapterAllowed,
-  type ActorSource,
-} from '@finapp/m02-identity';
+import { ActorContextFactory, ActorResolver } from '@finapp/m02-identity';
+import { AuthEmitter, SessionActorAdapter, SessionService } from '@finapp/m02-auth';
+import { loadAuthConfig } from '../auth/config.ts';
+import { extractSessionToken } from '../auth/cookies.ts';
 
 /**
- * ACTOR RESOLUTION, BOUND. This module is the answer to "who is acting?" for the whole API.
+ * ACTOR RESOLUTION, BOUND. The one place a request becomes an actor, for the whole API.
  *
- * It exists as its own module, rather than living in `IdentityModule`, to keep the dependency graph
- * acyclic. `TenantModule` needs the actor boundary and `IdentityModule` needs it too; if it were owned by
- * either one, the other would have to import that module and M01 <-> M02 would become a cycle. Here, both
- * feature modules depend on this, and this depends on neither.
+ * STAGE 1C. `DevActorAdapter` (Stage 1B) is deleted; the actor source is now `SessionActorAdapter`, which
+ * turns a validated session cookie into an account claim and hands it to the UNCHANGED `ActorResolver`. The
+ * factory reads the credential via `extractSessionToken` (the session cookie), replacing the `x-dev-actor`
+ * header reader. `ActorResolver`, `ActorContextFactory` and every controller are otherwise untouched.
  *
- * It also binds M01's `TenantContextResolver` — the tenant gate. That is a WIRING location, not a claim
- * of ownership: the class is m01's, the rule it enforces is m01's, and m02 calls it precisely so that
- * tenant validity has one implementation. M01 never reads an m02 table and m02 never re-implements m01's
- * status rules; they meet at this contract.
+ * The auth-core services (SessionService, AuthEmitter) and the resolver live here and are EXPORTED, so the
+ * AuthModule (login/logout/refresh) shares one instance of each rather than binding a second — no duplicate
+ * session store, no second audit buffer. This module imports neither feature module, so the graph stays
+ * acyclic.
  */
 
-/** The seam Stage 1C replaces: `DevActorAdapter` today, a session-backed resolver then. */
+/** The seam Stage 1B occupied; Stage 1C fills it with a session-backed source. */
 export const ACTOR_SOURCE = Symbol.for('finapp.actor.source');
+export const AUTH_CONFIG = Symbol.for('finapp.auth.config');
 
 @Module({
   providers: [
@@ -41,40 +39,33 @@ export const ACTOR_SOURCE = Symbol.for('finapp.actor.source');
       useFactory: (db: Db) => new ActorResolver(db),
     },
     {
+      // Loads the transport config and FAILS CLOSED at boot in production if cookies/origins are unsafe.
+      provide: AUTH_CONFIG,
+      useFactory: () => loadAuthConfig(),
+    },
+    {
+      provide: AuthEmitter,
+      inject: [AUDIT, OUTBOX],
+      useFactory: (audit: Audit, outbox: Outbox<DomainEvent>) => new AuthEmitter(audit, outbox),
+    },
+    {
+      provide: SessionService,
+      inject: [DB, AuthEmitter],
+      useFactory: (db: Db, emitter: AuthEmitter) => new SessionService(db, emitter),
+    },
+    {
       provide: ACTOR_SOURCE,
-      inject: [ActorResolver],
-      useFactory: (resolver: ActorResolver): ActorSource => {
-        /**
-         * THE ENVIRONMENT GATE (§5). Stage 1B has no authentication — that is Stage 1C — so the only
-         * actor source that exists is a development stopgap, and it must never be the thing standing
-         * between production and the platform.
-         *
-         * This REFUSES TO BOOT in production rather than starting an API that 401s every request or,
-         * far worse, one that accepts a dev assertion from anyone holding a leaked secret. A stage with
-         * no authentication is not deployable, and the honest way to say so is to not start.
-         *
-         * `DevActorAdapter`'s constructor enforces the same rule independently (NODE_ENV, secret
-         * strength). Two checks for one property is deliberate: this one gives a boot error that names
-         * the stage and the reason, and that one guarantees the adapter cannot be constructed by any
-         * other caller who forgot to ask first.
-         */
-        if (!isDevActorAdapterAllowed()) {
-          throw new Error(
-            `${devActorAdapterRejectionReason() ?? 'The development actor adapter is not permitted here.'}\n` +
-              'Stage 1B has no production actor source: authentication and sessions are Stage 1C. ' +
-              'The API deliberately refuses to start rather than expose an unauthenticated identity path.',
-          );
-        }
-        return new DevActorAdapter(resolver);
-      },
+      inject: [SessionService, ActorResolver],
+      useFactory: (sessions: SessionService, resolver: ActorResolver) =>
+        new SessionActorAdapter(sessions, resolver),
     },
     {
       provide: ActorContextFactory,
       inject: [ACTOR_SOURCE, TenantContextResolver],
-      useFactory: (source: ActorSource, tenants: TenantContextResolver) =>
-        new ActorContextFactory(source, tenants),
+      useFactory: (source: SessionActorAdapter, tenants: TenantContextResolver) =>
+        new ActorContextFactory(source, tenants, extractSessionToken),
     },
   ],
-  exports: [ActorContextFactory],
+  exports: [ActorContextFactory, SessionService, AuthEmitter, ActorResolver, AUTH_CONFIG],
 })
 export class ActorModule {}

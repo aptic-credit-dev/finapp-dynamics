@@ -98,3 +98,51 @@ Lifecycle writes therefore bind the *target* tenant's context even for platform 
 `tenant_status_history` has no escape. `tenant_type_catalogue` remains a global reference registry with no RLS
 (ADR-001, unchanged). Proven by `packages/m01-tenant/test/m01-tenant.db-spec.ts` through the non-owner
 application role — the only role a leak could happen through.
+
+## ADR-015 — Opaque, revocable, server-side sessions (Stage 1C)
+**Status:** **ACCEPTED** — 2026-07-18 (product owner + security). Implementation branch
+`feature/stage-1c-authentication-sessions`, parent baseline `e3e51a5` (certified Stage 1B).
+See `docs/build/stages/STAGE_1C_AUTH_SESSIONS_READINESS.md` §10–§11.
+
+**Decision:** authenticated sessions are **opaque server-side records**, not stateless JWTs. The
+session token is a 256-bit random value returned once and stored only as a SHA-256 hash; each request looks it
+up, checks status/idle/absolute expiry, and hands the account id to the unchanged `ActorResolver` (which still
+gates account/identity/membership every request). Long-lived continuity is a **rotating refresh token** sharing
+a `rotation_family`; presenting a superseded refresh token revokes the whole family (theft detection).
+
+**Rationale:** an enterprise governance platform must revoke access instantly, force-logout on password change,
+and audit every session as a row. Stateless JWTs buy request-time DB savings the platform does not need and
+cost exactly the revocation and auditability it must have. The per-request `ActorResolver` lookup already
+exists, so the session lookup is marginal.
+
+**Transport (D3, RESOLVED):** browser sessions use **Secure, `HttpOnly`, `SameSite=Lax` cookies with CSRF
+protection** on state-changing authenticated requests. Session and refresh cookies are separate; the refresh
+cookie is scoped to the refresh path and never exposed to JavaScript. Strict credentialed CORS allow-list (no
+wildcard). `Secure` is enforced in production; the API **refuses to boot** in production if cookie, origin, or
+session-secret configuration is unsafe. `Authorization: Bearer` is deferred to a later, separately-approved
+stage for machine/mobile/external clients; it is not the primary browser transport here. OAuth/OIDC/API-key
+auth are out of scope.
+
+**Consequence:** instant revocation, clean force-logout, full session audit; one indexed lookup per request; no
+long-lived signing secret exists. Rejected alternatives: stateless JWT as the primary session; non-rotating
+long-lived refresh tokens; Bearer tokens as the primary browser transport.
+
+## ADR-016 — Password hashing = Argon2id (Stage 1C)
+**Status:** **ACCEPTED** — 2026-07-18 (product owner + security). Implementation branch
+`feature/stage-1c-authentication-sessions`. `@node-rs/argon2` is approved subject to normal dependency and
+licence review; `node:crypto.scrypt` is the explicitly-documented fallback only where Argon2id cannot run in
+an approved runtime.
+
+**Decision:** store password credentials hashed with **Argon2id** (per-credential
+memory/iterations/parallelism recorded for transparent upgrade; tuned to ~250 ms on target hardware), via a
+vetted, pinned native binding (candidate `@node-rs/argon2`) — the **first third-party runtime dependency** in
+the repo. If adding a native runtime dependency is declined, fall back to **`node:crypto.scrypt`**
+(N=2^17,r=8,p=1), which is OWASP-acceptable and zero-dependency. Either way: constant-time verify, rehash-on-
+login when parameters fall below policy, and **no plaintext or hash ever logged, emitted in events, or written
+to audit detail** (ADR-009, no raw key storage).
+
+**Rationale:** Argon2id is the current best-practice memory-hard KDF; the fallback exists so the credential-
+storage decision is not blocked on a dependency-policy decision.
+
+**Consequence:** a supply-chain review obligation for the native binding (mitigated by the scrypt fallback), and
+a stored-parameters column so cost can rise over time without invalidating existing credentials.

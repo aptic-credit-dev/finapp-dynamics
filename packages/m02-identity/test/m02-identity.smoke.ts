@@ -43,20 +43,15 @@ import {
   MEMBERSHIP_ACTION_MAP,
   IDENTITY_PERMISSION_NAMESPACE,
   IDENTITY_AUDIT_PREFIX,
-  isDevActorAdapterAllowed,
-  devActorAdapterRejectionReason,
-  signDevAssertion,
-  verifyDevAssertion,
   type IdentityAction,
 } from '@finapp/m02-identity';
 
 /**
- * M02 PURE smoke suite — the deterministic safety core, the dev adapter's failure modes, and registry
- * conformance.
+ * M02 PURE smoke suite — the deterministic safety core and registry conformance. (The Stage 1B dev
+ * adapter's failure modes were removed in Stage 1C when the adapter was deleted.)
  */
 
 const REPO_ROOT = resolve(import.meta.dirname, '../../..');
-const SECRET = 'a'.repeat(48);
 
 function readYaml(relative: string): unknown {
   return parse(readFileSync(resolve(REPO_ROOT, relative), 'utf8'));
@@ -197,56 +192,9 @@ export default defineSuite('m02-identity', (t) => {
     'every problem is reported',
   );
 
-  // --- the development adapter ---------------------------------------------------------------------
-  // The whole point is that it cannot exist in production.
-  t.ok(isDevActorAdapterAllowed({ NODE_ENV: 'development' }), 'allowed in development');
-  t.ok(isDevActorAdapterAllowed({ NODE_ENV: 'test' }), 'allowed in test');
-  t.ok(!isDevActorAdapterAllowed({ NODE_ENV: 'production' }), 'NOT allowed in production');
-  t.ok(!isDevActorAdapterAllowed({}), 'NOT allowed when NODE_ENV is unset — an unset env is not development');
-  t.ok(!isDevActorAdapterAllowed({ NODE_ENV: 'staging' }), 'NOT allowed in staging');
-
-  t.ok(
-    devActorAdapterRejectionReason({ NODE_ENV: 'production', FINAPP_DEV_ACTOR_SECRET: SECRET }) !== null,
-    'production is rejected even WITH a secret',
-  );
-  t.ok(
-    devActorAdapterRejectionReason({ NODE_ENV: 'development' }) !== null,
-    'development without a secret is rejected',
-  );
-  t.ok(
-    devActorAdapterRejectionReason({ NODE_ENV: 'development', FINAPP_DEV_ACTOR_SECRET: 'short' }) !== null,
-    'a weak secret is rejected',
-  );
-  t.equal(
-    devActorAdapterRejectionReason({ NODE_ENV: 'development', FINAPP_DEV_ACTOR_SECRET: SECRET }),
-    null,
-    'development + a strong secret is allowed',
-  );
-
-  const account = '7f1b3f6e-3a4b-4c2d-8e9f-0a1b2c3d4e5f';
-  const now = 1_800_000_000;
-  const good = signDevAssertion({ accountId: account, expiresAt: now + 300 }, SECRET);
-  t.ok(verifyDevAssertion(good, SECRET, now).ok, 'a fresh, correctly-signed assertion verifies');
-  t.equal(verifyDevAssertion(good, SECRET, now).assertion?.accountId, account, 'and carries the account');
-
-  t.ok(!verifyDevAssertion(good, 'b'.repeat(48), now).ok, 'a different secret does NOT verify');
-  t.ok(!verifyDevAssertion(good, SECRET, now + 301).ok, 'an expired assertion does NOT verify');
-  t.ok(!verifyDevAssertion('garbage', SECRET, now).ok, 'a malformed assertion does not verify');
-  t.ok(!verifyDevAssertion('', SECRET, now).ok, 'an empty assertion does not verify');
-  // Tampering with the payload must invalidate the signature — otherwise anyone could name any account.
-  const payloadPart = good.split('.')[0] ?? '';
-  const tampered = `${payloadPart}.${'f'.repeat(64)}`;
-  t.ok(!verifyDevAssertion(tampered, SECRET, now).ok, 'a forged signature does not verify');
-  const macPart = good.split('.')[1] ?? '';
-  const otherPayload = Buffer.from(
-    JSON.stringify({ accountId: 'other', expiresAt: now + 300 }),
-    'utf8',
-  ).toString('base64url');
-  const swapped = `${otherPayload}.${macPart}`;
-  t.ok(
-    !verifyDevAssertion(swapped, SECRET, now).ok,
-    'swapping the payload under a valid signature does not verify',
-  );
+  // The Stage 1B development actor adapter (isDevActorAdapterAllowed / signDevAssertion / verifyDevAssertion)
+  // was DELETED in Stage 1C. Authentication is now a real session (m02-auth); its production-refusal and
+  // signature properties are replaced by session and cookie tests in m02-auth and the API integration spec.
 
   // --- the three axes stay in step -----------------------------------------------------------------
   for (const [name, map] of [
@@ -321,7 +269,11 @@ export default defineSuite('m02-identity', (t) => {
     DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY),
     'identity.lifecycle is in the contracts union',
   );
-  t.equal(DOMAIN_EVENT_FAMILIES.length, 2, 'two families are declared at Stage 1B');
+  t.equal(
+    DOMAIN_EVENT_FAMILIES.length,
+    3,
+    'three families are declared at Stage 1C (+ identity.authentication)',
+  );
   const eventRegistry = readYaml('manifests/event-registry.yaml') as {
     family_groups?: { families: string[] }[];
   };

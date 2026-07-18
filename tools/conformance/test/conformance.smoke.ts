@@ -154,13 +154,13 @@ export default defineSuite('conformance', (t) => {
     'no live source reads x-actor-id — identity comes from ActorResolver, never a raw header',
   );
 
-  // The dev assertion is the ONLY identity header, and it is a Stage 1C deletion target. Assert it is
-  // confined to m02, so that "delete the adapter" stays a one-module change rather than a hunt.
+  // Stage 1C DELETED the development actor assertion. Like x-actor-id, it must have zero live source use —
+  // authentication is a real session now, and the dev bypass cannot creep back in.
   const devActorUsers = sources.filter((f) => /x-dev-actor/i.test(stripCommentLines(f.text)));
   t.deepEqual(
     devActorUsers.map((f) => f.name),
-    ['packages/m02-identity/src/dev-actor-adapter.ts'],
-    'the dev assertion header is named in exactly one file — Stage 1C deletes it there',
+    [],
+    'no live source names x-dev-actor — the Stage 1B dev adapter was deleted in Stage 1C',
   );
 
   // x-permissions is Stage 1D debt and is ALLOWED — but only in the one file that contains it. A second
@@ -194,34 +194,35 @@ export default defineSuite('conformance', (t) => {
     }
   }
 
-  // --- no stage 1C or 1D tables --------------------------------------------------------------------
-  //
-  // Stage 1B is identity, not authentication and not RBAC. These assert the stage did not quietly reach
-  // into the next one — and, just as importantly, that a later stage cannot land its tables without
-  // deleting the line that forbids them, which is a conversation rather than an accident.
+  // --- Stage 1C tables exist; NO plaintext credential; still no Stage 1D tables --------------------
 
   const migrations = migrationSql(REPO_ROOT);
   t.ok(migrations.length > 0, `migration scan found files to check (${migrations.length})`);
   const tables = migrations.flatMap((m) => createdTables(m.text).map((table) => ({ table, in: m.name })));
 
-  // Stage 1C — sessions and credentials. `authentication_subjects` is m02's and is NOT one of these: it
-  // holds a REFERENCE to an external subject, never a credential.
-  const STAGE_1C_TABLES = [
+  // Stage 1C IS built now: its account-plane tables must exist.
+  for (const expected of [
+    'authentication_credentials',
     'sessions',
-    'user_sessions',
-    'refresh_tokens',
     'login_attempts',
-    'credentials',
-    'user_credentials',
-    'passwords',
-    'password_history',
-    'mfa_factors',
-    'mfa_enrollments',
-  ];
-  for (const forbidden of STAGE_1C_TABLES) {
-    const hit = tables.find((row) => row.table === forbidden);
-    t.equal(hit, undefined, `no Stage 1C table "${forbidden}" exists (authentication is Stage 1C)`);
+    'session_refresh_tokens',
+  ]) {
+    t.ok(
+      tables.some((row) => row.table === expected),
+      `Stage 1C table "${expected}" exists`,
+    );
   }
+
+  // NO PLAINTEXT credential or token column (ADR-009). Secrets are stored ONLY as `*_hash` / `secret_hash`.
+  // A bare `password text`, `token text`, `secret text` or `refresh_token text` column would be the exact
+  // failure this stage exists to make impossible.
+  const authMigration = migrations.find((m) => m.name.includes('m02-auth'))?.text ?? '';
+  const plaintextColumn =
+    /\b(password|secret|token|refresh_token|session_token|access_token)\s+(text|varchar|char|bytea)\b/i;
+  t.ok(
+    !plaintextColumn.test(authMigration),
+    'no plaintext password/token/secret column exists — credentials and tokens are hash-only',
+  );
 
   // Stage 1D — roles and grants.
   const STAGE_1D_TABLES = [

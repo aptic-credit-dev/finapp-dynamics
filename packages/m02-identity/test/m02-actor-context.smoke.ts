@@ -69,6 +69,16 @@ function fakeTenants(order: string[], seen: string[]): TenantContextResolver {
   } as unknown as TenantContextResolver;
 }
 
+/**
+ * The Stage 1C token extractor stand-in: the factory reads the opaque actor credential from a header the
+ * test controls (`x-session-token`). In production apps/api injects a session-cookie reader. The factory's
+ * job — turning whatever this returns into an actor via the source — is what these tests exercise.
+ */
+const EXTRACT_TOKEN = (h: Readonly<Record<string, string>>): string | undefined => h['x-session-token'];
+function makeFactory(source: ActorSource, tenants: TenantContextResolver): ActorContextFactory {
+  return new ActorContextFactory(source, tenants, EXTRACT_TOKEN);
+}
+
 export default defineSuite('m02-actor-context', async (t) => {
   // --- x-actor-id is not an input ------------------------------------------------------------------
   // THE assertion this stage exists for. Not "x-actor-id is rejected" — it is not consulted at all, so
@@ -78,7 +88,7 @@ export default defineSuite('m02-actor-context', async (t) => {
   {
     const calls: Call[] = [];
     const order: string[] = [];
-    const factory = new ActorContextFactory(
+    const factory = makeFactory(
       fakeSource(new ProblemError({ type: 't', title: 'Unauthorized', status: 401 }), calls, order),
       fakeTenants(order, []),
     );
@@ -96,10 +106,10 @@ export default defineSuite('m02-actor-context', async (t) => {
     // header were read anywhere, this is where it would win — and every other test would still pass.
     const calls: Call[] = [];
     const order: string[] = [];
-    const factory = new ActorContextFactory(fakeSource(actorFor(), calls, order), fakeTenants(order, []));
+    const factory = makeFactory(fakeSource(actorFor(), calls, order), fakeTenants(order, []));
 
     const scoped = await factory.forRequest(
-      { 'x-dev-actor': 'signed-token', 'x-actor-id': OTHER_IDENTITY },
+      { 'x-session-token': 'signed-token', 'x-actor-id': OTHER_IDENTITY },
       'read',
     );
     t.equal(scoped.actor.identityId, IDENTITY, "the resolved actor is the ASSERTION's, not x-actor-id's");
@@ -113,9 +123,9 @@ export default defineSuite('m02-actor-context', async (t) => {
   {
     const order: string[] = [];
     const seen: string[] = [];
-    const factory = new ActorContextFactory(fakeSource(actorFor(), [], order), fakeTenants(order, seen));
+    const factory = makeFactory(fakeSource(actorFor(), [], order), fakeTenants(order, seen));
 
-    await factory.forRequest({ 'x-dev-actor': 'tok', 'x-tenant-id': TENANT }, 'read');
+    await factory.forRequest({ 'x-session-token': 'tok', 'x-tenant-id': TENANT }, 'read');
     t.deepEqual(order, ['actor', 'tenant'], 'the actor is proven BEFORE the tenant is validated');
     t.deepEqual(seen, [TENANT], 'the tenant gate is asked about the claimed tenant');
   }
@@ -124,7 +134,7 @@ export default defineSuite('m02-actor-context', async (t) => {
     // No assertion => the tenant gate is never reached, so a refusal cannot depend on the tenant existing.
     const order: string[] = [];
     const seen: string[] = [];
-    const factory = new ActorContextFactory(
+    const factory = makeFactory(
       fakeSource(new ProblemError({ type: 't', title: 'Unauthorized', status: 401 }), [], order),
       fakeTenants(order, seen),
     );
@@ -137,9 +147,9 @@ export default defineSuite('m02-actor-context', async (t) => {
 
   {
     const calls: Call[] = [];
-    const factory = new ActorContextFactory(fakeSource(actorFor(), calls, []), fakeTenants([], []));
+    const factory = makeFactory(fakeSource(actorFor(), calls, []), fakeTenants([], []));
 
-    await factory.forRequest({ 'x-dev-actor': 'tok', 'x-tenant-id': OTHER_TENANT }, 'read');
+    await factory.forRequest({ 'x-session-token': 'tok', 'x-tenant-id': OTHER_TENANT }, 'read');
     t.equal(
       calls[0]?.tenantId,
       OTHER_TENANT,
@@ -150,14 +160,14 @@ export default defineSuite('m02-actor-context', async (t) => {
   // --- scope ---------------------------------------------------------------------------------------
 
   {
-    const factory = new ActorContextFactory(fakeSource(actorFor(), [], []), fakeTenants([], []));
+    const factory = makeFactory(fakeSource(actorFor(), [], []), fakeTenants([], []));
 
-    const platform = await factory.forRequest({ 'x-dev-actor': 'tok' }, 'create tenant draft');
+    const platform = await factory.forRequest({ 'x-session-token': 'tok' }, 'create tenant draft');
     t.equal(platform.scope, 'platform', 'no x-tenant-id => platform scope');
     t.ok('reason' in platform.ctx, 'a platform context carries the mandatory system reason');
     t.equal(platform.actor.identityId, IDENTITY, 'and a platform request still has a PROVEN actor');
 
-    const tenant = await factory.forRequest({ 'x-dev-actor': 'tok', 'x-tenant-id': TENANT }, 'read');
+    const tenant = await factory.forRequest({ 'x-session-token': 'tok', 'x-tenant-id': TENANT }, 'read');
     t.equal(tenant.scope, 'tenant', 'x-tenant-id => tenant scope');
     t.equal(tenant.scope === 'tenant' ? tenant.ctx.tenantId : null, TENANT, 'bound to the named tenant');
     t.equal(
@@ -173,10 +183,10 @@ export default defineSuite('m02-actor-context', async (t) => {
     const calls: Call[] = [];
     const order: string[] = [];
     const seen: string[] = [];
-    const factory = new ActorContextFactory(fakeSource(actorFor(), calls, order), fakeTenants(order, seen));
+    const factory = makeFactory(fakeSource(actorFor(), calls, order), fakeTenants(order, seen));
 
     const scoped = await factory.forPlatformRequest(
-      { 'x-dev-actor': 'tok', 'x-tenant-id': TENANT },
+      { 'x-session-token': 'tok', 'x-tenant-id': TENANT },
       'create tenant draft',
     );
     t.equal(scoped.scope, 'platform', 'forPlatformRequest is platform-scoped even with x-tenant-id sent');
@@ -188,11 +198,11 @@ export default defineSuite('m02-actor-context', async (t) => {
   // --- permissions: the temporary channel, contained ------------------------------------------------
 
   {
-    const factory = new ActorContextFactory(fakeSource(actorFor(), [], []), fakeTenants([], []));
+    const factory = makeFactory(fakeSource(actorFor(), [], []), fakeTenants([], []));
 
     const scoped = await factory.forRequest(
       {
-        'x-dev-actor': 'tok',
+        'x-session-token': 'tok',
         'x-tenant-id': TENANT,
         'x-permissions': 'identity.registry.view, tenant.registry.create',
       },
@@ -204,7 +214,7 @@ export default defineSuite('m02-actor-context', async (t) => {
       'x-permissions still reaches the context (Stage 1D debt), trimmed and split',
     );
 
-    const none = await factory.forRequest({ 'x-dev-actor': 'tok', 'x-tenant-id': TENANT }, 'read');
+    const none = await factory.forRequest({ 'x-session-token': 'tok', 'x-tenant-id': TENANT }, 'read');
     t.deepEqual(
       none.scope === 'tenant' ? [...none.ctx.permissions] : ['x'],
       [],
@@ -212,7 +222,7 @@ export default defineSuite('m02-actor-context', async (t) => {
     );
 
     const empty = await factory.forRequest(
-      { 'x-dev-actor': 'tok', 'x-tenant-id': TENANT, 'x-permissions': ' , ,, ' },
+      { 'x-session-token': 'tok', 'x-tenant-id': TENANT, 'x-permissions': ' , ,, ' },
       'read',
     );
     t.deepEqual(
@@ -225,14 +235,11 @@ export default defineSuite('m02-actor-context', async (t) => {
   {
     // §4.5, enforced rather than documented. A system identity presenting an administrator's permissions
     // gets none of them: this is the "use system context as a human actor" attack, and it fails here.
-    const factory = new ActorContextFactory(
-      fakeSource(actorFor({ isSystemActor: true }), [], []),
-      fakeTenants([], []),
-    );
+    const factory = makeFactory(fakeSource(actorFor({ isSystemActor: true }), [], []), fakeTenants([], []));
 
     const scoped = await factory.forRequest(
       {
-        'x-dev-actor': 'tok',
+        'x-session-token': 'tok',
         'x-tenant-id': TENANT,
         'x-permissions': 'identity.registry.close,tenant.registry.approve',
       },
@@ -249,15 +256,15 @@ export default defineSuite('m02-actor-context', async (t) => {
   // --- correlation ---------------------------------------------------------------------------------
 
   {
-    const factory = new ActorContextFactory(fakeSource(actorFor(), [], []), fakeTenants([], []));
+    const factory = makeFactory(fakeSource(actorFor(), [], []), fakeTenants([], []));
 
-    const given = await factory.forRequest({ 'x-dev-actor': 'tok', 'x-correlation-id': 'abc-123' }, 'r');
+    const given = await factory.forRequest({ 'x-session-token': 'tok', 'x-correlation-id': 'abc-123' }, 'r');
     t.equal(given.correlationId, 'abc-123', 'a supplied correlation id is honoured');
 
-    const minted = await factory.forRequest({ 'x-dev-actor': 'tok' }, 'r');
+    const minted = await factory.forRequest({ 'x-session-token': 'tok' }, 'r');
     t.ok(minted.correlationId.length >= 36, 'one is minted when absent — every request is traceable');
 
-    const blank = await factory.forRequest({ 'x-dev-actor': 'tok', 'x-correlation-id': '   ' }, 'r');
+    const blank = await factory.forRequest({ 'x-session-token': 'tok', 'x-correlation-id': '   ' }, 'r');
     t.ok(blank.correlationId.trim() !== '', 'a blank correlation id is replaced, not propagated');
   }
 

@@ -34,7 +34,12 @@ namespaces:
              "identity.membership.view", "identity.membership.create", "identity.membership.activate",
              "identity.membership.suspend", "identity.membership.reactivate", "identity.membership.end",
              "identity.membership.scope"]}
-  # Stage 1D. Deliberately untouched by 1B — roles and permission assignment are not identity.
+  # Stage 1C (m02-auth). Administrative, cross-account SESSION management only — self-service on one's own
+  # sessions needs no permission (the owner is the actor). Three segments, per the @Endpoint validator.
+  # Declared, NOT granted: no role holds these until Stage 1D ships the RBAC model, exactly as identity.*.
+  - {namespace: "auth.*", module: m02-auth, mvp: true, status: implemented, substage: 1C,
+     codes: ["auth.session.view", "auth.session.revoke"]}
+  # Stage 1D. Deliberately untouched by 1B/1C — roles and permission assignment are not identity or auth.
   - {namespace: "rbac.*", module: m02-identity, mvp: true, status: documented, substage: 1D}
   - {namespace: "audit.*", module: m03-audit, mvp: true, status: documented}
   - {namespace: "workflow.*", module: m06-workflow, mvp: true, status: documented}

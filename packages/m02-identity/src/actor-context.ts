@@ -4,8 +4,14 @@ import { ProblemError, type RequestContext, type SystemContext } from '@finapp/k
 // needs the runtime value, because NestJS resolves dependencies from emitted design-time metadata.
 import type { TenantContextResolver } from '@finapp/m01-tenant';
 import { contextFromActor, type AuthenticatedActor } from './actor-resolver.ts';
-import { DEV_ACTOR_HEADER } from './dev-actor-adapter.ts';
 import { systemActorInheritsHumanPermissions } from './domain/types.ts';
+
+/**
+ * Extracts the raw actor credential from a request's headers. The transport is not this module's concern:
+ * Stage 1B injected a header reader (`x-dev-actor`); Stage 1C injects a session-cookie reader. The factory
+ * turns whatever this returns into an actor through the `ActorSource`, and cares only that it is opaque.
+ */
+export type TokenExtractor = (headers: Readonly<Record<string, string>>) => string | undefined;
 
 /**
  * THE API'S ACTOR BOUNDARY — the one place a request becomes a context.
@@ -61,9 +67,11 @@ export const PERMISSIONS_HEADER = 'x-permissions';
 /**
  * Produces a proven actor from whatever the request carried.
  *
- * The seam Stage 1C replaces. `DevActorAdapter` implements it now; a session-backed resolver implements it
- * then. Everything downstream of this interface — the resolver, the gates, this factory, every controller
- * — is unchanged by that swap, which is the point of naming it.
+ * THE SEAM. Stage 1B's `DevActorAdapter` implemented it; Stage 1C's `SessionActorAdapter` (m02-auth)
+ * implements it now, turning a validated session into an account claim. Everything downstream of this
+ * interface — the resolver, the gates, this factory, every controller — was unchanged by that swap, which
+ * is the point of naming it. `token` is the opaque actor credential the injected `TokenExtractor` produced
+ * (a session-cookie value in 1C).
  */
 export interface ActorSource {
   resolve(input: {
@@ -100,10 +108,12 @@ export type ScopedRequest = TenantScopedRequest | PlatformScopedRequest;
 export class ActorContextFactory {
   private readonly source: ActorSource;
   private readonly tenants: TenantContextResolver;
+  private readonly extractToken: TokenExtractor;
 
-  constructor(source: ActorSource, tenants: TenantContextResolver) {
+  constructor(source: ActorSource, tenants: TenantContextResolver, extractToken: TokenExtractor) {
     this.source = source;
     this.tenants = tenants;
+    this.extractToken = extractToken;
   }
 
   /**
@@ -127,7 +137,7 @@ export class ActorContextFactory {
     reason: string,
   ): Promise<PlatformScopedRequest> {
     const correlationId = correlationOf(headers);
-    const actor = await this.source.resolve({ token: headers[DEV_ACTOR_HEADER], correlationId });
+    const actor = await this.source.resolve({ token: this.extractToken(headers), correlationId });
     return {
       scope: 'platform',
       actor,
@@ -144,7 +154,7 @@ export class ActorContextFactory {
    */
   async forRequest(headers: Readonly<Record<string, string>>, reason: string): Promise<ScopedRequest> {
     const correlationId = correlationOf(headers);
-    const token = headers[DEV_ACTOR_HEADER];
+    const token = this.extractToken(headers);
     const claimedTenant = headers[TENANT_HEADER];
 
     // Gate 1-3. Nothing above this line has been trusted, and nothing below it runs unless this passes.

@@ -93,6 +93,23 @@ modules:
       1D: [/api/v1/roles]
     note: /api/v1/auth is auth:mixed — pre-auth routes are the documented exception to tenant resolution.
 
+  - module: m02-auth
+    stage: 1
+    mvp: true
+    # /api/v1/auth is also listed under m02-identity's reserved 1C set above; the route check pools all
+    # modules' prefixes, so mounting @Controller('auth') is registered either way. This row is where the
+    # auth AUDIT prefix, permission namespace and event family are owned.
+    api_prefixes: [/api/v1/auth]
+    permission_namespaces: ['auth.*']
+    event_families: [identity.authentication]
+    event_family_registered: true # GAP-1 closed in Stage 1C: registered in event-registry.yaml
+    audit_prefixes: [AUTH_]
+    permission_entities: [session]
+    audit_entities: [LOGIN, SESSION, CREDENTIAL, LOCKOUT]
+    note: >
+      Stage 1C. Opaque, revocable server-side sessions (ADR-015) + Argon2id credentials (ADR-016).
+      Secure HttpOnly SameSite cookies with CSRF. Retires the Stage 1B dev actor assertion (x-dev-actor).
+
   - module: m03-audit
     stage: 1
     mvp: true
