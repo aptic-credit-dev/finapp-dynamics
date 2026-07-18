@@ -150,9 +150,15 @@ stages:
              api: [/api/v1/identities, /api/v1/accounts, /api/v1/tenant-memberships],
              events: [identity.lifecycle], permissions: ["identity.*"], audit: [IDENTITY_],
              ends_with: "x-actor-id deleted; actor enters RequestContext via a signed, environment-gated dev adapter"}
-          - {substage: 1C, module: m02-auth, status: documented,
-             owns: [sessions, login_attempts(global, pre-auth), service_account_credentials],
-             api: [/api/v1/auth], ends_with: "dev adapter deleted; real authenticated session"}
+          # 1C IMPLEMENTED 2026-07-18 on feature/stage-1c-authentication-sessions (NOT yet merged/certified).
+          # Opaque revocable server-side sessions (ADR-015) + Argon2id credentials (ADR-016); Secure HttpOnly
+          # SameSite cookies with CSRF. The Stage 1B dev actor assertion (x-dev-actor) is DELETED and a
+          # conformance check forbids its return. x-permissions + ContextAuthz remain, untouched, for 1D.
+          - {substage: 1C, module: m02-auth, status: implemented,
+             owns: [authentication_credentials(global), login_attempts(global, pre-auth), sessions(global),
+                    session_status_history(global, append-only), session_refresh_tokens(global)],
+             api: [/api/v1/auth], events: [identity.authentication], permissions: ["auth.*"], audit: [AUTH_],
+             ends_with: "x-dev-actor deleted; real session-backed actor via SessionActorAdapter"}
           - {substage: 1D, module: m02-rbac, status: documented,
              owns: [roles, permissions, user_roles, sod_catalogue],
              api: [/api/v1/roles], permissions: ["rbac.*"], audit: [RBAC_],
