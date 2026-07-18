@@ -3,20 +3,22 @@
 **2026-07-17** · Branch `feature/stage-1c-authentication-sessions` · **Planning/design only. No Stage 1C
 source code.**
 
-## Verdict: CONDITIONAL GO for Stage 1C implementation
+## Verdict: GO for Stage 1C implementation (2026-07-18)
 
-The design below is complete and fits the certified Stage 1B baseline without changing it: sessions are a
-new `ActorSource` behind the existing seam, `ActorResolver` stays authoritative, and `x-permissions` /
-`ContextAuthz` are left untouched for Stage 1D. Implementation is cleared to start **once two decisions are
-formally accepted** — they are architecture sign-offs, not design gaps:
+**Implementation authorized.** The gate is cleared:
 
-| # | Condition | Owner | Why it blocks code |
-|---|---|---|---|
-| **D1** | Accept **ADR-015** (opaque, revocable server-side sessions + rotating refresh) | Product owner / security | The session strategy determines every table and endpoint below. |
-| **D2** | Accept **ADR-016** (password hashing = **Argon2id** via a vetted native dependency, `scrypt`/`node:crypto` fallback) | Product owner / security | It is the first third-party runtime dependency in the repo and a credential-storage decision. |
+- **ADR-015 accepted** — opaque, revocable, server-side sessions + rotating refresh with reuse→family-revoke.
+- **ADR-016 accepted** — Argon2id via `@node-rs/argon2` (subject to dependency/licence review); `node:crypto.scrypt` documented fallback only.
+- **D3 resolved** — browser transport is **Secure, `HttpOnly`, `SameSite=Lax` cookies with CSRF protection**;
+  separate refresh cookie scoped to the refresh path; strict credentialed CORS; production fail-closed on
+  unsafe cookie/origin/secret config. Bearer/OAuth/OIDC out of scope for this stage.
+- **Stage 1D remains excluded** — `x-permissions`, `ContextAuthz`, and the `AUTHZ` port are untouched.
 
-Everything else (trust boundary, credential/session model, RLS, APIs, events, audit, permissions, tests) is
-specified here and needs no further decision. Two draft ADRs accompany this report.
+The design below fits the certified Stage 1B baseline without changing it: sessions are a new `ActorSource`
+behind the existing seam and `ActorResolver` stays authoritative on every request.
+
+> Historical note: this report was issued CONDITIONAL GO pending the two ADRs and the transport decision; all
+> three are now accepted (see the ADR register, ADR-015/ADR-016, both ACCEPTED 2026-07-18).
 
 ---
 
@@ -382,12 +384,10 @@ lanes green under branch protection.
 
 ## 28. Recommendation
 
-### CONDITIONAL GO for Stage 1C implementation
+### GO for Stage 1C implementation (2026-07-18)
 
 The trust boundary, credential/session model, RLS, `ActorResolver` integration, `DevActorAdapter` retirement,
 Stage 1D boundary, APIs, events, audit, permissions and test plan are all specified and consistent with the
-certified baseline. Implementation is cleared **once ADR-015 (session strategy) and ADR-016 (password
-hashing/dependency) are formally accepted** (D1, D2), and the transport question (D3) is decided within
-ADR-015. No code may be written before that acceptance. Governance items (PAT revocation, repository
-visibility) remain standing but do not block Stage 1C design or its eventual merge under the now-active branch
-protection.
+certified baseline. **ADR-015 and ADR-016 are accepted and D3 is resolved (Secure HttpOnly cookie + CSRF), so
+implementation is authorized** on `feature/stage-1c-authentication-sessions`. Stage 1D remains excluded.
+Governance items (PAT revocation, repository visibility) remain standing but do not block Stage 1C.
