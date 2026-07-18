@@ -19,6 +19,11 @@ family_groups:
   # GAP-1 CLOSED for m02 (Stage 1B) — identity.lifecycle was declared in implementation-manifest but was
   # absent here; naming-map flagged it as event_family_registered: false. Registered alongside the module
   # that owns and emits it, per CLAUDE.md (events ship with their module).
+  # GAP-1 CLOSED for m02-auth (Stage 1C) — identity.authentication registered alongside the module that
+  # owns and emits it, in the same commit. 11 event types, payload v1; identifiers/transitions ONLY (never
+  # a password, hash, token, raw identifier, email or name). Classification confidential.
+  - {group: authentication, families: [identity.authentication], mvp: true, status: implemented, owner: m02-auth,
+     note: "Stage 1C. Opaque-session + credential lifecycle. Account-plane: tenantId is PLATFORM_TENANT."}
   - {group: identity, families: [identity.lifecycle], mvp: true, status: implemented, owner: m02-identity,
      classification: confidential,
      note: "18 event types in one family; payload v1. Payloads carry identifiers and transitions ONLY —

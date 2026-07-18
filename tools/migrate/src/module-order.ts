@@ -25,6 +25,7 @@ export const MIGRATION_ORDER: readonly ModuleStage[] = [
     modules: [
       'm01-tenant',
       'm02-identity',
+      'm02-auth',
       'm03-audit',
       'm06-workflow',
       'm07-rules',

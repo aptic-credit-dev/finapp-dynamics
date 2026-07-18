@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 39 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 50 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -58,6 +58,7 @@ prefixes:
   # --- Stage 1 — SaaS foundation ---
   - { prefix: TENANT_, module: m01-tenant, mvp: true, prefix_provenance: derived }
   - { prefix: IDENTITY_, module: m02-identity, mvp: true, prefix_provenance: derived }
+  - { prefix: AUTH_, module: m02-auth, mvp: true, prefix_provenance: derived }
   - { prefix: RBAC_, module: m02-identity, mvp: true, prefix_provenance: derived }
   - { prefix: AUDIT_, module: m03-audit, mvp: true, prefix_provenance: derived }
   - { prefix: ADMIN_, module: m04-admin, mvp: true, prefix_provenance: derived }
@@ -160,6 +161,18 @@ codes:
   - { code: IDENTITY_MEMBERSHIP_REACTIVATED, module: m02-identity, severity: normal, reason_required: false }
   - { code: IDENTITY_MEMBERSHIP_ENDED, module: m02-identity, severity: normal, reason_required: true }
   - { code: IDENTITY_MEMBERSHIP_SCOPE_CHANGED, module: m02-identity, severity: normal, reason_required: false }
+  # --- Stage 1C (m02-auth) — authentication and sessions. Never record a secret in `detail`. ---
+  - { code: AUTH_LOGIN_SUCCEEDED, module: m02-auth, severity: normal, reason_required: false }
+  - { code: AUTH_LOGIN_FAILED, module: m02-auth, severity: normal, reason_required: false }
+  - { code: AUTH_SESSION_ISSUED, module: m02-auth, severity: normal, reason_required: false }
+  - { code: AUTH_SESSION_REFRESHED, module: m02-auth, severity: normal, reason_required: false }
+  - { code: AUTH_SESSION_REVOKED, module: m02-auth, severity: normal, reason_required: true }
+  - { code: AUTH_SESSION_EXPIRED, module: m02-auth, severity: normal, reason_required: false }
+  - { code: AUTH_CREDENTIAL_CREATED, module: m02-auth, severity: normal, reason_required: false }
+  - { code: AUTH_CREDENTIAL_CHANGED, module: m02-auth, severity: normal, reason_required: false }
+  - { code: AUTH_CREDENTIAL_DISABLED, module: m02-auth, severity: normal, reason_required: true }
+  - { code: AUTH_LOCKOUT_INITIATED, module: m02-auth, severity: elevated, reason_required: true }
+  - { code: AUTH_LOCKOUT_CLEARED, module: m02-auth, severity: normal, reason_required: false }
   # Readiness (§4.4): the link is recorded; nothing authenticates against it until Stage 1C.
   - { code: IDENTITY_SUBJECT_LINKED, module: m02-identity, severity: normal, reason_required: false }
 

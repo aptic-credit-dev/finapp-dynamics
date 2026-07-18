@@ -36,3 +36,14 @@ export type {
   MembershipScopeChangedPayload,
   AuthenticationSubjectLinkedPayload,
 } from './identity-events.ts';
+
+export { AUTH_LIFECYCLE_FAMILY, AUTH_LIFECYCLE_VERSION, AUTH_LIFECYCLE_EVENT_TYPES } from './auth-events.ts';
+export type {
+  AuthLifecycleEvent,
+  AuthLifecycleEventType,
+  AuthLifecyclePayload,
+  AuthenticationOutcomePayload,
+  SessionLifecyclePayload,
+  CredentialLifecyclePayload,
+  AccountLockoutPayload,
+} from './auth-events.ts';
