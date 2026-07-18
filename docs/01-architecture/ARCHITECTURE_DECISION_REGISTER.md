@@ -146,3 +146,68 @@ storage decision is not blocked on a dependency-policy decision.
 
 **Consequence:** a supply-chain review obligation for the native binding (mitigated by the scrypt fallback), and
 a stored-parameters column so cost can rise over time without invalidating existing credentials.
+
+## ADR-017 — RBAC authorization model (Stage 1D)
+**Status:** **PROPOSED (draft).** Awaiting product-owner/security acceptance before Stage 1D implementation.
+See `docs/build/stages/STAGE_1D_RBAC_AUTHORIZATION_READINESS.md`.
+
+**Decision (proposed):** persistent RBAC. **Flat roles** (no inheritance) each holding a set of **concrete**
+permission grants (`module.resource.action`; wildcards are namespace reservations, never grants — evaluation
+is exact-match set membership). Actor→role assignments attach to the **tenant membership** for tenant roles
+(tenant-scoped, RLS, no escape) and to the **identity** for platform roles (global, system escape). Decision
+is **allow-list + default-deny**; `INDETERMINATE` fails closed to DENY. The `Authz` port keeps
+`can/require(ctx, permission)` unchanged; `ActorContextFactory` **pre-resolves effective permissions once per
+request** from the DB (keyed by identity+tenant, read in tenant context) into `ctx.permissions`, and
+`RbacAuthz` set-checks it — fresh every request, no cache, minimal blast radius.
+
+**Rationale:** flat roles avoid recursion/cycles/depth limits; concrete grants avoid wildcard-precedence
+ambiguity; per-request resolution gives immediate revocation; the unchanged port means ~36 existing
+`authz.require` call sites are untouched.
+
+**Consequence:** composition is by assigning multiple roles; a richer `authorize(request)` method is added only
+for scope/resource-instance decisions. Rejected: role inheritance; wildcard grants; client- or session-carried
+permissions; a stateless permission cache in the first cut.
+
+## ADR-018 — Authorization scope model (Stage 1D)
+**Status:** **PROPOSED (draft).** Awaiting acceptance before Stage 1D implementation.
+
+**Decision (proposed):** MVP scopes are **global platform**, **tenant**, and optional **organizational**
+(entity/branch/department) reusing m01's composite `(tenant_id, id)` FKs. An assignment may carry an
+`assignment_scope`; a scope-sensitive endpoint requires the assignment scope to **contain** the resource
+scope (unscoped = tenant-wide contains all). Default deny; tenant boundary by RLS, never application
+filtering. **Deferred:** own-record, assigned-record, product, resource-instance, and any ABAC policy
+language.
+
+**Consequence:** most checks stay tenant-scoped (cover every current call site); org-scope is opt-in per
+resource. Rejected: implementing the full scope hierarchy speculatively.
+
+## ADR-019 — Segregation-of-Duties enforcement (Stage 1D)
+**Status:** **PROPOSED (draft).** Awaiting acceptance before Stage 1D implementation.
+
+**Decision (proposed):** `sod_rules` (global mandatory + tenant-specific) of incompatible role or permission
+pairs. Enforced **at assignment time** (a grant that would create an incompatible pair is refused, 409) **and
+at runtime** (a privileged action fails closed if the effective set is incompatible). Overrides need an
+authorized actor + justification + audit; no silent override. **No explicit-deny records in MVP** — allow-list
++ default-deny is sufficient; explicit deny would arrive as its own ADR if a business rule requires it.
+
+**Rationale:** SoD is the ADR-007 boundary the platform depends on; write-time prevention + runtime fail-safe
+covers both "don't create the conflict" and "don't honour a conflict that slipped in".
+
+**Consequence:** maker↔checker and finance approval separations are enforceable from Stage 1D. Rejected:
+deny-precedence records; runtime-only or write-time-only enforcement.
+
+## ADR-020 — Administrator bootstrap (Stage 1D)
+**Status:** **PROPOSED (draft).** Awaiting acceptance before Stage 1D implementation.
+
+**Decision (proposed):** a migration seeds an **immutable `platform_admin` system role**; an
+**environment-gated, idempotent, auditable** bootstrap grants it to a configured existing **account/identity
+reference** (`FINAPP_BOOTSTRAP_ADMIN_ACCOUNT`), never a password or bypass secret. It **fails closed in
+production** without explicit config, grants exactly once (idempotent), writes audit + a
+`BootstrapAdminProvisioned` event, and cannot mint arbitrary repeated admins. This gives the first
+platform/tenant administrator a role without `x-permissions`.
+
+**Rationale:** retiring `x-permissions` removes the only way an unprivileged caller could act as admin, so the
+first grant must come from a controlled, auditable, non-bypass channel.
+
+**Consequence:** an operational runbook for first-admin provisioning; no standing bypass. Rejected: a permanent
+admin bypass secret; embedding credentials; unrestricted repeated admin creation.
