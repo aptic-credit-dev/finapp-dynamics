@@ -2,11 +2,22 @@
 
 **2026-07-18** · Branch `feature/stage-1c-authentication-sessions` · m02-auth only.
 
-## Verdict: CONDITIONAL GO for merge — implemented and locally green; PostgreSQL-16 CI not yet run
+## FINAL STATUS: CERTIFIED AND COMPLETE — Stage gate GO (2026-07-18)
 
-Stage 1C is **implemented on the branch and green on every local lane**. It is **not** certified or merged:
-the authoritative PostgreSQL 16 CI has not run yet (no PR), and branch protection requires both lanes green
-before merge. This report is the honest pre-PR state; do not mark 1C certified until the PR's CI passes.
+> **Certified on `main` at `48cba39` (2026-07-18).** PR **#5** merged `feature/stage-1c-authentication-sessions`
+> (head `8d1eeac`) into `main` under active branch protection after both required lanes passed on CI run
+> **`29646472150`** — **Smoke lane success** (Format, Lint, Build, PURE smoke; no step skipped) and **DB lane
+> success** (Assert PostgreSQL 16, migrations dry-run + real, DB integration specs; no step skipped). The
+> post-merge push run on `main` (`29653121124`) also passed. The merged tree is byte-identical to the CI-
+> tested head. Local re-verification on merged `main`: smoke **8 suites / 1004 assertions**, DB **7 specs /
+> 301 assertions**, 0 failures. **Stage 1C is complete; Stage 1D may begin.** Evidence is authoritative in
+> the "STAGE 1C CERTIFICATION COMPLETE" section at the end. The pre-merge verdict below is retained as the
+> record of how the gate was reached.
+
+## Verdict (historical, superseded by FINAL STATUS above): CONDITIONAL GO for merge
+
+Stage 1C was implemented on the branch and green on every local lane; certification awaited the PostgreSQL 16
+CI on the PR. That CI has since run green and the PR merged — see the certification section at the end.
 
 ## 1. Certified starting baseline SHA
 
@@ -145,8 +156,10 @@ m02-actor-resolution 37, m02-identity 45, api-auth 37, api-identity 78, rls-conv
 
 ## 20. CI evidence
 
-**Not yet run** — the branch is pushed but no PR exists yet. The DB lane discovers the new `*.db-spec.ts`
-automatically and fails closed on zero discovery. PostgreSQL **16** in CI is the authoritative certification.
+**PASSED (updated post-merge).** PR #5 CI run `29646472150`: Smoke lane success (Format/Lint/Build/PURE smoke)
+and DB lane success (Assert PostgreSQL 16 + migrations + DB integration specs); post-merge push run
+`29653121124` on `main` also success; no step skipped. See the authoritative "STAGE 1C CERTIFICATION
+COMPLETE" section at the end of this report.
 
 ## 21. Remaining limitations
 
@@ -176,9 +189,49 @@ begun. **Outstanding:** PostgreSQL-16 CI green on the PR (the one DoD item that 
 
 ## 25. Recommendation
 
-### CONDITIONAL GO for merge
+### GO — Stage 1C certified and complete
 
-The implementation is complete and green on every local lane. Merge is conditional on: **(C-CI)** the
-PostgreSQL-16 DB lane and Smoke lane both green on the PR; **(C1)** PAT revocation; **(C2)** branch protection
-already active — the PR must pass the required checks. Do not mark Stage 1C certified or merged before the
-PR's CI passes and it merges. **Do not begin Stage 1D** until Stage 1C is merged and this gate is accepted.
+PR #5 merged into `main` (`48cba39`) under active branch protection after both required lanes passed (CI run
+`29646472150`); local re-verification on merged `main` is green (smoke 1004 / DB 301, 0 failures). C-CI is
+discharged. Standing governance items — PAT revocation and repository visibility — remain but do not gate
+Stage 1C. **Stage 1D (`m02-rbac`) may now begin from certified `main`; it has not been started.**
+
+---
+
+# STAGE 1C CERTIFICATION COMPLETE (2026-07-18)
+
+PR #5 merged into `main` under active branch protection after both required lanes passed. Stage 1C is
+**certified and complete**.
+
+| Item | Evidence |
+|---|---|
+| **Certified Stage 1B baseline** | `e3e51a5e1364d85d40ed5a3af060230ca38868c8` (parent of the merge) |
+| **Stage 1C feature head** | `8d1eeacf0a2b6b8a64716955aba91d5fd6fd90c8` |
+| **Stage 1C merge commit** | **`48cba39fe59b19c03648623b1dbd92ac4a70017c`** — `main` HEAD (squash of PR #5) |
+| **Pull request** | **#5** — `feature/stage-1c-authentication-sessions` → `main`, merged 2026-07-18 |
+| **Tree parity** | `git diff 8d1eeac 48cba39` is empty — the certified code is byte-identical to what CI tested |
+| **CI workflow run** | **`29646472150`** (PR #5, `pull_request`). Post-merge push run on `main`: `29653121124` — also success. |
+| **Smoke lane** | **PASSED** — Format check ✅, Lint ✅, Build ✅, PURE smoke suites ✅. No relevant step skipped. |
+| **PostgreSQL 16 DB lane** | **PASSED** — `Assert PostgreSQL 16` ✅, `Migrations (dry run — ordering and checksums)` ✅, `Migrations` ✅, `DB integration specs` ✅. No relevant step skipped. |
+| **CI totals** | The GitHub REST API exposes step conclusions (all success, no skips) but not the in-log assertion counts; the merged tree is identical to the CI-tested head, so the local totals below are authoritative for the same code. |
+| **Local re-verification (merged `main`, clean checkout)** | `npm ci` (0 vulns) · `format:check` ✅ · `lint` **0 errors** ✅ · `build` ✅ · smoke **8 suites / 1004 assertions** · DB **7 specs / 301 assertions** (PostgreSQL 15.2). No suite/spec skipped. |
+| **Smoke suite totals** | contracts 32, kernel 35, m01-tenant 250, m02-auth 65, m02-actor-context 33, m02-identity 232, conformance 331, migrate 26 = **1004**, 0 failures |
+| **DB spec totals** | m01-tenant 46, **m02-auth 32**, m02-actor-resolution 37, m02-identity 45, **api-auth 37**, api-identity 78, rls-convention 26 = **301**, 0 failures |
+| **DB specs that ran** | Stage 1A (m01), 1B (m02-identity, m02-actor-resolution incl. pooled-connection + cross-tenant), 1C (m02-auth: credentials/sessions/**refresh rotation**/**reuse→family-revoke**/RLS/no-plaintext; api-auth: login/CSRF/refresh/reuse/lockout/session-backed actor over HTTP), rls-convention. None skipped. |
+| **Merge status** | **MERGED into `main`.** |
+| **Branch protection** | **ACTIVE** — `main` requires the Smoke and PostgreSQL 16 lanes and PR review; PR #5 merged under it. |
+| **`x-dev-actor` / `DevActorAdapter`** | **Absent** from live source on `main` (file deleted; conformance forbids the header). `SessionActorAdapter` is the bound `ActorSource`; `ActorResolver` unchanged and authoritative. |
+| **`x-actor-id`** | Absent from live source (conformance-enforced). |
+| **Stage 1D boundary** | `x-permissions` + `ContextAuthz` unchanged; no RBAC tables/source; Stage 1D not begun. |
+| **Stage 1C gate** | **GO.** |
+| **Stage 1C status** | **CERTIFIED AND COMPLETE.** |
+
+## Remaining governance (standing, not gating Stage 1C)
+
+- **PAT revocation** — still not verifiable from here; treat as unrevoked until confirmed.
+- **Repository visibility** — still public; no recorded owner decision.
+
+## Stage 1D
+
+Stage 1D (`m02-rbac`: roles, permission catalogue, `user_roles`, SoD; delete `x-permissions` + `ContextAuthz`
+and bind `RbacAuthz`) may now begin from certified `main` (`48cba39`). It has **not** been started.

@@ -252,6 +252,34 @@ stages:
                evidence_required: "repository visibility status and owner decision"}
           docs: docs/build/stages/STAGE_1B_M02_IDENTITY_COMPLETION.md
         # -------------------------------------------------------------------------------------------------
+        # SUBSTAGE 1C CERTIFICATION STATUS (recorded 2026-07-18).
+        #   implementation_status:        implemented   (substages[1] status: implemented, above)
+        #   merge_status:                 merged         (PR #5)
+        #   smoke_certification:          passed
+        #   postgresql_16_certification:  passed
+        #   stage_gate:                   go
+        #   status:                       certified_and_complete
+        certification_1c:
+          module: m02-auth
+          substage: 1C
+          implementation_status: implemented
+          smoke_certification: passed
+          postgresql_16_certification: passed
+          merge_status: merged
+          stage_gate: go
+          status: certified_and_complete
+          stage_1d_readiness: go   # 1C certified on main; 1D (m02-rbac) may begin from 48cba39. NOT started.
+          branch_protection: active
+          merged_pr: 5
+          feature_head: 8d1eeac
+          merge_commit: 48cba39fe59b19c03648623b1dbd92ac4a70017c   # main HEAD, squash of PR #5
+          parent_baseline: e3e51a5   # certified Stage 1B
+          certified_ci_run: 29646472150   # PR #5 — Smoke + DB (Assert PostgreSQL 16) both success, no skips
+          post_merge_ci_run: 29653121124  # push run on main 48cba39 — success
+          local_reverification: {smoke_suites: 8, smoke_assertions: 1004, db_specs: 7, db_assertions: 301,
+                                  postgres_version: "15.2", clean_checkout: true, tree_identical_to_ci_head: true}
+          docs: docs/build/stages/STAGE_1C_AUTH_SESSIONS_COMPLETION.md
+        # -------------------------------------------------------------------------------------------------
         open_gaps:
           - "GAP-1 CLOSED in 1B: identity.lifecycle is registered in event-registry.yaml, declared in the
              contracts union, and naming-map event_family_registered is true. The conformance suite now
