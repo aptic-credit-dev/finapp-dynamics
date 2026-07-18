@@ -79,23 +79,13 @@ export default defineDbSpec('m02-identity (Stage 1B)', async (ctx, t) => {
     'the policy is named tenant_isolation everywhere',
   );
 
-  // NO Stage 1C or 1D tables (§20.23, §20.24). Asserted, not assumed.
+  // NO Stage 1D RBAC tables. (Stage 1C credential/session tables now EXIST — m02-auth shipped — so they
+  // are no longer forbidden here; the conformance suite asserts they exist and carry no plaintext column.)
   const forbidden = await ctx.pool.query<{ relname: string }>(
     `SELECT relname FROM pg_class WHERE relkind = 'r' AND relname = ANY($1::text[])`,
-    [
-      [
-        'roles',
-        'permissions',
-        'user_roles',
-        'role_permissions',
-        'sessions',
-        'login_attempts',
-        'refresh_tokens',
-        'passwords',
-      ],
-    ],
+    [['roles', 'permissions', 'user_roles', 'role_permissions', 'sod_catalogue']],
   );
-  t.equal(forbidden.rowCount, 0, 'no Stage 1C credential/session tables and no Stage 1D RBAC tables exist');
+  t.equal(forbidden.rowCount, 0, 'no Stage 1D RBAC tables exist (authorization is Stage 1D)');
 
   // No credential column slipped into the identity plane (ADR-009).
   const secrets = await ctx.pool.query<{ column_name: string }>(
