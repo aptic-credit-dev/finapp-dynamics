@@ -1,7 +1,11 @@
-import { ProblemError, type Db, type SystemContext, type Tx } from '@finapp/kernel';
+import { ProblemError, type Authz, type Db, type RequestContext, type SystemContext, type Tx } from '@finapp/kernel';
 import { RbacRepository, type SodRuleRow } from './repository.ts';
 import { type RbacEmitter } from './emit.ts';
 import { RBAC_AUDIT_CODES } from './audit-codes.ts';
+import { RBAC_PERMISSIONS } from './permissions.ts';
+
+/** The caller's proven context — tenant or platform — always carrying its resolved permissions. */
+type AuthorizedContext = RequestContext | (SystemContext & { readonly permissions: readonly string[] });
 
 /** A detected incompatibility. Structured internally; surfaced to callers only as a generic 409. */
 export interface SodConflict {
@@ -17,11 +21,13 @@ export interface SodConflict {
  */
 export class SodService {
   private readonly db: Db;
+  private readonly authz: Authz;
   private readonly emitter: RbacEmitter;
   private readonly repo: RbacRepository;
 
-  constructor(db: Db, emitter: RbacEmitter, repo: RbacRepository = new RbacRepository()) {
+  constructor(db: Db, authz: Authz, emitter: RbacEmitter, repo: RbacRepository = new RbacRepository()) {
     this.db = db;
+    this.authz = authz;
     this.emitter = emitter;
     this.repo = repo;
   }
@@ -74,7 +80,8 @@ export class SodService {
   }
 
   // --- administration -----------------------------------------------------------------------------
-  async list(ctx: { correlationId: string }): Promise<SodRuleRow[]> {
+  async list(ctx: AuthorizedContext): Promise<SodRuleRow[]> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.sodView);
     return this.db.withSystem(
       { reason: 'list sod rules (m02-rbac)', correlationId: ctx.correlationId },
       (tx) => this.repo.listSodRules(tx),
@@ -82,9 +89,10 @@ export class SodService {
   }
 
   async create(
-    ctx: { correlationId: string },
+    ctx: AuthorizedContext,
     input: { tenantId: string; ruleType: string; codeA: string; codeB: string; description: string | null; severity: string; actor: string | null },
   ): Promise<SodRuleRow> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.sodManage);
     if (input.ruleType !== 'role_pair' && input.ruleType !== 'permission_pair') {
       throw badRequest('ruleType must be role_pair or permission_pair.', ctx.correlationId);
     }
@@ -111,7 +119,8 @@ export class SodService {
     });
   }
 
-  async setStatus(ctx: { correlationId: string }, input: { id: string; expectedVersion: number; status: string; actor: string | null }): Promise<SodRuleRow> {
+  async setStatus(ctx: AuthorizedContext, input: { id: string; expectedVersion: number; status: string; actor: string | null }): Promise<SodRuleRow> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.sodManage);
     if (input.status !== 'active' && input.status !== 'retired') throw badRequest('status must be active or retired.', ctx.correlationId);
     const sys: SystemContext = { reason: 'update sod rule (m02-rbac)', correlationId: ctx.correlationId };
     return this.db.withSystem(sys, async (tx) => {

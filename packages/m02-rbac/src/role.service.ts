@@ -1,7 +1,8 @@
-import { ProblemError, type Db, type RequestContext } from '@finapp/kernel';
+import { ProblemError, type Authz, type Db, type RequestContext } from '@finapp/kernel';
 import { RbacRepository, type RoleRow } from './repository.ts';
 import { type RbacEmitter } from './emit.ts';
 import { RBAC_AUDIT_CODES } from './audit-codes.ts';
+import { RBAC_PERMISSIONS } from './permissions.ts';
 import { badRequest, isUniqueViolation } from './sod.service.ts';
 import { checkRoleTransition, type RoleAction, type RoleStatus } from './domain/lifecycles.ts';
 
@@ -12,6 +13,13 @@ const ROLE_ACTION_AUDIT: Record<RoleAction, string> = {
   reactivate: RBAC_AUDIT_CODES.roleActivated,
   retire: RBAC_AUDIT_CODES.roleRetired,
 };
+/** Which permission each lifecycle action demands. A reactivate is an activate; the rest map one to one. */
+const ROLE_ACTION_PERMISSION: Record<RoleAction, string> = {
+  activate: RBAC_PERMISSIONS.roleActivate,
+  reactivate: RBAC_PERMISSIONS.roleActivate,
+  suspend: RBAC_PERMISSIONS.roleSuspend,
+  retire: RBAC_PERMISSIONS.roleRetire,
+};
 
 /**
  * Tenant custom roles (ADR-017). All work runs in the caller's TENANT context, so a tenant can only create,
@@ -21,16 +29,19 @@ const ROLE_ACTION_AUDIT: Record<RoleAction, string> = {
  */
 export class RoleService {
   private readonly db: Db;
+  private readonly authz: Authz;
   private readonly emitter: RbacEmitter;
   private readonly repo: RbacRepository;
 
-  constructor(db: Db, emitter: RbacEmitter, repo: RbacRepository = new RbacRepository()) {
+  constructor(db: Db, authz: Authz, emitter: RbacEmitter, repo: RbacRepository = new RbacRepository()) {
     this.db = db;
+    this.authz = authz;
     this.emitter = emitter;
     this.repo = repo;
   }
 
   async create(ctx: RequestContext, actor: string, input: { code: string; name: string; description?: string | null; risk?: string }): Promise<RoleRow> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.roleCreate);
     if (!ROLE_CODE_PATTERN.test(input.code)) throw badRequest('code must be lower_snake_case (3-64 chars).', ctx.correlationId);
     if (typeof input.name !== 'string' || input.name.trim() === '') throw badRequest('name is required.', ctx.correlationId);
     const risk = input.risk ?? 'normal';
@@ -51,18 +62,21 @@ export class RoleService {
   }
 
   async get(ctx: RequestContext, id: string): Promise<RoleRow> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.roleView);
     const row = await this.db.withTenant(ctx, (tx) => this.repo.findRole(tx, id));
     if (row === null) throw ProblemError.notFound('Role not found.', ctx.correlationId);
     return row;
   }
 
   async list(ctx: RequestContext, opts: { limit?: number; offset?: number; status?: string }): Promise<RoleRow[]> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.roleView);
     return this.db.withTenant(ctx, (tx) =>
       this.repo.listRoles(tx, { limit: Math.min(Math.max(opts.limit ?? 50, 1), 200), offset: Math.max(opts.offset ?? 0, 0), ...(opts.status === undefined ? {} : { status: opts.status }) }),
     );
   }
 
   async update(ctx: RequestContext, actor: string, id: string, input: { expectedVersion: number; name?: string; description?: string | null }): Promise<RoleRow> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.roleEdit);
     return this.db.withTenant(ctx, async (tx) => {
       const current = await this.repo.findRole(tx, id);
       if (current === null) throw ProblemError.notFound('Role not found.', ctx.correlationId);
@@ -76,6 +90,7 @@ export class RoleService {
   }
 
   async applyAction(ctx: RequestContext, actor: string, id: string, action: RoleAction, opts: { reason?: string; expectedVersion: number }): Promise<RoleRow> {
+    await this.authz.require(ctx, ROLE_ACTION_PERMISSION[action]);
     return this.db.withTenant(ctx, async (tx) => {
       const current = await this.repo.findRole(tx, id);
       if (current === null) throw ProblemError.notFound('Role not found.', ctx.correlationId);
@@ -99,6 +114,7 @@ export class RoleService {
     id: string,
     input: { add?: string[]; remove?: string[]; grantorPermissions: readonly string[] },
   ): Promise<{ added: number; removed: number }> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.roleEdit);
     const add = input.add ?? [];
     const remove = input.remove ?? [];
     if (add.length === 0 && remove.length === 0) throw badRequest('Provide permissions to add or remove.', ctx.correlationId);
@@ -127,6 +143,7 @@ export class RoleService {
   }
 
   async permissions(ctx: RequestContext, id: string): Promise<string[]> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.roleView);
     return this.db.withTenant(ctx, async (tx) => {
       const role = await this.repo.findRole(tx, id);
       if (role === null) throw ProblemError.notFound('Role not found.', ctx.correlationId);

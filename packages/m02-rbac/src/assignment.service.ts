@@ -1,8 +1,9 @@
-import { ProblemError, type Db, type RequestContext, type SystemContext } from '@finapp/kernel';
+import { ProblemError, type Authz, type Db, type RequestContext, type SystemContext } from '@finapp/kernel';
 import { RbacRepository, type AssignmentRow } from './repository.ts';
 import { type RbacEmitter } from './emit.ts';
 import { type SodService, badRequest, isUniqueViolation } from './sod.service.ts';
 import { RBAC_AUDIT_CODES } from './audit-codes.ts';
+import { RBAC_PERMISSIONS } from './permissions.ts';
 import { checkAssignmentTransition, type AssignmentAction, type AssignmentStatus } from './domain/lifecycles.ts';
 import { isScopeLevel } from './domain/scope.ts';
 
@@ -13,12 +14,14 @@ import { isScopeLevel } from './domain/scope.ts';
  */
 export class AssignmentService {
   private readonly db: Db;
+  private readonly authz: Authz;
   private readonly emitter: RbacEmitter;
   private readonly sod: SodService;
   private readonly repo: RbacRepository;
 
-  constructor(db: Db, emitter: RbacEmitter, sod: SodService, repo: RbacRepository = new RbacRepository()) {
+  constructor(db: Db, authz: Authz, emitter: RbacEmitter, sod: SodService, repo: RbacRepository = new RbacRepository()) {
     this.db = db;
+    this.authz = authz;
     this.emitter = emitter;
     this.sod = sod;
     this.repo = repo;
@@ -34,6 +37,7 @@ export class AssignmentService {
       grantorPermissions: readonly string[];
     },
   ): Promise<AssignmentRow> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.assignmentGrant);
     const scopeLevel = input.scopeLevel ?? 'tenant';
     if (!isScopeLevel(scopeLevel) || scopeLevel === 'platform') throw badRequest('invalid scope level.', ctx.correlationId);
     const scopeRef = scopeLevel === 'tenant' ? null : (input.scopeRef ?? null);
@@ -85,18 +89,23 @@ export class AssignmentService {
   }
 
   async get(ctx: RequestContext, id: string): Promise<AssignmentRow> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.assignmentView);
     const row = await this.db.withTenant(ctx, (tx) => this.repo.findAssignment(tx, id));
     if (row === null) throw ProblemError.notFound('Assignment not found.', ctx.correlationId);
     return row;
   }
 
   async list(ctx: RequestContext, opts: { limit?: number; offset?: number; membershipId?: string; status?: string }): Promise<AssignmentRow[]> {
+    await this.authz.require(ctx, RBAC_PERMISSIONS.assignmentView);
     return this.db.withTenant(ctx, (tx) =>
       this.repo.listAssignments(tx, { limit: Math.min(Math.max(opts.limit ?? 50, 1), 200), offset: Math.max(opts.offset ?? 0, 0), ...(opts.membershipId === undefined ? {} : { membershipId: opts.membershipId }), ...(opts.status === undefined ? {} : { status: opts.status }) }),
     );
   }
 
   async applyAction(ctx: RequestContext, actor: string, id: string, action: AssignmentAction, opts: { reason?: string; expectedVersion: number }): Promise<AssignmentRow> {
+    // Every assignment mutation — suspend, reactivate, revoke, expire — is gated by the single revoke
+    // permission: there is no finer grant, and the safe default is to require the strongest of them.
+    await this.authz.require(ctx, RBAC_PERMISSIONS.assignmentRevoke);
     return this.db.withTenant(ctx, async (tx) => {
       const current = await this.repo.findAssignment(tx, id);
       if (current === null) throw ProblemError.notFound('Assignment not found.', ctx.correlationId);
