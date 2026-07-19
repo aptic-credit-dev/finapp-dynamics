@@ -12,6 +12,7 @@
     { "path": "./packages/m02-identity" },
     { "path": "./packages/m02-auth" },
     { "path": "./packages/m02-rbac" },
+    { "path": "./packages/m03-audit" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]
