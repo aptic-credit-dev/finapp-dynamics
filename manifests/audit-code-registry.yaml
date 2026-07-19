@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 63 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 71 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -189,6 +189,16 @@ codes:
   - { code: RBAC_BOOTSTRAP_PROVISIONED, module: m02-rbac, severity: critical, reason_required: false }
   # Readiness (§4.4): the link is recorded; nothing authenticates against it until Stage 1C.
   - { code: IDENTITY_SUBJECT_LINKED, module: m02-identity, severity: normal, reason_required: false }
+
+  # --- m03-audit — Stage 2.1 --- the audit service's OWN controlled actions (the watchers are watched).
+  - { code: AUDIT_ACCESS_SEARCHED, module: m03-audit, severity: normal, reason_required: false }
+  - { code: AUDIT_EVENT_EXPORTED, module: m03-audit, severity: critical, reason_required: false }
+  - { code: AUDIT_INTEGRITY_VERIFIED, module: m03-audit, severity: normal, reason_required: false }
+  - { code: AUDIT_INTEGRITY_FAILED, module: m03-audit, severity: critical, reason_required: false }
+  - { code: AUDIT_PERSISTENCE_FAILED, module: m03-audit, severity: critical, reason_required: false }
+  - { code: AUDIT_RETENTION_EXECUTED, module: m03-audit, severity: normal, reason_required: false }
+  - { code: AUDIT_LEGAL_HOLD_APPLIED, module: m03-audit, severity: critical, reason_required: true }
+  - { code: AUDIT_LEGAL_HOLD_RELEASED, module: m03-audit, severity: critical, reason_required: true }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

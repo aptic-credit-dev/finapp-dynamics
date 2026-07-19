@@ -49,7 +49,12 @@ namespaces:
              "rbac.assignment.view", "rbac.assignment.grant", "rbac.assignment.revoke",
              "rbac.sod.view", "rbac.sod.manage",
              "rbac.bootstrap.execute"]}
-  - {namespace: "audit.*", module: m03-audit, mvp: true, status: documented}
+  # Stage 2.1 (m03-audit). Read/investigation over the audit spine. Three segments per the @Endpoint
+  # validator. Platform view is a SEPARATE grant from tenant view — a tenant admin never sees platform events.
+  - {namespace: "audit.*", module: m03-audit, mvp: true, status: implemented, substage: "2.1",
+     codes: ["audit.event.view", "audit.event.search", "audit.event.export",
+             "audit.platform.view", "audit.retention.manage", "audit.integrity.verify",
+             "audit.configuration.manage"]}
   - {namespace: "workflow.*", module: m06-workflow, mvp: true, status: documented}
   - {namespace: "rules.*", module: m07-rules, mvp: true, status: documented}
   - {namespace: "notifications.*", module: m08-notify, mvp: true, status: documented}
