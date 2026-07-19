@@ -77,10 +77,10 @@ modules:
     stage: 1
     mvp: true
     api_prefixes: [/api/v1/identities, /api/v1/accounts, /api/v1/tenant-memberships, /api/v1/auth, /api/v1/users, /api/v1/roles]
-    permission_namespaces: ['identity.*', 'rbac.*']
+    permission_namespaces: ['identity.*'] # rbac.* moved to m02-rbac (Stage 1D, D3)
     event_families: [identity.lifecycle]
     event_family_registered: true # GAP-1 closed in Stage 1B: registered in event-registry.yaml
-    audit_prefixes: [IDENTITY_, RBAC_]
+    audit_prefixes: [IDENTITY_] # RBAC_ moved to m02-rbac (Stage 1D)
     # Stage 1B registered three NEW prefixes. The original set had only /api/v1/users for all of identity,
     # and collapsing identities + accounts + memberships behind it would be exactly the "one generic user
     # service" the architecture forbids — identity, account and membership are distinct resources with
@@ -109,6 +109,20 @@ modules:
     note: >
       Stage 1C. Opaque, revocable server-side sessions (ADR-015) + Argon2id credentials (ADR-016).
       Secure HttpOnly SameSite cookies with CSRF. Retires the Stage 1B dev actor assertion (x-dev-actor).
+
+  - module: m02-rbac
+    stage: 1
+    mvp: true
+    api_prefixes: [/api/v1/rbac]
+    permission_namespaces: ['rbac.*']
+    event_families: [identity.authorization]
+    event_family_registered: true # GAP-1 closed in Stage 1D: registered in event-registry.yaml
+    audit_prefixes: [RBAC_]
+    permission_entities: [permission, role, assignment, sod, bootstrap]
+    audit_entities: [ROLE, ASSIGNMENT, SOD, BOOTSTRAP]
+    note: >
+      Stage 1D. Persistent RBAC (ADR-017..020). Replaces x-permissions + ContextAuthz. /api/v1/roles stays
+      reserved to m02 (naming) but the canonical prefix is /api/v1/rbac (D2).
 
   - module: m03-audit
     stage: 1

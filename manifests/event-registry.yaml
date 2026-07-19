@@ -22,6 +22,11 @@ family_groups:
   # GAP-1 CLOSED for m02-auth (Stage 1C) — identity.authentication registered alongside the module that
   # owns and emits it, in the same commit. 11 event types, payload v1; identifiers/transitions ONLY (never
   # a password, hash, token, raw identifier, email or name). Classification confidential.
+  # GAP-1 CLOSED for m02-rbac (Stage 1D) — identity.authorization registered with the module that emits it.
+  # 12 event types, payload v1; identifiers/transitions only (never a permission set dump or secret).
+  - {group: authorization, families: [identity.authorization], mvp: true, status: implemented, owner: m02-rbac,
+     note: "Stage 1D. Role/assignment/SoD lifecycle + bootstrap. Account-plane: tenantId is the real tenant
+            for tenant roles, PLATFORM_TENANT for platform roles."}
   - {group: authentication, families: [identity.authentication], mvp: true, status: implemented, owner: m02-auth,
      note: "Stage 1C. Opaque-session + credential lifecycle. Account-plane: tenantId is PLATFORM_TENANT."}
   - {group: identity, families: [identity.lifecycle], mvp: true, status: implemented, owner: m02-identity,
