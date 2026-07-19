@@ -47,3 +47,19 @@ export type {
   CredentialLifecyclePayload,
   AccountLockoutPayload,
 } from './auth-events.ts';
+
+export {
+  AUTHZ_LIFECYCLE_FAMILY,
+  AUTHZ_LIFECYCLE_VERSION,
+  AUTHZ_LIFECYCLE_EVENT_TYPES,
+} from './authz-events.ts';
+export type {
+  AuthzLifecycleEvent,
+  AuthzLifecycleEventType,
+  AuthzLifecyclePayload,
+  RoleLifecyclePayload,
+  RolePermissionsChangedPayload,
+  AssignmentLifecyclePayload,
+  SodPayload,
+  BootstrapPayload,
+} from './authz-events.ts';
