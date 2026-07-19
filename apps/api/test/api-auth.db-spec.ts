@@ -14,6 +14,23 @@ import { argon2idHasher } from '@finapp/m02-auth';
 
 const PASSWORD = 'correct-horse-battery-staple';
 
+/**
+ * STAGE 1D: a caller's permissions come from PERSISTENT role assignments, not a header. The immutable
+ * `platform_admin` system role (seeded by the RBAC migration with every permission) is how a test actor
+ * becomes fully privileged; an actor with no grant is authorized for nothing, whatever it sends.
+ */
+const PLATFORM_ADMIN_ROLE_ID = '00000000-0000-4000-8000-000000000001';
+
+/** Grants the seeded `platform_admin` role to an identity — a real platform_role_assignment, committed. */
+async function grantPlatformAdmin(ctx: DbSpecContext, identityId: string): Promise<void> {
+  await ctx.asSuperuser(null, async (tx) => {
+    await tx.query(
+      `INSERT INTO platform_role_assignments (identity_id, role_id, status) VALUES ($1, $2, 'active')`,
+      [identityId, PLATFORM_ADMIN_ROLE_ID],
+    );
+  });
+}
+
 interface Reply {
   readonly status: number;
   readonly body: Record<string, unknown>;
@@ -150,7 +167,8 @@ export default defineDbSpec('api-auth (Stage 1C)', async (ctx, t) => {
 });
 
 async function run(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
-  await seedAccount(ctx, 'apiauth_admin');
+  const adminSeed = await seedAccount(ctx, 'apiauth_admin');
+  await grantPlatformAdmin(ctx, adminSeed.identityId);
 
   // --- login: cookies, attributes, no secrets -----------------------------------------------------
   const loginReply = await api('POST', '/auth/login', {
@@ -205,12 +223,11 @@ async function run(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
   // --- session-backed actor reaches the identity API ----------------------------------------------
   const anon = await api('GET', '/identities');
   t.equal(anon.status, 401, 'no session cookie → 401');
-  const withSession = await api('GET', '/identities', {
-    headers: authed({ 'x-permissions': 'identity.registry.view' }),
-  });
+  const withSession = await api('GET', '/identities', { headers: authed() });
   t.equal(withSession.status, 200, 'a real session resolves the actor and reaches the identity API');
 
-  // x-actor-id / x-dev-actor are dead: they cannot stand in for a session.
+  // x-actor-id / x-dev-actor are dead: they cannot stand in for a session. The dead x-permissions header
+  // rides along to prove it too buys nothing — identity and authorization are both database facts now.
   const actorId = await api('GET', '/identities', {
     headers: { 'x-actor-id': randomUUID(), 'x-permissions': 'identity.registry.view' },
   });
@@ -234,17 +251,17 @@ async function run(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
 
   // --- CSRF on state-changing requests ------------------------------------------------------------
   const noCsrf = await api('POST', '/identities', {
-    headers: { cookie, 'x-permissions': 'identity.registry.create' },
+    headers: { cookie },
     body: { identityType: 'internal_person', displayName: 'X', primaryEmail: `x.${randomUUID()}@e.com` },
   });
   t.equal(noCsrf.status, 403, 'a state-changing request with a session cookie but NO csrf token is 403');
   const badCsrf = await api('POST', '/identities', {
-    headers: { cookie, 'x-csrf-token': 'not-the-token', 'x-permissions': 'identity.registry.create' },
+    headers: { cookie, 'x-csrf-token': 'not-the-token' },
     body: { identityType: 'internal_person', displayName: 'X', primaryEmail: `x.${randomUUID()}@e.com` },
   });
   t.equal(badCsrf.status, 403, 'a wrong csrf token is 403');
   const goodCsrf = await api('POST', '/identities', {
-    headers: authed({ 'x-permissions': 'identity.registry.create' }),
+    headers: authed(),
     body: { identityType: 'internal_person', displayName: 'X', primaryEmail: `x.${randomUUID()}@e.com` },
   });
   t.equal(goodCsrf.status, 201, 'a matching csrf token passes');
@@ -307,6 +324,19 @@ async function run(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
     'x-csrf-token': String(adminFresh.body['csrfToken']),
     ...extra,
   });
+
+  // A PROVEN actor holding no role — used to prove the revoke is refused for want of the permission, not
+  // for want of a session. No header it sends can conjure auth.session.revoke.
+  await seedAccount(ctx, 'apiauth_norevoke');
+  const norevokeFresh = await api('POST', '/auth/login', {
+    body: { loginIdentifier: 'apiauth_norevoke_login', password: PASSWORD },
+  });
+  const norevokeAuth = (extra: Record<string, string> = {}): Record<string, string> => ({
+    cookie: cookieHeader(norevokeFresh.setCookies),
+    'x-csrf-token': String(norevokeFresh.body['csrfToken']),
+    ...extra,
+  });
+
   const other = await seedAccount(ctx, 'apiauth_victim');
   const victimLogin = await api('POST', '/auth/login', {
     body: { loginIdentifier: 'apiauth_victim_login', password: PASSWORD },
@@ -323,13 +353,13 @@ async function run(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
   );
 
   const forbiddenRevoke = await api('POST', `/auth/admin/sessions/${victimSessionId}/revoke`, {
-    headers: adminAuth({ 'x-permissions': 'identity.registry.view' }),
+    headers: norevokeAuth({ 'x-permissions': 'auth.session.revoke' }),
   });
-  t.equal(forbiddenRevoke.status, 403, 'admin revocation without auth.session.revoke is 403');
+  t.equal(forbiddenRevoke.status, 403, 'a proven actor lacking auth.session.revoke is 403 — the header is dead');
   const okRevoke = await api('POST', `/auth/admin/sessions/${victimSessionId}/revoke`, {
-    headers: adminAuth({ 'x-permissions': 'auth.session.revoke' }),
+    headers: adminAuth(),
   });
-  t.equal(okRevoke.status, 200, 'admin revocation with auth.session.revoke succeeds');
+  t.equal(okRevoke.status, 200, 'the platform admin, who genuinely holds auth.session.revoke, succeeds');
   const victimAfter = await api('GET', '/auth/session', {
     headers: {
       cookie: cookieHeader(victimLogin.setCookies),

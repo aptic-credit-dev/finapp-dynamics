@@ -34,39 +34,14 @@ const PASSWORD = 'correct-horse-battery-staple';
  * rather than through a testing harness that might paper over a composition mistake.
  */
 
-const PLATFORM_ADMIN = [
-  'identity.registry.view',
-  'identity.registry.create',
-  'identity.registry.edit',
-  'identity.registry.activate',
-  'identity.registry.suspend',
-  'identity.registry.reactivate',
-  'identity.registry.close',
-  'identity.account.view',
-  'identity.account.create',
-  'identity.account.activate',
-  'identity.account.suspend',
-  'identity.account.reactivate',
-  'identity.account.deactivate',
-  'identity.membership.view',
-  'identity.membership.create',
-  'identity.membership.activate',
-  'identity.membership.suspend',
-  'identity.membership.reactivate',
-  'identity.membership.end',
-  'identity.membership.scope',
-  'tenant.registry.view',
-  'tenant.registry.create',
-  'tenant.registry.edit',
-  'tenant.registry.review',
-  'tenant.registry.approve',
-  'tenant.registry.provision',
-  'tenant.registry.activate',
-  'tenant.registry.restrict',
-  'tenant.registry.suspend',
-  'tenant.registry.reactivate',
-  'tenant.registry.close',
-].join(',');
+/**
+ * STAGE 1D: authorization is no longer a header. A caller's permissions are resolved from PERSISTENT role
+ * assignments, so a "fully privileged" actor is one who genuinely HOLDS the immutable `platform_admin`
+ * system role (seeded by the RBAC migration with every permission). We grant it in the database and send
+ * nothing authorization-bearing on the wire — the x-permissions header is dead and, as the tests below
+ * prove, ignored.
+ */
+const PLATFORM_ADMIN_ROLE_ID = '00000000-0000-4000-8000-000000000001';
 
 interface Reply {
   readonly status: number;
@@ -170,6 +145,20 @@ async function seedActor(
 }
 
 /**
+ * Grants the immutable `platform_admin` role to an identity — a real platform_role_assignment, the same row
+ * the bootstrap mints. From this point the actor's every request resolves the full permission set from the
+ * database, with nothing on the wire. Written as superuser so it is committed before the app reads it.
+ */
+async function grantPlatformAdmin(ctx: DbSpecContext, identityId: string): Promise<void> {
+  await ctx.asSuperuser(null, async (tx) => {
+    await tx.query(
+      `INSERT INTO platform_role_assignments (identity_id, role_id, status) VALUES ($1, $2, 'active')`,
+      [identityId, PLATFORM_ADMIN_ROLE_ID],
+    );
+  });
+}
+
+/**
  * Boots the compiled app on an ephemeral port.
  *
  * NODE_ENV and the dev secret are set before the app module is imported, because `ActorModule`'s factory
@@ -267,13 +256,24 @@ export default defineDbSpec('api-identity (Stage 1B)', async (ctx, t) => {
 
 async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
   const admin = await seedActor(ctx, 'api_admin');
+  await grantPlatformAdmin(ctx, admin.identityId);
   const adminAuth = await login(api, 'api_admin_login');
 
-  /** The headers a legitimate, fully-privileged caller sends: session cookie + CSRF + permissions. */
+  // A PROVEN actor who holds NO role — authenticated, authorized for nothing. This is how Stage 1D proves
+  // "proven but unauthorized" (403) now that no header can conjure a permission: the powerless actor logs in
+  // for real and is refused every guarded action.
+  await seedActor(ctx, 'api_powerless');
+  const powerlessAuth = await login(api, 'api_powerless_login');
+  const asPowerless = (extra: Record<string, string> = {}): Record<string, string> => ({
+    cookie: powerlessAuth.cookie,
+    'x-csrf-token': powerlessAuth.csrf,
+    ...extra,
+  });
+
+  /** The headers a legitimate, fully-privileged caller sends: session cookie + CSRF. Permissions are in the DB. */
   const asAdmin = (extra: Record<string, string> = {}): Record<string, string> => ({
     cookie: adminAuth.cookie,
     'x-csrf-token': adminAuth.csrf,
-    'x-permissions': PLATFORM_ADMIN,
     ...extra,
   });
   const inTenant = (extra: Record<string, string> = {}): Record<string, string> =>
@@ -291,9 +291,11 @@ async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<v
     t.equal(anonymous.status, 401, 'an anonymous request (no session cookie) is refused');
     t.ok(anonymous.contentType.includes('application/problem+json'), 'refusals are RFC 9457 problems');
 
-    // x-actor-id is dead: naming a REAL, live account in the header buys nothing without a session.
+    // x-actor-id is dead: naming a REAL, live account in the header buys nothing without a session. The
+    // dead x-permissions header is sent alongside to prove BOTH are ignored — neither identity nor
+    // authorization can be asserted by a header.
     const headerOnly = await api('GET', '/identities', {
-      headers: { 'x-actor-id': admin.accountId, 'x-permissions': PLATFORM_ADMIN },
+      headers: { 'x-actor-id': admin.accountId, 'x-permissions': 'identity.registry.view' },
     });
     t.equal(headerOnly.status, 401, 'x-actor-id alone is refused, even naming a REAL active account');
 
@@ -301,7 +303,7 @@ async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<v
       headers: {
         'x-actor-id': admin.accountId,
         'x-tenant-id': admin.tenantId,
-        'x-permissions': PLATFORM_ADMIN,
+        'x-permissions': 'tenant.registry.view',
       },
     });
     t.equal(tenantHeaderOnly.status, 401, 'M01 rejects a request carrying only x-actor-id');
@@ -314,14 +316,15 @@ async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<v
   // --- authorization is still enforced, and is a DIFFERENT answer -----------------------------------
 
   {
-    // A PROVEN actor (real session) with no permissions header → 403, not 401. Identity != authorization.
+    // A PROVEN actor (real session) holding NO role → 403, not 401. Identity != authorization. Sending the
+    // dead x-permissions header changes nothing: the powerless actor cannot grant itself a permission.
     const noPermissions = await api('GET', '/identities', {
-      headers: { cookie: adminAuth.cookie, 'x-csrf-token': adminAuth.csrf },
+      headers: asPowerless({ 'x-permissions': 'identity.registry.view' }),
     });
     t.equal(
       noPermissions.status,
       403,
-      'a PROVEN actor with no permissions gets 403 — not 401. Identity and authorization are distinct',
+      'a PROVEN actor with no role grant gets 403 — not 401 — and no header can lift it',
     );
   }
 
@@ -421,10 +424,10 @@ async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<v
     t.equal(updated.body['displayName'], 'Ada L.', 'with the new value');
 
     const forbidden = await api('POST', `/identities/${identityId}/close`, {
-      headers: asAdmin({ 'x-permissions': 'identity.registry.view' }),
+      headers: asPowerless(),
       body: { expectedVersion: 1 },
     });
-    t.equal(forbidden.status, 403, 'closing without identity.registry.close is 403');
+    t.equal(forbidden.status, 403, 'a proven actor lacking identity.registry.close is 403');
   }
 
   // --- account API ---------------------------------------------------------------------------------
@@ -593,6 +596,7 @@ async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<v
 
   {
     const other = await seedActor(ctx, 'api_other_tenant');
+    await grantPlatformAdmin(ctx, other.identityId);
     const otherAuth = await login(api, 'api_other_tenant_login');
 
     const otherMembership = await api('GET', '/tenant-memberships', {
@@ -600,7 +604,6 @@ async function runApiSpec(ctx: DbSpecContext, t: Assert, api: Client): Promise<v
         cookie: otherAuth.cookie,
         'x-csrf-token': otherAuth.csrf,
         'x-tenant-id': other.tenantId,
-        'x-permissions': PLATFORM_ADMIN,
       },
     });
     t.equal(otherMembership.status, 200, "the other tenant's actor can read its OWN memberships");
