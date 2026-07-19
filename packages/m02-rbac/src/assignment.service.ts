@@ -81,7 +81,7 @@ export class AssignmentService {
         if (isUniqueViolation(error)) throw ProblemError.conflict('That role is already assigned to this membership at this scope.', ctx.correlationId);
         throw error;
       }
-      await this.repo.appendAssignmentHistory(tx, { assignmentId: row.id, kind: 'tenant', fromStatus: null, toStatus: 'active', action: 'grant', reason: null, correlationId: ctx.correlationId, changedBy: actor });
+      await this.repo.appendAssignmentHistory(tx, { tenantId: ctx.tenantId, assignmentId: row.id, kind: 'tenant', fromStatus: null, toStatus: 'active', action: 'grant', reason: null, correlationId: ctx.correlationId, changedBy: actor });
       await this.emitter.recordAudit(tx, ctx, { code: RBAC_AUDIT_CODES.assignmentGranted, entityType: 'role_assignment', entityId: row.id, detail: { roleId: input.roleId } });
       await this.emitter.publish(tx, 'RoleAssigned', ctx.tenantId, ctx.correlationId, actor, { assignmentId: row.id, roleId: input.roleId, subjectId: input.membershipId, toStatus: 'active' });
       return row;
@@ -113,7 +113,7 @@ export class AssignmentService {
       if (!check.allowed || check.to === undefined) throw ProblemError.conflict(check.reason ?? 'Transition not allowed.', ctx.correlationId);
       const updated = await this.repo.applyAssignmentStatus(tx, { id, expectedVersion: opts.expectedVersion, toStatus: check.to, reason: opts.reason ?? null, actor });
       if (updated === null) throw ProblemError.conflict('Version conflict.', ctx.correlationId);
-      await this.repo.appendAssignmentHistory(tx, { assignmentId: id, kind: 'tenant', fromStatus: current.status, toStatus: check.to, action, reason: opts.reason ?? null, correlationId: ctx.correlationId, changedBy: actor });
+      await this.repo.appendAssignmentHistory(tx, { tenantId: ctx.tenantId, assignmentId: id, kind: 'tenant', fromStatus: current.status, toStatus: check.to, action, reason: opts.reason ?? null, correlationId: ctx.correlationId, changedBy: actor });
       const code = action === 'revoke' ? RBAC_AUDIT_CODES.assignmentRevoked : action === 'expire' ? RBAC_AUDIT_CODES.assignmentExpired : RBAC_AUDIT_CODES.assignmentGranted;
       await this.emitter.recordAudit(tx, ctx, { code, entityType: 'role_assignment', entityId: id, ...(opts.reason === undefined ? {} : { reason: opts.reason }) });
       const evt = action === 'revoke' ? 'AssignmentRevoked' : action === 'expire' ? 'AssignmentExpired' : 'RoleAssigned';

@@ -196,12 +196,12 @@ export class RbacRepository {
   }
   async appendRoleHistory(
     tx: Tx,
-    input: { roleId: string; fromStatus: string | null; toStatus: string; action: string; reason: string | null; correlationId: string; changedBy: string | null },
+    input: { tenantId: string | null; roleId: string; fromStatus: string | null; toStatus: string; action: string; reason: string | null; correlationId: string; changedBy: string | null },
   ): Promise<void> {
     await tx.query(
-      `INSERT INTO role_status_history (role_id, from_status, to_status, action, reason, correlation_id, changed_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [input.roleId, input.fromStatus, input.toStatus, input.action, input.reason, input.correlationId, input.changedBy],
+      `INSERT INTO role_status_history (tenant_id, role_id, from_status, to_status, action, reason, correlation_id, changed_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [input.tenantId, input.roleId, input.fromStatus, input.toStatus, input.action, input.reason, input.correlationId, input.changedBy],
     );
   }
 
@@ -287,12 +287,12 @@ export class RbacRepository {
   }
   async appendAssignmentHistory(
     tx: Tx,
-    input: { assignmentId: string; kind: 'tenant' | 'platform'; fromStatus: string | null; toStatus: string; action: string; reason: string | null; correlationId: string; changedBy: string | null },
+    input: { tenantId: string | null; assignmentId: string; kind: 'tenant' | 'platform'; fromStatus: string | null; toStatus: string; action: string; reason: string | null; correlationId: string; changedBy: string | null },
   ): Promise<void> {
     await tx.query(
-      `INSERT INTO assignment_status_history (assignment_id, assignment_kind, from_status, to_status, action, reason, correlation_id, changed_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [input.assignmentId, input.kind, input.fromStatus, input.toStatus, input.action, input.reason, input.correlationId, input.changedBy],
+      `INSERT INTO assignment_status_history (tenant_id, assignment_id, assignment_kind, from_status, to_status, action, reason, correlation_id, changed_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [input.tenantId, input.assignmentId, input.kind, input.fromStatus, input.toStatus, input.action, input.reason, input.correlationId, input.changedBy],
     );
   }
 

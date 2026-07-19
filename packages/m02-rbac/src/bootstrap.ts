@@ -65,7 +65,7 @@ export class BootstrapService {
       const assignment = await this.repo.insertPlatformAssignment(tx, {
         identityId: account.identity_id, roleId: role.id, grantedBy: null, justification: 'ADR-020 bootstrap',
       });
-      await this.repo.appendAssignmentHistory(tx, { assignmentId: assignment.id, kind: 'platform', fromStatus: null, toStatus: 'active', action: 'grant', reason: 'bootstrap', correlationId, changedBy: null });
+      await this.repo.appendAssignmentHistory(tx, { tenantId: null, assignmentId: assignment.id, kind: 'platform', fromStatus: null, toStatus: 'active', action: 'grant', reason: 'bootstrap', correlationId, changedBy: null });
       await this.emitter.recordAudit(tx, sys, { code: RBAC_AUDIT_CODES.bootstrapProvisioned, entityType: 'account', entityId: accountId, detail: { roleId: role.id } });
       await this.emitter.publish(tx, 'BootstrapAdminProvisioned', null, correlationId, null, { accountId, roleId: role.id });
       return { provisioned: true, reason: 'platform administrator provisioned' };

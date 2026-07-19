@@ -281,8 +281,13 @@ CREATE POLICY tenant_isolation ON sod_rules
 -- --------------------------------------------------------------------------------------------------
 -- Append-only lifecycle histories — global, system escape, no read API. INSERT+SELECT only (0002).
 -- --------------------------------------------------------------------------------------------------
+-- `tenant_id` mirrors the role: set for a tenant_custom role (whose lifecycle runs in tenant context),
+-- NULL for the immutable system roles (whose only writer is the control plane, under system context). The
+-- MIXED policy is what lets the history be written in the SAME transaction as the role change — a tenant
+-- transition writes under tenant context, a platform one under the system escape.
 CREATE TABLE role_status_history (
   id             uuid        NOT NULL DEFAULT gen_random_uuid(),
+  tenant_id      uuid,
   role_id        uuid        NOT NULL,
   from_status    text,
   to_status      text        NOT NULL,
@@ -295,14 +300,25 @@ CREATE TABLE role_status_history (
   CONSTRAINT role_status_history_role_fkey FOREIGN KEY (role_id) REFERENCES roles (id),
   CONSTRAINT role_status_history_from_ck CHECK (from_status IS NOT NULL OR action = 'create')
 );
+CREATE INDEX role_status_history_by_role ON role_status_history (role_id, created_at DESC);
 ALTER TABLE role_status_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE role_status_history FORCE  ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON role_status_history
-  USING      (COALESCE(NULLIF(current_setting('app.system_context', true), ''), 'off') = 'on')
-  WITH CHECK (COALESCE(NULLIF(current_setting('app.system_context', true), ''), 'off') = 'on');
+  USING (
+    tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+    OR COALESCE(NULLIF(current_setting('app.system_context', true), ''), 'off') = 'on'
+  )
+  WITH CHECK (
+    tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+    OR COALESCE(NULLIF(current_setting('app.system_context', true), ''), 'off') = 'on'
+  );
 
+-- `tenant_id` is set for a tenant assignment (written in tenant context) and NULL for a platform
+-- assignment (written under the system escape — bootstrap and platform admins). Same mixed policy as the
+-- role history, for the same reason: the history commits in the transaction that made the change.
 CREATE TABLE assignment_status_history (
   id              uuid        NOT NULL DEFAULT gen_random_uuid(),
+  tenant_id       uuid,
   assignment_id   uuid        NOT NULL,
   assignment_kind text        NOT NULL,
   from_status     text,
@@ -314,13 +330,24 @@ CREATE TABLE assignment_status_history (
   created_at      timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT assignment_status_history_pkey PRIMARY KEY (id),
   CONSTRAINT assignment_status_history_kind_ck CHECK (assignment_kind IN ('tenant', 'platform')),
+  CONSTRAINT assignment_status_history_kind_tenant_ck CHECK (
+    (assignment_kind = 'tenant' AND tenant_id IS NOT NULL) OR
+    (assignment_kind = 'platform' AND tenant_id IS NULL)
+  ),
   CONSTRAINT assignment_status_history_from_ck CHECK (from_status IS NOT NULL OR action = 'grant')
 );
+CREATE INDEX assignment_status_history_by_assignment ON assignment_status_history (assignment_id, created_at DESC);
 ALTER TABLE assignment_status_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assignment_status_history FORCE  ROW LEVEL SECURITY;
 CREATE POLICY tenant_isolation ON assignment_status_history
-  USING      (COALESCE(NULLIF(current_setting('app.system_context', true), ''), 'off') = 'on')
-  WITH CHECK (COALESCE(NULLIF(current_setting('app.system_context', true), ''), 'off') = 'on');
+  USING (
+    tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+    OR COALESCE(NULLIF(current_setting('app.system_context', true), ''), 'off') = 'on'
+  )
+  WITH CHECK (
+    tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+    OR COALESCE(NULLIF(current_setting('app.system_context', true), ''), 'off') = 'on'
+  );
 
 -- --------------------------------------------------------------------------------------------------
 -- Seed: immutable system roles (ADR-020 bootstrap target) and baseline mandatory SoD rules (ADR-019).
