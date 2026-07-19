@@ -3,8 +3,9 @@ import pg from 'pg';
 import { PgDb } from '@finapp/kernel/pg';
 import { AUDIT, AUTHZ, DB, OUTBOX } from '@finapp/kernel';
 import type { Db } from '@finapp/kernel';
-import { RecordingAudit, RecordingOutbox } from '@finapp/m01-tenant';
+import { RecordingOutbox } from '@finapp/m01-tenant';
 import { RbacAuthz } from '@finapp/m02-rbac';
+import { AuditService } from '@finapp/m03-audit';
 
 /**
  * THE shared-service bindings. One provider per kernel token, for the whole process.
@@ -19,10 +20,15 @@ import { RbacAuthz } from '@finapp/m02-rbac';
  * `@Global` so a feature module gets these without importing anything. The tokens are the contract; where
  * they are bound is not a decision any consumer should have to make, or be able to differ on.
  *
- * STAGE 1D: `AUTHZ` is now bound to the persistent `RbacAuthz` (m02-rbac) — `ContextAuthz` and its
+ * STAGE 1D: `AUTHZ` is bound to the persistent `RbacAuthz` (m02-rbac) — `ContextAuthz` and its
  * `x-permissions` input are DELETED. `RbacAuthz` checks `RequestContext.permissions`, which the actor
  * boundary now fills from persistent role assignments (the RBAC `PermissionResolver`), not a header.
- *   AUDIT  -> m03-audit (stand-in; in-memory).
+ *
+ * STAGE 2.1: `AUDIT` is now bound to the persistent `AuditService` (m03-audit) — the in-memory
+ * `RecordingAudit` stand-in is retired from production. Every audited action now writes a hash-chained,
+ * append-only, tenant-isolated row in the caller's transaction. `RecordingAudit` survives only as a test
+ * double. `AUDIT` and the concrete `AuditService` resolve to the SAME instance so the audit module can use
+ * the richer recording API without a second implementation.
  *   OUTBOX -> m06-workflow (stand-in; in-memory).
  */
 @Global()
@@ -45,9 +51,16 @@ import { RbacAuthz } from '@finapp/m02-rbac';
       },
     },
     { provide: AUTHZ, useClass: RbacAuthz },
-    { provide: AUDIT, useClass: RecordingAudit },
+    {
+      provide: AuditService,
+      inject: [DB],
+      useFactory: (db: Db) => new AuditService(db),
+    },
+    // AUDIT and the concrete AuditService are the same singleton: modules that only need the port get the
+    // port; m03's own query/export/integrity paths get the richer methods.
+    { provide: AUDIT, useExisting: AuditService },
     { provide: OUTBOX, useClass: RecordingOutbox },
   ],
-  exports: [DB, AUTHZ, AUDIT, OUTBOX],
+  exports: [DB, AUTHZ, AUDIT, AuditService, OUTBOX],
 })
 export class PlatformModule {}
