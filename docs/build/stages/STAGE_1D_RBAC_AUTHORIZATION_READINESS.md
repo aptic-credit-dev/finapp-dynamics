@@ -2,20 +2,26 @@
 
 **2026-07-18** · Branch `feature/stage-1d-rbac-authorization` · **Planning/design only. No Stage 1D source.**
 
-## Verdict: CONDITIONAL GO for Stage 1D implementation
+## Verdict: GO for Stage 1D implementation (2026-07-19)
 
-The design below replaces client-supplied permissions with persisted, tenant-aware authorization without
-touching the ~36 existing `authz.require(ctx, permission)` call sites, and fails closed throughout.
-Implementation is cleared once four ADRs are accepted — they are architecture sign-offs, not design gaps:
+**Implementation authorized** on `feature/stage-1d-rbac-authorization` (parent `004b2fd`). **ADR-017, ADR-018,
+ADR-019 and ADR-020 are ACCEPTED** (see the ADR register). The open decisions are resolved:
 
-| # | Decision | ADR |
-|---|---|---|
-| **D1** | RBAC model: flat roles → concrete permission grants (no wildcards in grants, **no inheritance** in MVP); assignments on **tenant membership** (tenant roles) and **identity** (platform roles); allow-list + default-deny | ADR-017 (draft) |
-| **D2** | Scope model: **tenant** scope in MVP + optional organizational (branch/department/entity) scope reusing m01's composite FKs; **defer** resource-instance/own-record/product/ABAC | ADR-018 (draft) |
-| **D3** | SoD: incompatible role/permission pairs enforced **at assignment-time AND runtime**; **no explicit-deny records** in MVP | ADR-019 (draft) |
-| **D4** | Administrator bootstrap: migration-seeded immutable platform-admin role + an environment-gated, idempotent, auditable grant to a configured bootstrap account; fails closed in production; no bypass secret | ADR-020 (draft) |
+- **D1 (org-scope depth):** legal-entity/branch/department scope only where M01 authoritative ids + composite
+  FKs already exist; no new hierarchy engine; no business-unit/product scope.
+- **D2 (API prefix):** **`/api/v1/rbac`** — not directly under `/api/v1/roles`.
+- **D3 (namespace owner):** `rbac.*` and `RBAC_` reconciled to **`m02-rbac`** across the registries.
+- **D4 (audit):** emit intents through the existing AUDIT port; no audit persistence (m03 follows closely).
+- **D5 (caching):** **no authorization cache** — resolve per request/request-context; correctness + immediate
+  revocation over optimization.
+- **D6 (break-glass):** **deferred** — time-bound ordinary assignments allowed; no bypass role or override path.
 
-Four draft ADRs accompany this report. No code may be written until they are accepted.
+The design replaces client-supplied permissions with persisted, tenant-aware authorization without touching
+the ~36 existing `authz.require(ctx, permission)` call sites, and fails closed throughout. Implementation is
+restricted to `m02-rbac`; no Stage 2 or business-module work is authorized.
+
+> Historical note: this report was issued CONDITIONAL GO pending ADR-017…020; all four are now ACCEPTED
+> (2026-07-19) and D1–D6 resolved above, so the gate is GO.
 
 ---
 
@@ -388,12 +394,9 @@ branch protection.
 
 ## 36. Recommendation
 
-### CONDITIONAL GO for Stage 1D implementation
+### GO for Stage 1D implementation (2026-07-19)
 
-The trust boundary, permission/role/assignment/scope/SoD models, decision semantics, RLS, the `RbacAuthz`
-replacement, the `ContextAuthz` + `x-permissions` retirement, the admin APIs, bootstrap, caching stance,
-events/audit and the test plan are all specified and consistent with the certified baseline, and every path
-fails closed. Implementation is cleared **once ADR-017…020 are accepted** (D1–D4) and the open decisions in
-§34 are settled within them. No Stage 1D code may be written before that acceptance. Stage 1C stays the
-authoritative authentication baseline; governance items (PAT, visibility) remain standing but do not block
-Stage 1D design.
+ADR-017..020 are ACCEPTED and D1-D6 resolved (see the verdict at the top and the ADR register), so
+implementation is authorized on `feature/stage-1d-rbac-authorization` (parent `004b2fd`), restricted to
+`m02-rbac`. No Stage 2 or business-module work is authorized. Governance items (PAT, visibility) remain
+standing but do not block Stage 1D.

@@ -148,7 +148,7 @@ storage decision is not blocked on a dependency-policy decision.
 a stored-parameters column so cost can rise over time without invalidating existing credentials.
 
 ## ADR-017 — RBAC authorization model (Stage 1D)
-**Status:** **PROPOSED (draft).** Awaiting product-owner/security acceptance before Stage 1D implementation.
+**Status:** **ACCEPTED** — 2026-07-19 (product owner + security). Implementation branch `feature/stage-1d-rbac-authorization`, certified parent baseline `004b2fd` (certified Stage 1C). Deferred: role inheritance, wildcard grants, explicit-deny records, client/session-carried permissions.
 See `docs/build/stages/STAGE_1D_RBAC_AUTHORIZATION_READINESS.md`.
 
 **Decision (proposed):** persistent RBAC. **Flat roles** (no inheritance) each holding a set of **concrete**
@@ -169,7 +169,7 @@ for scope/resource-instance decisions. Rejected: role inheritance; wildcard gran
 permissions; a stateless permission cache in the first cut.
 
 ## ADR-018 — Authorization scope model (Stage 1D)
-**Status:** **PROPOSED (draft).** Awaiting acceptance before Stage 1D implementation.
+**Status:** **ACCEPTED** — 2026-07-19 (product owner + security). Branch `feature/stage-1d-rbac-authorization`, parent `004b2fd`. D1 resolved: organizational scope (legal entity/branch/department) is included ONLY where M01 authoritative identifiers + composite FKs already exist; no new hierarchy engine, no business-unit/product scope. Deferred: own-record, assigned-record, product, resource-instance, general ABAC.
 
 **Decision (proposed):** MVP scopes are **global platform**, **tenant**, and optional **organizational**
 (entity/branch/department) reusing m01's composite `(tenant_id, id)` FKs. An assignment may carry an
@@ -182,7 +182,7 @@ language.
 resource. Rejected: implementing the full scope hierarchy speculatively.
 
 ## ADR-019 — Segregation-of-Duties enforcement (Stage 1D)
-**Status:** **PROPOSED (draft).** Awaiting acceptance before Stage 1D implementation.
+**Status:** **ACCEPTED** — 2026-07-19 (product owner + security). Branch `feature/stage-1d-rbac-authorization`, parent `004b2fd`. Seed only essential baseline SoD rules; no explicit-deny records; any override/break-glass needs separate approval (D6 deferred). Security: invalid grants rejected at assignment time; invalid pre-existing state denies at runtime; no silent override.
 
 **Decision (proposed):** `sod_rules` (global mandatory + tenant-specific) of incompatible role or permission
 pairs. Enforced **at assignment time** (a grant that would create an incompatible pair is refused, 409) **and
@@ -197,7 +197,7 @@ covers both "don't create the conflict" and "don't honour a conflict that slippe
 deny-precedence records; runtime-only or write-time-only enforcement.
 
 ## ADR-020 — Administrator bootstrap (Stage 1D)
-**Status:** **PROPOSED (draft).** Awaiting acceptance before Stage 1D implementation.
+**Status:** **ACCEPTED** — 2026-07-19 (product owner + security). Branch `feature/stage-1d-rbac-authorization`, parent `004b2fd`. FINAPP_BOOTSTRAP_ADMIN_ACCOUNT; no embedded password; no permanent bypass secret; idempotent; environment-gated; auditable; production fails closed on invalid config; repeated arbitrary admin creation forbidden; cannot bypass authentication or tenant isolation.
 
 **Decision (proposed):** a migration seeds an **immutable `platform_admin` system role**; an
 **environment-gated, idempotent, auditable** bootstrap grants it to a configured existing **account/identity
