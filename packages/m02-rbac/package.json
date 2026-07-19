@@ -1,0 +1,29 @@
+{
+  "name": "@finapp/m02-rbac",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M02 (1D) — persistent RBAC: permissions, roles, assignments, scope, SoD, authorization.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": ["dist", "migrations"],
+  "scripts": { "build": "tsc --build" },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m02-identity": "*"
+  },
+  "devDependencies": {
+    "@finapp/test-runner": "*",
+    "yaml": "^2.6.1"
+  }
+}
