@@ -345,14 +345,33 @@ stages:
         testing_required: [smoke, db_spec_authz]
       - module: m03-audit
         capability: Audit spine + code registry (append-only, tamper-evident)
-        status: documented
+        status: implemented   # Stage 2.1 — implemented_on_feature_branch (stacked on UNMERGED 1D); see certification_2_1
         mvp: true
-        db_ownership: [audit_code_registry(global), audit_logs(partitioned, global), chain_anchors(global)]
+        db_ownership: [audit_events(mixed, append-only, hash-chained),
+                       audit_retention_policy(mixed), audit_legal_hold(tenant)]
         api_ownership: [/api/v1/audit]
         event_ownership: []
-        shared_services_consumed: [kernel, m01]
-        permissions_required: [audit.view]
+        shared_services_consumed: [kernel, m01, m02]
+        permissions_required: [audit.event.view, audit.event.search, audit.event.export,
+                               audit.platform.view, audit.integrity.verify, audit.retention.manage,
+                               audit.configuration.manage]
         testing_required: [smoke, db_spec_audit_chain]
+        # Deferred (documented, ADR-029/031): monthly partitioning; DB-backed audit_code_registry table (the
+        # YAML registry remains authoritative); chain_anchors external anchoring; retention-enforcement worker;
+        # operational-metrics endpoints. Note db_ownership above reflects what SHIPPED, not the reference list.
+        certification_2_1:
+          module: m03-audit
+          substage: "2.1"
+          branch: feature/stage-2-1-m03-audit
+          stacked_on: feature/stage-1d-rbac-authorization   # UNMERGED, UNCERTIFIED — this baseline is provisional
+          parent_head: cb7e5d8
+          implementation_status: implemented_on_feature_branch
+          smoke_certification: passed_locally           # 10 suites, 1256 assertions, 0 failures
+          postgresql_certification: passed_locally      # 10 db specs, 356 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          ci_certification: pending                     # not pushed; no PR; no CI run
+          merge_status: not_merged
+          adrs: [ADR-029, ADR-030, ADR-031]
+          docs: docs/build/stages/STAGE_2_1_M03_AUDIT_COMPLETION.md
       - module: m06-workflow
         capability: Status, workflow, SLA, timeline, transactional outbox, idempotency
         status: documented
