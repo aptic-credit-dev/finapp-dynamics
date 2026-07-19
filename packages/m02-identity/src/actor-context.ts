@@ -46,23 +46,27 @@ export const TENANT_HEADER = 'x-tenant-id';
 
 /**
  * ============================================================================================
- * STAGE 1D DEBT — THE LAST UNAUTHENTICATED HEADER. DELETE WITH ContextAuthz.
+ * STAGE 1D — `x-permissions` IS GONE. Permissions come from persistent RBAC.
  * ============================================================================================
  *
- * `x-permissions` is what `x-actor-id` used to be: a caller stating their own privileges. Stage 1B does
- * NOT fix it, because persistent RBAC is Stage 1D's module and inventing a role model here would be the
- * duplicate shared service CLAUDE.md warns about.
- *
- * What Stage 1B DOES do is contain it. This constant is the only place the header is named, this file is
- * the only place it is read, and the value leaves here only as `RequestContext.permissions` — behind the
- * kernel's AUTHZ port. No controller and no service can see it. So when 1D binds `RbacAuthz` and deletes
- * `ContextAuthz`, the blast radius is this function and nothing else.
- *
- * Identity and permission are now separate concerns with separate sources: who you are is proven against
- * the database; what you may do is still claimed. The first half of that sentence is Stage 1B's whole
- * point, and the second half is why 1B is not shippable either.
+ * Through Stage 1C the caller stated their own privileges in an `x-permissions` header — real enforcement,
+ * untrusted input. Stage 1D deletes it. `RequestContext.permissions` is now populated by a `PermissionSource`
+ * that resolves the actor's EFFECTIVE permissions from persistent role assignments (m02-rbac), fresh per
+ * request, keyed to the AUTHENTICATED identity and tenant. The client supplies nothing; a system actor
+ * inherits nothing (§4.5). What you may do is now proven against the database, exactly like who you are.
  */
-export const PERMISSIONS_HEADER = 'x-permissions';
+
+/**
+ * Resolves the actor's effective permissions for a scope. Injected so this module does not depend on
+ * m02-rbac (which depends on it): apps/api wires the RBAC resolver. Returns [] for a system actor.
+ */
+export type PermissionSource = (input: {
+  identityId: string;
+  accountId: string;
+  tenantId?: string | undefined;
+  isSystemActor: boolean;
+  correlationId: string;
+}) => Promise<readonly string[]>;
 
 /**
  * Produces a proven actor from whatever the request carried.
@@ -109,11 +113,32 @@ export class ActorContextFactory {
   private readonly source: ActorSource;
   private readonly tenants: TenantContextResolver;
   private readonly extractToken: TokenExtractor;
+  private readonly permissions: PermissionSource;
 
-  constructor(source: ActorSource, tenants: TenantContextResolver, extractToken: TokenExtractor) {
+  constructor(
+    source: ActorSource,
+    tenants: TenantContextResolver,
+    extractToken: TokenExtractor,
+    permissions: PermissionSource,
+  ) {
     this.source = source;
     this.tenants = tenants;
     this.extractToken = extractToken;
+    this.permissions = permissions;
+  }
+
+  /** Resolves the actor's effective permissions from persistent RBAC. A system actor inherits nothing. */
+  private async permissionsFor(actor: AuthenticatedActor, tenantId: string | undefined): Promise<string[]> {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- read the rule from the domain
+    if (actor.isSystemActor && !systemActorInheritsHumanPermissions()) return [];
+    const resolved = await this.permissions({
+      identityId: actor.identityId,
+      accountId: actor.accountId,
+      tenantId,
+      isSystemActor: actor.isSystemActor,
+      correlationId: actor.correlationId,
+    });
+    return [...resolved];
   }
 
   /**
@@ -141,7 +166,7 @@ export class ActorContextFactory {
     return {
       scope: 'platform',
       actor,
-      ctx: { reason, correlationId, permissions: permissionsFor(actor, headers) },
+      ctx: { reason, correlationId, permissions: await this.permissionsFor(actor, undefined) },
       correlationId,
     };
   }
@@ -166,7 +191,7 @@ export class ActorContextFactory {
       correlationId,
     });
 
-    const permissions = permissionsFor(actor, headers);
+    const permissions = await this.permissionsFor(actor, claimedTenant);
 
     if (claimedTenant === undefined) {
       return {
@@ -207,22 +232,6 @@ export class ActorContextFactory {
  * Stage 1D gives machine principals their own grants. Until then a system actor can authenticate and can
  * be audited, and can do nothing else — which is the correct amount for a stage with no role model.
  */
-function permissionsFor(actor: AuthenticatedActor, headers: Readonly<Record<string, string>>): string[] {
-  // The rule returns the literal `false`, so TypeScript can prove this branch always taken for a system
-  // actor. That provability IS the guarantee, not a redundancy: the call is here so that if §4.5 is ever
-  // revisited, this decision is read from the domain rather than silently contradicted by a copy of the
-  // rule living in the API layer.
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- see above
-  if (actor.isSystemActor && !systemActorInheritsHumanPermissions()) return [];
-
-  const raw = headers[PERMISSIONS_HEADER];
-  if (raw === undefined || raw.trim() === '') return [];
-  return raw
-    .split(',')
-    .map((p) => p.trim())
-    .filter((p) => p !== '');
-}
-
 function correlationOf(headers: Readonly<Record<string, string>>): string {
   const raw = headers[CORRELATION_HEADER];
   return raw === undefined || raw.trim() === '' ? randomUUID() : raw;

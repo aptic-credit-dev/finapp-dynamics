@@ -96,7 +96,7 @@ export {
   requireUuidParam,
   CORRELATION_HEADER,
   TENANT_HEADER,
-  PERMISSIONS_HEADER,
+
 } from './actor-context.ts';
 export type {
   ActorSource,
@@ -104,6 +104,7 @@ export type {
   TenantScopedRequest,
   PlatformScopedRequest,
   TokenExtractor,
+  PermissionSource,
 } from './actor-context.ts';
 
 // The Stage 1B development actor adapter (DevActorAdapter, x-dev-actor, signDevAssertion) was DELETED in

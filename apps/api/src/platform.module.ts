@@ -3,7 +3,8 @@ import pg from 'pg';
 import { PgDb } from '@finapp/kernel/pg';
 import { AUDIT, AUTHZ, DB, OUTBOX } from '@finapp/kernel';
 import type { Db } from '@finapp/kernel';
-import { ContextAuthz, RecordingAudit, RecordingOutbox } from '@finapp/m01-tenant';
+import { RecordingAudit, RecordingOutbox } from '@finapp/m01-tenant';
+import { RbacAuthz } from '@finapp/m02-rbac';
 
 /**
  * THE shared-service bindings. One provider per kernel token, for the whole process.
@@ -18,13 +19,11 @@ import { ContextAuthz, RecordingAudit, RecordingOutbox } from '@finapp/m01-tenan
  * `@Global` so a feature module gets these without importing anything. The tokens are the contract; where
  * they are bound is not a decision any consumer should have to make, or be able to differ on.
  *
- * TEMPORARY — three of these four are stand-ins awaiting their owning module (see m01-tenant/adapters.ts):
- *   AUTHZ  -> Stage 1D (RbacAuthz). `ContextAuthz` reads permissions off the context, which arrive from
- *             the `x-permissions` header. Real, but fed by a claim. DELETE IT IN 1D.
- *   AUDIT  -> m03-audit. Entries are collected in memory and never reach the append-only spine.
- *   OUTBOX -> m06-workflow. Events are collected in memory and nothing drains them.
- * Stage 1B binds `DB` for real and changes none of the other three: identity is this stage's job, and
- * inventing a role model or an outbox here would be exactly the duplicate service the rule forbids.
+ * STAGE 1D: `AUTHZ` is now bound to the persistent `RbacAuthz` (m02-rbac) — `ContextAuthz` and its
+ * `x-permissions` input are DELETED. `RbacAuthz` checks `RequestContext.permissions`, which the actor
+ * boundary now fills from persistent role assignments (the RBAC `PermissionResolver`), not a header.
+ *   AUDIT  -> m03-audit (stand-in; in-memory).
+ *   OUTBOX -> m06-workflow (stand-in; in-memory).
  */
 @Global()
 @Module({
@@ -45,7 +44,7 @@ import { ContextAuthz, RecordingAudit, RecordingOutbox } from '@finapp/m01-tenan
         return new PgDb({ pool, ...(appRole === undefined ? {} : { appRole }) });
       },
     },
-    { provide: AUTHZ, useClass: ContextAuthz },
+    { provide: AUTHZ, useClass: RbacAuthz },
     { provide: AUDIT, useClass: RecordingAudit },
     { provide: OUTBOX, useClass: RecordingOutbox },
   ],

@@ -163,13 +163,32 @@ export default defineSuite('conformance', (t) => {
     'no live source names x-dev-actor — the Stage 1B dev adapter was deleted in Stage 1C',
   );
 
-  // x-permissions is Stage 1D debt and is ALLOWED — but only in the one file that contains it. A second
-  // reader would mean 1D's deletion has more than one site, which is how debt stops being repayable.
+  // Stage 1D PAID the x-permissions debt. It was the last input a caller could use to state their own
+  // privileges; permissions are now resolved from persistent role assignments, so like x-actor-id and
+  // x-dev-actor the header must have ZERO live source use. A reader creeping back would mean a client can
+  // once again inject its own authorization — the exact failure default-deny RBAC exists to end.
   const permissionHeaderUsers = sources.filter((f) => /x-permissions/i.test(stripCommentLines(f.text)));
   t.deepEqual(
     permissionHeaderUsers.map((f) => f.name),
-    ['packages/m02-identity/src/actor-context.ts'],
-    'x-permissions is read in exactly one file — Stage 1D deletes it with ContextAuthz',
+    [],
+    'no live source reads x-permissions — permissions come from persistent RBAC, never a client header',
+  );
+
+  // ContextAuthz (the Stage 1A stand-in that trusted whatever permissions were already on the context) is
+  // DELETED. AUTHZ is bound to the persistent RbacAuthz. No live source may name the retired class, or a
+  // second authorization implementation has survived alongside the real one.
+  const contextAuthzUsers = sources.filter((f) => /\bContextAuthz\b/.test(stripCommentLines(f.text)));
+  t.deepEqual(
+    contextAuthzUsers.map((f) => f.name),
+    [],
+    'no live source names ContextAuthz — the stand-in authorizer was replaced by RbacAuthz (m02-rbac)',
+  );
+
+  // The platform binding proves it positively: AUTHZ resolves to RbacAuthz, the persistent authorizer.
+  const platformModule = sources.find((f) => f.name === 'apps/api/src/platform.module.ts')?.text ?? '';
+  t.ok(
+    /provide:\s*AUTHZ[\s\S]*?useClass:\s*RbacAuthz/.test(platformModule),
+    'AUTHZ is bound to the persistent RbacAuthz, not a permissive stand-in',
   );
 
   // --- route prefixes match the naming map ---------------------------------------------------------
@@ -224,19 +243,20 @@ export default defineSuite('conformance', (t) => {
     'no plaintext password/token/secret column exists — credentials and tokens are hash-only',
   );
 
-  // Stage 1D — roles and grants.
-  const STAGE_1D_TABLES = [
-    'roles',
-    'user_roles',
-    'role_permissions',
+  // Stage 1D IS built now: the RBAC persistence tables must exist. These are the role model, the grant
+  // model and the segregation-of-duties model — the tables that make authorization a fact in the database
+  // rather than a claim on a request.
+  for (const expected of [
     'permissions',
-    'permission_grants',
+    'roles',
+    'role_permissions',
     'role_assignments',
     'sod_rules',
-  ];
-  for (const forbidden of STAGE_1D_TABLES) {
-    const hit = tables.find((row) => row.table === forbidden);
-    t.equal(hit, undefined, `no Stage 1D table "${forbidden}" exists (RBAC is Stage 1D)`);
+  ]) {
+    t.ok(
+      tables.some((row) => row.table === expected),
+      `Stage 1D RBAC table "${expected}" exists`,
+    );
   }
 
   // --- m02 status is internally consistent ---------------------------------------------------------
