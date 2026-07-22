@@ -211,3 +211,30 @@ first grant must come from a controlled, auditable, non-bypass channel.
 
 **Consequence:** an operational runbook for first-admin provisioning; no standing bypass. Rejected: a permanent
 admin bypass secret; embedding credentials; unrestricted repeated admin creation.
+
+## ADR-029 — Enterprise audit event model & append-only spine (Stage 2.1)
+**Status:** **ACCEPTED** — 2026-07-19 (product owner + security). Module `m03-audit`, branch `feature/stage-2-1-m03-audit`, **stacked on the UNMERGED Stage 1D branch** `feature/stage-1d-rbac-authorization` (`cb7e5d8`); Stage 1D is not yet merged or certified, so this baseline is explicitly provisional.
+
+**Decision:** one authoritative `audit_events` table is the evidentiary record for every module. It is **mixed-scope** — tenant events (`tenant_id` set, written/read in tenant context) and PLATFORM events (`tenant_id NULL`, only under the system escape), so a tenant administrator can never read platform-wide evidence. It is **append-only**, enforced two ways: the application role is granted INSERT + SELECT only (never UPDATE/DELETE), and `BEFORE UPDATE/DELETE/TRUNCATE` triggers reject mutation for **every** role, superuser included. Actor, tenant scope, module, and correlation are taken from the **trusted context and the transaction session**, never from a client claim; timestamps are server-generated. Detail is redacted before storage.
+
+**Rationale:** "audit is evidence, not an editable feed" must be a database fact, not an application convention; and the scope must match what RLS checks, so the audit row commits with the change it describes. Exceptional legally-compelled deletion is a separately-governed operator process, deliberately made impossible through ordinary paths.
+
+**Consequence:** the in-memory `RecordingAudit` is retired from production (kept only as a test double); every audited action now writes a durable, isolated, immutable row in-transaction. Deferred (documented): monthly range partitioning; a DB-backed audit-code registry table (the YAML remains authoritative); finer platform-actor attribution via boundary-carried request metadata.
+
+## ADR-030 — Audit tamper-evidence via per-scope hash chains (Stage 2.1)
+**Status:** **ACCEPTED** — 2026-07-19 (product owner + security). Module `m03-audit`, branch as ADR-029.
+
+**Decision:** each event is hash-chained to the previous event in its scope (a tenant's chain, or the PLATFORM chain): `event_hash = sha256(integrity_version ‖ previous_hash ‖ canonical(fields))`, with a gap-free per-scope `seq` appended under a per-scope advisory transaction lock. A verification pass recomputes the chain and reports the first break (edit, deletion, or reorder).
+
+**Rationale:** detect unauthorised modification of stored evidence without a heavyweight external dependency. This is **tamper-EVIDENCE, not cryptographic non-repudiation** — a party able to rewrite the whole chain could forge a consistent history; defeating that requires periodic external anchoring of chain heads, which is a documented follow-on (`chain_anchors`). The claim made is exactly the one implemented, no more.
+
+**Consequence:** `audit.integrity.verify` verifies a scope; the verification outcome is itself audited. Rejected: claiming non-repudiation; a single global chain (would serialise all tenants).
+
+## ADR-031 — Audit transaction semantics, failure handling & redaction (Stage 2.1)
+**Status:** **ACCEPTED** — 2026-07-19 (product owner + security). Module `m03-audit`, branch as ADR-029.
+
+**Decision:** three recording modes. (1) **Transactional** `write(tx, ctx, entry)` — a successful controlled action's audit commits in the same transaction as the change; if the audit insert fails, the business transaction fails with it. (2) **Independent** `recordFailure` / `recordAuthorizationDecision` / `recordSuccess(ctx, …)` — for FAILED, DENIED, or out-of-band actions, written in their own transaction so the evidence survives a rolled-back business transaction; security-significant denials are always recorded. Persistence failures are never silently swallowed. **Redaction** runs before any detail is stored: secret-named fields masked recursively, long strings truncated, oversized payloads summarised, binary rejected — nothing sensitive enters the append-only store.
+
+**Rationale:** "no security event disappears silently, even when the business transaction fails" (CLAUDE.md); and an append-only store must never receive a secret because it is kept forever.
+
+**Consequence:** callers keep the unchanged `AUDIT` port for the common success path and gain explicit failure/denial recording. Deferred (documented): the retention-enforcement worker (the policy model + legal-hold tables ship now); operational metrics endpoints.
