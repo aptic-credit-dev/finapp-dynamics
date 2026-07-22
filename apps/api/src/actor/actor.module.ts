@@ -5,6 +5,7 @@ import type { DomainEvent } from '@finapp/contracts';
 import { TenantContextResolver } from '@finapp/m01-tenant';
 import { ActorContextFactory, ActorResolver } from '@finapp/m02-identity';
 import { AuthEmitter, SessionActorAdapter, SessionService } from '@finapp/m02-auth';
+import { PermissionResolver } from '@finapp/m02-rbac';
 import { loadAuthConfig } from '../auth/config.ts';
 import { extractSessionToken } from '../auth/cookies.ts';
 
@@ -60,12 +61,28 @@ export const AUTH_CONFIG = Symbol.for('finapp.auth.config');
         new SessionActorAdapter(sessions, resolver),
     },
     {
+      // The persistent RBAC resolver that fills RequestContext.permissions — replacing x-permissions.
+      provide: PermissionResolver,
+      inject: [DB],
+      useFactory: (db: Db) => new PermissionResolver(db),
+    },
+    {
       provide: ActorContextFactory,
-      inject: [ACTOR_SOURCE, TenantContextResolver],
-      useFactory: (source: SessionActorAdapter, tenants: TenantContextResolver) =>
-        new ActorContextFactory(source, tenants, extractSessionToken),
+      inject: [ACTOR_SOURCE, TenantContextResolver, PermissionResolver],
+      useFactory: (
+        source: SessionActorAdapter,
+        tenants: TenantContextResolver,
+        resolver: PermissionResolver,
+      ) =>
+        new ActorContextFactory(source, tenants, extractSessionToken, (input) =>
+          resolver.resolve({
+            identityId: input.identityId,
+            tenantId: input.tenantId,
+            correlationId: input.correlationId,
+          }),
+        ),
     },
   ],
-  exports: [ActorContextFactory, SessionService, AuthEmitter, ActorResolver, AUTH_CONFIG],
+  exports: [ActorContextFactory, SessionService, AuthEmitter, ActorResolver, PermissionResolver, AUTH_CONFIG],
 })
 export class ActorModule {}

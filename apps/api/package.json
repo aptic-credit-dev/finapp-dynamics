@@ -21,6 +21,7 @@
     "@finapp/m01-tenant": "*",
     "@finapp/m02-identity": "*",
     "@finapp/m02-auth": "*",
+    "@finapp/m02-rbac": "*",
     "pg": "^8.13.1"
   },
   "devDependencies": {

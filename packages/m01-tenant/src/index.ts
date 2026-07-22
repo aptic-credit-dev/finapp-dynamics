@@ -86,5 +86,5 @@ export { OrgService } from './org.service.ts';
 export { TenantContextResolver, UUID_PATTERN } from './tenant-context.ts';
 
 // Stage 1A stand-ins — delete when m02/m03/m06 land. See adapters.ts.
-export { ContextAuthz, RecordingAudit, RecordingOutbox } from './adapters.ts';
+export { RecordingAudit, RecordingOutbox } from './adapters.ts';
 export type { RecordedAudit } from './adapters.ts';

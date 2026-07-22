@@ -75,8 +75,14 @@ function fakeTenants(order: string[], seen: string[]): TenantContextResolver {
  * job — turning whatever this returns into an actor via the source — is what these tests exercise.
  */
 const EXTRACT_TOKEN = (h: Readonly<Record<string, string>>): string | undefined => h['x-session-token'];
-function makeFactory(source: ActorSource, tenants: TenantContextResolver): ActorContextFactory {
-  return new ActorContextFactory(source, tenants, EXTRACT_TOKEN);
+/** A test PermissionSource returning a fixed RBAC-resolved set — stands in for the m02-rbac resolver. */
+function makeFactory(
+  source: ActorSource,
+  tenants: TenantContextResolver,
+  perms: readonly string[] = [],
+): ActorContextFactory {
+  // eslint-disable-next-line @typescript-eslint/require-await
+  return new ActorContextFactory(source, tenants, EXTRACT_TOKEN, async () => perms);
 }
 
 export default defineSuite('m02-actor-context', async (t) => {
@@ -195,61 +201,51 @@ export default defineSuite('m02-actor-context', async (t) => {
     t.equal(scoped.actor.identityId, IDENTITY, 'the actor is proven regardless');
   }
 
-  // --- permissions: the temporary channel, contained ------------------------------------------------
+  // --- permissions: resolved from RBAC, never a header (Stage 1D) -----------------------------------
 
   {
-    const factory = makeFactory(fakeSource(actorFor(), [], []), fakeTenants([], []));
+    // The factory fills ctx.permissions from the injected PermissionSource (persistent RBAC), NOT a header.
+    const factory = makeFactory(fakeSource(actorFor(), [], []), fakeTenants([], []), [
+      'identity.registry.view',
+      'tenant.registry.create',
+    ]);
 
+    // x-permissions is DEAD: sending it grants nothing beyond what RBAC resolved.
     const scoped = await factory.forRequest(
-      {
-        'x-session-token': 'tok',
-        'x-tenant-id': TENANT,
-        'x-permissions': 'identity.registry.view, tenant.registry.create',
-      },
+      { 'x-session-token': 'tok', 'x-tenant-id': TENANT, 'x-permissions': 'rbac.role.create' },
       'read',
     );
     t.deepEqual(
       scoped.scope === 'tenant' ? [...scoped.ctx.permissions] : [],
       ['identity.registry.view', 'tenant.registry.create'],
-      'x-permissions still reaches the context (Stage 1D debt), trimmed and split',
+      'ctx.permissions is the RBAC-resolved set — the x-permissions header is not read at all',
     );
 
-    const none = await factory.forRequest({ 'x-session-token': 'tok', 'x-tenant-id': TENANT }, 'read');
-    t.deepEqual(
-      none.scope === 'tenant' ? [...none.ctx.permissions] : ['x'],
-      [],
-      'absent x-permissions grants nothing — deny by default',
-    );
-
-    const empty = await factory.forRequest(
-      { 'x-session-token': 'tok', 'x-tenant-id': TENANT, 'x-permissions': ' , ,, ' },
+    const none = makeFactory(fakeSource(actorFor(), [], []), fakeTenants([], []), []);
+    const empty = await none.forRequest(
+      { 'x-session-token': 'tok', 'x-tenant-id': TENANT, 'x-permissions': 'identity.registry.close' },
       'read',
     );
     t.deepEqual(
       empty.scope === 'tenant' ? [...empty.ctx.permissions] : ['x'],
       [],
-      'a header of separators grants nothing — no empty-string permission slips through',
+      'no RBAC grants -> no permissions, whatever the header claims (deny by default)',
     );
   }
 
   {
-    // §4.5, enforced rather than documented. A system identity presenting an administrator's permissions
-    // gets none of them: this is the "use system context as a human actor" attack, and it fails here.
-    const factory = makeFactory(fakeSource(actorFor({ isSystemActor: true }), [], []), fakeTenants([], []));
-
-    const scoped = await factory.forRequest(
-      {
-        'x-session-token': 'tok',
-        'x-tenant-id': TENANT,
-        'x-permissions': 'identity.registry.close,tenant.registry.approve',
-      },
-      'read',
-    );
+    // §4.5: a system identity inherits NO human permissions, even when RBAC would resolve some — the
+    // "use system context as a human actor" attack fails before the source is even consulted.
+    const factory = makeFactory(fakeSource(actorFor({ isSystemActor: true }), [], []), fakeTenants([], []), [
+      'identity.registry.close',
+      'tenant.registry.approve',
+    ]);
+    const scoped = await factory.forRequest({ 'x-session-token': 'tok', 'x-tenant-id': TENANT }, 'read');
     t.equal(scoped.actor.isSystemActor, true, 'the actor is a system principal');
     t.deepEqual(
       scoped.scope === 'tenant' ? [...scoped.ctx.permissions] : ['x'],
       [],
-      'a SYSTEM actor inherits NO human permissions, whatever x-permissions claims (§4.5)',
+      'a SYSTEM actor inherits NO human permissions, whatever RBAC would resolve (§4.5)',
     );
   }
 

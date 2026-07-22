@@ -12,6 +12,9 @@ import {
   AUTH_LIFECYCLE_FAMILY,
   AUTH_LIFECYCLE_EVENT_TYPES,
   AUTH_LIFECYCLE_VERSION,
+  AUTHZ_LIFECYCLE_FAMILY,
+  AUTHZ_LIFECYCLE_EVENT_TYPES,
+  AUTHZ_LIFECYCLE_VERSION,
 } from '@finapp/contracts';
 
 /**
@@ -25,10 +28,11 @@ import {
  * m02-identity).
  */
 export default defineSuite('contracts', (t) => {
-  t.equal(DOMAIN_EVENT_FAMILIES.length, 3, 'Stage 1C declares exactly three event families');
+  t.equal(DOMAIN_EVENT_FAMILIES.length, 4, 'Stage 1D declares exactly four event families');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(AUTH_LIFECYCLE_FAMILY), 'identity.authentication is declared (1C)');
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(AUTHZ_LIFECYCLE_FAMILY), 'identity.authorization is declared (1D)');
   // Order is append-only: consumers and the outbox key off the family name, and reordering the union is
   // how a replay silently reinterprets history.
   t.equal(
@@ -50,6 +54,9 @@ export default defineSuite('contracts', (t) => {
     'no auth event type is declared twice',
   );
   t.ok(isValidEventFamily(AUTH_LIFECYCLE_FAMILY), 'identity.authentication satisfies the family pattern');
+  t.equal(AUTHZ_LIFECYCLE_VERSION, 1, 'identity.authorization payloads are at version 1');
+  t.equal(AUTHZ_LIFECYCLE_EVENT_TYPES.length, 12, 'identity.authorization declares 12 event types');
+  t.ok(isValidEventFamily(AUTHZ_LIFECYCLE_FAMILY), 'identity.authorization satisfies the family pattern');
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');
 

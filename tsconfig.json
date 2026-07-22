@@ -11,6 +11,7 @@
     { "path": "./packages/m01-tenant" },
     { "path": "./packages/m02-identity" },
     { "path": "./packages/m02-auth" },
+    { "path": "./packages/m02-rbac" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

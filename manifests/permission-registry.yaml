@@ -39,8 +39,16 @@ namespaces:
   # Declared, NOT granted: no role holds these until Stage 1D ships the RBAC model, exactly as identity.*.
   - {namespace: "auth.*", module: m02-auth, mvp: true, status: implemented, substage: 1C,
      codes: ["auth.session.view", "auth.session.revoke"]}
-  # Stage 1D. Deliberately untouched by 1B/1C — roles and permission assignment are not identity or auth.
-  - {namespace: "rbac.*", module: m02-identity, mvp: true, status: documented, substage: 1D}
+  # Stage 1D (m02-rbac). Persistent RBAC administration. Three segments per the @Endpoint validator.
+  # Owner reconciled to m02-rbac (D3). Declared AND granted (via roles) from 1D — this is the module that
+  # ends the "declared, not granted" era: roles hold concrete grants, no client injection, no wildcards.
+  - {namespace: "rbac.*", module: m02-rbac, mvp: true, status: implemented, substage: 1D,
+     codes: ["rbac.permission.view",
+             "rbac.role.view", "rbac.role.create", "rbac.role.edit", "rbac.role.activate",
+             "rbac.role.suspend", "rbac.role.retire",
+             "rbac.assignment.view", "rbac.assignment.grant", "rbac.assignment.revoke",
+             "rbac.sod.view", "rbac.sod.manage",
+             "rbac.bootstrap.execute"]}
   - {namespace: "audit.*", module: m03-audit, mvp: true, status: documented}
   - {namespace: "workflow.*", module: m06-workflow, mvp: true, status: documented}
   - {namespace: "rules.*", module: m07-rules, mvp: true, status: documented}

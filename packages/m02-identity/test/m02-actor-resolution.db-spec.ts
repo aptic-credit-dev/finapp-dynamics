@@ -133,7 +133,16 @@ export default defineDbSpec('m02-actor-resolution (Stage 1B)', async (ctx, t) =>
         assurance: 'password',
       }),
   };
-  const factory = new ActorContextFactory(source, new TenantContextResolver(db), (h) => h[SESSION_HEADER]);
+  // A stand-in RBAC resolver: it would grant these to any human actor. The factory must still hand a
+  // SYSTEM actor nothing (§4.5), whatever the source returns — that is what the system-actor case proves.
+  const grantedByRbac = ['identity.registry.view', 'tenant.registry.create'] as const;
+  const factory = new ActorContextFactory(
+    source,
+    new TenantContextResolver(db),
+    (h) => h[SESSION_HEADER],
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async () => grantedByRbac,
+  );
 
   const ok = await seedActor(ctx, 'ares_ok');
 
@@ -308,14 +317,13 @@ export default defineDbSpec('m02-actor-resolution (Stage 1B)', async (ctx, t) =>
       {
         [SESSION_HEADER]: system.accountId,
         'x-tenant-id': system.tenantId,
-        'x-permissions': 'identity.registry.close,tenant.registry.approve',
       },
       'read',
     );
     t.deepEqual(
       scoped.scope === 'tenant' ? [...scoped.ctx.permissions] : ['x'],
       [],
-      'and inherits NO human permissions however x-permissions is set — system context is not a human actor',
+      'and inherits NO human permissions even when RBAC would grant some — system context is not a human actor',
     );
   }
 

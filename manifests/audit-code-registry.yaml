@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 50 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 63 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -59,7 +59,7 @@ prefixes:
   - { prefix: TENANT_, module: m01-tenant, mvp: true, prefix_provenance: derived }
   - { prefix: IDENTITY_, module: m02-identity, mvp: true, prefix_provenance: derived }
   - { prefix: AUTH_, module: m02-auth, mvp: true, prefix_provenance: derived }
-  - { prefix: RBAC_, module: m02-identity, mvp: true, prefix_provenance: derived }
+  - { prefix: RBAC_, module: m02-rbac, mvp: true, prefix_provenance: derived }
   - { prefix: AUDIT_, module: m03-audit, mvp: true, prefix_provenance: derived }
   - { prefix: ADMIN_, module: m04-admin, mvp: true, prefix_provenance: derived }
   - { prefix: WORKFLOW_, module: m06-workflow, mvp: true, prefix_provenance: derived }
@@ -173,6 +173,20 @@ codes:
   - { code: AUTH_CREDENTIAL_DISABLED, module: m02-auth, severity: normal, reason_required: true }
   - { code: AUTH_LOCKOUT_INITIATED, module: m02-auth, severity: elevated, reason_required: true }
   - { code: AUTH_LOCKOUT_CLEARED, module: m02-auth, severity: normal, reason_required: false }
+  # --- Stage 1D (m02-rbac) — RBAC administration. Never record a secret; identifiers + transitions only. ---
+  - { code: RBAC_ROLE_CREATED, module: m02-rbac, severity: normal, reason_required: false }
+  - { code: RBAC_ROLE_UPDATED, module: m02-rbac, severity: normal, reason_required: false }
+  - { code: RBAC_ROLE_ACTIVATED, module: m02-rbac, severity: normal, reason_required: false }
+  - { code: RBAC_ROLE_SUSPENDED, module: m02-rbac, severity: elevated, reason_required: true }
+  - { code: RBAC_ROLE_RETIRED, module: m02-rbac, severity: elevated, reason_required: true }
+  - { code: RBAC_ROLE_PERMISSIONS_CHANGED, module: m02-rbac, severity: elevated, reason_required: false }
+  - { code: RBAC_ASSIGNMENT_GRANTED, module: m02-rbac, severity: elevated, reason_required: false }
+  - { code: RBAC_ASSIGNMENT_REVOKED, module: m02-rbac, severity: elevated, reason_required: true }
+  - { code: RBAC_ASSIGNMENT_EXPIRED, module: m02-rbac, severity: normal, reason_required: false }
+  - { code: RBAC_SOD_RULE_CREATED, module: m02-rbac, severity: normal, reason_required: false }
+  - { code: RBAC_SOD_RULE_UPDATED, module: m02-rbac, severity: normal, reason_required: false }
+  - { code: RBAC_SOD_CONFLICT_DETECTED, module: m02-rbac, severity: critical, reason_required: false }
+  - { code: RBAC_BOOTSTRAP_PROVISIONED, module: m02-rbac, severity: critical, reason_required: false }
   # Readiness (§4.4): the link is recorded; nothing authenticates against it until Stage 1C.
   - { code: IDENTITY_SUBJECT_LINKED, module: m02-identity, severity: normal, reason_required: false }
 

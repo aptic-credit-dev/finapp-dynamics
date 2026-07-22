@@ -3,6 +3,7 @@ import { HealthController } from './health.controller.ts';
 import { PlatformModule } from './platform.module.ts';
 import { TenantModule } from './tenant/tenant.module.ts';
 import { IdentityModule } from './identity/identity.module.ts';
+import { RbacModule } from './rbac/rbac.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -24,9 +25,13 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
  * Stage 1C adds AuthModule (login/sessions) and a global CSRF guard for state-changing cookie-authenticated
  * requests. The API requires a database at boot (`DATABASE_URL`); in production the auth config must be safe
  * or it refuses to start (see auth/config.ts).
+ *
+ * Stage 1D adds RbacModule — roles, assignments, SoD and the permission catalogue under `/api/v1/rbac`. It
+ * is the OWNER of `AUTHZ` (bound to `RbacAuthz` in PlatformModule); every module's permission checks now run
+ * against persistent role assignments, not a header.
  */
 @Module({
-  imports: [PlatformModule, TenantModule, IdentityModule, AuthModule],
+  imports: [PlatformModule, TenantModule, IdentityModule, RbacModule, AuthModule],
   controllers: [HealthController],
   providers: [],
 })
