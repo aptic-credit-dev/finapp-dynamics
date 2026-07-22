@@ -67,7 +67,8 @@ import { CatalogueController } from './catalogue.controller.ts';
       // from an HTTP route. Exported so the host can resolve and run it.
       provide: BootstrapService,
       inject: [DB, RbacEmitter, RbacRepository],
-      useFactory: (db: Db, emitter: RbacEmitter, repo: RbacRepository) => new BootstrapService(db, emitter, repo),
+      useFactory: (db: Db, emitter: RbacEmitter, repo: RbacRepository) =>
+        new BootstrapService(db, emitter, repo),
     },
   ],
   exports: [BootstrapService],

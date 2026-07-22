@@ -355,7 +355,11 @@ async function run(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
   const forbiddenRevoke = await api('POST', `/auth/admin/sessions/${victimSessionId}/revoke`, {
     headers: norevokeAuth({ 'x-permissions': 'auth.session.revoke' }),
   });
-  t.equal(forbiddenRevoke.status, 403, 'a proven actor lacking auth.session.revoke is 403 — the header is dead');
+  t.equal(
+    forbiddenRevoke.status,
+    403,
+    'a proven actor lacking auth.session.revoke is 403 — the header is dead',
+  );
   const okRevoke = await api('POST', `/auth/admin/sessions/${victimSessionId}/revoke`, {
     headers: adminAuth(),
   });

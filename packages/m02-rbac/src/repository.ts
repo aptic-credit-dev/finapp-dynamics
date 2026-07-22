@@ -54,8 +54,26 @@ export class RbacRepository {
     const r = await tx.query<{ code: string }>(`SELECT code FROM permissions ORDER BY code`);
     return r.rows.map((x) => x.code);
   }
-  async listPermissions(tx: Tx): Promise<{ code: string; module: string; resource_type: string; risk: string; privileged: boolean; tenant_assignable: boolean; deprecated: boolean }[]> {
-    const r = await tx.query<{ code: string; module: string; resource_type: string; risk: string; privileged: boolean; tenant_assignable: boolean; deprecated: boolean }>(
+  async listPermissions(tx: Tx): Promise<
+    {
+      code: string;
+      module: string;
+      resource_type: string;
+      risk: string;
+      privileged: boolean;
+      tenant_assignable: boolean;
+      deprecated: boolean;
+    }[]
+  > {
+    const r = await tx.query<{
+      code: string;
+      module: string;
+      resource_type: string;
+      risk: string;
+      privileged: boolean;
+      tenant_assignable: boolean;
+      deprecated: boolean;
+    }>(
       `SELECT code, module, resource_type, risk, privileged, tenant_assignable, deprecated FROM permissions ORDER BY code`,
     );
     return r.rows;
@@ -125,7 +143,14 @@ export class RbacRepository {
   // --- roles --------------------------------------------------------------------------------------
   async insertRole(
     tx: Tx,
-    input: { tenantId: string; code: string; name: string; description: string | null; risk: string; createdBy: string | null },
+    input: {
+      tenantId: string;
+      code: string;
+      name: string;
+      description: string | null;
+      risk: string;
+      createdBy: string | null;
+    },
   ): Promise<RoleRow> {
     const r = await tx.query<RoleRow>(
       `INSERT INTO roles (tenant_id, code, name, description, kind, is_immutable, status, risk, created_by)
@@ -153,7 +178,13 @@ export class RbacRepository {
   }
   async updateRoleMeta(
     tx: Tx,
-    input: { id: string; expectedVersion: number; name?: string; description?: string | null; updatedBy: string | null },
+    input: {
+      id: string;
+      expectedVersion: number;
+      name?: string;
+      description?: string | null;
+      updatedBy: string | null;
+    },
   ): Promise<RoleRow | null> {
     const r = await tx.query<RoleRow>(
       `UPDATE roles SET
@@ -162,7 +193,14 @@ export class RbacRepository {
          version = version + 1, updated_by = $6, updated_at = now()
        WHERE id = $1 AND version = $2 AND is_immutable = false
        RETURNING id, tenant_id, code, name, description, kind, is_immutable, status, risk, version`,
-      [input.id, input.expectedVersion, input.name ?? null, input.description !== undefined, input.description ?? null, input.updatedBy],
+      [
+        input.id,
+        input.expectedVersion,
+        input.name ?? null,
+        input.description !== undefined,
+        input.description ?? null,
+        input.updatedBy,
+      ],
     );
     return r.rows[0] ?? null;
   }
@@ -178,7 +216,10 @@ export class RbacRepository {
     );
     return r.rows[0] ?? null;
   }
-  async addRolePermission(tx: Tx, input: { roleId: string; tenantId: string; code: string; grantedBy: string | null }): Promise<boolean> {
+  async addRolePermission(
+    tx: Tx,
+    input: { roleId: string; tenantId: string; code: string; grantedBy: string | null },
+  ): Promise<boolean> {
     const r = await tx.query(
       `INSERT INTO role_permissions (role_id, tenant_id, permission_code, granted_by)
        VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
@@ -187,21 +228,45 @@ export class RbacRepository {
     return (r.rowCount ?? 0) === 1;
   }
   async removeRolePermission(tx: Tx, roleId: string, code: string): Promise<boolean> {
-    const r = await tx.query(`DELETE FROM role_permissions WHERE role_id = $1 AND permission_code = $2`, [roleId, code]);
+    const r = await tx.query(`DELETE FROM role_permissions WHERE role_id = $1 AND permission_code = $2`, [
+      roleId,
+      code,
+    ]);
     return (r.rowCount ?? 0) === 1;
   }
   async listRolePermissions(tx: Tx, roleId: string): Promise<string[]> {
-    const r = await tx.query<{ permission_code: string }>(`SELECT permission_code FROM role_permissions WHERE role_id = $1 ORDER BY permission_code`, [roleId]);
+    const r = await tx.query<{ permission_code: string }>(
+      `SELECT permission_code FROM role_permissions WHERE role_id = $1 ORDER BY permission_code`,
+      [roleId],
+    );
     return r.rows.map((x) => x.permission_code);
   }
   async appendRoleHistory(
     tx: Tx,
-    input: { tenantId: string | null; roleId: string; fromStatus: string | null; toStatus: string; action: string; reason: string | null; correlationId: string; changedBy: string | null },
+    input: {
+      tenantId: string | null;
+      roleId: string;
+      fromStatus: string | null;
+      toStatus: string;
+      action: string;
+      reason: string | null;
+      correlationId: string;
+      changedBy: string | null;
+    },
   ): Promise<void> {
     await tx.query(
       `INSERT INTO role_status_history (tenant_id, role_id, from_status, to_status, action, reason, correlation_id, changed_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [input.tenantId, input.roleId, input.fromStatus, input.toStatus, input.action, input.reason, input.correlationId, input.changedBy],
+      [
+        input.tenantId,
+        input.roleId,
+        input.fromStatus,
+        input.toStatus,
+        input.action,
+        input.reason,
+        input.correlationId,
+        input.changedBy,
+      ],
     );
   }
 
@@ -217,13 +282,17 @@ export class RbacRepository {
 
   /** Does an org node (entity/branch/department) with `ref` exist IN THIS tenant? (scope validation). */
   async orgNodeExists(tx: Tx, level: string, ref: string): Promise<boolean> {
-    const table = level === 'entity' ? 'tenant_entities' : level === 'branch' ? 'tenant_branches' : 'tenant_departments';
+    const table =
+      level === 'entity' ? 'tenant_entities' : level === 'branch' ? 'tenant_branches' : 'tenant_departments';
     const r = await tx.query(`SELECT 1 FROM ${table} WHERE id = $1`, [ref]);
     return r.rows.length > 0;
   }
 
   // --- tenant membership (for assignment target validation) ---------------------------------------
-  async findMembership(tx: Tx, id: string): Promise<{ id: string; identity_id: string; status: string } | null> {
+  async findMembership(
+    tx: Tx,
+    id: string,
+  ): Promise<{ id: string; identity_id: string; status: string } | null> {
     const r = await tx.query<{ id: string; identity_id: string; status: string }>(
       `SELECT id, identity_id, status FROM tenant_memberships WHERE id = $1`,
       [id],
@@ -235,9 +304,16 @@ export class RbacRepository {
   async insertAssignment(
     tx: Tx,
     input: {
-      tenantId: string; membershipId: string; identityId: string; roleId: string;
-      scopeLevel: string; scopeRef: string | null; effectiveFrom: Date | null; expiresAt: Date | null;
-      justification: string | null; grantedBy: string | null;
+      tenantId: string;
+      membershipId: string;
+      identityId: string;
+      roleId: string;
+      scopeLevel: string;
+      scopeRef: string | null;
+      effectiveFrom: Date | null;
+      expiresAt: Date | null;
+      justification: string | null;
+      grantedBy: string | null;
     },
   ): Promise<AssignmentRow> {
     const r = await tx.query<AssignmentRow>(
@@ -245,7 +321,18 @@ export class RbacRepository {
          (tenant_id, membership_id, identity_id, role_id, scope_level, scope_ref, effective_from, expires_at, justification, granted_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING tenant_id, id, membership_id, identity_id, role_id, scope_level, scope_ref, effective_from, expires_at, status, version`,
-      [input.tenantId, input.membershipId, input.identityId, input.roleId, input.scopeLevel, input.scopeRef, input.effectiveFrom, input.expiresAt, input.justification, input.grantedBy],
+      [
+        input.tenantId,
+        input.membershipId,
+        input.identityId,
+        input.roleId,
+        input.scopeLevel,
+        input.scopeRef,
+        input.effectiveFrom,
+        input.expiresAt,
+        input.justification,
+        input.grantedBy,
+      ],
     );
     return firstRow(r.rows, 'insert assignment');
   }
@@ -257,11 +344,20 @@ export class RbacRepository {
     );
     return r.rows[0] ?? null;
   }
-  async listAssignments(tx: Tx, opts: { limit: number; offset: number; membershipId?: string; status?: string }): Promise<AssignmentRow[]> {
+  async listAssignments(
+    tx: Tx,
+    opts: { limit: number; offset: number; membershipId?: string; status?: string },
+  ): Promise<AssignmentRow[]> {
     const clauses: string[] = [];
     const params: unknown[] = [opts.limit, opts.offset];
-    if (opts.membershipId !== undefined) { params.push(opts.membershipId); clauses.push(`membership_id = $${params.length}`); }
-    if (opts.status !== undefined) { params.push(opts.status); clauses.push(`status = $${params.length}`); }
+    if (opts.membershipId !== undefined) {
+      params.push(opts.membershipId);
+      clauses.push(`membership_id = $${params.length}`);
+    }
+    if (opts.status !== undefined) {
+      params.push(opts.status);
+      clauses.push(`status = $${params.length}`);
+    }
     const where = clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '';
     const r = await tx.query<AssignmentRow>(
       `SELECT tenant_id, id, membership_id, identity_id, role_id, scope_level, scope_ref, effective_from, expires_at, status, version
@@ -272,7 +368,13 @@ export class RbacRepository {
   }
   async applyAssignmentStatus(
     tx: Tx,
-    input: { id: string; expectedVersion: number; toStatus: string; reason: string | null; actor: string | null },
+    input: {
+      id: string;
+      expectedVersion: number;
+      toStatus: string;
+      reason: string | null;
+      actor: string | null;
+    },
   ): Promise<AssignmentRow | null> {
     const r = await tx.query<AssignmentRow>(
       `UPDATE role_assignments SET status = $3, version = version + 1,
@@ -287,12 +389,32 @@ export class RbacRepository {
   }
   async appendAssignmentHistory(
     tx: Tx,
-    input: { tenantId: string | null; assignmentId: string; kind: 'tenant' | 'platform'; fromStatus: string | null; toStatus: string; action: string; reason: string | null; correlationId: string; changedBy: string | null },
+    input: {
+      tenantId: string | null;
+      assignmentId: string;
+      kind: 'tenant' | 'platform';
+      fromStatus: string | null;
+      toStatus: string;
+      action: string;
+      reason: string | null;
+      correlationId: string;
+      changedBy: string | null;
+    },
   ): Promise<void> {
     await tx.query(
       `INSERT INTO assignment_status_history (tenant_id, assignment_id, assignment_kind, from_status, to_status, action, reason, correlation_id, changed_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [input.tenantId, input.assignmentId, input.kind, input.fromStatus, input.toStatus, input.action, input.reason, input.correlationId, input.changedBy],
+      [
+        input.tenantId,
+        input.assignmentId,
+        input.kind,
+        input.fromStatus,
+        input.toStatus,
+        input.action,
+        input.reason,
+        input.correlationId,
+        input.changedBy,
+      ],
     );
   }
 
@@ -316,7 +438,10 @@ export class RbacRepository {
     return r.rows.length > 0;
   }
   /** Resolves a bootstrap account reference to its identity + statuses (within-module read of the m02 plane). */
-  async findAccountForBootstrap(tx: Tx, accountId: string): Promise<{ identity_id: string; account_status: string; identity_status: string } | null> {
+  async findAccountForBootstrap(
+    tx: Tx,
+    accountId: string,
+  ): Promise<{ identity_id: string; account_status: string; identity_status: string } | null> {
     const r = await tx.query<{ identity_id: string; account_status: string; identity_status: string }>(
       `SELECT a.identity_id, a.status AS account_status, i.status AS identity_status
        FROM user_accounts a JOIN identities i ON i.id = a.identity_id WHERE a.id = $1`,
@@ -350,13 +475,29 @@ export class RbacRepository {
   }
   async insertSodRule(
     tx: Tx,
-    input: { tenantId: string; ruleType: string; codeA: string; codeB: string; description: string | null; severity: string; createdBy: string | null },
+    input: {
+      tenantId: string;
+      ruleType: string;
+      codeA: string;
+      codeB: string;
+      description: string | null;
+      severity: string;
+      createdBy: string | null;
+    },
   ): Promise<SodRuleRow> {
     const r = await tx.query<SodRuleRow>(
       `INSERT INTO sod_rules (tenant_id, rule_type, code_a, code_b, description, severity, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, tenant_id, rule_type, code_a, code_b, description, severity, status, version`,
-      [input.tenantId, input.ruleType, input.codeA, input.codeB, input.description, input.severity, input.createdBy],
+      [
+        input.tenantId,
+        input.ruleType,
+        input.codeA,
+        input.codeB,
+        input.description,
+        input.severity,
+        input.createdBy,
+      ],
     );
     return firstRow(r.rows, 'insert sod rule');
   }
@@ -367,7 +508,10 @@ export class RbacRepository {
     );
     return r.rows[0] ?? null;
   }
-  async updateSodRuleStatus(tx: Tx, input: { id: string; expectedVersion: number; status: string }): Promise<SodRuleRow | null> {
+  async updateSodRuleStatus(
+    tx: Tx,
+    input: { id: string; expectedVersion: number; status: string },
+  ): Promise<SodRuleRow | null> {
     const r = await tx.query<SodRuleRow>(
       `UPDATE sod_rules SET status = $3, version = version + 1 WHERE id = $1 AND version = $2
        RETURNING id, tenant_id, rule_type, code_a, code_b, description, severity, status, version`,

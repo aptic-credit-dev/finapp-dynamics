@@ -100,7 +100,9 @@ export class RolesController {
 
   @Get('roles/:roleId/permissions')
   async permissions(@Param('roleId') roleId: string, @Headers() headers: Record<string, string>) {
-    const scoped = requireTenantScope(await this.actors.forRequest(headers, 'read role permissions (m02-rbac)'));
+    const scoped = requireTenantScope(
+      await this.actors.forRequest(headers, 'read role permissions (m02-rbac)'),
+    );
     return {
       permissions: await this.service.permissions(
         scoped.ctx,
@@ -146,15 +148,22 @@ export class RolesController {
     @Body() body: ChangePermissionsBody,
     @Headers() headers: Record<string, string>,
   ) {
-    const scoped = requireTenantScope(await this.actors.forRequest(headers, 'change role permissions (m02-rbac)'));
+    const scoped = requireTenantScope(
+      await this.actors.forRequest(headers, 'change role permissions (m02-rbac)'),
+    );
     const cid = scoped.correlationId;
-    return this.service.changePermissions(scoped.ctx, scoped.actor.identityId, requireUuidParam(roleId, 'roleId', cid), {
-      ...(Array.isArray(body.add) ? { add: body.add.map((x) => String(x)) } : {}),
-      ...(Array.isArray(body.remove) ? { remove: body.remove.map((x) => String(x)) } : {}),
-      // Anti-escalation bound: the grantor can only confer permissions it itself holds. The set is the
-      // caller's RBAC-resolved permissions, never anything the request supplied.
-      grantorPermissions: scoped.ctx.permissions,
-    });
+    return this.service.changePermissions(
+      scoped.ctx,
+      scoped.actor.identityId,
+      requireUuidParam(roleId, 'roleId', cid),
+      {
+        ...(Array.isArray(body.add) ? { add: body.add.map((x) => String(x)) } : {}),
+        ...(Array.isArray(body.remove) ? { remove: body.remove.map((x) => String(x)) } : {}),
+        // Anti-escalation bound: the grantor can only confer permissions it itself holds. The set is the
+        // caller's RBAC-resolved permissions, never anything the request supplied.
+        grantorPermissions: scoped.ctx.permissions,
+      },
+    );
   }
 
   // --- lifecycle -----------------------------------------------------------------------------------
@@ -163,7 +172,11 @@ export class RolesController {
 
   @Endpoint({ permission: RBAC_PERMISSIONS.roleActivate, auditCode: RBAC_AUDIT_CODES.roleActivated })
   @Post('roles/:roleId/activate')
-  async activate(@Param('roleId') id: string, @Body() body: ActionBody, @Headers() h: Record<string, string>) {
+  async activate(
+    @Param('roleId') id: string,
+    @Body() body: ActionBody,
+    @Headers() h: Record<string, string>,
+  ) {
     return this.act('activate', id, body, h);
   }
 
@@ -175,7 +188,11 @@ export class RolesController {
 
   @Endpoint({ permission: RBAC_PERMISSIONS.roleActivate, auditCode: RBAC_AUDIT_CODES.roleActivated })
   @Post('roles/:roleId/reactivate')
-  async reactivate(@Param('roleId') id: string, @Body() body: ActionBody, @Headers() h: Record<string, string>) {
+  async reactivate(
+    @Param('roleId') id: string,
+    @Body() body: ActionBody,
+    @Headers() h: Record<string, string>,
+  ) {
     return this.act('reactivate', id, body, h);
   }
 
@@ -186,7 +203,9 @@ export class RolesController {
   }
 
   private async act(action: RoleAction, roleId: string, body: ActionBody, headers: Record<string, string>) {
-    const scoped = requireTenantScope(await this.actors.forRequest(headers, `role action: ${action} (m02-rbac)`));
+    const scoped = requireTenantScope(
+      await this.actors.forRequest(headers, `role action: ${action} (m02-rbac)`),
+    );
     const cid = scoped.correlationId;
     const row = await this.service.applyAction(
       scoped.ctx,

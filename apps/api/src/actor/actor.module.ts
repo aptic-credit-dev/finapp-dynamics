@@ -69,9 +69,17 @@ export const AUTH_CONFIG = Symbol.for('finapp.auth.config');
     {
       provide: ActorContextFactory,
       inject: [ACTOR_SOURCE, TenantContextResolver, PermissionResolver],
-      useFactory: (source: SessionActorAdapter, tenants: TenantContextResolver, resolver: PermissionResolver) =>
+      useFactory: (
+        source: SessionActorAdapter,
+        tenants: TenantContextResolver,
+        resolver: PermissionResolver,
+      ) =>
         new ActorContextFactory(source, tenants, extractSessionToken, (input) =>
-          resolver.resolve({ identityId: input.identityId, tenantId: input.tenantId, correlationId: input.correlationId }),
+          resolver.resolve({
+            identityId: input.identityId,
+            tenantId: input.tenantId,
+            correlationId: input.correlationId,
+          }),
         ),
     },
   ],

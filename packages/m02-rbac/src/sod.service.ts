@@ -1,4 +1,11 @@
-import { ProblemError, type Authz, type Db, type RequestContext, type SystemContext, type Tx } from '@finapp/kernel';
+import {
+  ProblemError,
+  type Authz,
+  type Db,
+  type RequestContext,
+  type SystemContext,
+  type Tx,
+} from '@finapp/kernel';
 import { RbacRepository, type SodRuleRow } from './repository.ts';
 import { type RbacEmitter } from './emit.ts';
 import { RBAC_AUDIT_CODES } from './audit-codes.ts';
@@ -38,7 +45,12 @@ export class SodService {
    */
   async firstConflict(
     tx: Tx,
-    input: { membershipId: string; newRoleId: string; newRoleCode: string; currentRoleCodes: readonly string[] },
+    input: {
+      membershipId: string;
+      newRoleId: string;
+      newRoleCode: string;
+      currentRoleCodes: readonly string[];
+    },
   ): Promise<SodConflict | null> {
     // permission_pair: does the combined permission set contain both sides of any rule?
     const permRules = await this.repo.sodRulesFor(tx, 'permission_pair');
@@ -76,7 +88,10 @@ export class SodService {
       codeA: input.conflict.codeA,
       codeB: input.conflict.codeB,
     });
-    throw ProblemError.conflict('This grant is blocked by a segregation-of-duties rule.', input.correlationId);
+    throw ProblemError.conflict(
+      'This grant is blocked by a segregation-of-duties rule.',
+      input.correlationId,
+    );
   }
 
   // --- administration -----------------------------------------------------------------------------
@@ -90,52 +105,87 @@ export class SodService {
 
   async create(
     ctx: AuthorizedContext,
-    input: { tenantId: string; ruleType: string; codeA: string; codeB: string; description: string | null; severity: string; actor: string | null },
+    input: {
+      tenantId: string;
+      ruleType: string;
+      codeA: string;
+      codeB: string;
+      description: string | null;
+      severity: string;
+      actor: string | null;
+    },
   ): Promise<SodRuleRow> {
     await this.authz.require(ctx, RBAC_PERMISSIONS.sodManage);
     if (input.ruleType !== 'role_pair' && input.ruleType !== 'permission_pair') {
       throw badRequest('ruleType must be role_pair or permission_pair.', ctx.correlationId);
     }
     // Canonical order so (a,b) and (b,a) are the same rule (matches the DB CHECK code_a < code_b).
-    const [codeA, codeB] = input.codeA < input.codeB ? [input.codeA, input.codeB] : [input.codeB, input.codeA];
+    const [codeA, codeB] =
+      input.codeA < input.codeB ? [input.codeA, input.codeB] : [input.codeB, input.codeA];
     if (codeA === codeB) throw badRequest('An SoD rule needs two distinct codes.', ctx.correlationId);
     const sys: SystemContext = { reason: 'create sod rule (m02-rbac)', correlationId: ctx.correlationId };
     return this.db.withSystem(sys, async (tx) => {
       let row: SodRuleRow;
       try {
         row = await this.repo.insertSodRule(tx, {
-          tenantId: input.tenantId, ruleType: input.ruleType, codeA, codeB,
-          description: input.description, severity: input.severity, createdBy: input.actor,
+          tenantId: input.tenantId,
+          ruleType: input.ruleType,
+          codeA,
+          codeB,
+          description: input.description,
+          severity: input.severity,
+          createdBy: input.actor,
         });
       } catch (error: unknown) {
-        if (isUniqueViolation(error)) throw ProblemError.conflict('That SoD rule already exists.', ctx.correlationId);
+        if (isUniqueViolation(error))
+          throw ProblemError.conflict('That SoD rule already exists.', ctx.correlationId);
         throw error;
       }
-      await this.emitter.recordAudit(tx, sys, { code: RBAC_AUDIT_CODES.sodRuleCreated, entityType: 'sod_rule', entityId: row.id });
+      await this.emitter.recordAudit(tx, sys, {
+        code: RBAC_AUDIT_CODES.sodRuleCreated,
+        entityType: 'sod_rule',
+        entityId: row.id,
+      });
       await this.emitter.publish(tx, 'SodRuleCreated', input.tenantId, ctx.correlationId, input.actor, {
-        ruleId: row.id, codeA, codeB,
+        ruleId: row.id,
+        codeA,
+        codeB,
       });
       return row;
     });
   }
 
-  async setStatus(ctx: AuthorizedContext, input: { id: string; expectedVersion: number; status: string; actor: string | null }): Promise<SodRuleRow> {
+  async setStatus(
+    ctx: AuthorizedContext,
+    input: { id: string; expectedVersion: number; status: string; actor: string | null },
+  ): Promise<SodRuleRow> {
     await this.authz.require(ctx, RBAC_PERMISSIONS.sodManage);
-    if (input.status !== 'active' && input.status !== 'retired') throw badRequest('status must be active or retired.', ctx.correlationId);
+    if (input.status !== 'active' && input.status !== 'retired')
+      throw badRequest('status must be active or retired.', ctx.correlationId);
     const sys: SystemContext = { reason: 'update sod rule (m02-rbac)', correlationId: ctx.correlationId };
     return this.db.withSystem(sys, async (tx) => {
       const current = await this.repo.findSodRule(tx, input.id);
       if (current === null) throw ProblemError.notFound('SoD rule not found.', ctx.correlationId);
       const updated = await this.repo.updateSodRuleStatus(tx, input);
       if (updated === null) throw ProblemError.conflict('Version conflict.', ctx.correlationId);
-      await this.emitter.recordAudit(tx, sys, { code: RBAC_AUDIT_CODES.sodRuleUpdated, entityType: 'sod_rule', entityId: input.id });
+      await this.emitter.recordAudit(tx, sys, {
+        code: RBAC_AUDIT_CODES.sodRuleUpdated,
+        entityType: 'sod_rule',
+        entityId: input.id,
+      });
       return updated;
     });
   }
 }
 
 export function badRequest(detail: string, correlationId: string): ProblemError {
-  return new ProblemError({ type: 'https://finapp.dynamics/problems/validation', title: 'Bad Request', status: 400, detail, correlationId });
+  return new ProblemError({
+    type: 'https://finapp.dynamics/problems/validation',
+    title: 'Bad Request',
+    status: 400,
+    detail,
+    correlationId,
+  });
 }
 export function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && (error as { code?: unknown } | null)?.code === '23505';

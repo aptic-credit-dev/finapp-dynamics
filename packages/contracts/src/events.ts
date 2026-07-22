@@ -21,10 +21,7 @@ import { AUTHZ_LIFECYCLE_FAMILY } from './authz-events.ts';
  *      Never renumber or reorder — consumers and the outbox key off the family name.
  */
 export type DomainEvent =
-  | TenantLifecycleEvent
-  | IdentityLifecycleEvent
-  | AuthLifecycleEvent
-  | AuthzLifecycleEvent;
+  TenantLifecycleEvent | IdentityLifecycleEvent | AuthLifecycleEvent | AuthzLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [

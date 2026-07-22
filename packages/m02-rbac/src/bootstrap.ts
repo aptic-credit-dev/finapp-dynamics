@@ -38,7 +38,9 @@ export class BootstrapService {
 
     if (accountId === undefined || accountId.trim() === '') {
       if (isProduction) {
-        throw new Error(`${BOOTSTRAP_ENV} is required in production — the platform cannot start without a bootstrap administrator (ADR-020).`);
+        throw new Error(
+          `${BOOTSTRAP_ENV} is required in production — the platform cannot start without a bootstrap administrator (ADR-020).`,
+        );
       }
       return { provisioned: false, reason: 'no bootstrap account configured (dev/test no-op)' };
     }
@@ -52,22 +54,49 @@ export class BootstrapService {
       // Fail closed: a missing/inactive account or identity is not silently skipped in production — a
       // misconfigured bootstrap must be visible, not swallowed.
       if (account === null) throw failClosed(isProduction, 'bootstrap account does not exist', correlationId);
-      if (account.account_status !== 'active') throw failClosed(isProduction, 'bootstrap account is not active', correlationId);
-      if (account.identity_status !== 'active') throw failClosed(isProduction, 'bootstrap identity is not active', correlationId);
+      if (account.account_status !== 'active')
+        throw failClosed(isProduction, 'bootstrap account is not active', correlationId);
+      if (account.identity_status !== 'active')
+        throw failClosed(isProduction, 'bootstrap identity is not active', correlationId);
 
       const role = await this.repo.findSystemRoleByCode(tx, PLATFORM_ADMIN_ROLE_CODE);
-      if (role === null) throw new Error('platform_admin system role is missing — the RBAC migration did not seed it.');
+      if (role === null)
+        throw new Error('platform_admin system role is missing — the RBAC migration did not seed it.');
 
       if (await this.repo.platformAssignmentExists(tx, account.identity_id, role.id)) {
-        return { provisioned: false, reason: 'platform administrator already provisioned (idempotent no-op)' };
+        return {
+          provisioned: false,
+          reason: 'platform administrator already provisioned (idempotent no-op)',
+        };
       }
 
       const assignment = await this.repo.insertPlatformAssignment(tx, {
-        identityId: account.identity_id, roleId: role.id, grantedBy: null, justification: 'ADR-020 bootstrap',
+        identityId: account.identity_id,
+        roleId: role.id,
+        grantedBy: null,
+        justification: 'ADR-020 bootstrap',
       });
-      await this.repo.appendAssignmentHistory(tx, { tenantId: null, assignmentId: assignment.id, kind: 'platform', fromStatus: null, toStatus: 'active', action: 'grant', reason: 'bootstrap', correlationId, changedBy: null });
-      await this.emitter.recordAudit(tx, sys, { code: RBAC_AUDIT_CODES.bootstrapProvisioned, entityType: 'account', entityId: accountId, detail: { roleId: role.id } });
-      await this.emitter.publish(tx, 'BootstrapAdminProvisioned', null, correlationId, null, { accountId, roleId: role.id });
+      await this.repo.appendAssignmentHistory(tx, {
+        tenantId: null,
+        assignmentId: assignment.id,
+        kind: 'platform',
+        fromStatus: null,
+        toStatus: 'active',
+        action: 'grant',
+        reason: 'bootstrap',
+        correlationId,
+        changedBy: null,
+      });
+      await this.emitter.recordAudit(tx, sys, {
+        code: RBAC_AUDIT_CODES.bootstrapProvisioned,
+        entityType: 'account',
+        entityId: accountId,
+        detail: { roleId: role.id },
+      });
+      await this.emitter.publish(tx, 'BootstrapAdminProvisioned', null, correlationId, null, {
+        accountId,
+        roleId: role.id,
+      });
       return { provisioned: true, reason: 'platform administrator provisioned' };
     });
   }
@@ -75,5 +104,11 @@ export class BootstrapService {
 
 function failClosed(isProduction: boolean, detail: string, correlationId: string): Error {
   if (isProduction) return new Error(`Bootstrap failed closed: ${detail} (ADR-020).`);
-  return new ProblemError({ type: 'https://finapp.dynamics/problems/validation', title: 'Bad Request', status: 400, detail, correlationId });
+  return new ProblemError({
+    type: 'https://finapp.dynamics/problems/validation',
+    title: 'Bad Request',
+    status: 400,
+    detail,
+    correlationId,
+  });
 }

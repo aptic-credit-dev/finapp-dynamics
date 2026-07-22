@@ -14,8 +14,13 @@
       "default": "./dist/src/index.js"
     }
   },
-  "files": ["dist", "migrations"],
-  "scripts": { "build": "tsc --build" },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
   "dependencies": {
     "@finapp/contracts": "*",
     "@finapp/kernel": "*",

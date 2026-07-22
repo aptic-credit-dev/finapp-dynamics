@@ -27,7 +27,13 @@ export class RbacEmitter {
   async recordAudit(
     tx: Tx,
     ctx: RequestContext | SystemContext,
-    entry: { code: string; entityType: string; entityId: string; reason?: string | null; detail?: Record<string, unknown> },
+    entry: {
+      code: string;
+      entityType: string;
+      entityId: string;
+      reason?: string | null;
+      detail?: Record<string, unknown>;
+    },
   ): Promise<void> {
     await this.audit.write(tx, ctx, {
       code: entry.code,

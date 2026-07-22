@@ -25,11 +25,7 @@ export { SCOPE_LEVELS, isScopeLevel, assignmentScopeContains, parseScope } from 
 export type { Scope, ScopeLevel } from './domain/scope.ts';
 
 // Registered names.
-export {
-  RBAC_PERMISSIONS,
-  ALL_RBAC_PERMISSIONS,
-  RBAC_PERMISSION_NAMESPACE,
-} from './permissions.ts';
+export { RBAC_PERMISSIONS, ALL_RBAC_PERMISSIONS, RBAC_PERMISSION_NAMESPACE } from './permissions.ts';
 export type { RbacPermission } from './permissions.ts';
 export { RBAC_AUDIT_CODES, ALL_RBAC_AUDIT_CODES, RBAC_AUDIT_PREFIX } from './audit-codes.ts';
 export type { RbacAuditCode } from './audit-codes.ts';

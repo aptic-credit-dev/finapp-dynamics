@@ -246,13 +246,7 @@ export default defineSuite('conformance', (t) => {
   // Stage 1D IS built now: the RBAC persistence tables must exist. These are the role model, the grant
   // model and the segregation-of-duties model — the tables that make authorization a fact in the database
   // rather than a claim on a request.
-  for (const expected of [
-    'permissions',
-    'roles',
-    'role_permissions',
-    'role_assignments',
-    'sod_rules',
-  ]) {
+  for (const expected of ['permissions', 'roles', 'role_permissions', 'role_assignments', 'sod_rules']) {
     t.ok(
       tables.some((row) => row.table === expected),
       `Stage 1D RBAC table "${expected}" exists`,

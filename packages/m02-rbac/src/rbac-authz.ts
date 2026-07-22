@@ -1,4 +1,10 @@
-import { ProblemError, isRequestContext, type Authz, type RequestContext, type SystemContext } from '@finapp/kernel';
+import {
+  ProblemError,
+  isRequestContext,
+  type Authz,
+  type RequestContext,
+  type SystemContext,
+} from '@finapp/kernel';
 
 /**
  * The persistent authorization adapter (ADR-017) — bound to the kernel `AUTHZ` token, REPLACING the

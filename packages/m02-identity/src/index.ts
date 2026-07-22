@@ -91,13 +91,7 @@ export { ActorResolver, contextFromActor, UUID_PATTERN } from './actor-resolver.
 export type { AuthenticatedActor, ResolveInput } from './actor-resolver.ts';
 
 // The API's actor boundary — the one place a request becomes a context.
-export {
-  ActorContextFactory,
-  requireUuidParam,
-  CORRELATION_HEADER,
-  TENANT_HEADER,
-
-} from './actor-context.ts';
+export { ActorContextFactory, requireUuidParam, CORRELATION_HEADER, TENANT_HEADER } from './actor-context.ts';
 export type {
   ActorSource,
   ScopedRequest,

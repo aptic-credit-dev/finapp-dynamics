@@ -20,7 +20,11 @@ export class PermissionResolver {
     this.repo = repo;
   }
 
-  async resolve(input: { identityId: string; tenantId?: string | undefined; correlationId: string }): Promise<string[]> {
+  async resolve(input: {
+    identityId: string;
+    tenantId?: string | undefined;
+    correlationId: string;
+  }): Promise<string[]> {
     const now = new Date();
     const platform = await this.db.withSystem(
       { reason: 'resolve platform permissions (m02-rbac)', correlationId: input.correlationId },
@@ -29,7 +33,12 @@ export class PermissionResolver {
     if (input.tenantId === undefined) return [...new Set(platform)];
 
     const tenant = await this.db.withTenant(
-      { tenantId: input.tenantId, userId: input.identityId, correlationId: input.correlationId, permissions: [] },
+      {
+        tenantId: input.tenantId,
+        userId: input.identityId,
+        correlationId: input.correlationId,
+        permissions: [],
+      },
       (tx) => this.repo.resolveTenantPermissions(tx, input.identityId, now),
     );
     return [...new Set([...platform, ...tenant])];

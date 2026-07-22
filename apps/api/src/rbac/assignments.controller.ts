@@ -56,7 +56,11 @@ export class AssignmentsController {
     const scoped = requireTenantScope(await this.actors.forRequest(headers, 'grant role (m02-rbac)'));
     const cid = scoped.correlationId;
     const row = await this.service.grant(scoped.ctx, scoped.actor.identityId, {
-      membershipId: requireUuidParam(requireString(body.membershipId, 'membershipId', cid), 'membershipId', cid),
+      membershipId: requireUuidParam(
+        requireString(body.membershipId, 'membershipId', cid),
+        'membershipId',
+        cid,
+      ),
       roleId: requireUuidParam(requireString(body.roleId, 'roleId', cid), 'roleId', cid),
       ...(typeof body.scopeLevel === 'string' ? { scopeLevel: body.scopeLevel } : {}),
       ...(typeof body.scopeRef === 'string' ? { scopeRef: body.scopeRef } : {}),
@@ -101,24 +105,38 @@ export class AssignmentsController {
 
   @Endpoint({ permission: RBAC_PERMISSIONS.assignmentRevoke, auditCode: RBAC_AUDIT_CODES.assignmentRevoked })
   @Post('assignments/:assignmentId/revoke')
-  async revoke(@Param('assignmentId') id: string, @Body() body: ActionBody, @Headers() h: Record<string, string>) {
+  async revoke(
+    @Param('assignmentId') id: string,
+    @Body() body: ActionBody,
+    @Headers() h: Record<string, string>,
+  ) {
     return this.act('revoke', id, body, h);
   }
 
   @Endpoint({ permission: RBAC_PERMISSIONS.assignmentRevoke, auditCode: RBAC_AUDIT_CODES.assignmentRevoked })
   @Post('assignments/:assignmentId/suspend')
-  async suspend(@Param('assignmentId') id: string, @Body() body: ActionBody, @Headers() h: Record<string, string>) {
+  async suspend(
+    @Param('assignmentId') id: string,
+    @Body() body: ActionBody,
+    @Headers() h: Record<string, string>,
+  ) {
     return this.act('suspend', id, body, h);
   }
 
   @Endpoint({ permission: RBAC_PERMISSIONS.assignmentRevoke, auditCode: RBAC_AUDIT_CODES.assignmentRevoked })
   @Post('assignments/:assignmentId/reactivate')
-  async reactivate(@Param('assignmentId') id: string, @Body() body: ActionBody, @Headers() h: Record<string, string>) {
+  async reactivate(
+    @Param('assignmentId') id: string,
+    @Body() body: ActionBody,
+    @Headers() h: Record<string, string>,
+  ) {
     return this.act('reactivate', id, body, h);
   }
 
   private async act(action: AssignmentAction, id: string, body: ActionBody, headers: Record<string, string>) {
-    const scoped = requireTenantScope(await this.actors.forRequest(headers, `assignment action: ${action} (m02-rbac)`));
+    const scoped = requireTenantScope(
+      await this.actors.forRequest(headers, `assignment action: ${action} (m02-rbac)`),
+    );
     const cid = scoped.correlationId;
     const row = await this.service.applyAction(
       scoped.ctx,
@@ -132,7 +150,11 @@ export class AssignmentsController {
 }
 
 /** An optional ISO-8601 timestamp. A present-but-unparseable value is a client error, not a silent null. */
-function optionalDate<K extends string>(value: unknown, field: K, correlationId: string): Partial<Record<K, Date>> {
+function optionalDate<K extends string>(
+  value: unknown,
+  field: K,
+  correlationId: string,
+): Partial<Record<K, Date>> {
   if (value === undefined || value === null) return {};
   if (typeof value !== 'string') throw badRequest(`${field} must be an ISO-8601 string.`, correlationId);
   const ms = Date.parse(value);

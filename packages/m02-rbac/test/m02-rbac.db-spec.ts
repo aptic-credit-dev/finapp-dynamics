@@ -69,11 +69,10 @@ async function seedActor(ctx: DbSpecContext, code: string, tenantId?: string): P
 async function grantPlatformAdmin(ctx: DbSpecContext, identityId: string): Promise<string> {
   const id = randomUUID();
   await ctx.asSuperuser(null, (tx) =>
-    tx.query(`INSERT INTO platform_role_assignments (id, identity_id, role_id, status) VALUES ($1, $2, $3, 'active')`, [
-      id,
-      identityId,
-      PLATFORM_ADMIN_ROLE_ID,
-    ]),
+    tx.query(
+      `INSERT INTO platform_role_assignments (id, identity_id, role_id, status) VALUES ($1, $2, $3, 'active')`,
+      [id, identityId, PLATFORM_ADMIN_ROLE_ID],
+    ),
   );
   return id;
 }
@@ -92,11 +91,22 @@ export default defineDbSpec('m02-rbac', async (ctx, t) => {
   // A fully-privileged tenant context — the permission set the boundary WOULD resolve for a platform admin.
   const admin = await seedActor(ctx, 'rbac_admin');
   const ALL = [
-    'rbac.permission.view', 'rbac.role.view', 'rbac.role.create', 'rbac.role.edit', 'rbac.role.activate',
-    'rbac.role.suspend', 'rbac.role.retire', 'rbac.assignment.view', 'rbac.assignment.grant',
-    'rbac.assignment.revoke', 'rbac.sod.view', 'rbac.sod.manage',
-    'identity.registry.view', 'identity.registry.close',
-    'tenant.registry.approve', 'tenant.registry.create',
+    'rbac.permission.view',
+    'rbac.role.view',
+    'rbac.role.create',
+    'rbac.role.edit',
+    'rbac.role.activate',
+    'rbac.role.suspend',
+    'rbac.role.retire',
+    'rbac.assignment.view',
+    'rbac.assignment.grant',
+    'rbac.assignment.revoke',
+    'rbac.sod.view',
+    'rbac.sod.manage',
+    'identity.registry.view',
+    'identity.registry.close',
+    'tenant.registry.approve',
+    'tenant.registry.create',
   ];
   const adminCtx = (perms: readonly string[] = ALL): RequestContext => ({
     tenantId: admin.tenantId,
@@ -109,11 +119,21 @@ export default defineDbSpec('m02-rbac', async (ctx, t) => {
   {
     await grantPlatformAdmin(ctx, admin.identityId);
     const resolved = await resolver.resolve({ identityId: admin.identityId, correlationId: randomUUID() });
-    t.ok(resolved.includes('rbac.role.create'), 'a platform_admin assignment resolves the full permission set');
+    t.ok(
+      resolved.includes('rbac.role.create'),
+      'a platform_admin assignment resolves the full permission set',
+    );
     t.ok(resolved.includes('identity.registry.view'), 'including permissions owned by other modules');
 
-    const scoped = await resolver.resolve({ identityId: admin.identityId, tenantId: admin.tenantId, correlationId: randomUUID() });
-    t.ok(scoped.includes('rbac.role.create'), 'platform permissions are carried into a tenant-scoped resolve too');
+    const scoped = await resolver.resolve({
+      identityId: admin.identityId,
+      tenantId: admin.tenantId,
+      correlationId: randomUUID(),
+    });
+    t.ok(
+      scoped.includes('rbac.role.create'),
+      'platform permissions are carried into a tenant-scoped resolve too',
+    );
   }
 
   // --- tenant-role resolution + isolation ----------------------------------------------------------
@@ -121,21 +141,42 @@ export default defineDbSpec('m02-rbac', async (ctx, t) => {
     const user = await seedActor(ctx, 'rbac_user', admin.tenantId);
     // Create + activate a tenant role granting identity.registry.view, then assign it to the user.
     const role = await roles.create(adminCtx(), admin.identityId, { code: 'viewer_role', name: 'Viewer' });
-    await roles.applyAction(adminCtx(), admin.identityId, role.id, 'activate', { expectedVersion: role.version });
-    await roles.changePermissions(adminCtx(), admin.identityId, role.id, { add: ['identity.registry.view'], grantorPermissions: ALL });
-    await assignments.grant(adminCtx(), admin.identityId, { membershipId: user.membershipId, roleId: role.id, grantorPermissions: ALL });
+    await roles.applyAction(adminCtx(), admin.identityId, role.id, 'activate', {
+      expectedVersion: role.version,
+    });
+    await roles.changePermissions(adminCtx(), admin.identityId, role.id, {
+      add: ['identity.registry.view'],
+      grantorPermissions: ALL,
+    });
+    await assignments.grant(adminCtx(), admin.identityId, {
+      membershipId: user.membershipId,
+      roleId: role.id,
+      grantorPermissions: ALL,
+    });
 
-    const inTenant = await resolver.resolve({ identityId: user.identityId, tenantId: admin.tenantId, correlationId: randomUUID() });
+    const inTenant = await resolver.resolve({
+      identityId: user.identityId,
+      tenantId: admin.tenantId,
+      correlationId: randomUUID(),
+    });
     t.ok(inTenant.includes('identity.registry.view'), 'a tenant assignment resolves inside its own tenant');
 
     const otherTenant = randomUUID();
     await ctx.asSuperuser(null, (tx) =>
-      tx.query(`INSERT INTO tenants (id, code, legal_name, tenant_type, status, activated_at) VALUES ($1, $2, $3, 'enterprise_customer', 'active', now())`, [
-        otherTenant, `other_${otherTenant.slice(0, 8)}`, 'Other Ltd',
-      ]),
+      tx.query(
+        `INSERT INTO tenants (id, code, legal_name, tenant_type, status, activated_at) VALUES ($1, $2, $3, 'enterprise_customer', 'active', now())`,
+        [otherTenant, `other_${otherTenant.slice(0, 8)}`, 'Other Ltd'],
+      ),
     );
-    const elsewhere = await resolver.resolve({ identityId: user.identityId, tenantId: otherTenant, correlationId: randomUUID() });
-    t.ok(!elsewhere.includes('identity.registry.view'), "the same identity resolves NOTHING in a tenant it was not granted in — RLS isolates assignments");
+    const elsewhere = await resolver.resolve({
+      identityId: user.identityId,
+      tenantId: otherTenant,
+      correlationId: randomUUID(),
+    });
+    t.ok(
+      !elsewhere.includes('identity.registry.view'),
+      'the same identity resolves NOTHING in a tenant it was not granted in — RLS isolates assignments',
+    );
   }
 
   // --- immediate revocation (no cache) -------------------------------------------------------------
@@ -145,10 +186,15 @@ export default defineDbSpec('m02-rbac', async (ctx, t) => {
     const before = await resolver.resolve({ identityId: revocable.identityId, correlationId: randomUUID() });
     t.ok(before.includes('rbac.role.create'), 'granted: the permission resolves');
     await ctx.asSuperuser(null, (tx) =>
-      tx.query(`UPDATE platform_role_assignments SET status = 'revoked', revoked_at = now() WHERE id = $1`, [assignmentId]),
+      tx.query(`UPDATE platform_role_assignments SET status = 'revoked', revoked_at = now() WHERE id = $1`, [
+        assignmentId,
+      ]),
     );
     const after = await resolver.resolve({ identityId: revocable.identityId, correlationId: randomUUID() });
-    t.ok(!after.includes('rbac.role.create'), 'revoked: the very next resolve returns nothing — no stale cache');
+    t.ok(
+      !after.includes('rbac.role.create'),
+      'revoked: the very next resolve returns nothing — no stale cache',
+    );
   }
 
   // --- the services enforce their permission -------------------------------------------------------
@@ -158,7 +204,12 @@ export default defineDbSpec('m02-rbac', async (ctx, t) => {
       'RoleService.create refuses a caller who does not hold rbac.role.create (default deny)',
     );
     await t.rejects(
-      catalogue.listPermissions({ tenantId: admin.tenantId, userId: admin.identityId, correlationId: randomUUID(), permissions: [] }),
+      catalogue.listPermissions({
+        tenantId: admin.tenantId,
+        userId: admin.identityId,
+        correlationId: randomUUID(),
+        permissions: [],
+      }),
       'the catalogue refuses a caller who does not hold rbac.permission.view',
     );
   }
@@ -183,18 +234,42 @@ export default defineDbSpec('m02-rbac', async (ctx, t) => {
   {
     const subject = await seedActor(ctx, 'rbac_sod', admin.tenantId);
     // Two roles whose permissions are the two halves of a seeded global maker/checker SoD rule.
-    const approver = await roles.create(adminCtx(), admin.identityId, { code: 'approver_role', name: 'Approver' });
-    await roles.applyAction(adminCtx(), admin.identityId, approver.id, 'activate', { expectedVersion: approver.version });
-    await roles.changePermissions(adminCtx(), admin.identityId, approver.id, { add: ['tenant.registry.approve'], grantorPermissions: ALL });
+    const approver = await roles.create(adminCtx(), admin.identityId, {
+      code: 'approver_role',
+      name: 'Approver',
+    });
+    await roles.applyAction(adminCtx(), admin.identityId, approver.id, 'activate', {
+      expectedVersion: approver.version,
+    });
+    await roles.changePermissions(adminCtx(), admin.identityId, approver.id, {
+      add: ['tenant.registry.approve'],
+      grantorPermissions: ALL,
+    });
 
-    const creator = await roles.create(adminCtx(), admin.identityId, { code: 'creator_role', name: 'Creator' });
-    await roles.applyAction(adminCtx(), admin.identityId, creator.id, 'activate', { expectedVersion: creator.version });
-    await roles.changePermissions(adminCtx(), admin.identityId, creator.id, { add: ['tenant.registry.create'], grantorPermissions: ALL });
+    const creator = await roles.create(adminCtx(), admin.identityId, {
+      code: 'creator_role',
+      name: 'Creator',
+    });
+    await roles.applyAction(adminCtx(), admin.identityId, creator.id, 'activate', {
+      expectedVersion: creator.version,
+    });
+    await roles.changePermissions(adminCtx(), admin.identityId, creator.id, {
+      add: ['tenant.registry.create'],
+      grantorPermissions: ALL,
+    });
 
-    await assignments.grant(adminCtx(), admin.identityId, { membershipId: subject.membershipId, roleId: approver.id, grantorPermissions: ALL });
+    await assignments.grant(adminCtx(), admin.identityId, {
+      membershipId: subject.membershipId,
+      roleId: approver.id,
+      grantorPermissions: ALL,
+    });
     let conflict = false;
     try {
-      await assignments.grant(adminCtx(), admin.identityId, { membershipId: subject.membershipId, roleId: creator.id, grantorPermissions: ALL });
+      await assignments.grant(adminCtx(), admin.identityId, {
+        membershipId: subject.membershipId,
+        roleId: creator.id,
+        grantorPermissions: ALL,
+      });
     } catch (e: unknown) {
       conflict = e instanceof ProblemError && e.status === 409;
     }
@@ -205,7 +280,10 @@ export default defineDbSpec('m02-rbac', async (ctx, t) => {
   {
     let immutable = false;
     try {
-      await roles.update(adminCtx(), admin.identityId, PLATFORM_ADMIN_ROLE_ID, { expectedVersion: 1, name: 'hijacked' });
+      await roles.update(adminCtx(), admin.identityId, PLATFORM_ADMIN_ROLE_ID, {
+        expectedVersion: 1,
+        name: 'hijacked',
+      });
     } catch (e: unknown) {
       immutable = e instanceof ProblemError && e.status === 409;
     }

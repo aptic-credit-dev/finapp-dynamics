@@ -30,7 +30,10 @@ type Client = (
 ) => Promise<Reply>;
 
 function cookieHeader(setCookies: string[]): string {
-  return setCookies.map((c) => c.split(';')[0] ?? '').filter((c) => c !== '').join('; ');
+  return setCookies
+    .map((c) => c.split(';')[0] ?? '')
+    .filter((c) => c !== '')
+    .join('; ');
 }
 
 interface Seeded {
@@ -80,10 +83,10 @@ async function seedActor(ctx: DbSpecContext, code: string, tenantId?: string): P
 
 async function grantPlatformAdmin(ctx: DbSpecContext, identityId: string): Promise<void> {
   await ctx.asSuperuser(null, (tx) =>
-    tx.query(`INSERT INTO platform_role_assignments (identity_id, role_id, status) VALUES ($1, $2, 'active')`, [
-      identityId,
-      PLATFORM_ADMIN_ROLE_ID,
-    ]),
+    tx.query(
+      `INSERT INTO platform_role_assignments (identity_id, role_id, status) VALUES ($1, $2, 'active')`,
+      [identityId, PLATFORM_ADMIN_ROLE_ID],
+    ),
   );
 }
 
@@ -111,15 +114,21 @@ async function bootApi(): Promise<{ client: Client; close: () => Promise<void> }
   };
   try {
     try {
-      await import(pathToFileURL(resolvePath(distDir, '../../../node_modules/reflect-metadata/lib/index.js')).href);
+      await import(
+        pathToFileURL(resolvePath(distDir, '../../../node_modules/reflect-metadata/lib/index.js')).href
+      );
     } catch {
       await import('reflect-metadata');
     }
     const core = (await import('@nestjs/core')) as unknown as {
       NestFactory: { create: (m: unknown, o?: unknown) => Promise<typeof app> };
     };
-    const appModule = (await import(pathToFileURL(resolvePath(distDir, 'app.module.js')).href)) as { AppModule: unknown };
-    const filter = (await import(pathToFileURL(resolvePath(distDir, 'problem.filter.js')).href)) as { ProblemFilter: new () => unknown };
+    const appModule = (await import(pathToFileURL(resolvePath(distDir, 'app.module.js')).href)) as {
+      AppModule: unknown;
+    };
+    const filter = (await import(pathToFileURL(resolvePath(distDir, 'problem.filter.js')).href)) as {
+      ProblemFilter: new () => unknown;
+    };
     app = await core.NestFactory.create(appModule.AppModule, { logger: false });
     app.setGlobalPrefix('api/v1');
     app.useGlobalFilters(new filter.ProblemFilter());
@@ -226,7 +235,8 @@ async function run(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
 
     const perms = await api('GET', `/rbac/roles/${roleId}/permissions`, { headers: inTenant() });
     t.ok(
-      Array.isArray(perms.body['permissions']) && (perms.body['permissions'] as string[]).includes('identity.registry.view'),
+      Array.isArray(perms.body['permissions']) &&
+        (perms.body['permissions'] as string[]).includes('identity.registry.view'),
       'the granted permission reads back',
     );
 
@@ -237,7 +247,11 @@ async function run(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
       headers: inTenant(),
       body: { add: ['identity.registry.doesnotexist'] },
     });
-    t.equal(bogus.status, 403, 'a permission the grantor does not hold (a bogus one included) is refused — no self-escalation');
+    t.equal(
+      bogus.status,
+      403,
+      'a permission the grantor does not hold (a bogus one included) is refused — no self-escalation',
+    );
   }
 
   // --- assignment ----------------------------------------------------------------------------------
@@ -250,9 +264,14 @@ async function run(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
     t.equal(granted.body['status'], 'active', 'the assignment is active');
     const assignmentId = String(granted.body['id']);
 
-    const listed = await api('GET', `/rbac/assignments?membershipId=${subject.membershipId}`, { headers: inTenant() });
+    const listed = await api('GET', `/rbac/assignments?membershipId=${subject.membershipId}`, {
+      headers: inTenant(),
+    });
     t.equal(listed.status, 200, 'GET /rbac/assignments lists');
-    t.ok(Array.isArray(listed.body) && (listed.body as unknown[]).length === 1, 'and returns the one assignment');
+    t.ok(
+      Array.isArray(listed.body) && (listed.body as unknown[]).length === 1,
+      'and returns the one assignment',
+    );
 
     const revoked = await api('POST', `/rbac/assignments/${assignmentId}/revoke`, {
       headers: inTenant(),
@@ -266,14 +285,27 @@ async function run(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
   {
     const catalogue = await api('GET', '/rbac/permissions', { headers: asPlatform() });
     t.equal(catalogue.status, 200, 'GET /rbac/permissions returns the governed catalogue');
-    t.ok(Array.isArray(catalogue.body) && (catalogue.body as unknown[]).length > 0, 'the catalogue is non-empty');
+    t.ok(
+      Array.isArray(catalogue.body) && (catalogue.body as unknown[]).length > 0,
+      'the catalogue is non-empty',
+    );
   }
 
   // --- segregation of duties, enforced at the grant ------------------------------------------------
   {
     const sodSubject = await seedActor(ctx, 'apirbac_sod', admin.tenantId);
-    const approver = await makeActiveRoleWithPermission(api, inTenant, 'sod_approver', 'tenant.registry.approve');
-    const creator = await makeActiveRoleWithPermission(api, inTenant, 'sod_creator', 'tenant.registry.create');
+    const approver = await makeActiveRoleWithPermission(
+      api,
+      inTenant,
+      'sod_approver',
+      'tenant.registry.approve',
+    );
+    const creator = await makeActiveRoleWithPermission(
+      api,
+      inTenant,
+      'sod_creator',
+      'tenant.registry.create',
+    );
 
     const first = await api('POST', '/rbac/assignments', {
       headers: inTenant(),
@@ -298,7 +330,10 @@ async function makeActiveRoleWithPermission(
 ): Promise<string> {
   const created = await api('POST', '/rbac/roles', { headers: headers(), body: { code, name: code } });
   const id = String(created.body['id']);
-  await api('POST', `/rbac/roles/${id}/activate`, { headers: headers(), body: { expectedVersion: Number(created.body['version']) } });
+  await api('POST', `/rbac/roles/${id}/activate`, {
+    headers: headers(),
+    body: { expectedVersion: Number(created.body['version']) },
+  });
   await api('PATCH', `/rbac/roles/${id}/permissions`, { headers: headers(), body: { add: [permission] } });
   return id;
 }
