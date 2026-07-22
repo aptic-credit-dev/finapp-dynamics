@@ -345,7 +345,7 @@ stages:
         testing_required: [smoke, db_spec_authz]
       - module: m03-audit
         capability: Audit spine + code registry (append-only, tamper-evident)
-        status: implemented   # Stage 2.1 — implemented_on_feature_branch (stacked on UNMERGED 1D); see certification_2_1
+        status: implemented   # Stage 2.1 — implemented_on_feature_branch, rebased onto certified main; see certification_2_1
         mvp: true
         db_ownership: [audit_events(mixed, append-only, hash-chained),
                        audit_retention_policy(mixed), audit_legal_hold(tenant)]
@@ -363,12 +363,13 @@ stages:
           module: m03-audit
           substage: "2.1"
           branch: feature/stage-2-1-m03-audit
-          stacked_on: feature/stage-1d-rbac-authorization   # UNMERGED, UNCERTIFIED — this baseline is provisional
-          parent_head: cb7e5d8
+          # Rebased 2026-07-22 off the stacked UNMERGED 1D base onto CERTIFIED main (Stage 1D merged via PR #7
+          # and certified via PR #8). Baseline is no longer provisional.
+          parent_baseline: 56b7d3ea9cba42a81685fb6aefa1735fe8d314b3   # certified Stage 1D main (PR #8 merge)
           implementation_status: implemented_on_feature_branch
-          smoke_certification: passed_locally           # 10 suites, 1256 assertions, 0 failures
+          smoke_certification: passed_locally           # 10 suites, 1256 assertions, 0 failures (post-rebase, formatted)
           postgresql_certification: passed_locally      # 10 db specs, 356 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          ci_certification: pending                     # not pushed; no PR; no CI run
+          ci_certification: pending                     # PR to be opened; required Smoke + DB (PostgreSQL 16) lanes must pass
           merge_status: not_merged
           adrs: [ADR-029, ADR-030, ADR-031]
           docs: docs/build/stages/STAGE_2_1_M03_AUDIT_COMPLETION.md

@@ -1,18 +1,18 @@
 # Stage 2.1 — M03 Enterprise Audit Foundation (m03-audit) — Completion Report
 
-## STATUS: IMPLEMENTED ON A FEATURE BRANCH, STACKED ON UNMERGED STAGE 1D — smoke + DB green locally — NOT pushed, NOT CI-certified, NOT merged (2026-07-19)
+## STATUS: IMPLEMENTED ON A FEATURE BRANCH, REBASED ONTO CERTIFIED MAIN — smoke + DB green locally — PR pending, NOT CI-certified, NOT merged (originally 2026-07-19; rebased 2026-07-22)
 
 ## 1. Baseline status (honest)
 
 | Fact | Value |
 |---|---|
 | This branch | `feature/stage-2-1-m03-audit` |
-| Created from | `feature/stage-1d-rbac-authorization` (`cb7e5d8`) — **the UNMERGED Stage 1D implementation branch** |
-| `origin/main` | `004b2fd` — the **Stage 1C** certification merge. It contains neither Stage 1D nor m03. |
-| Stage 1D status | Implemented on its feature branch; **NOT merged, NOT certified**; its CI never ran. |
+| Originally created from | `feature/stage-1d-rbac-authorization` (`cb7e5d8`) — the then-unmerged Stage 1D implementation branch |
+| Rebased onto | `main` `56b7d3ea9cba42a81685fb6aefa1735fe8d314b3` — **certified Stage 1D** (implemented via PR #7 squash `beea0d9`, certified via PR #8 `56b7d3e`). Contains Stage 1D; m03 is added by this branch. |
+| Stage 1D status | **Merged and certified** on main. Smoke + DB (PostgreSQL 16) lanes passed on PR #7 head `4669cca`; certification merged via PR #8. |
 | m03 before this stage | `packages/m03-audit/README.md` only — a placeholder, no code. |
 
-This is a **stacked branch**: it depends on unmerged Stage 1D code (persistent RBAC / `RbacAuthz`, which the audit query API enforces against). Nothing here claims a Stage 1D certification SHA, PR, or CI result, because none exists. m03 must not be certified until Stage 1D is merged/certified and m03's own CI is green.
+This branch was **originally stacked** on unmerged Stage 1D and has been **rebased onto certified main**, so it now depends only on merged, certified Stage 1D code (persistent RBAC / `RbacAuthz`, which the audit query API enforces against). m03 itself is still **not CI-certified and not merged** — that awaits its own PR CI going green.
 
 ## 2. Branch and commits
 
@@ -70,7 +70,7 @@ CI has **not** run (branch not pushed; the required DB lane runs on PostgreSQL 1
 
 ## 13. Known limitations
 
-- Stacked on **unmerged/uncertified** Stage 1D.
+- Depends on Stage 1D (persistent RBAC), now **merged and certified** on main; this branch is rebased onto that certified baseline.
 - Finer platform-actor attribution: platform-scoped human actions record `system_process` (SystemContext carries no identity) — boundary enrichment to carry actor/ip/user_agent/session/causation is a follow-on; the columns exist and are populated when present.
 - Audit-of-audit for plain reads is limited to export + integrity (search/view are not individually audited, to avoid unusable noise) — matches "define which decisions are always audited vs summarised".
 
@@ -80,11 +80,11 @@ Monthly range partitioning; DB-backed `audit_code_registry` table (YAML remains 
 
 ## 15. CI status
 
-**Pending.** Not pushed, no PR, no GitHub Actions run.
+**Pending.** Rebased onto certified main and pushed; PR to be opened. GitHub Actions runs on the PR.
 
 ## 16. Merge status
 
-**Not merged.** Must not merge until Stage 1D is merged/certified and m03's CI is green.
+**Not merged.** Stage 1D is merged/certified; m03 must not merge until its own PR CI (Smoke + PostgreSQL 16 DB) is green and it is approved.
 
 ## 17. Certification status
 
