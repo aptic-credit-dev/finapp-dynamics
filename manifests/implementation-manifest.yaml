@@ -292,18 +292,28 @@ stages:
           module: m02-rbac
           substage: 1D
           branch: feature/stage-1d-rbac-authorization
-          parent_baseline: 004b2fd   # certified Stage 1C merge (PR #6) on main; NOT rebased onto anything uncertified
-          feature_head: 38713ea      # will advance with the completion-report + manifest commit
-          implementation_status: implemented_on_feature_branch
+          certification_branch: cert/stage-1d-rbac-authorization
+          parent_baseline: 004b2fd   # certified Stage 1C merge on main; NOT rebased onto anything uncertified
+          feature_head: 4669cca      # reviewed head of PR #7 (CI formatting fix)
+          # Post-merge certification (recorded 2026-07-22). Squash-merged: beea0d9 has single parent 004b2fd,
+          # so 4669cca is represented by content (tree byte-identical across all Stage 1D paths), not ancestry.
+          implementation_status: merged
+          implementation_pr: 7
+          implementation_head_sha: 4669cca45e27a177dd1e63790058da6cb2cb527e
+          implementation_merge_sha: beea0d90dd283b1289a74af0107b3751794dd245
           smoke_certification: passed_locally          # 9 suites, 1166 assertions, 0 failures
           postgresql_certification: passed_locally      # 9 db specs, 332 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          ci_certification: pending                     # PR not yet opened; required Smoke + DB (PostgreSQL 16) lanes must pass
-          merge_status: not_merged
-          stage_gate: go                                # architecture accepted (ADR-017..020), readiness GO
-          stage_2_readiness: not_started                # Stage 2 must NOT begin until 1D is certified and merged
+          ci_certification: passed                      # PR #7 run 29898123814 on 4669cca: Smoke + DB (PostgreSQL 16) both green
+          certification_status: certified_on_branch
+          certified_baseline_sha: beea0d90dd283b1289a74af0107b3751794dd245   # actual main SHA tested
+          certification_pr: pending                     # cert PR prepared, NOT merged
+          merge_status: merged
+          stage_gate: go                                # architecture accepted (ADR-017..020)
+          stage_2_readiness: not_started                # Stage 2 must NOT begin until the certification PR merges
           local_reverification: {smoke_suites: 9, smoke_assertions: 1166, db_specs: 9, db_assertions: 332,
-                                  postgres_version: "15.2", clean_checkout: false}
+                                  postgres_version: "15.2", clean_checkout: true, tree_identical_to_ci_head: true}
           docs: docs/build/stages/STAGE_1D_RBAC_AUTHORIZATION_COMPLETION.md
+          certification_docs: docs/build/stages/STAGE_1D_RBAC_AUTHORIZATION_CERTIFICATION.md
         # -------------------------------------------------------------------------------------------------
         open_gaps:
           - "GAP-1 CLOSED in 1B: identity.lifecycle is registered in event-registry.yaml, declared in the
