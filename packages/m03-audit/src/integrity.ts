@@ -93,14 +93,24 @@ export function verifyChain(
   let expectedSeq: number | null = null;
   for (const e of events) {
     if (expectedSeq !== null && e.seq !== expectedSeq) {
-      return { ok: false, brokenAtSeq: e.seq, checked: events.length, reason: 'non-contiguous seq (gap or reorder)' };
+      return {
+        ok: false,
+        brokenAtSeq: e.seq,
+        checked: events.length,
+        reason: 'non-contiguous seq (gap or reorder)',
+      };
     }
     if (e.previousHash !== prior) {
       return { ok: false, brokenAtSeq: e.seq, checked: events.length, reason: 'previous-hash mismatch' };
     }
     const recomputed = hashEvent(prior, e);
     if (recomputed !== e.eventHash) {
-      return { ok: false, brokenAtSeq: e.seq, checked: events.length, reason: 'event-hash mismatch (record altered)' };
+      return {
+        ok: false,
+        brokenAtSeq: e.seq,
+        checked: events.length,
+        reason: 'event-hash mismatch (record altered)',
+      };
     }
     prior = e.eventHash;
     expectedSeq = e.seq + 1;

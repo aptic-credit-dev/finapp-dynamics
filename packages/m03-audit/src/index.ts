@@ -14,13 +14,7 @@ export type { ActorType, Outcome, Category } from './domain/types.ts';
 // Redaction + integrity — pure.
 export { redact, REDACTED } from './redaction.ts';
 export type { RedactionResult } from './redaction.ts';
-export {
-  hashEvent,
-  verifyChain,
-  canonicalize,
-  INTEGRITY_VERSION,
-  GENESIS_HASH,
-} from './integrity.ts';
+export { hashEvent, verifyChain, canonicalize, INTEGRITY_VERSION, GENESIS_HASH } from './integrity.ts';
 export type { HashableEvent, ChainVerification } from './integrity.ts';
 
 // Registered names.

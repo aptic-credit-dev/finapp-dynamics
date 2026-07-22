@@ -10,7 +10,13 @@ import {
 } from '@finapp/kernel';
 import { AuditRepository, type AuditEventRow, type InsertAuditInput } from './repository.ts';
 import { redact } from './redaction.ts';
-import { hashEvent, verifyChain, INTEGRITY_VERSION, type HashableEvent, type ChainVerification } from './integrity.ts';
+import {
+  hashEvent,
+  verifyChain,
+  INTEGRITY_VERSION,
+  type HashableEvent,
+  type ChainVerification,
+} from './integrity.ts';
 import { categoryForCode, moduleForCode, type Category, type Outcome } from './domain/types.ts';
 
 /**
@@ -56,7 +62,14 @@ export class AuditService implements Audit {
    */
   async recordSuccess(
     ctx: RequestContext | SystemContext,
-    input: { code: string; resourceType: string; resourceId: string; category?: Category; reason?: string; detail?: Record<string, unknown> },
+    input: {
+      code: string;
+      resourceType: string;
+      resourceId: string;
+      category?: Category;
+      reason?: string;
+      detail?: Record<string, unknown>;
+    },
   ): Promise<void> {
     await this.independent(ctx, {
       code: input.code,
@@ -76,7 +89,14 @@ export class AuditService implements Audit {
    */
   async recordFailure(
     ctx: RequestContext | SystemContext,
-    input: { code: string; resourceType: string; resourceId: string; outcome?: 'failure' | 'error'; reason?: string; detail?: Record<string, unknown> },
+    input: {
+      code: string;
+      resourceType: string;
+      resourceId: string;
+      outcome?: 'failure' | 'error';
+      reason?: string;
+      detail?: Record<string, unknown>;
+    },
   ): Promise<void> {
     await this.independent(ctx, {
       code: input.code,
@@ -95,7 +115,14 @@ export class AuditService implements Audit {
    */
   async recordAuthorizationDecision(
     ctx: RequestContext | SystemContext,
-    input: { code: string; permission: string; resourceType: string; resourceId: string; outcome?: 'denied' | 'indeterminate'; reason?: string },
+    input: {
+      code: string;
+      permission: string;
+      resourceType: string;
+      resourceId: string;
+      outcome?: 'denied' | 'indeterminate';
+      reason?: string;
+    },
   ): Promise<void> {
     await this.independent(ctx, {
       code: input.code,
@@ -157,7 +184,13 @@ export class AuditService implements Audit {
       correlationId: ctx.correlationId,
       causationId: meta.causationId ?? null,
       occurredAt: occurredAt.toISOString(),
-      detail: hashDetail(params.reasonCode, before.value, after.value, params.changedFields ?? null, metadata),
+      detail: hashDetail(
+        params.reasonCode,
+        before.value,
+        after.value,
+        params.changedFields ?? null,
+        metadata,
+      ),
     };
     const eventHash = hashEvent(link.previousHash, hashable);
 
@@ -226,7 +259,13 @@ export class AuditService implements Audit {
       correlationId: row.correlation_id,
       causationId: row.causation_id,
       occurredAt: row.occurred_at.toISOString(),
-      detail: hashDetail(row.reason_code, row.before_snapshot, row.after_snapshot, row.changed_fields, row.metadata),
+      detail: hashDetail(
+        row.reason_code,
+        row.before_snapshot,
+        row.after_snapshot,
+        row.changed_fields,
+        row.metadata,
+      ),
       previousHash: row.previous_event_hash,
       eventHash: row.event_hash,
     };

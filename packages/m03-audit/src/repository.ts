@@ -130,13 +130,39 @@ export class AuditRepository {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,
                $20,$21::jsonb,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33)`,
       [
-        input.id, input.tenantId, input.scopeKey, input.seq, input.actorType, input.actorId,
-        input.actorAccountId, jsonOrNull(input.actorRoleSnapshot), input.impersonatorId, input.module,
-        input.action, input.category, input.resourceType, input.resourceId, input.outcome, input.reasonCode,
-        input.summary, jsonOrNull(input.beforeSnapshot), jsonOrNull(input.afterSnapshot), input.changedFields,
-        jsonOrNull(input.metadata), input.requestId, input.correlationId, input.causationId, input.sessionId,
-        input.authenticationMethod, input.sourceSystem, input.sourceIp, input.userAgent, input.occurredAt,
-        input.integrityVersion, input.previousHash, input.eventHash,
+        input.id,
+        input.tenantId,
+        input.scopeKey,
+        input.seq,
+        input.actorType,
+        input.actorId,
+        input.actorAccountId,
+        jsonOrNull(input.actorRoleSnapshot),
+        input.impersonatorId,
+        input.module,
+        input.action,
+        input.category,
+        input.resourceType,
+        input.resourceId,
+        input.outcome,
+        input.reasonCode,
+        input.summary,
+        jsonOrNull(input.beforeSnapshot),
+        jsonOrNull(input.afterSnapshot),
+        input.changedFields,
+        jsonOrNull(input.metadata),
+        input.requestId,
+        input.correlationId,
+        input.causationId,
+        input.sessionId,
+        input.authenticationMethod,
+        input.sourceSystem,
+        input.sourceIp,
+        input.userAgent,
+        input.occurredAt,
+        input.integrityVersion,
+        input.previousHash,
+        input.eventHash,
       ],
     );
   }
@@ -178,10 +204,7 @@ export class AuditRepository {
   }
 
   /** The full chain for a scope in seq order — for integrity verification. */
-  async scopeChain(
-    tx: Tx,
-    scopeKey: string,
-  ): Promise<AuditEventRow[]> {
+  async scopeChain(tx: Tx, scopeKey: string): Promise<AuditEventRow[]> {
     const r = await tx.query<AuditEventRow>(
       `SELECT * FROM audit_events WHERE scope_key = $1 ORDER BY seq ASC`,
       [scopeKey],

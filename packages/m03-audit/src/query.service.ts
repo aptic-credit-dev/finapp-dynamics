@@ -38,21 +38,33 @@ export class AuditQueryService {
   }
 
   /** Search the caller's OWN tenant's events (RLS-bounded). */
-  async searchTenant(ctx: RequestContext, filter: Omit<AuditQueryFilter, 'limit' | 'offset' | 'platform'> & { limit?: number; offset?: number }): Promise<AuditEventRow[]> {
+  async searchTenant(
+    ctx: RequestContext,
+    filter: Omit<AuditQueryFilter, 'limit' | 'offset' | 'platform'> & { limit?: number; offset?: number },
+  ): Promise<AuditEventRow[]> {
     await this.authz.require(ctx, AUDIT_PERMISSIONS.eventSearch);
     const f = bound(filter);
     return this.db.withTenant(ctx, (tx) => this.repo.search(tx, f));
   }
 
   /** Search PLATFORM (tenant-less) events. Requires the separate platform grant; runs under system escape. */
-  async searchPlatform(ctx: AuthorizedContext, filter: Omit<AuditQueryFilter, 'limit' | 'offset' | 'platform'> & { limit?: number; offset?: number }): Promise<AuditEventRow[]> {
+  async searchPlatform(
+    ctx: AuthorizedContext,
+    filter: Omit<AuditQueryFilter, 'limit' | 'offset' | 'platform'> & { limit?: number; offset?: number },
+  ): Promise<AuditEventRow[]> {
     await this.authz.require(ctx, AUDIT_PERMISSIONS.platformView);
     const f = { ...bound(filter), platform: true };
-    return this.db.withSystem({ reason: 'audit platform search (m03)', correlationId: ctx.correlationId }, (tx) => this.repo.search(tx, f));
+    return this.db.withSystem(
+      { reason: 'audit platform search (m03)', correlationId: ctx.correlationId },
+      (tx) => this.repo.search(tx, f),
+    );
   }
 
   /** Export a tenant's matching events, and RECORD the export as its own audit event. */
-  async exportTenant(ctx: RequestContext, filter: Omit<AuditQueryFilter, 'limit' | 'offset' | 'platform'> & { limit?: number; offset?: number }): Promise<AuditEventRow[]> {
+  async exportTenant(
+    ctx: RequestContext,
+    filter: Omit<AuditQueryFilter, 'limit' | 'offset' | 'platform'> & { limit?: number; offset?: number },
+  ): Promise<AuditEventRow[]> {
     await this.authz.require(ctx, AUDIT_PERMISSIONS.eventExport);
     const f = bound(filter);
     const rows = await this.db.withTenant(ctx, (tx) => this.repo.search(tx, f));
@@ -75,8 +87,7 @@ export class AuditQueryService {
    */
   async verifyScope(ctx: AuthorizedContext, scopeKey: string): Promise<ChainVerification> {
     await this.authz.require(ctx, AUDIT_PERMISSIONS.integrityVerify);
-    const ownTenantScope =
-      'tenantId' in ctx && typeof (ctx).tenantId === 'string' && scopeKey === (ctx).tenantId;
+    const ownTenantScope = 'tenantId' in ctx && typeof ctx.tenantId === 'string' && scopeKey === ctx.tenantId;
 
     let rows: AuditEventRow[];
     if (ownTenantScope) {
@@ -94,7 +105,12 @@ export class AuditQueryService {
       category: 'security_event',
       resourceType: 'audit_chain',
       resourceId: scopeKey,
-      detail: { ok: result.ok, checked: result.checked, brokenAtSeq: result.brokenAtSeq, reason: result.reason },
+      detail: {
+        ok: result.ok,
+        checked: result.checked,
+        brokenAtSeq: result.brokenAtSeq,
+        reason: result.reason,
+      },
     });
     return result;
   }

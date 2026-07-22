@@ -36,12 +36,20 @@ export default defineSuite('m03-audit', (t) => {
   t.equal(new Set(OUTCOMES).size, OUTCOMES.length, 'no duplicate outcomes');
   t.equal(new Set(CATEGORIES).size, CATEGORIES.length, 'no duplicate categories');
 
-  t.equal(moduleForCode('RBAC_ROLE_CREATED'), 'm02-rbac', 'module is derived from the registered code prefix');
+  t.equal(
+    moduleForCode('RBAC_ROLE_CREATED'),
+    'm02-rbac',
+    'module is derived from the registered code prefix',
+  );
   t.equal(moduleForCode('TENANT_REGISTRY_CREATED'), 'm01-tenant', 'tenant prefix maps to m01');
   t.equal(moduleForCode('AUDIT_EVENT_EXPORTED'), 'm03-audit', 'audit prefix maps to m03');
   t.equal(moduleForCode('WAT_NO_SUCH_PREFIX'), 'unknown', 'an unknown prefix is "unknown", never a throw');
   t.equal(categoryForCode('AUTH_LOGIN_SUCCEEDED'), 'authentication', 'auth codes classify as authentication');
-  t.equal(categoryForCode('RBAC_ASSIGNMENT_GRANTED'), 'assignment', 'rbac assignment classifies as assignment');
+  t.equal(
+    categoryForCode('RBAC_ASSIGNMENT_GRANTED'),
+    'assignment',
+    'rbac assignment classifies as assignment',
+  );
 
   // --- registered names ----------------------------------------------------------------------------
   for (const code of ALL_AUDIT_PERMISSIONS) {
@@ -56,18 +64,21 @@ export default defineSuite('m03-audit', (t) => {
   // --- redaction: nothing sensitive is retained ----------------------------------------------------
   {
     const r = redact({ user: 'ada', password: 'hunter2', token: 'abc', nested: { api_key: 'k', ok: 1 } });
-    const v = (r.value ?? {});
+    const v = r.value ?? {};
     const nested = (v['nested'] ?? {}) as Record<string, unknown>;
     t.equal(v['password'], REDACTED, 'a password field is masked');
     t.equal(v['token'], REDACTED, 'a token field is masked');
     t.equal(nested['api_key'], REDACTED, 'nested secrets are masked recursively');
     t.equal(nested['ok'], 1, 'non-secret fields survive');
-    t.ok(r.redactedKeys.includes('password') && r.redactedKeys.includes('nested.api_key'), 'redacted key PATHS are recorded (never the values)');
+    t.ok(
+      r.redactedKeys.includes('password') && r.redactedKeys.includes('nested.api_key'),
+      'redacted key PATHS are recorded (never the values)',
+    );
   }
   {
     const big = 'x'.repeat(5000);
     const r = redact({ note: big });
-    t.ok(String((r.value!)['note']).length < big.length, 'a very long string is truncated');
+    t.ok(String(r.value!['note']).length < big.length, 'a very long string is truncated');
     t.ok(r.truncated, 'truncation is flagged');
   }
   {
@@ -85,11 +96,28 @@ export default defineSuite('m03-audit', (t) => {
 
   // --- tamper evidence -----------------------------------------------------------------------------
   const base = (seq: number, id: string): HashableEvent => ({
-    id, scopeKey: 't1', seq, tenantId: 't1', actorType: 'user', actorId: 'u1', module: 'm', action: 'X_Y_Z',
-    category: 'state_transition', resourceType: 'r', resourceId: 'r1', outcome: 'success',
-    correlationId: 'c1', causationId: null, occurredAt: '2026-01-01T00:00:00.000Z', detail: { n: seq },
+    id,
+    scopeKey: 't1',
+    seq,
+    tenantId: 't1',
+    actorType: 'user',
+    actorId: 'u1',
+    module: 'm',
+    action: 'X_Y_Z',
+    category: 'state_transition',
+    resourceType: 'r',
+    resourceId: 'r1',
+    outcome: 'success',
+    correlationId: 'c1',
+    causationId: null,
+    occurredAt: '2026-01-01T00:00:00.000Z',
+    detail: { n: seq },
   });
-  t.equal(canonicalize({ b: 1, a: 2 }), canonicalize({ a: 2, b: 1 }), 'canonicalisation is key-order independent');
+  t.equal(
+    canonicalize({ b: 1, a: 2 }),
+    canonicalize({ a: 2, b: 1 }),
+    'canonicalisation is key-order independent',
+  );
 
   const h1 = hashEvent(GENESIS_HASH, base(1, 'id1'));
   const h2 = hashEvent(h1, base(2, 'id2'));

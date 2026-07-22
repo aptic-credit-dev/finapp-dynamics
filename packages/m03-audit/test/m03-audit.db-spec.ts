@@ -33,18 +33,36 @@ export default defineDbSpec('m03-audit', async (ctx, t) => {
   const tenantA = await seedTenant(ctx, 'audita');
   const tenantB = await seedTenant(ctx, 'auditb');
   const identity = randomUUID();
-  const ctxA: RequestContext = { tenantId: tenantA, userId: identity, correlationId: randomUUID(), permissions: [] };
-  const ctxB: RequestContext = { tenantId: tenantB, userId: randomUUID(), correlationId: randomUUID(), permissions: [] };
+  const ctxA: RequestContext = {
+    tenantId: tenantA,
+    userId: identity,
+    correlationId: randomUUID(),
+    permissions: [],
+  };
+  const ctxB: RequestContext = {
+    tenantId: tenantB,
+    userId: randomUUID(),
+    correlationId: randomUUID(),
+    permissions: [],
+  };
   const sys: SystemContext = { reason: 'platform op (spec)', correlationId: randomUUID() };
 
   // --- persistence + actor-from-context ------------------------------------------------------------
   {
-    await audit.recordSuccess(ctxA, { code: 'TENANT_REGISTRY_CREATED', resourceType: 'tenant', resourceId: tenantA });
+    await audit.recordSuccess(ctxA, {
+      code: 'TENANT_REGISTRY_CREATED',
+      resourceType: 'tenant',
+      resourceId: tenantA,
+    });
     const rows = await db.withTenant(ctxA, (tx) => repo.search(tx, { limit: 10, offset: 0 }));
     t.equal(rows.length, 1, 'the event persisted and reads back in its tenant');
     const row = rows[0];
     t.equal(row?.tenant_id, tenantA, 'scoped to the acting tenant');
-    t.equal(row?.actor_id, identity, 'the actor is the AUTHENTICATED identity from context — not a client claim');
+    t.equal(
+      row?.actor_id,
+      identity,
+      'the actor is the AUTHENTICATED identity from context — not a client claim',
+    );
     t.equal(row?.actor_type, 'user', 'a request context records a user actor');
     t.equal(row?.module, 'm01-tenant', 'the module is derived from the audit code prefix');
     t.equal(row?.outcome, 'success', 'a recordSuccess is a success outcome');
@@ -60,12 +78,28 @@ export default defineDbSpec('m03-audit', async (ctx, t) => {
 
   // --- platform-event separation -------------------------------------------------------------------
   {
-    await audit.recordSuccess(sys, { code: 'AUDIT_RETENTION_EXECUTED', resourceType: 'retention', resourceId: 'run1' });
+    await audit.recordSuccess(sys, {
+      code: 'AUDIT_RETENTION_EXECUTED',
+      resourceType: 'retention',
+      resourceId: 'run1',
+    });
     const tenantView = await db.withTenant(ctxA, (tx) => repo.search(tx, { limit: 50, offset: 0 }));
-    t.ok(tenantView.every((r) => r.tenant_id === tenantA), 'a tenant admin never sees PLATFORM events');
-    const platformView = await db.withSystem(sys, (tx) => repo.search(tx, { limit: 50, offset: 0, platform: true }));
-    t.ok(platformView.some((r) => r.action === 'AUDIT_RETENTION_EXECUTED' && r.tenant_id === null), 'the platform event is visible under the system escape');
-    t.equal(platformView.find((r) => r.action === 'AUDIT_RETENTION_EXECUTED')?.actor_type, 'system_process', 'a system context records a system_process actor with no user id');
+    t.ok(
+      tenantView.every((r) => r.tenant_id === tenantA),
+      'a tenant admin never sees PLATFORM events',
+    );
+    const platformView = await db.withSystem(sys, (tx) =>
+      repo.search(tx, { limit: 50, offset: 0, platform: true }),
+    );
+    t.ok(
+      platformView.some((r) => r.action === 'AUDIT_RETENTION_EXECUTED' && r.tenant_id === null),
+      'the platform event is visible under the system escape',
+    );
+    t.equal(
+      platformView.find((r) => r.action === 'AUDIT_RETENTION_EXECUTED')?.actor_type,
+      'system_process',
+      'a system context records a system_process actor with no user id',
+    );
   }
 
   // --- redaction: nothing sensitive is stored ------------------------------------------------------
@@ -76,8 +110,10 @@ export default defineDbSpec('m03-audit', async (ctx, t) => {
       resourceId: 'cred1',
       detail: { password: 'hunter2', token: 'abc', note: 'ok' },
     });
-    const rows = await db.withTenant(ctxA, (tx) => repo.search(tx, { action: 'AUTH_CREDENTIAL_VERIFIED', limit: 1, offset: 0 }));
-    const after = (rows[0]?.after_snapshot ?? {});
+    const rows = await db.withTenant(ctxA, (tx) =>
+      repo.search(tx, { action: 'AUTH_CREDENTIAL_VERIFIED', limit: 1, offset: 0 }),
+    );
+    const after = rows[0]?.after_snapshot ?? {};
     t.equal(after['password'], '[REDACTED]', 'a secret in detail is masked before storage');
     t.equal(after['token'], '[REDACTED]', 'a token in detail is masked before storage');
     t.equal(after['note'], 'ok', 'non-secret detail survives');
@@ -85,10 +121,24 @@ export default defineDbSpec('m03-audit', async (ctx, t) => {
 
   // --- failure + authorization-decision recording --------------------------------------------------
   {
-    await audit.recordFailure(ctxA, { code: 'TENANT_REGISTRY_UPDATED', resourceType: 'tenant', resourceId: tenantA, reason: 'version conflict' });
-    await audit.recordAuthorizationDecision(ctxA, { code: 'RBAC_ROLE_CREATED', permission: 'rbac.role.create', resourceType: 'role', resourceId: 'r1', reason: 'missing permission' });
+    await audit.recordFailure(ctxA, {
+      code: 'TENANT_REGISTRY_UPDATED',
+      resourceType: 'tenant',
+      resourceId: tenantA,
+      reason: 'version conflict',
+    });
+    await audit.recordAuthorizationDecision(ctxA, {
+      code: 'RBAC_ROLE_CREATED',
+      permission: 'rbac.role.create',
+      resourceType: 'role',
+      resourceId: 'r1',
+      reason: 'missing permission',
+    });
     const rows = await db.withTenant(ctxA, (tx) => repo.search(tx, { limit: 50, offset: 0 }));
-    t.ok(rows.some((r) => r.outcome === 'failure'), 'a failed action is recorded with a failure outcome');
+    t.ok(
+      rows.some((r) => r.outcome === 'failure'),
+      'a failed action is recorded with a failure outcome',
+    );
     const denied = rows.find((r) => r.outcome === 'denied');
     t.ok(denied !== undefined, 'an authorization denial is recorded');
     t.equal(denied?.category, 'authorization', 'and categorised as authorization');
@@ -106,7 +156,9 @@ export default defineDbSpec('m03-audit', async (ctx, t) => {
   {
     // As the application role: no UPDATE/DELETE privilege was ever granted.
     const noUpdatePriv = await refused(() =>
-      db.withTenant(ctxA, (tx) => tx.query(`UPDATE audit_events SET summary = 'tampered' WHERE tenant_id = $1`, [tenantA])),
+      db.withTenant(ctxA, (tx) =>
+        tx.query(`UPDATE audit_events SET summary = 'tampered' WHERE tenant_id = $1`, [tenantA]),
+      ),
     );
     t.ok(noUpdatePriv, 'the application role cannot UPDATE audit events (no privilege)');
     const noDeletePriv = await refused(() =>
@@ -116,7 +168,9 @@ export default defineDbSpec('m03-audit', async (ctx, t) => {
 
     // As the SUPERUSER (bypasses RLS and privilege): the triggers still reject — append-only binds everyone.
     const triggerBlocksUpdate = await refused(() =>
-      ctx.asSuperuser(null, (tx) => tx.query(`UPDATE audit_events SET summary = 'tampered' WHERE tenant_id = $1`, [tenantA])),
+      ctx.asSuperuser(null, (tx) =>
+        tx.query(`UPDATE audit_events SET summary = 'tampered' WHERE tenant_id = $1`, [tenantA]),
+      ),
     );
     t.ok(triggerBlocksUpdate, 'even a superuser UPDATE is rejected by the append-only trigger');
     const triggerBlocksDelete = await refused(() =>

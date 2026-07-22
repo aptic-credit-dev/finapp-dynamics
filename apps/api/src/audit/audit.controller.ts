@@ -59,7 +59,10 @@ export class AuditController {
   @Get('events/:eventId')
   async get(@Param('eventId') eventId: string, @Headers() headers: Record<string, string>) {
     const scoped = requireTenantScope(await this.actors.forRequest(headers, 'read audit event (m03)'));
-    const row = await this.service.getEvent(scoped.ctx, requireUuidParam(eventId, 'eventId', scoped.correlationId));
+    const row = await this.service.getEvent(
+      scoped.ctx,
+      requireUuidParam(eventId, 'eventId', scoped.correlationId),
+    );
     return auditEventView(row);
   }
 
@@ -81,7 +84,10 @@ export class AuditController {
     description: 'Export the caller tenant’s matching audit events. The export is itself audited.',
   })
   @Post('exports')
-  async export(@Body() body: FilterQuery & { limit?: number; offset?: number }, @Headers() headers: Record<string, string>) {
+  async export(
+    @Body() body: FilterQuery & { limit?: number; offset?: number },
+    @Headers() headers: Record<string, string>,
+  ) {
     const scoped = requireTenantScope(await this.actors.forRequest(headers, 'export audit (m03)'));
     const rows = await this.service.exportTenant(scoped.ctx, {
       ...filterFrom(body),
