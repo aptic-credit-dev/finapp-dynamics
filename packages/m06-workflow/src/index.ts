@@ -116,3 +116,7 @@ export {
   EngineError,
 } from './domain/engine.ts';
 export type { EngineDirective, OutgoingEdge } from './domain/engine.ts';
+
+// Persistence
+export { WorkflowRepository } from './repository.ts';
+export type { DefinitionRow, VersionRow, InstanceRow, TaskRow } from './repository.ts';
