@@ -63,3 +63,18 @@ export type {
   SodPayload,
   BootstrapPayload,
 } from './authz-events.ts';
+export {
+  WORKFLOW_LIFECYCLE_FAMILY,
+  WORKFLOW_LIFECYCLE_VERSION,
+  WORKFLOW_LIFECYCLE_EVENT_TYPES,
+} from './workflow-events.ts';
+export type {
+  WorkflowLifecycleEvent,
+  WorkflowLifecycleEventType,
+  WorkflowLifecyclePayload,
+  WorkflowDefinitionPayload,
+  WorkflowInstancePayload,
+  WorkflowTaskPayload,
+  WorkflowSlaPayload,
+  WorkflowIncidentPayload,
+} from './workflow-events.ts';

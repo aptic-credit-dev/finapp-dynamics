@@ -55,7 +55,16 @@ namespaces:
      codes: ["audit.event.view", "audit.event.search", "audit.event.export",
              "audit.platform.view", "audit.retention.manage", "audit.integrity.verify",
              "audit.configuration.manage"]}
-  - {namespace: "workflow.*", module: m06-workflow, mvp: true, status: documented}
+  - {namespace: "workflow.*", module: m06-workflow, mvp: true, status: implemented, substage: "2.2",
+     codes: ["workflow.definition.create", "workflow.definition.view", "workflow.definition.edit",
+             "workflow.definition.validate", "workflow.definition.publish", "workflow.definition.activate",
+             "workflow.definition.retire",
+             "workflow.instance.start", "workflow.instance.view", "workflow.instance.suspend",
+             "workflow.instance.resume", "workflow.instance.cancel", "workflow.instance.retry",
+             "workflow.task.view", "workflow.task.claim", "workflow.task.assign", "workflow.task.reassign",
+             "workflow.task.complete", "workflow.task.reject", "workflow.task.delegate", "workflow.task.escalate",
+             "workflow.incident.view", "workflow.incident.resolve",
+             "workflow.engine.administer"]}
   - {namespace: "rules.*", module: m07-rules, mvp: true, status: documented}
   - {namespace: "notifications.*", module: m08-notify, mvp: true, status: documented}
   - {namespace: "documents.*", module: m09-docs, mvp: true, status: documented}

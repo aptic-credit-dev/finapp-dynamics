@@ -212,6 +212,72 @@ first grant must come from a controlled, auditable, non-bypass channel.
 **Consequence:** an operational runbook for first-admin provisioning; no standing bypass. Rejected: a permanent
 admin bypass secret; embedding credentials; unrestricted repeated admin creation.
 
+## ADR-021 — Enterprise workflow engine architecture (Stage 2.2)
+**Status:** **ACCEPTED** — 2026-07-23 (product owner + security). Module `m06-workflow`, branch `feature/stage-2-2-m06-workflow`, parent `cd29b7b` (certified Stage 2.1).
+
+**Context:** many business modules (Feedback, Legal Case, Finance approvals, Reconciliation exceptions, Document approvals, Risk/compliance, Executive escalations) need the same orchestration primitives. Re-implementing them per module would fragment control and audit.
+
+**Decision:** m06 is a **generic, data-driven** workflow engine. Business processes are **published, versioned definitions (data)**, never hard-coded in the engine. m06 consumes `DB`/`AUDIT`/`AUTHZ` through kernel tokens and **owns the single transactional `OUTBOX`**. It provides orchestration, task routing, state machines, SLA tracking, escalation, and auditable transitions — and nothing business-specific.
+
+**Rationale:** one authoritative engine gives one place to enforce permissions, tenant isolation, maker-checker, and audit; a data-driven model lets tenants configure processes without code changes.
+
+**Consequence:** the engine core carries no module-specific branches. **Security:** every transition is permissioned (default deny) and audited; the engine cannot bypass module permissions, financial/legal controls, tenant isolation, approvals, or DLP (ADR-011). **Operational:** a definition catalogue and a runtime scheduler/dispatcher. **Deferred:** graphical designer, BPMN import/export, distributed choreography, process mining, AI-generated workflows, SUB_WORKFLOW/COMPENSATION execution (codes/enums reserved). Rejected: per-module bespoke workflow code; an engine that can post journals, send notifications, or store documents (owned by Finance/m08/m09).
+
+## ADR-022 — Immutable workflow versioning (Stage 2.2)
+**Status:** **ACCEPTED** — 2026-07-23 (product owner + security). Module `m06-workflow`, branch as ADR-021.
+
+**Context:** a workflow definition changes over time, but instances already running under an older revision must remain deterministic and auditable.
+
+**Decision:** publishing a definition **version freezes its content** (`spec` immutable; enforced by grants + status guard). A running **instance is pinned to the version it started under**, including that version's SLA configuration. Changes require a **new version**; moving live instances to a new version is an explicit, governed, audited **active-instance migration** (deferred).
+
+**Rationale:** immutability makes execution reproducible and audit-explainable; silent edits to a live process would corrupt in-flight work and evidence.
+
+**Consequence:** at most one ACTIVE version per definition governs new starts; older versions keep running their instances. **Security:** no one can alter the rules a running instance obeys. **Operational:** version catalogue + deployment records. **Deferred:** active-instance version migration tooling. Rejected: mutable published definitions; auto-upgrading running instances.
+
+## ADR-023 — Transactional transition & outbox model (Stage 2.2)
+**Status:** **ACCEPTED** — 2026-07-23 (product owner + security). Module `m06-workflow`, branch as ADR-021.
+
+**Context:** a transition mutates workflow state, must be audited, and often must emit integration events — all consistently, and safely under concurrency and process failure.
+
+**Decision:** workflow **state mutation, its audit append (`audit.write(tx, …)`), and any outbox `publish(tx, event)` occur in one transaction**. m06 owns the **single durable outbox table** and the one `Outbox<DomainEvent>` implementation bound to `OUTBOX`, replacing `RecordingOutbox`. **No external calls inside the core transaction.** Concurrency is controlled by optimistic `version` columns and status-guarded single-winner updates; parallel gateways use deterministic token accounting under a per-instance advisory lock. Delivery is **at-least-once with idempotent consumers**; dead-letter + replay.
+
+**Rationale:** atomic state+audit+event gives exactly-once *intent* without distributed transactions (ADR-004/005); optimistic locking makes double-completion impossible.
+
+**Consequence:** partial transitions are never externally visible; state is fully persisted so execution recovers after a crash. **Security:** audit cannot be suppressed (same tx); events are server-minted (no spoofing). **Operational:** one dispatcher, one dead-letter/replay path. **Deferred:** exactly-once delivery (consumers dedupe instead). Rejected: a second outbox/event path; external I/O in-transaction; last-writer-wins completion.
+
+## ADR-024 — Safe workflow condition expressions (Stage 2.2)
+**Status:** **ACCEPTED** — 2026-07-23 (product owner + security). Module `m06-workflow`, branch as ADR-021.
+
+**Context:** gateways and rules need conditional logic authored by tenants, but arbitrary code in a definition is a remote-code-execution and injection surface.
+
+**Decision:** conditions use a **restricted, interpreted, side-effect-free expression mini-language** over declared workflow variables and an allow-listed operator/function set (comparison, logical, arithmetic, `in`, date-compare). It is **parsed to an AST and interpreted** — **no `eval`, no `Function` constructor, no `vm`, no embedded JavaScript, no raw SQL, no shell, no HTTP, no filesystem, no dynamic module loading, no host-object access**. Only declared variables are addressable; unknown identifiers are validation errors. Definitions are JSON-Schema validated at `validate`/`publish` and **fail closed** on any violation.
+
+**Rationale:** determinism and safety — a tenant must be able to express routing logic without being able to execute code or reach data.
+
+**Consequence:** expressions are analyzable and bounded. **Security:** eliminates expression injection, SQL injection via conditions, and RCE. **Operational:** structured validation errors. **Deferred:** complex logic delegates to m07 rules/decision-tables. Rejected: JS via `vm`; JSONLogic without an allow-list; string-concatenated SQL.
+
+## ADR-025 — SLA clock & timer model (Stage 2.2)
+**Status:** **ACCEPTED** — 2026-07-23 (product owner + security). Module `m06-workflow`, branch as ADR-021.
+
+**Context:** SLAs must measure **business** time (respecting calendars), fire warnings and breaches reliably exactly once, and survive pause/resume and process restarts.
+
+**Decision:** SLA state is **persisted** (`workflow_sla_clock`: started/accumulated/paused, warn_at/breach_at, calendar_ref). Elapsed time is **business time** = intervals intersected with the tenant calendar (open hours minus weekends/holidays). Wake-ups are **persisted timers** (`workflow_timer`) with a UNIQUE `dedupe_key` so a timer fires **once**; warnings/breaches emit once (clock-state guarded) as `WORKFLOW_SLA_WARNING/BREACHED` audit + events. SUSPEND/delegation-gap/force-majeure pause the clock. Running instances retain their version's SLA config (ADR-022).
+
+**Rationale:** persisted clocks + deduped timers give reliable, restart-safe SLA behavior; business-calendar math avoids false breaches over nights/weekends.
+
+**Consequence:** deterministic, replay-safe SLA. **Security:** timers/clocks are server-owned; clients cannot manipulate fire times beyond bounded config. **Operational:** a scheduler polls due timers; a max timer horizon bounds scheduling. **Deferred:** full holiday-calendar admin UI. Rejected: wall-clock SLA; client-set timers; in-memory clocks.
+
+## ADR-026 — Human approval & segregation-of-duties model (Stage 2.2)
+**Status:** **ACCEPTED** — 2026-07-23 (product owner + security). Module `m06-workflow`, branch as ADR-021.
+
+**Context:** controlled actions require human approval with separation of duties, but the workflow engine must never *make* the business decision itself.
+
+**Decision:** m06's APPROVAL_TASK records and orchestrates decisions (approve/reject/return/request-info/abstain/delegate/escalate) under policies (single/sequential/parallel/unanimous/quorum/first-response-wins/amount-matrix/risk-routing). It enforces **maker ≠ checker** (no self-approval), consults m02 `SodService` for role/permission incompatibility, **re-evaluates completion authorization at execution time** (a revoked permission blocks completion), and prevents duplicate approval (idempotent + version guard). **m06 records/orchestrates; the business module owns the decision's meaning and effect.** Approval policy is configured by the workflow **version** locally; enterprise approval-policy administration (matrices, limits, delegations-of-authority) is **m22-approval**'s domain (not built here); m06 may consume m22 later but stays usable with local config.
+
+**Rationale:** finance/legal controls require enforceable maker-checker/SoD (ADR-019); centralizing this in the engine keeps it consistent and auditable without letting automation approve.
+
+**Consequence:** approvals are auditable and SoD-safe. **Security:** no self-approval; no approval after permission revocation; no autonomous/AI approval. **Operational:** approval decisions recorded on task completion with reason. **Deferred:** m22 enterprise approval policies. Rejected: engine-made business decisions; approvals bypassing SoD; automation approving controlled actions.
+
 ## ADR-029 — Enterprise audit event model & append-only spine (Stage 2.1)
 **Status:** **ACCEPTED** — 2026-07-19 (product owner + security). Module `m03-audit`, branch `feature/stage-2-1-m03-audit`, **stacked on the UNMERGED Stage 1D branch** `feature/stage-1d-rbac-authorization` (`cb7e5d8`); Stage 1D is not yet merged or certified, so this baseline is explicitly provisional.
 
