@@ -106,3 +106,13 @@ export type {
   ValidationResult,
 } from './domain/definition.ts';
 export { validateDefinition } from './domain/validator.ts';
+
+// Domain — deterministic runtime engine (ADR-023)
+export {
+  outgoingEdges,
+  resolveExclusiveGateway,
+  directiveForNode,
+  edgeAfterTask,
+  EngineError,
+} from './domain/engine.ts';
+export type { EngineDirective, OutgoingEdge } from './domain/engine.ts';

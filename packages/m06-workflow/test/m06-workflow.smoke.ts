@@ -22,6 +22,10 @@ import {
   joinReady,
   findParallelImbalances,
   validateDefinition,
+  directiveForNode,
+  resolveExclusiveGateway,
+  outgoingEdges,
+  type WorkflowDefinitionSpec,
 } from '@finapp/m06-workflow';
 
 /** A minimal, valid definition used as the base for the validator tests. */
@@ -217,4 +221,86 @@ export default defineSuite('m06-workflow', (t) => {
     hasCode(validateDefinition(tooManyVars), 'TOO_MANY_VARIABLES'),
     'the variable-count limit is enforced',
   );
+
+  // --- deterministic runtime engine (ADR-023) -----------------------------------------------------
+  const gwSpec: WorkflowDefinitionSpec = {
+    schemaVersion: 1,
+    code: 'gw_flow',
+    name: 'gw',
+    variables: [{ name: 'amount', type: 'number' }],
+    nodes: [
+      { key: 'start', type: 'START' },
+      { key: 'gate', type: 'EXCLUSIVE_GATEWAY' },
+      { key: 'big', type: 'END' },
+      { key: 'small', type: 'END' },
+    ],
+    transitions: [
+      { key: 't0', from: 'start', to: 'gate' },
+      { key: 't1', from: 'gate', to: 'big', condition: 'amount >= 1000' },
+      { key: 't2', from: 'gate', to: 'small' },
+    ],
+  };
+  const startDir = directiveForNode(gwSpec, 'start', {});
+  t.ok(startDir.kind === 'advance' && startDir.targets[0]?.to === 'gate', 'START advances to its successor');
+  const bigDir = directiveForNode(gwSpec, 'gate', { amount: 5000 });
+  t.ok(
+    bigDir.kind === 'advance' && bigDir.targets[0]?.to === 'big',
+    'gateway routes a large amount to the true branch',
+  );
+  const smallDir = directiveForNode(gwSpec, 'gate', { amount: 5 });
+  t.ok(
+    smallDir.kind === 'advance' && smallDir.targets[0]?.to === 'small',
+    'gateway falls through to the default branch',
+  );
+  t.ok(directiveForNode(gwSpec, 'big', {}).kind === 'end', 'END consumes the token');
+  t.equal(outgoingEdges(gwSpec, 'gate').length, 2, 'gateway has two outgoing edges');
+  const chosen = resolveExclusiveGateway(outgoingEdges(gwSpec, 'gate'), ['amount'], { amount: 2000 });
+  t.equal(chosen.to, 'big', 'resolveExclusiveGateway picks the first true condition');
+
+  const taskSpec: WorkflowDefinitionSpec = {
+    schemaVersion: 1,
+    code: 'task_flow',
+    name: 't',
+    variables: [],
+    nodes: [
+      { key: 's', type: 'START' },
+      { key: 'review', type: 'HUMAN_TASK' },
+      { key: 'e', type: 'END' },
+    ],
+    transitions: [
+      { key: 't0', from: 's', to: 'review' },
+      { key: 't1', from: 'review', to: 'e' },
+    ],
+  };
+  t.ok(directiveForNode(taskSpec, 'review', {}).kind === 'wait_task', 'a HUMAN_TASK parks the token (waits)');
+
+  const parSpec: WorkflowDefinitionSpec = {
+    schemaVersion: 1,
+    code: 'par_flow',
+    name: 'p',
+    variables: [],
+    nodes: [
+      { key: 's', type: 'START' },
+      { key: 'split', type: 'PARALLEL_SPLIT', config: { joinKey: 'join' } },
+      { key: 'a', type: 'HUMAN_TASK' },
+      { key: 'b', type: 'HUMAN_TASK' },
+      { key: 'join', type: 'PARALLEL_JOIN' },
+      { key: 'e', type: 'END' },
+    ],
+    transitions: [
+      { key: 't0', from: 's', to: 'split' },
+      { key: 't1', from: 'split', to: 'a' },
+      { key: 't2', from: 'split', to: 'b' },
+      { key: 't3', from: 'a', to: 'join' },
+      { key: 't4', from: 'b', to: 'join' },
+      { key: 't5', from: 'join', to: 'e' },
+    ],
+  };
+  const splitDir = directiveForNode(parSpec, 'split', {});
+  t.ok(
+    splitDir.kind === 'split' && splitDir.targets.length === 2,
+    'a PARALLEL_SPLIT fans out to all branches',
+  );
+  t.ok(splitDir.kind === 'split' && splitDir.joinKey === 'join', 'a PARALLEL_SPLIT names its matching join');
+  t.ok(directiveForNode(parSpec, 'join', {}).kind === 'join', 'a PARALLEL_JOIN yields a join directive');
 });
