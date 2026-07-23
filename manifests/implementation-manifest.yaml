@@ -363,16 +363,25 @@ stages:
           module: m03-audit
           substage: "2.1"
           branch: feature/stage-2-1-m03-audit
-          # Rebased 2026-07-22 off the stacked UNMERGED 1D base onto CERTIFIED main (Stage 1D merged via PR #7
-          # and certified via PR #8). Baseline is no longer provisional.
+          certification_branch: cert/stage-2-1-m03-audit
+          # Merged 2026-07-22 via PR #9 (squash) onto certified Stage 1D main. Post-merge certification recorded.
           parent_baseline: 56b7d3ea9cba42a81685fb6aefa1735fe8d314b3   # certified Stage 1D main (PR #8 merge)
-          implementation_status: implemented_on_feature_branch
-          smoke_certification: passed_locally           # 10 suites, 1256 assertions, 0 failures (post-rebase, formatted)
+          implementation_status: merged
+          implementation_pr: 9
+          implementation_head: f6dd8e9af8385778689533131898f3332a033d64
+          implementation_merge_sha: 587a3ce6afdbcd3d4d7e3735117c4e7220568a0e
+          smoke_certification: passed_locally           # 10 suites, 1256 assertions, 0 failures
           postgresql_certification: passed_locally      # 10 db specs, 356 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          ci_certification: pending                     # PR to be opened; required Smoke + DB (PostgreSQL 16) lanes must pass
-          merge_status: not_merged
+          ci_certification: passed                       # PR #9 run 29909503769 on f6dd8e9: Smoke + DB (PostgreSQL 16) both green
+          certification_status: certified_on_branch
+          certified_baseline_sha: 587a3ce6afdbcd3d4d7e3735117c4e7220568a0e   # actual merged main SHA tested
+          certification_pr: pending                      # cert PR prepared, NOT merged
+          merge_status: merged
           adrs: [ADR-029, ADR-030, ADR-031]
+          local_reverification: {smoke_suites: 10, smoke_assertions: 1256, db_specs: 10, db_assertions: 356,
+                                  postgres_version: "15.2", clean_checkout: true, tree_identical_to_ci_head: true}
           docs: docs/build/stages/STAGE_2_1_M03_AUDIT_COMPLETION.md
+          certification_docs: docs/build/stages/STAGE_2_1_M03_AUDIT_CERTIFICATION.md
       - module: m06-workflow
         capability: Status, workflow, SLA, timeline, transactional outbox, idempotency
         status: documented
