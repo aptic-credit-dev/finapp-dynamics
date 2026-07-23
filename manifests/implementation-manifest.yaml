@@ -373,9 +373,10 @@ stages:
           smoke_certification: passed_locally           # 10 suites, 1256 assertions, 0 failures
           postgresql_certification: passed_locally      # 10 db specs, 356 assertions, 0 failures (PostgreSQL 15.2 throwaway)
           ci_certification: passed                       # PR #9 run 29909503769 on f6dd8e9: Smoke + DB (PostgreSQL 16) both green
-          certification_status: certified_on_branch
-          certified_baseline_sha: 587a3ce6afdbcd3d4d7e3735117c4e7220568a0e   # actual merged main SHA tested
-          certification_pr: pending                      # cert PR prepared, NOT merged
+          certification_status: certified               # cert PR #11 merged 2026-07-23
+          certified_baseline_sha: 587a3ce6afdbcd3d4d7e3735117c4e7220568a0e   # merged main SHA tested for certification
+          certification_pr: 11
+          certification_merge_sha: cd29b7b5b1c0220fd801989e528d06911395b7a9   # PR #11 squash merge
           merge_status: merged
           adrs: [ADR-029, ADR-030, ADR-031]
           local_reverification: {smoke_suites: 10, smoke_assertions: 1256, db_specs: 10, db_assertions: 356,
