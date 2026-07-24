@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { defineDbSpec } from '@finapp/test-runner';
 import { PgDb } from '@finapp/kernel/pg';
 import type { RequestContext, SystemContext } from '@finapp/kernel';
-import { WorkflowRepository } from '@finapp/m06-workflow';
+import { WorkflowRepository, WorkflowOutbox } from '@finapp/m06-workflow';
+import type { DomainEvent } from '@finapp/contracts';
 
 /**
  * M06 DB integration spec. Proves the workflow schema's load-bearing guarantees on a REAL PostgreSQL through
@@ -180,8 +181,6 @@ export default defineDbSpec('m06-workflow', async (ctx, t) => {
   // --- outbox scope coherence --------------------------------------------------------------------
   await db.withTenant(ctxA, (tx) =>
     repo.insertOutboxRow(tx, {
-      tenantId: tenantA,
-      scopeKey: tenantA,
       family: 'workflow.lifecycle',
       type: 'workflow.instance.started',
       aggregateId: seeded.instId,
@@ -211,4 +210,50 @@ export default defineDbSpec('m06-workflow', async (ctx, t) => {
     '1',
     'the platform dispatcher reads the outbox across tenants (system escape)',
   );
+
+  // --- WorkflowOutbox atomicity: enqueued iff the transaction commits -----------------------------
+  const outbox = new WorkflowOutbox(repo);
+  const evt = (id: string): DomainEvent => ({
+    eventId: id,
+    family: 'workflow.lifecycle',
+    type: 'WorkflowInstanceStarted',
+    version: 1,
+    occurredAt: new Date(),
+    tenantId: tenantA,
+    correlationId: randomUUID(),
+    classification: 'confidential',
+    payload: {
+      instanceId: seeded.instId,
+      definitionId: seeded.defId,
+      versionId: seeded.instId,
+      toStatus: 'RUNNING',
+    },
+  });
+
+  const committedId = randomUUID();
+  await db.withTenant(ctxA, (tx) => outbox.publish(tx, evt(committedId)));
+  const committed = await db.withTenant(ctxA, (tx) =>
+    tx.query<{ n: string }>(`SELECT count(*)::text AS n FROM workflow_event_outbox WHERE dedupe_key = $1`, [
+      committedId,
+    ]),
+  );
+  t.equal(committed.rows[0]?.n, '1', 'a published event is enqueued when its transaction commits');
+
+  const rolledBackId = randomUUID();
+  let threw = false;
+  try {
+    await db.withTenant(ctxA, async (tx) => {
+      await outbox.publish(tx, evt(rolledBackId));
+      throw new Error('force rollback');
+    });
+  } catch {
+    threw = true;
+  }
+  t.ok(threw, 'the business transaction rolled back');
+  const rolledBack = await db.withTenant(ctxA, (tx) =>
+    tx.query<{ n: string }>(`SELECT count(*)::text AS n FROM workflow_event_outbox WHERE dedupe_key = $1`, [
+      rolledBackId,
+    ]),
+  );
+  t.equal(rolledBack.rows[0]?.n, '0', 'a rolled-back transaction leaves NO outbox row (atomic with state)');
 });

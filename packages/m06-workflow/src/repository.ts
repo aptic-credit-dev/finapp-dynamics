@@ -485,32 +485,26 @@ export class WorkflowRepository {
   }
 
   // --- outbox (m06 owns it) ---------------------------------------------------------------------
+  /**
+   * Enqueue a domain event. The row's scope (tenant_id / scope_key) is taken from the ACTUAL transaction
+   * session (`app.tenant_id` / system context), NOT from the event's logical tenantId — mirroring m03
+   * audit_events. An event commits in this transaction, so its outbox scope must match what RLS will check;
+   * this is what lets an account-plane event (PLATFORM_TENANT) emitted inside a tenant transaction enqueue
+   * cleanly. The event's own tenantId stays in the envelope for consumers.
+   */
   async insertOutboxRow(
     tx: Tx,
-    input: {
-      tenantId: string | null;
-      scopeKey: string;
-      family: string;
-      type: string;
-      aggregateId: string;
-      envelope: unknown;
-      dedupeKey: string;
-    },
+    input: { family: string; type: string; aggregateId: string; envelope: unknown; dedupeKey: string },
   ): Promise<void> {
     await tx.query(
       `INSERT INTO workflow_event_outbox
          (tenant_id, scope_key, family, type, aggregate_id, envelope, dedupe_key)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+       SELECT
+         NULLIF(current_setting('app.tenant_id', true), '')::uuid,
+         COALESCE(NULLIF(current_setting('app.tenant_id', true), ''), 'PLATFORM'),
+         $1, $2, $3, $4::jsonb, $5
        ON CONFLICT (dedupe_key) DO NOTHING`,
-      [
-        input.tenantId,
-        input.scopeKey,
-        input.family,
-        input.type,
-        input.aggregateId,
-        JSON.stringify(input.envelope),
-        input.dedupeKey,
-      ],
+      [input.family, input.type, input.aggregateId, JSON.stringify(input.envelope), input.dedupeKey],
     );
   }
 

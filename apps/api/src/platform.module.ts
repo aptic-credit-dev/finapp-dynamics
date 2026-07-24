@@ -3,9 +3,9 @@ import pg from 'pg';
 import { PgDb } from '@finapp/kernel/pg';
 import { AUDIT, AUTHZ, DB, OUTBOX } from '@finapp/kernel';
 import type { Db } from '@finapp/kernel';
-import { RecordingOutbox } from '@finapp/m01-tenant';
 import { RbacAuthz } from '@finapp/m02-rbac';
 import { AuditService } from '@finapp/m03-audit';
+import { WorkflowOutbox } from '@finapp/m06-workflow';
 
 /**
  * THE shared-service bindings. One provider per kernel token, for the whole process.
@@ -29,7 +29,12 @@ import { AuditService } from '@finapp/m03-audit';
  * append-only, tenant-isolated row in the caller's transaction. `RecordingAudit` survives only as a test
  * double. `AUDIT` and the concrete `AuditService` resolve to the SAME instance so the audit module can use
  * the richer recording API without a second implementation.
- *   OUTBOX -> m06-workflow (stand-in; in-memory).
+ *
+ * STAGE 2.2: `OUTBOX` is now bound to the persistent `WorkflowOutbox` (m06-workflow) — the ONE durable
+ * transactional outbox (ADR-004/023). Every module's domain events now enqueue a row in
+ * `workflow_event_outbox` in the caller's transaction; the in-memory `RecordingOutbox` is retired from
+ * production and survives only as a test double. Because every caller already invokes `publish(tx, event)`
+ * inside its transaction, the swap changed no call site.
  */
 @Global()
 @Module({
@@ -59,7 +64,7 @@ import { AuditService } from '@finapp/m03-audit';
     // AUDIT and the concrete AuditService are the same singleton: modules that only need the port get the
     // port; m03's own query/export/integrity paths get the richer methods.
     { provide: AUDIT, useExisting: AuditService },
-    { provide: OUTBOX, useClass: RecordingOutbox },
+    { provide: OUTBOX, useClass: WorkflowOutbox },
   ],
   exports: [DB, AUTHZ, AUDIT, AuditService, OUTBOX],
 })

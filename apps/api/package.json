@@ -23,6 +23,7 @@
     "@finapp/m02-auth": "*",
     "@finapp/m02-rbac": "*",
     "@finapp/m03-audit": "*",
+    "@finapp/m06-workflow": "*",
     "pg": "^8.13.1"
   },
   "devDependencies": {

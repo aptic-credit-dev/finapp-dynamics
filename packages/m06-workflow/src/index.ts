@@ -127,6 +127,7 @@ export { DefinitionService } from './definition.service.ts';
 export { InstanceService } from './instance.service.ts';
 export { TaskService } from './task.service.ts';
 export { SlaService } from './sla.service.ts';
+export { WorkflowOutbox } from './outbox.ts';
 export { badRequest, invalidDefinition } from './errors.ts';
 
 // Domain — business-time SLA calendar (ADR-025)
