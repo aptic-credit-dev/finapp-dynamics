@@ -10,6 +10,7 @@ import {
   DefinitionService,
   InstanceService,
   TaskService,
+  SlaService,
   M06_PERMISSIONS,
   ALL_M06_PERMISSIONS,
 } from '@finapp/m06-workflow';
@@ -25,8 +26,9 @@ export default defineDbSpec('m06-services', async (ctx, t) => {
   const authz = new RbacAuthz();
   const emitter = new M06Emitter(new RecordingAudit(), new RecordingOutbox());
   const repo = new WorkflowRepository();
+  const sla = new SlaService(db, emitter, repo);
   const defs = new DefinitionService(db, authz, emitter, repo);
-  const instances = new InstanceService(db, authz, emitter, repo);
+  const instances = new InstanceService(db, authz, emitter, repo, sla);
   const tasks = new TaskService(db, authz, emitter, instances, repo);
 
   const tenant = randomUUID();
@@ -63,6 +65,7 @@ export default defineDbSpec('m06-services', async (ctx, t) => {
       { key: 't_ok', from: 'approve', to: 'approved', condition: 'amount >= 0' },
       { key: 't_no', from: 'approve', to: 'rejected' },
     ],
+    sla: [{ key: 's1', slaType: 'response', nodeKey: 'approve', targetSeconds: 3600, warnPct: 50 }],
   };
 
   // --- authoring lifecycle: create -> validate -> publish -> activate ----------------------------
@@ -101,6 +104,26 @@ export default defineDbSpec('m06-services', async (ctx, t) => {
   );
   const taskId = task1.rows[0]?.id ?? '';
   t.ok(taskId.length > 0, 'an AVAILABLE approval task was created');
+
+  // --- SLA: a clock + warn/breach timers were scheduled for the task (ADR-025) -------------------
+  const slaState = await db.withTenant(author, async (tx) => {
+    const clocks = await tx.query<{ n: string }>(
+      `SELECT count(*)::text AS n FROM workflow_sla_clock WHERE instance_id = $1`,
+      [instance.id],
+    );
+    const timers = await tx.query<{ id: string; kind: string }>(
+      `SELECT id, kind FROM workflow_timer WHERE instance_id = $1 ORDER BY kind`,
+      [instance.id],
+    );
+    return { clocks: clocks.rows[0]?.n ?? '0', timers: timers.rows };
+  });
+  t.equal(slaState.clocks, '1', 'an SLA clock was started for the task');
+  t.equal(slaState.timers.length, 2, 'warn + breach timers were scheduled');
+  const breachTimer = slaState.timers.find((tk) => tk.kind === 'sla_breach');
+  const fired = await sla.fire(author, breachTimer?.id ?? '');
+  t.equal(fired, 'breached', 'firing the breach timer records a breach');
+  const firedAgain = await sla.fire(author, breachTimer?.id ?? '');
+  t.equal(firedAgain, 'noop', 'firing the same timer again is a no-op (breach emitted once)');
 
   // --- idempotent start --------------------------------------------------------------------------
   const again = await instances.start(author, maker, {

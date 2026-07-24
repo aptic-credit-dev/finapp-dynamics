@@ -126,4 +126,9 @@ export { M06Emitter } from './emit.ts';
 export { DefinitionService } from './definition.service.ts';
 export { InstanceService } from './instance.service.ts';
 export { TaskService } from './task.service.ts';
+export { SlaService } from './sla.service.ts';
 export { badRequest, invalidDefinition } from './errors.ts';
+
+// Domain — business-time SLA calendar (ADR-025)
+export { businessSecondsBetween, businessDeadline } from './domain/calendar.ts';
+export type { BusinessCalendar } from './domain/calendar.ts';

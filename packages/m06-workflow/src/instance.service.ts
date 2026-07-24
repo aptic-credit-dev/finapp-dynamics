@@ -15,6 +15,7 @@ import { DEFINITION_LIMITS, type WorkflowDefinitionSpec } from './domain/definit
 import type { WorkflowValue } from './domain/expression.ts';
 import { WorkflowRepository, type InstanceRow } from './repository.ts';
 import { type M06Emitter } from './emit.ts';
+import { type SlaService } from './sla.service.ts';
 
 interface WorkItem {
   tokenId: string;
@@ -54,17 +55,20 @@ export class InstanceService {
   private readonly authz: Authz;
   private readonly emitter: M06Emitter;
   private readonly repo: WorkflowRepository;
+  private readonly sla: SlaService | null;
 
   constructor(
     db: Db,
     authz: Authz,
     emitter: M06Emitter,
     repo: WorkflowRepository = new WorkflowRepository(),
+    sla: SlaService | null = null,
   ) {
     this.db = db;
     this.authz = authz;
     this.emitter = emitter;
     this.repo = repo;
+    this.sla = sla;
   }
 
   async start(
@@ -264,6 +268,15 @@ export class InstanceService {
             toStatus: 'AVAILABLE',
           },
         });
+        if (this.sla !== null) {
+          await this.sla.scheduleForNode(tx, ctx, {
+            instanceId: instance.id,
+            taskId: task.id,
+            nodeKey: item.nodeKey,
+            spec,
+            now: new Date(),
+          });
+        }
         parked = true; // token stays active as the park marker
       } else if (dir.kind === 'wait_timer') {
         await this.repo.insertTimer(tx, {

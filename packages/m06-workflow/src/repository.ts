@@ -513,4 +513,89 @@ export class WorkflowRepository {
       ],
     );
   }
+
+  // --- SLA clocks -------------------------------------------------------------------------------
+  async insertSlaClock(
+    tx: Tx,
+    input: {
+      tenantId: string;
+      instanceId: string;
+      taskId: string | null;
+      slaType: string;
+      warnAt: Date | null;
+      breachAt: Date | null;
+    },
+  ): Promise<string> {
+    const r = await tx.query<{ id: string }>(
+      `INSERT INTO workflow_sla_clock (tenant_id, instance_id, task_id, sla_type, warn_at, breach_at)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [input.tenantId, input.instanceId, input.taskId, input.slaType, input.warnAt, input.breachAt],
+    );
+    return firstRow(r.rows, 'insert sla clock').id;
+  }
+
+  async findSlaClock(
+    tx: Tx,
+    id: string,
+  ): Promise<{
+    id: string;
+    task_id: string | null;
+    instance_id: string;
+    sla_type: string;
+    warned: boolean;
+    breached: boolean;
+    version: number;
+  } | null> {
+    const r = await tx.query<{
+      id: string;
+      task_id: string | null;
+      instance_id: string;
+      sla_type: string;
+      warned: boolean;
+      breached: boolean;
+      version: number;
+    }>(
+      `SELECT id, task_id, instance_id, sla_type, warned, breached, version FROM workflow_sla_clock WHERE id = $1`,
+      [id],
+    );
+    return r.rows[0] ?? null;
+  }
+
+  /** Set the warned/breached flag once (idempotent): a 0-row result means it was already set. */
+  async markSlaFlag(
+    tx: Tx,
+    id: string,
+    expectedVersion: number,
+    flag: 'warned' | 'breached',
+  ): Promise<boolean> {
+    const column = flag === 'warned' ? 'warned' : 'breached';
+    const r = await tx.query(
+      `UPDATE workflow_sla_clock SET ${column} = true, version = version + 1
+       WHERE id = $1 AND version = $2 AND ${column} = false`,
+      [id, expectedVersion],
+    );
+    return (r.rowCount ?? 0) === 1;
+  }
+
+  async findTimer(
+    tx: Tx,
+    id: string,
+  ): Promise<{
+    id: string;
+    instance_id: string;
+    node_key: string | null;
+    kind: string;
+    status: string;
+    version: number;
+  } | null> {
+    const r = await tx.query<{
+      id: string;
+      instance_id: string;
+      node_key: string | null;
+      kind: string;
+      status: string;
+      version: number;
+    }>(`SELECT id, instance_id, node_key, kind, status, version FROM workflow_timer WHERE id = $1`, [id]);
+    return r.rows[0] ?? null;
+  }
 }

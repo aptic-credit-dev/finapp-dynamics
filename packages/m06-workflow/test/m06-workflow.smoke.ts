@@ -25,6 +25,8 @@ import {
   directiveForNode,
   resolveExclusiveGateway,
   outgoingEdges,
+  businessSecondsBetween,
+  businessDeadline,
   type WorkflowDefinitionSpec,
 } from '@finapp/m06-workflow';
 
@@ -303,4 +305,39 @@ export default defineSuite('m06-workflow', (t) => {
   );
   t.ok(splitDir.kind === 'split' && splitDir.joinKey === 'join', 'a PARALLEL_SPLIT names its matching join');
   t.ok(directiveForNode(parSpec, 'join', {}).kind === 'join', 'a PARALLEL_JOIN yields a join directive');
+
+  // --- SLA business-time calendar (ADR-025) -------------------------------------------------------
+  const mon = new Date('2026-01-05T00:00:00Z'); // a Monday
+  t.equal(
+    businessSecondsBetween(mon, new Date('2026-01-06T00:00:00Z'), {}),
+    86400,
+    '24h calendar counts a full day',
+  );
+  const fri = new Date('2026-01-09T00:00:00Z');
+  t.equal(
+    businessSecondsBetween(fri, new Date('2026-01-12T00:00:00Z'), { weekend: [0, 6] }),
+    86400,
+    'weekend days are skipped',
+  );
+  t.equal(
+    businessSecondsBetween(mon, new Date('2026-01-06T00:00:00Z'), { holidays: ['2026-01-05'] }),
+    0,
+    'a holiday counts zero business time',
+  );
+  t.equal(
+    businessSecondsBetween(mon, new Date('2026-01-06T00:00:00Z'), { openHour: 9, closeHour: 17 }),
+    8 * 3600,
+    'business hours bound the working day',
+  );
+  t.equal(
+    businessDeadline(mon, 2 * 3600, {}).toISOString(),
+    '2026-01-05T02:00:00.000Z',
+    'businessDeadline lands 2h later on a 24h calendar',
+  );
+  const friEve = new Date('2026-01-09T23:00:00Z');
+  t.ok(
+    businessDeadline(friEve, 3 * 3600, { weekend: [0, 6] }).getTime() >
+      new Date('2026-01-12T00:00:00Z').getTime(),
+    'a deadline needing weekend hours rolls into Monday',
+  );
 });
