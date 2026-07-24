@@ -403,16 +403,27 @@ stages:
           module: m06-workflow
           substage: "2.2"
           branch: feature/stage-2-2-m06-workflow
+          certification_branch: cert/stage-2-2-m06-workflow
           parent_baseline: cd29b7b5b1c0220fd801989e528d06911395b7a9   # certified Stage 2.1 main (PR #11)
-          implementation_status: implemented_on_branch
-          implementation_pr: pending
+          # Merged 2026-07-24 via PR #12 (squash) onto certified Stage 2.1 main. Post-merge certification recorded.
+          implementation_status: merged
+          implementation_pr: 12
+          implementation_head: 7ade813d5e41d393f6dad5c4fef83d5153aa09af
+          implementation_merge_sha: 3823275d11e22a400b87fbdc42b58b6b9ee49a10
+          merge_status: merged
+          ci_implementation: passed                     # PR #12 run 30085639355 on 7ade813: Smoke + DB (PostgreSQL 16) both green
           smoke_certification: passed_locally           # 12 suites, 1643 assertions, 0 failures
           postgresql_certification: passed_locally      # 13 db specs, 408 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          ci_certification: pending                     # PR to be opened; required Smoke + DB (PostgreSQL 16) lanes must pass
-          certification_status: not_started
-          merge_status: not_merged
+          ci_certification: passed                       # same authoritative run 30085639355 (byte-identical merged tree)
+          certification_status: certified_on_branch
+          certified_baseline_sha: 3823275d11e22a400b87fbdc42b58b6b9ee49a10   # actual merged main SHA tested
+          certification_pr: pending
+          certification_merge_sha: pending
+          local_reverification: {smoke_suites: 12, smoke_assertions: 1643, db_specs: 13, db_assertions: 408,
+                                  postgres_version: "15.2", node_version: "22.14.0", clean_checkout: true, tree_identical_to_ci_head: true}
           adrs: [ADR-021, ADR-022, ADR-023, ADR-024, ADR-025, ADR-026]
           docs: docs/build/stages/STAGE_2_2_M06_WORKFLOW_COMPLETION.md
+          certification_docs: docs/build/stages/STAGE_2_2_M06_WORKFLOW_CERTIFICATION.md
       - module: m07-rules
         capability: Versioned explainable rules + decision tables
         status: documented
