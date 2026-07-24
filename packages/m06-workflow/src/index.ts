@@ -119,7 +119,7 @@ export type { EngineDirective, OutgoingEdge } from './domain/engine.ts';
 
 // Persistence
 export { WorkflowRepository } from './repository.ts';
-export type { DefinitionRow, VersionRow, InstanceRow, TaskRow } from './repository.ts';
+export type { DefinitionRow, VersionRow, InstanceRow, TaskRow, IncidentRow } from './repository.ts';
 
 // Services (each enforces its permission server-side; audit + outbox in the same transaction)
 export { M06Emitter } from './emit.ts';
@@ -127,6 +127,7 @@ export { DefinitionService } from './definition.service.ts';
 export { InstanceService } from './instance.service.ts';
 export { TaskService } from './task.service.ts';
 export { SlaService } from './sla.service.ts';
+export { IncidentService } from './incident.service.ts';
 export { WorkflowOutbox } from './outbox.ts';
 export { badRequest, invalidDefinition } from './errors.ts';
 

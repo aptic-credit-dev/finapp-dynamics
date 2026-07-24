@@ -56,6 +56,17 @@ export interface TaskRow {
   readonly version: number;
 }
 
+export interface IncidentRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly instance_id: string | null;
+  readonly task_id: string | null;
+  readonly error_code: string;
+  readonly status: string;
+  readonly retry_count: number;
+  readonly version: number;
+}
+
 function firstRow<T>(rows: T[], what: string): T {
   const row = rows[0];
   if (row === undefined) throw new Error(`m06 repository: expected a row from ${what}`);
@@ -591,5 +602,41 @@ export class WorkflowRepository {
       version: number;
     }>(`SELECT id, instance_id, node_key, kind, status, version FROM workflow_timer WHERE id = $1`, [id]);
     return r.rows[0] ?? null;
+  }
+
+  // --- incidents (read/list) --------------------------------------------------------------------
+  async findIncident(tx: Tx, id: string): Promise<IncidentRow | null> {
+    const r = await tx.query<IncidentRow>(
+      `SELECT tenant_id, id, instance_id, task_id, error_code, status, retry_count, version FROM workflow_incident WHERE id = $1`,
+      [id],
+    );
+    return r.rows[0] ?? null;
+  }
+
+  async listIncidents(
+    tx: Tx,
+    opts: { status?: string; limit: number; offset: number },
+  ): Promise<IncidentRow[]> {
+    const params: unknown[] = [opts.limit, opts.offset];
+    let where = '';
+    if (opts.status !== undefined) {
+      params.push(opts.status);
+      where = `WHERE status = $${String(params.length)}`;
+    }
+    const r = await tx.query<IncidentRow>(
+      `SELECT tenant_id, id, instance_id, task_id, error_code, status, retry_count, version
+       FROM workflow_incident ${where} ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+      params,
+    );
+    return r.rows;
+  }
+
+  async bumpIncidentRetry(tx: Tx, id: string, expectedVersion: number): Promise<boolean> {
+    const r = await tx.query(
+      `UPDATE workflow_incident SET retry_count = retry_count + 1, version = version + 1
+       WHERE id = $1 AND version = $2 AND status IN ('open', 'investigating')`,
+      [id, expectedVersion],
+    );
+    return (r.rowCount ?? 0) === 1;
   }
 }

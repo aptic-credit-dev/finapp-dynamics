@@ -227,6 +227,17 @@ export class InstanceService {
           await advance(outgoingEdges(spec, item.nodeKey), null);
         }
       } else if (dir.kind === 'wait_task') {
+        // Idempotent park: if an OPEN task already exists at this node (e.g. this is a retry re-driving the
+        // same token), do not create a duplicate — just park.
+        const existing = await tx.query<{ n: number }>(
+          `SELECT count(*)::int AS n FROM workflow_task WHERE instance_id = $1 AND node_key = $2
+             AND status IN ('AVAILABLE', 'CLAIMED', 'IN_PROGRESS')`,
+          [instance.id, item.nodeKey],
+        );
+        if ((existing.rows[0]?.n ?? 0) > 0) {
+          parked = true;
+          continue;
+        }
         const assign = resolveAssignment(spec, item.nodeKey);
         const task = await this.repo.insertTask(tx, {
           tenantId: ctx.tenantId,
@@ -442,6 +453,29 @@ export class InstanceService {
   }
   cancel(ctx: RequestContext, actor: string | null, id: string, reason: string): Promise<InstanceRow> {
     return this.adminAction(ctx, actor, id, 'cancel', M06_PERMISSIONS.instanceCancel, reason);
+  }
+
+  /**
+   * Re-drive a non-terminal instance's active tokens — recovery after a process crash or after an incident is
+   * resolved. The drive is idempotent for parked task nodes (no duplicate task), so this is safe to repeat.
+   */
+  async retry(ctx: RequestContext, actor: string | null, id: string): Promise<InstanceRow> {
+    await this.authz.require(ctx, M06_PERMISSIONS.instanceRetry);
+    return this.db.withTenant(ctx, async (tx) => {
+      const instance = await this.repo.findInstance(tx, id);
+      if (instance === null) throw ProblemError.notFound('Workflow instance not found.', ctx.correlationId);
+      if (instance.status === 'COMPLETED' || instance.status === 'CANCELLED') {
+        throw ProblemError.conflict('A terminal workflow instance cannot be retried.', ctx.correlationId);
+      }
+      const version = await this.repo.findVersion(tx, instance.version_id);
+      if (version === null)
+        throw ProblemError.conflict('Workflow version missing for instance.', ctx.correlationId);
+      const spec = version.spec as WorkflowDefinitionSpec;
+      const active = await this.repo.activeTokens(tx, id);
+      const worklist = active.map((tk) => ({ tokenId: tk.id, nodeKey: tk.node_key, version: tk.version }));
+      await this.drive(tx, ctx, instance, spec, worklist, actor);
+      return (await this.repo.findInstance(tx, id)) ?? instance;
+    });
   }
 
   async view(ctx: RequestContext, id: string): Promise<InstanceRow | null> {

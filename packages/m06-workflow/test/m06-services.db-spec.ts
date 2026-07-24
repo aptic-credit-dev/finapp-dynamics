@@ -11,6 +11,7 @@ import {
   InstanceService,
   TaskService,
   SlaService,
+  IncidentService,
   M06_PERMISSIONS,
   ALL_M06_PERMISSIONS,
 } from '@finapp/m06-workflow';
@@ -30,6 +31,7 @@ export default defineDbSpec('m06-services', async (ctx, t) => {
   const defs = new DefinitionService(db, authz, emitter, repo);
   const instances = new InstanceService(db, authz, emitter, repo, sla);
   const tasks = new TaskService(db, authz, emitter, instances, repo);
+  const incidents = new IncidentService(db, authz, emitter, instances, repo);
 
   const tenant = randomUUID();
   const maker = randomUUID();
@@ -204,4 +206,46 @@ export default defineDbSpec('m06-services', async (ctx, t) => {
     completeDenied,
     'completing without workflow.task.complete is forbidden (authz re-evaluated at execution)',
   );
+
+  // --- incidents & retry: an unknown system handler raises a recoverable incident ----------------
+  const sysSpec = {
+    schemaVersion: 1,
+    code: 'sys_flow',
+    name: 'System flow',
+    variables: [],
+    nodes: [
+      { key: 'start', type: 'START' },
+      { key: 'sys', type: 'SYSTEM_TASK', config: { handler: 'does_not_exist' } },
+      { key: 'done', type: 'END' },
+    ],
+    transitions: [
+      { key: 's0', from: 'start', to: 'sys' },
+      { key: 's1', from: 'sys', to: 'done' },
+    ],
+  };
+  const sysDef = await defs.create(author, maker, { code: 'sys_flow', name: 'System flow', spec: sysSpec });
+  const sysVal = await defs.validate(author, maker, sysDef.version.id, sysDef.version.version);
+  const sysPub = await defs.publish(author, maker, sysVal.id, sysVal.version);
+  await defs.activate(author, maker, sysPub.id, sysPub.version);
+  const sysInst = await instances.start(author, maker, {
+    definitionId: sysDef.definition.id,
+    businessKey: 'sys-1',
+  });
+  t.ok(
+    sysInst.status === 'WAITING' || sysInst.status === 'RUNNING',
+    'the instance parks after an unknown system handler',
+  );
+  const openIncidents = await incidents.list(author, { status: 'open' });
+  t.ok(openIncidents.length >= 1, 'an incident was raised for the unknown system handler');
+  const incidentForInstance = openIncidents.find((i) => i.instance_id === sysInst.id);
+  t.ok(incidentForInstance !== undefined, 'the incident is attached to the instance');
+  const resolved = await incidents.resolve(
+    author,
+    maker,
+    incidentForInstance?.id ?? '',
+    incidentForInstance?.version ?? 1,
+    'resolved',
+    'handler registered',
+  );
+  t.equal(resolved.status, 'resolved', 'an incident can be resolved with a reason');
 });
