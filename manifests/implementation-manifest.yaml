@@ -373,9 +373,10 @@ stages:
           smoke_certification: passed_locally           # 10 suites, 1256 assertions, 0 failures
           postgresql_certification: passed_locally      # 10 db specs, 356 assertions, 0 failures (PostgreSQL 15.2 throwaway)
           ci_certification: passed                       # PR #9 run 29909503769 on f6dd8e9: Smoke + DB (PostgreSQL 16) both green
-          certification_status: certified_on_branch
-          certified_baseline_sha: 587a3ce6afdbcd3d4d7e3735117c4e7220568a0e   # actual merged main SHA tested
-          certification_pr: pending                      # cert PR prepared, NOT merged
+          certification_status: certified               # cert PR #11 merged 2026-07-23
+          certified_baseline_sha: 587a3ce6afdbcd3d4d7e3735117c4e7220568a0e   # merged main SHA tested for certification
+          certification_pr: 11
+          certification_merge_sha: cd29b7b5b1c0220fd801989e528d06911395b7a9   # PR #11 squash merge
           merge_status: merged
           adrs: [ADR-029, ADR-030, ADR-031]
           local_reverification: {smoke_suites: 10, smoke_assertions: 1256, db_specs: 10, db_assertions: 356,
@@ -384,14 +385,34 @@ stages:
           certification_docs: docs/build/stages/STAGE_2_1_M03_AUDIT_CERTIFICATION.md
       - module: m06-workflow
         capability: Status, workflow, SLA, timeline, transactional outbox, idempotency
-        status: documented
+        status: implemented   # Stage 2.2 — implemented_on_branch (not merged/certified); see certification_2_2
         mvp: true
-        db_ownership: [entity_type_registry(global), status_defs, workflow_defs, workflow_instances, sla_timers, timeline_events, outbox, idempotency_keys]
+        db_ownership: [workflow_definition, workflow_definition_version, workflow_instance, workflow_token,
+                       workflow_task, workflow_timer, workflow_sla_clock, workflow_incident,
+                       workflow_event_outbox(mixed, THE outbox), workflow_instance_history(append-only),
+                       workflow_task_history(append-only)]
         api_ownership: [/api/v1/workflow]
         event_ownership: [workflow.lifecycle]
-        shared_services_consumed: [kernel, m01, m03]
+        shared_services_consumed: [kernel, m01, m02, m03]
         permissions_required: [workflow.*]
         testing_required: [smoke, db_spec_outbox_idempotency]
+        # Deviation (documented): a definition's graph is stored as one validated, immutable `spec` JSON on
+        # workflow_definition_version (ADR-022) rather than shredded into per-node tables; entity_type_registry
+        # NOT created (OD-4). SUB_WORKFLOW/COMPENSATION reserved but deferred. See completion report.
+        certification_2_2:
+          module: m06-workflow
+          substage: "2.2"
+          branch: feature/stage-2-2-m06-workflow
+          parent_baseline: cd29b7b5b1c0220fd801989e528d06911395b7a9   # certified Stage 2.1 main (PR #11)
+          implementation_status: implemented_on_branch
+          implementation_pr: pending
+          smoke_certification: passed_locally           # 12 suites, 1643 assertions, 0 failures
+          postgresql_certification: passed_locally      # 13 db specs, 408 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          ci_certification: pending                     # PR to be opened; required Smoke + DB (PostgreSQL 16) lanes must pass
+          certification_status: not_started
+          merge_status: not_merged
+          adrs: [ADR-021, ADR-022, ADR-023, ADR-024, ADR-025, ADR-026]
+          docs: docs/build/stages/STAGE_2_2_M06_WORKFLOW_COMPLETION.md
       - module: m07-rules
         capability: Versioned explainable rules + decision tables
         status: documented

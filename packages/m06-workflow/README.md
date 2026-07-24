@@ -1,32 +1,33 @@
-# m06-workflow — Status/workflow/SLA/timeline/outbox
+# m06-workflow — Enterprise workflow engine (status / workflow / SLA / timeline / outbox)
 
-**Placeholder. No code yet.** This directory reserves the module's location so that the manifest,
-the migration order, and the repository agree on where it lands.
+**Stage 2.2.** The generic, tenant-configurable workflow orchestration spine. A workflow is **data** — a
+published, immutable, versioned definition — never hard-coded business logic. m06 provides orchestration,
+task routing, per-entity state machines, SLA tracking, escalation, auditable transitions, and **the single
+transactional outbox** every module publishes through (ADR-004/023).
 
-|                  |                                                 |
-| ---------------- | ----------------------------------------------- |
-| Module code      | `m06-workflow`                                  |
-| Build stage      | 1 (docs/07-engineering/BUILD_SEQUENCE.md)       |
-| Phase            | 2                                               |
-| MVP              | true                                            |
-| Status           | `documented` (manifests/module-registry.yaml)   |
-| Reference tables | 18 — the baseline a rebuilt module should reach |
+See `docs/build/stages/STAGE_2_2_M06_WORKFLOW_ARCHITECTURE.md` (+ READINESS, IMPLEMENTATION_PLAN) and
+ADR-021…ADR-026.
 
-## Before building this module
+## Reuses (never duplicates)
 
-1. Confirm stage 1 is `approved_for_build` in `manifests/implementation-manifest.yaml`.
-   Never start an unapproved stage.
-2. Read the module's spec in `docs/04-modules/`, `docs/03-platform/`, or `docs/05-ai/`.
-3. Check `manifests/naming-map.yaml` for this module's API prefix, permission namespace, event
-   family, and audit prefix. Those four axes are named differently on purpose and no rule derives
-   one from another.
-4. Consume shared services through their DI tokens (`DB`, `AUDIT`, `AUTHZ`, `OUTBOX`). Never add a
-   second implementation of a shared service, and never read another module's tables.
+- `DB` — `db.withTenant(ctx, tx => …)` / `withSystem`; all work in tenant context under RLS.
+- `AUTHZ` — `authz.require(ctx, 'workflow.x.y')`, default deny, permissions resolved server-side.
+- `AUDIT` — `audit.write(tx, ctx, entry)` in the SAME transaction as the mutation (m03 spine).
+- `OUTBOX` — **m06 owns it**: the one `Outbox<DomainEvent>` implementation + the one outbox table.
+- m02-rbac scope + `SodService` for role/permission incompatibility; m01 org nodes for scoping.
 
-## What ships with the code
+## Must not
 
-Permissions, domain events, audit codes, a PURE smoke suite, a DB-integration spec, updated docs, and
-an updated manifest — in the same change as the module (CLAUDE.md).
+Make autonomous approvals; bypass RBAC/human approval; post journals; disburse funds; send notifications
+(m08); store documents (m09); duplicate the audit service (m03); add a second outbox; or hard-code
+Feedback/Legal/Finance workflows into the engine.
 
-Tenant-scoped tables copy the convention proved by `tools/migrate/samples/rls_convention_sample.sql`:
-RLS FORCE, a `tenant_isolation` policy, composite `(tenant_id, id)` keys, and composite foreign keys.
+## Layout
+
+- `src/domain/` — PURE: node types, lifecycle state machines, token accounting, the safe condition
+  expression interpreter, the definition validator. No I/O; exhaustively unit-tested.
+- `src/repository.ts` — all SQL (parameterized; version-guarded).
+- `src/*.service.ts` — definition / instance / task / sla / incident services (tenant-tx + audit + outbox).
+- `src/outbox.ts` — `WorkflowOutbox` (the durable `OUTBOX` binding).
+- `migrations/` — `0001_workflow.sql` (tables, RLS FORCE, constraints) + `0002_grant_application_role.sql`.
+- `test/` — PURE smoke + DB integration spec (`DATABASE_APP_ROLE=finapp_app`).

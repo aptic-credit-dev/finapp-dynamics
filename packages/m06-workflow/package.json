@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m06-workflow",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M06 (2.2) — enterprise workflow engine: versioned definitions, runtime state machines, tasks, SLA/timers, incidents, and THE single transactional outbox.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m02-identity": "*",
+    "@finapp/m02-rbac": "*"
+  },
+  "devDependencies": {
+    "@finapp/test-runner": "*"
+  }
+}

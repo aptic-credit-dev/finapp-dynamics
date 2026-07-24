@@ -35,6 +35,13 @@ family_groups:
             never email, phone or names: these events concern natural persons (Kenya DPA) and must not
             reach an unapproved AI provider (ADR-006). Identity/account events are platform-scoped and
             carry the all-zero PLATFORM_TENANT sentinel; membership events carry the real tenant."}
+  # GAP-1 CLOSED for m06-workflow (Stage 2.2) — workflow.lifecycle registered with the engine that emits it,
+  # declared in packages/contracts/src/workflow-events.ts. 14 event types, payload v1; identifiers/transitions
+  # ONLY (never workflow variable values or task payloads). Delivered through the single transactional outbox.
+  - {group: workflow, families: [workflow.lifecycle], mvp: true, status: implemented, owner: m06-workflow,
+     classification: confidential,
+     note: "Stage 2.2. Definition/instance/task/SLA/incident lifecycle. Ordering key = aggregate id;
+            consumers dedupe on (type, aggregateId, version). m06 owns the outbox (ADR-004/023)."}
   - {group: operational, families: [feedback.lifecycle, case.lifecycle, case.converted_to_matter], mvp: true, status: documented}
   - {group: legal, families: [legal.lifecycle, litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}

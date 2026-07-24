@@ -28,6 +28,7 @@
     { "path": "../../packages/m02-auth" },
     { "path": "../../packages/m02-rbac" },
     { "path": "../../packages/m03-audit" },
+    { "path": "../../packages/m06-workflow" },
     { "path": "../../tools/test-runner" }
   ]
 }

@@ -15,6 +15,9 @@ import {
   AUTHZ_LIFECYCLE_FAMILY,
   AUTHZ_LIFECYCLE_EVENT_TYPES,
   AUTHZ_LIFECYCLE_VERSION,
+  WORKFLOW_LIFECYCLE_FAMILY,
+  WORKFLOW_LIFECYCLE_EVENT_TYPES,
+  WORKFLOW_LIFECYCLE_VERSION,
 } from '@finapp/contracts';
 
 /**
@@ -28,11 +31,12 @@ import {
  * m02-identity).
  */
 export default defineSuite('contracts', (t) => {
-  t.equal(DOMAIN_EVENT_FAMILIES.length, 4, 'Stage 1D declares exactly four event families');
+  t.equal(DOMAIN_EVENT_FAMILIES.length, 5, 'Stage 2.2 declares five event families');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(AUTH_LIFECYCLE_FAMILY), 'identity.authentication is declared (1C)');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(AUTHZ_LIFECYCLE_FAMILY), 'identity.authorization is declared (1D)');
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(WORKFLOW_LIFECYCLE_FAMILY), 'workflow.lifecycle is declared (2.2)');
   // Order is append-only: consumers and the outbox key off the family name, and reordering the union is
   // how a replay silently reinterprets history.
   t.equal(
@@ -57,6 +61,14 @@ export default defineSuite('contracts', (t) => {
   t.equal(AUTHZ_LIFECYCLE_VERSION, 1, 'identity.authorization payloads are at version 1');
   t.equal(AUTHZ_LIFECYCLE_EVENT_TYPES.length, 12, 'identity.authorization declares 12 event types');
   t.ok(isValidEventFamily(AUTHZ_LIFECYCLE_FAMILY), 'identity.authorization satisfies the family pattern');
+  t.equal(WORKFLOW_LIFECYCLE_VERSION, 1, 'workflow.lifecycle payloads are at version 1');
+  t.equal(WORKFLOW_LIFECYCLE_EVENT_TYPES.length, 14, 'workflow.lifecycle declares 14 event types');
+  t.equal(
+    new Set(WORKFLOW_LIFECYCLE_EVENT_TYPES).size,
+    WORKFLOW_LIFECYCLE_EVENT_TYPES.length,
+    'no workflow event type is declared twice',
+  );
+  t.ok(isValidEventFamily(WORKFLOW_LIFECYCLE_FAMILY), 'workflow.lifecycle satisfies the family pattern');
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');
 

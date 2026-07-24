@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": ".", "outDir": "./dist", "tsBuildInfoFile": "./dist/.tsbuildinfo" },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [
+    { "path": "../kernel" },
+    { "path": "../contracts" },
+    { "path": "../m01-tenant" },
+    { "path": "../m02-identity" },
+    { "path": "../m02-rbac" },
+    { "path": "../../tools/test-runner" }
+  ]
+}

@@ -138,7 +138,7 @@ modules:
     api_prefixes: [/api/v1/workflow]
     permission_namespaces: ['workflow.*']
     event_families: [workflow.lifecycle]
-    event_family_registered: false # GAP-1: manifest:77, absent from event-registry.yaml
+    event_family_registered: true # GAP-1 closed in Stage 2.2: registered in event-registry.yaml + contracts union
     audit_prefixes: [WORKFLOW_]
     note: Owns OUTBOX — the only event-delivery path (ADR-004). All other modules publish through it.
 

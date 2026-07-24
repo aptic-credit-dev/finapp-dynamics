@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 71 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 102 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -199,6 +199,39 @@ codes:
   - { code: AUDIT_RETENTION_EXECUTED, module: m03-audit, severity: normal, reason_required: false }
   - { code: AUDIT_LEGAL_HOLD_APPLIED, module: m03-audit, severity: critical, reason_required: true }
   - { code: AUDIT_LEGAL_HOLD_RELEASED, module: m03-audit, severity: critical, reason_required: true }
+
+  # --- m06-workflow — Stage 2.2 --- every controlled workflow mutation is an audited transition.
+  - { code: WORKFLOW_DEFINITION_CREATED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_DEFINITION_UPDATED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_DEFINITION_VALIDATED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_DEFINITION_PUBLISHED, module: m06-workflow, severity: elevated, reason_required: false }
+  - { code: WORKFLOW_DEFINITION_ACTIVATED, module: m06-workflow, severity: elevated, reason_required: false }
+  - { code: WORKFLOW_DEFINITION_RETIRED, module: m06-workflow, severity: elevated, reason_required: true }
+  - { code: WORKFLOW_INSTANCE_STARTED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_INSTANCE_SUSPENDED, module: m06-workflow, severity: elevated, reason_required: true }
+  - { code: WORKFLOW_INSTANCE_RESUMED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_INSTANCE_COMPLETED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_INSTANCE_CANCELLED, module: m06-workflow, severity: elevated, reason_required: true }
+  - { code: WORKFLOW_INSTANCE_FAILED, module: m06-workflow, severity: critical, reason_required: true }
+  - { code: WORKFLOW_TASK_CREATED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_TASK_ASSIGNED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_TASK_CLAIMED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_TASK_REASSIGNED, module: m06-workflow, severity: elevated, reason_required: true }
+  - { code: WORKFLOW_TASK_COMPLETED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_TASK_REJECTED, module: m06-workflow, severity: elevated, reason_required: true }
+  - { code: WORKFLOW_TASK_DELEGATED, module: m06-workflow, severity: elevated, reason_required: true }
+  - { code: WORKFLOW_TASK_ESCALATED, module: m06-workflow, severity: elevated, reason_required: true }
+  - { code: WORKFLOW_TASK_EXPIRED, module: m06-workflow, severity: elevated, reason_required: false }
+  - { code: WORKFLOW_TRANSITION_EXECUTED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_TIMER_SCHEDULED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_TIMER_FIRED, module: m06-workflow, severity: normal, reason_required: false }
+  - { code: WORKFLOW_SLA_WARNING, module: m06-workflow, severity: elevated, reason_required: false }
+  - { code: WORKFLOW_SLA_BREACHED, module: m06-workflow, severity: critical, reason_required: true }
+  - { code: WORKFLOW_INCIDENT_CREATED, module: m06-workflow, severity: critical, reason_required: true }
+  - { code: WORKFLOW_INCIDENT_RESOLVED, module: m06-workflow, severity: elevated, reason_required: true }
+  - { code: WORKFLOW_COMPENSATION_STARTED, module: m06-workflow, severity: elevated, reason_required: true }
+  - { code: WORKFLOW_COMPENSATION_COMPLETED, module: m06-workflow, severity: elevated, reason_required: false }
+  - { code: WORKFLOW_COMPENSATION_FAILED, module: m06-workflow, severity: critical, reason_required: true }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

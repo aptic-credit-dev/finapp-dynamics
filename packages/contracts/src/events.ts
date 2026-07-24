@@ -6,6 +6,8 @@ import type { AuthLifecycleEvent } from './auth-events.ts';
 import { AUTH_LIFECYCLE_FAMILY } from './auth-events.ts';
 import type { AuthzLifecycleEvent } from './authz-events.ts';
 import { AUTHZ_LIFECYCLE_FAMILY } from './authz-events.ts';
+import type { WorkflowLifecycleEvent } from './workflow-events.ts';
+import { WORKFLOW_LIFECYCLE_FAMILY } from './workflow-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -21,7 +23,11 @@ import { AUTHZ_LIFECYCLE_FAMILY } from './authz-events.ts';
  *      Never renumber or reorder — consumers and the outbox key off the family name.
  */
 export type DomainEvent =
-  TenantLifecycleEvent | IdentityLifecycleEvent | AuthLifecycleEvent | AuthzLifecycleEvent;
+  | TenantLifecycleEvent
+  | IdentityLifecycleEvent
+  | AuthLifecycleEvent
+  | AuthzLifecycleEvent
+  | WorkflowLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -29,6 +35,7 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   IDENTITY_LIFECYCLE_FAMILY,
   AUTH_LIFECYCLE_FAMILY,
   AUTHZ_LIFECYCLE_FAMILY,
+  WORKFLOW_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */
