@@ -13,6 +13,36 @@
 -- separate tables. Determinism and immutability come from freezing that document at publish.
 -- ---------------------------------------------------------------------------------------------------
 
+-- Seed m06's permissions into the global permission catalogue (owned by m02, a global reference table).
+-- role_permissions.permission_code FKs to permissions.code, so a workflow permission must exist here before
+-- any role can be granted it. Adding them with the module (CLAUDE.md) — tenant_assignable defaults true;
+-- workflow.engine.administer is the privileged admin capability.
+INSERT INTO permissions (code, module, resource_type, privileged) VALUES
+  ('workflow.definition.create', 'm06-workflow', 'workflow_definition', false),
+  ('workflow.definition.view', 'm06-workflow', 'workflow_definition', false),
+  ('workflow.definition.edit', 'm06-workflow', 'workflow_definition', false),
+  ('workflow.definition.validate', 'm06-workflow', 'workflow_definition', false),
+  ('workflow.definition.publish', 'm06-workflow', 'workflow_definition', true),
+  ('workflow.definition.activate', 'm06-workflow', 'workflow_definition', true),
+  ('workflow.definition.retire', 'm06-workflow', 'workflow_definition', true),
+  ('workflow.instance.start', 'm06-workflow', 'workflow_instance', false),
+  ('workflow.instance.view', 'm06-workflow', 'workflow_instance', false),
+  ('workflow.instance.suspend', 'm06-workflow', 'workflow_instance', false),
+  ('workflow.instance.resume', 'm06-workflow', 'workflow_instance', false),
+  ('workflow.instance.cancel', 'm06-workflow', 'workflow_instance', false),
+  ('workflow.instance.retry', 'm06-workflow', 'workflow_instance', false),
+  ('workflow.task.view', 'm06-workflow', 'workflow_task', false),
+  ('workflow.task.claim', 'm06-workflow', 'workflow_task', false),
+  ('workflow.task.assign', 'm06-workflow', 'workflow_task', false),
+  ('workflow.task.reassign', 'm06-workflow', 'workflow_task', false),
+  ('workflow.task.complete', 'm06-workflow', 'workflow_task', false),
+  ('workflow.task.reject', 'm06-workflow', 'workflow_task', false),
+  ('workflow.task.delegate', 'm06-workflow', 'workflow_task', false),
+  ('workflow.task.escalate', 'm06-workflow', 'workflow_task', false),
+  ('workflow.incident.view', 'm06-workflow', 'workflow_incident', false),
+  ('workflow.incident.resolve', 'm06-workflow', 'workflow_incident', false),
+  ('workflow.engine.administer', 'm06-workflow', 'workflow_engine', true);
+
 -- workflow_definition — a logical, named process. The current live version is tracked by status on the
 -- version rows; this row carries identity + the immutable business code.
 CREATE TABLE workflow_definition (

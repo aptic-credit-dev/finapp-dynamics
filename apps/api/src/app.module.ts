@@ -5,6 +5,7 @@ import { TenantModule } from './tenant/tenant.module.ts';
 import { IdentityModule } from './identity/identity.module.ts';
 import { RbacModule } from './rbac/rbac.module.ts';
 import { AuditModule } from './audit/audit.module.ts';
+import { WorkflowModule } from './workflow/workflow.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -32,7 +33,15 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
  * against persistent role assignments, not a header.
  */
 @Module({
-  imports: [PlatformModule, TenantModule, IdentityModule, RbacModule, AuditModule, AuthModule],
+  imports: [
+    PlatformModule,
+    TenantModule,
+    IdentityModule,
+    RbacModule,
+    AuditModule,
+    AuthModule,
+    WorkflowModule,
+  ],
   controllers: [HealthController],
   providers: [],
 })
