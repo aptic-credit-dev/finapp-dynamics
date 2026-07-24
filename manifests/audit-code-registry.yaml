@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 102 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 119 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -232,6 +232,25 @@ codes:
   - { code: WORKFLOW_COMPENSATION_STARTED, module: m06-workflow, severity: elevated, reason_required: true }
   - { code: WORKFLOW_COMPENSATION_COMPLETED, module: m06-workflow, severity: elevated, reason_required: false }
   - { code: WORKFLOW_COMPENSATION_FAILED, module: m06-workflow, severity: critical, reason_required: true }
+
+  # --- m07-rules — Stage 2.3 --- every controlled rule-set mutation + governed evaluation is audited.
+  - { code: RULES_SET_CREATED, module: m07-rules, severity: normal, reason_required: false }
+  - { code: RULES_SET_UPDATED, module: m07-rules, severity: normal, reason_required: false }
+  - { code: RULES_SET_VALIDATED, module: m07-rules, severity: normal, reason_required: false }
+  - { code: RULES_SET_VALIDATION_FAILED, module: m07-rules, severity: elevated, reason_required: false }
+  - { code: RULES_VERSION_CREATED, module: m07-rules, severity: normal, reason_required: false }
+  - { code: RULES_VERSION_PUBLISHED, module: m07-rules, severity: elevated, reason_required: false }
+  - { code: RULES_VERSION_ACTIVATED, module: m07-rules, severity: elevated, reason_required: false }
+  - { code: RULES_VERSION_RETIRED, module: m07-rules, severity: elevated, reason_required: true }
+  - { code: RULES_EVALUATION_EXECUTED, module: m07-rules, severity: normal, reason_required: false }
+  - { code: RULES_EVALUATION_FAILED, module: m07-rules, severity: elevated, reason_required: false }
+  - { code: RULES_EVALUATION_REPLAYED, module: m07-rules, severity: normal, reason_required: false }
+  - { code: RULES_SIMULATION_EXECUTED, module: m07-rules, severity: normal, reason_required: false }
+  - { code: RULES_TEST_CREATED, module: m07-rules, severity: normal, reason_required: false }
+  - { code: RULES_TEST_EXECUTED, module: m07-rules, severity: normal, reason_required: false }
+  - { code: RULES_TEST_FAILED, module: m07-rules, severity: elevated, reason_required: false }
+  - { code: RULES_EXPORT_REQUESTED, module: m07-rules, severity: elevated, reason_required: false }
+  - { code: RULES_PLATFORM_CONFIGURED, module: m07-rules, severity: critical, reason_required: true }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

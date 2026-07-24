@@ -18,6 +18,9 @@ import {
   WORKFLOW_LIFECYCLE_FAMILY,
   WORKFLOW_LIFECYCLE_EVENT_TYPES,
   WORKFLOW_LIFECYCLE_VERSION,
+  RULES_LIFECYCLE_FAMILY,
+  RULES_LIFECYCLE_EVENT_TYPES,
+  RULES_LIFECYCLE_VERSION,
 } from '@finapp/contracts';
 
 /**
@@ -31,12 +34,13 @@ import {
  * m02-identity).
  */
 export default defineSuite('contracts', (t) => {
-  t.equal(DOMAIN_EVENT_FAMILIES.length, 5, 'Stage 2.2 declares five event families');
+  t.equal(DOMAIN_EVENT_FAMILIES.length, 6, 'Stage 2.3 declares six event families');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(AUTH_LIFECYCLE_FAMILY), 'identity.authentication is declared (1C)');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(AUTHZ_LIFECYCLE_FAMILY), 'identity.authorization is declared (1D)');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(WORKFLOW_LIFECYCLE_FAMILY), 'workflow.lifecycle is declared (2.2)');
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(RULES_LIFECYCLE_FAMILY), 'rules.lifecycle is declared (2.3)');
   // Order is append-only: consumers and the outbox key off the family name, and reordering the union is
   // how a replay silently reinterprets history.
   t.equal(
@@ -69,6 +73,9 @@ export default defineSuite('contracts', (t) => {
     'no workflow event type is declared twice',
   );
   t.ok(isValidEventFamily(WORKFLOW_LIFECYCLE_FAMILY), 'workflow.lifecycle satisfies the family pattern');
+  t.equal(RULES_LIFECYCLE_VERSION, 1, 'rules.lifecycle payloads are at version 1');
+  t.equal(RULES_LIFECYCLE_EVENT_TYPES.length, 9, 'rules.lifecycle declares 9 event types');
+  t.ok(isValidEventFamily(RULES_LIFECYCLE_FAMILY), 'rules.lifecycle satisfies the family pattern');
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');
 
