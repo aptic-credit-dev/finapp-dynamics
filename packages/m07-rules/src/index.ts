@@ -106,3 +106,13 @@ export type {
 export { derivedCycleCheck, validateRuleSet } from './domain/validator.ts';
 export { ENGINE_VERSION, DEFAULT_EVALUATED_AT, evaluateRuleSet, inputHash } from './domain/evaluate.ts';
 export type { EvaluationInput, TableTrace, Explanation } from './domain/evaluate.ts';
+
+// Persistence
+export { RulesRepository } from './repository.ts';
+export type {
+  RuleSetRow,
+  RuleSetVersionRow,
+  RuleEvaluationRow,
+  RuleTestCaseRow,
+  RuleSetHistoryRow,
+} from './repository.ts';
