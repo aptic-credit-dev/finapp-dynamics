@@ -310,6 +310,26 @@ export class EvaluationService {
     const capped = Math.min(Math.max(limit, 1), 200);
     return this.db.withTenant(ctx, (tx) => this.repo.listEvaluations(tx, ruleSetId, capped));
   }
+
+  /**
+   * Export a rule set's decision evidence — a distinct, separately-permissioned and AUDITED read (evidence
+   * leaving the system is itself an event, ADR-035). Returns the same append-only rows; the audit records that
+   * an export was requested.
+   */
+  async exportEvaluations(ctx: RequestContext, ruleSetId: string, limit = 200): Promise<RuleEvaluationRow[]> {
+    await this.authz.require(ctx, M07_PERMISSIONS.evaluationExport);
+    const capped = Math.min(Math.max(limit, 1), 1000);
+    return this.db.withTenant(ctx, async (tx) => {
+      const rows = await this.repo.listEvaluations(tx, ruleSetId, capped);
+      await this.emitter.recordAudit(tx, ctx, {
+        code: M07_AUDIT_CODES.exportRequested,
+        entityType: 'rule_set',
+        entityId: ruleSetId,
+        detail: { count: rows.length },
+      });
+      return rows;
+    });
+  }
 }
 
 /** A minimal explanation stand-in for a failed replay (the caller cares about `matches`, not the trace). */
