@@ -435,7 +435,9 @@ stages:
         event_ownership: [rules.lifecycle]
         shared_services_consumed: [kernel, m01, m02, m03, m06]
         permissions_required: [rules.*]
-        testing_required: [smoke, db_spec_rules_evaluation]
+        testing_required: [smoke, db_spec, services_db_spec, api_http_spec]
+        tests_present: [m07-rules.smoke (156), m07-rules.db-spec (22), m07-services.db-spec (25),
+                        api-rules.db-spec (18)]
         # Design (ADR-032/033): rule graph stored as one immutable validated `spec` JSON on rule_set_version;
         # conditions are STRUCTURED typed JSON (no free-text host-code interpreter) and decimal-safe. Evaluation
         # evidence stores the input HASH, never raw sensitive inputs (ADR-035). Global rule scope modelled but
