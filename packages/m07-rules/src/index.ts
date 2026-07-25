@@ -116,3 +116,14 @@ export type {
   RuleTestCaseRow,
   RuleSetHistoryRow,
 } from './repository.ts';
+
+// Emit (audit + the ONE outbox m06 owns) + error helpers
+export { M07Emitter } from './emit.ts';
+export { badRequest, invalidRuleSet } from './errors.ts';
+
+// Services
+export { RuleSetService, contentHashOf } from './ruleset.service.ts';
+export { EvaluationService } from './evaluation.service.ts';
+export type { EvaluationOutput, ReplayOutput, RedactedOutcome } from './evaluation.service.ts';
+export { TestService } from './test.service.ts';
+export type { TestCaseResult, TestRunResult } from './test.service.ts';

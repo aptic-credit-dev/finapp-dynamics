@@ -61,12 +61,10 @@ export interface RuleTestCaseRow {
 }
 
 const RULE_SET_COLS = 'tenant_id, id, key, name, description, scope, status, version';
-const VERSION_COLS =
-  'tenant_id, id, rule_set_id, version_number, status, spec, content_hash, notes, version';
+const VERSION_COLS = 'tenant_id, id, rule_set_id, version_number, status, spec, content_hash, notes, version';
 const EVAL_COLS =
   'tenant_id, id, rule_set_id, version_id, version_number, idempotency_key, input_hash, engine_version, status, outcome, reason_codes, mode, correlation_id, evaluated_at, evaluated_by';
-const TEST_COLS =
-  'tenant_id, id, rule_set_id, name, description, input, expected, enabled, version';
+const TEST_COLS = 'tenant_id, id, rule_set_id, name, description, input, expected, enabled, version';
 
 export class RulesRepository {
   // --- rule sets --------------------------------------------------------------------------------
@@ -179,9 +177,10 @@ export class RulesRepository {
   }
 
   async findVersion(tx: Tx, id: string): Promise<RuleSetVersionRow | null> {
-    const r = await tx.query<RuleSetVersionRow>(`SELECT ${VERSION_COLS} FROM rule_set_version WHERE id = $1`, [
-      id,
-    ]);
+    const r = await tx.query<RuleSetVersionRow>(
+      `SELECT ${VERSION_COLS} FROM rule_set_version WHERE id = $1`,
+      [id],
+    );
     return r.rows[0] ?? null;
   }
 
@@ -301,7 +300,9 @@ export class RulesRepository {
   }
 
   async findEvaluation(tx: Tx, id: string): Promise<RuleEvaluationRow | null> {
-    const r = await tx.query<RuleEvaluationRow>(`SELECT ${EVAL_COLS} FROM rule_evaluation WHERE id = $1`, [id]);
+    const r = await tx.query<RuleEvaluationRow>(`SELECT ${EVAL_COLS} FROM rule_evaluation WHERE id = $1`, [
+      id,
+    ]);
     return r.rows[0] ?? null;
   }
 
