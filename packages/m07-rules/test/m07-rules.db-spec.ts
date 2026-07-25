@@ -235,5 +235,8 @@ export default defineDbSpec('m07-rules', async (ctx, t) => {
 
   // --- history is readable and ordered -----------------------------------------------------------
   const history = await db.withTenant(ctxA, (tx) => repo.listHistory(tx, seeded.rsId));
-  t.ok(history.length >= 1 && history[0]?.action === 'create', 'lifecycle history is append-only and readable');
+  t.ok(
+    history.length >= 1 && history[0]?.action === 'create',
+    'lifecycle history is append-only and readable',
+  );
 });
