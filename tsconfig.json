@@ -14,6 +14,7 @@
     { "path": "./packages/m02-rbac" },
     { "path": "./packages/m03-audit" },
     { "path": "./packages/m06-workflow" },
+    { "path": "./packages/m07-rules" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

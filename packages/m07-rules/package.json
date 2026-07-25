@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m07-rules",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M07 (2.3) — versioned explainable decision-rules engine: rule sets, decision tables, deterministic decimal-safe structured-condition evaluation, replay.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m02-identity": "*",
+    "@finapp/m02-rbac": "*"
+  },
+  "devDependencies": {
+    "@finapp/test-runner": "*"
+  }
+}
