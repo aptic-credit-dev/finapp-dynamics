@@ -8,6 +8,8 @@ import type { AuthzLifecycleEvent } from './authz-events.ts';
 import { AUTHZ_LIFECYCLE_FAMILY } from './authz-events.ts';
 import type { WorkflowLifecycleEvent } from './workflow-events.ts';
 import { WORKFLOW_LIFECYCLE_FAMILY } from './workflow-events.ts';
+import type { RulesLifecycleEvent } from './rules-events.ts';
+import { RULES_LIFECYCLE_FAMILY } from './rules-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -27,7 +29,8 @@ export type DomainEvent =
   | IdentityLifecycleEvent
   | AuthLifecycleEvent
   | AuthzLifecycleEvent
-  | WorkflowLifecycleEvent;
+  | WorkflowLifecycleEvent
+  | RulesLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -36,6 +39,7 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   AUTH_LIFECYCLE_FAMILY,
   AUTHZ_LIFECYCLE_FAMILY,
   WORKFLOW_LIFECYCLE_FAMILY,
+  RULES_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */

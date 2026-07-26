@@ -415,10 +415,10 @@ stages:
           smoke_certification: passed_locally           # 12 suites, 1643 assertions, 0 failures
           postgresql_certification: passed_locally      # 13 db specs, 408 assertions, 0 failures (PostgreSQL 15.2 throwaway)
           ci_certification: passed                       # same authoritative run 30085639355 (byte-identical merged tree)
-          certification_status: certified_on_branch
-          certified_baseline_sha: 3823275d11e22a400b87fbdc42b58b6b9ee49a10   # actual merged main SHA tested
-          certification_pr: pending
-          certification_merge_sha: pending
+          certification_status: certified               # cert PR #13 merged 2026-07-24
+          certified_baseline_sha: 3823275d11e22a400b87fbdc42b58b6b9ee49a10   # merged main SHA tested for certification
+          certification_pr: 13
+          certification_merge_sha: 130c28447a8e6f548b2f3048fdb9a0504470a2cd
           local_reverification: {smoke_suites: 12, smoke_assertions: 1643, db_specs: 13, db_assertions: 408,
                                   postgres_version: "15.2", node_version: "22.14.0", clean_checkout: true, tree_identical_to_ci_head: true}
           adrs: [ADR-021, ADR-022, ADR-023, ADR-024, ADR-025, ADR-026]
@@ -426,11 +426,39 @@ stages:
           certification_docs: docs/build/stages/STAGE_2_2_M06_WORKFLOW_CERTIFICATION.md
       - module: m07-rules
         capability: Versioned explainable rules + decision tables
-        status: documented
+        status: implemented   # Stage 2.3 — implemented_on_branch (not merged/certified); see certification_2_3
         mvp: true
-        shared_services_consumed: [kernel, m01, m03, m06]
+        db_ownership: [rule_set, rule_set_version(immutable spec jsonb, one ACTIVE per set),
+                       rule_evaluation(append-only, input-hash not raw), rule_test_case,
+                       rule_set_history(append-only)]
+        api_ownership: [/api/v1/rules]
+        event_ownership: [rules.lifecycle]
+        shared_services_consumed: [kernel, m01, m02, m03, m06]
         permissions_required: [rules.*]
-        testing_required: [smoke]
+        testing_required: [smoke, db_spec, services_db_spec, api_http_spec]
+        tests_present: [m07-rules.smoke (156), m07-rules.db-spec (22), m07-services.db-spec (25),
+                        api-rules.db-spec (18)]
+        # Design (ADR-032/033): rule graph stored as one immutable validated `spec` JSON on rule_set_version;
+        # conditions are STRUCTURED typed JSON (no free-text host-code interpreter) and decimal-safe. Evaluation
+        # evidence stores the input HASH, never raw sensitive inputs (ADR-035). Global rule scope modelled but
+        # global-admin surface minimal (ADR-037). m06 integration is a stable contract (ADR-036).
+        certification_2_3:
+          module: m07-rules
+          substage: "2.3"
+          branch: feature/stage-2-3-m07-rules
+          parent_baseline: 130c28447a8e6f548b2f3048fdb9a0504470a2cd   # certified Stage 2.2 main (PR #13 merge)
+          implementation_status: implemented_on_branch
+          implementation_pr: pending
+          implementation_head: pending
+          implementation_merge_sha: pending
+          merge_status: not_merged
+          ci_implementation: pending
+          certification_status: not_started
+          certification_pr: pending
+          certification_merge_sha: pending
+          ci_certification: pending
+          adrs: [ADR-032, ADR-033, ADR-034, ADR-035, ADR-036, ADR-037]
+          docs: docs/build/stages/STAGE_2_3_M07_RULES_COMPLETION.md
       - module: m08-notify
         capability: Notifications + escalation
         status: documented

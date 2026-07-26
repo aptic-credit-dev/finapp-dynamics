@@ -24,6 +24,7 @@
     "@finapp/m02-rbac": "*",
     "@finapp/m03-audit": "*",
     "@finapp/m06-workflow": "*",
+    "@finapp/m07-rules": "*",
     "pg": "^8.13.1"
   },
   "devDependencies": {

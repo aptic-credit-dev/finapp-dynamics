@@ -304,3 +304,55 @@ admin bypass secret; embedding credentials; unrestricted repeated admin creation
 **Rationale:** "no security event disappears silently, even when the business transaction fails" (CLAUDE.md); and an append-only store must never receive a secret because it is kept forever.
 
 **Consequence:** callers keep the unchanged `AUDIT` port for the common success path and gain explicit failure/denial recording. Deferred (documented): the retention-enforcement worker (the policy model + legal-hold tables ship now); operational metrics endpoints.
+
+## ADR-032 — M07 rule-set specification & immutable version storage (Stage 2.3)
+**Status:** **ACCEPTED** — 2026-07-24 (product owner + security). Module `m07-rules`, branch `feature/stage-2-3-m07-rules`, parent `130c284` (certified Stage 2.2).
+
+**Context:** a decision-rules engine must be versioned, immutable after publication, deterministically checksummable, simple to replay, and auditable.
+
+**Decision:** a rule-set **version** stores its entire validated rule specification as one **immutable `spec` JSON** on `rule_set_version` (decision tables, structured conditions, input/output/context schemas, derived fields), frozen at publish (grants + status guard), with a SHA-256 `content_hash`. Decision-table rows are embedded in `spec`, not shredded into child tables. Mirrors the m06 definition model (ADR-022).
+
+**Rationale:** one immutable document gives deterministic checksums, trivial replay (re-run the exact `spec`), strong up-front validation, and manageable queries — without a shredded schema drifting from the validated artefact.
+
+**Consequence:** at most one ACTIVE version per rule-set governs new evaluations; older versions keep serving replay. Security: no one can alter a published rule set. Operational: a version catalogue. Rejected: normalized per-row tables (drift risk, weaker immutability guarantees).
+
+## ADR-033 — Deterministic safe rule execution via structured typed conditions (Stage 2.3)
+**Status:** **ACCEPTED** — 2026-07-24 (product owner + security). Module `m07-rules`, branch as ADR-032.
+
+**Context:** rules must be explainable, deterministic, decimal-safe, and impossible to weaponize for code execution or injection.
+
+**Decision:** conditions are **structured typed JSON** (a discriminated-union AST: field/op/value composed with AND/OR/NOT, plus range/in/present/string/date nodes) — NOT free-text expression strings. There is therefore no host-code interpreter to attack: no eval, no Function, no vm, no require/dynamic import, no SQL/shell/filesystem/network, no reflection/prototype/constructor access — by construction, because conditions are pure data validated against an allow-listed operator set. Numeric comparisons on money/precision fields are decimal-safe (BigInt-scaled, never binary float). Evaluation is deterministic: no wall-clock/random/env/fs; any "now" arrives through context.evaluatedAt; object-key iteration is normalized. Identical (spec, normalized input, context, engine version) yields identical outcome/matches/reason-codes/outputs/trace order.
+
+**Rationale:** structured conditions are more explainable (each node maps to a structured reason/trace) and eliminate the injection surface entirely, which a free-text language can only bound. This differs from m06's workflow gateway interpreter (free-text over float numbers, ADR-024) because rules require decimal safety and auditable structure; m07 does not depend on m06's interpreter.
+
+**Consequence:** analyzable, replay-safe, decimal-safe rules. Security: RCE/injection impossible by construction; hard limits (depth/nodes/counts/sizes/budget) bound DoS, fail closed. Rejected: a shared free-text expression engine; binary-float money comparisons.
+
+## ADR-034 — Decision-table hit policies (Stage 2.3)
+**Status:** **ACCEPTED** — 2026-07-24 (product owner + security). Module `m07-rules`, branch as ADR-032.
+
+**Decision:** decision tables support **FIRST** (first matching row in declared order), **UNIQUE** (exactly one match; more than one is a UNIQUE_MATCH_VIOLATION; zero is a no-match), **COLLECT** (all matches; optional decimal-safe deterministic aggregation — sum/min/max/count — over a declared output field, rejecting incompatible/mixed types), and **PRIORITY** (highest-priority match, stable tie-break by declared order). Rows carry an id, optional priority, an enabled flag, optional effective dates (evaluated against context.evaluatedAt), a reason code, and structured outputs. Row order and priority sorting are stable and deterministic.
+
+**Consequence:** deterministic, explainable table decisions. Validation rejects duplicate row ids, invalid column refs, malformed ranges, conflicting UNIQUE rows (where determinable), and incompatible aggregation types. Rejected: nondeterministic ordering; float aggregation.
+
+## ADR-035 — Evaluation evidence & sensitive-data minimization (Stage 2.3)
+**Status:** **ACCEPTED** — 2026-07-24 (product owner + security). Module `m07-rules`, branch as ADR-032.
+
+**Context:** evaluation evidence must support audit, dispute resolution, replay, and regulatory explanation, but evaluations may concern regulated/personal data (Kenya DPA) that must not accumulate in an append-only store.
+
+**Decision:** `rule_evaluation` persists a **structured explanation** (outcome, outputs, matched rule/row ids, machine-readable reason codes, trace summary, correlation/causation, subject reference, duration, status, error code) plus the **input HASH** (SHA-256 of the canonicalized input) and a context hash — NOT raw sensitive inputs by default. Evaluation history is append-only (grant-based). Reason codes are mandatory and machine-readable; human-readable text is generated from structured evidence, never a substitute for it. Events and audit carry hashes/ids only.
+
+**Consequence:** replayable, auditable evidence without hoarding secrets. Full-input capture, where a rule set justifies it, uses a classified/redacted pattern (deferred). Rejected: default raw-input persistence; free-text-only explanations.
+
+## ADR-036 — Workflow-to-rules integration & transaction semantics (Stage 2.3)
+**Status:** **ACCEPTED** — 2026-07-24 (product owner + security). Module `m07-rules`, branch as ADR-032.
+
+**Decision:** m06 workflows consume rules through a **stable contract** (an interface/token plus the pure engine's public API), never by importing m07 (nor m06 importing the other's internals) — no circular dependency. A workflow that branches on a rule outcome either (a) precomputes the evaluation and passes the evaluationId/outcome into the instance, or (b) evaluates in the same transaction as the transition where atomic audit+outbox evidence is required. Rule evaluation performs no external calls and fails closed; on engine error the workflow raises an incident. Idempotency keys prevent duplicate evaluation; no partial workflow transition is externally visible.
+
+**Consequence:** clean dependency direction, atomic evidence, fail-closed integration. m06 is not expanded beyond the minimum integration contract in this stage (the m06/m07 wiring lands when a business module needs it). Rejected: m07 importing m06 internals; external calls inside a transition.
+
+## ADR-037 — Platform-global vs tenant rule scope (Stage 2.3)
+**Status:** **ACCEPTED** — 2026-07-24 (product owner + security). Module `m07-rules`, branch as ADR-032.
+
+**Decision:** rule sets are **tenant-scoped by default** (composite `(tenant_id, id)`, RLS FORCE, no escape). Platform-global rule sets are modelled explicitly with a mixed-scope pattern (nullable `tenant_id` plus a system escape, like m03 audit / m02 roles) and administered only under `rules.platform.administer` (platform authority); a tenant cannot mutate a global rule set. For the Stage 2.3 MVP, evaluation resolves a rule set within the caller's tenant (global-rule override/fallback semantics are defined but the global-administration surface is minimal); there is no ambiguous fallback — resolution is explicit.
+
+**Consequence:** no faked global scope via an arbitrary tenant; a clear administration boundary. Full global-rule override semantics and the admin surface are a documented follow-on. Rejected: representing a global rule as a special tenant row; implicit tenant-to-global fallback.

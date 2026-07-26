@@ -42,6 +42,13 @@ family_groups:
      classification: confidential,
      note: "Stage 2.2. Definition/instance/task/SLA/incident lifecycle. Ordering key = aggregate id;
             consumers dedupe on (type, aggregateId, version). m06 owns the outbox (ADR-004/023)."}
+  # GAP-2 addressed for m07-rules (Stage 2.3) — rules.lifecycle registered with the engine that emits it,
+  # declared in packages/contracts/src/rules-events.ts. Delivered through the single transactional outbox
+  # (m06). 9 event types, payload v1; identifiers/reason-codes/hashes ONLY (never raw rule inputs/outputs).
+  - {group: rules, families: [rules.lifecycle], mvp: true, status: implemented, owner: m07-rules,
+     classification: confidential,
+     note: "Stage 2.3. Rule-set lifecycle + evaluation outcomes. Ordering key = aggregate id; consumers
+            dedupe on (type, aggregateId, version). Payloads carry input/context HASHES, never raw values."}
   - {group: operational, families: [feedback.lifecycle, case.lifecycle, case.converted_to_matter], mvp: true, status: documented}
   - {group: legal, families: [legal.lifecycle, litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}

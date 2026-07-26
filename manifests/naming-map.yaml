@@ -145,9 +145,10 @@ modules:
   - module: m07-rules
     stage: 1
     mvp: true
-    api_prefixes: [] # GAP-2: no prefix registered; rules are tenant-configurable via m04-admin
+    api_prefixes: [/api/v1/rules] # GAP-2 resolved in Stage 2.3: m07 exposes its own authoring/evaluation API
     permission_namespaces: ['rules.*']
-    event_families: []
+    event_families: [rules.lifecycle]
+    event_family_registered: true # Stage 2.3: registered in event-registry.yaml + contracts union
     audit_prefixes: [RULES_]
 
   - module: m08-notify

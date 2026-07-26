@@ -65,7 +65,12 @@ namespaces:
              "workflow.task.complete", "workflow.task.reject", "workflow.task.delegate", "workflow.task.escalate",
              "workflow.incident.view", "workflow.incident.resolve",
              "workflow.engine.administer"]}
-  - {namespace: "rules.*", module: m07-rules, mvp: true, status: documented}
+  - {namespace: "rules.*", module: m07-rules, mvp: true, status: implemented, substage: "2.3",
+     codes: ["rules.engine.view", "rules.engine.author", "rules.engine.validate", "rules.engine.publish",
+             "rules.engine.activate", "rules.engine.retire", "rules.engine.evaluate", "rules.engine.simulate",
+             "rules.engine.test",
+             "rules.evaluation.view", "rules.evaluation.replay", "rules.evaluation.export",
+             "rules.platform.administer"]}
   - {namespace: "notifications.*", module: m08-notify, mvp: true, status: documented}
   - {namespace: "documents.*", module: m09-docs, mvp: true, status: documented}
   - {namespace: "admin.*", module: m04-admin, mvp: true, status: documented}

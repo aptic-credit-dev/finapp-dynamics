@@ -78,3 +78,16 @@ export type {
   WorkflowSlaPayload,
   WorkflowIncidentPayload,
 } from './workflow-events.ts';
+export {
+  RULES_LIFECYCLE_FAMILY,
+  RULES_LIFECYCLE_VERSION,
+  RULES_LIFECYCLE_EVENT_TYPES,
+} from './rules-events.ts';
+export type {
+  RulesLifecycleEvent,
+  RulesLifecycleEventType,
+  RulesLifecyclePayload,
+  RuleSetLifecyclePayload,
+  RuleEvaluationPayload,
+  RuleTestPayload,
+} from './rules-events.ts';

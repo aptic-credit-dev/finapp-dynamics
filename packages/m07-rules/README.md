@@ -1,32 +1,23 @@
-# m07-rules — Rules engine
+# m07-rules — Versioned explainable decision-rules engine
 
-**Placeholder. No code yet.** This directory reserves the module's location so that the manifest,
-the migration order, and the repository agree on where it lands.
+**Stage 2.3.** The generic enterprise decision-rules engine: authored, versioned, immutable-after-publish rule
+sets delivering **deterministic, explainable** decisions via decision tables + structured typed conditions.
+Reusable by Feedback, Cases, Finance, Credit, Pricing, Fraud, Reconciliation.
 
-|                  |                                                |
-| ---------------- | ---------------------------------------------- |
-| Module code      | `m07-rules`                                    |
-| Build stage      | 1 (docs/07-engineering/BUILD_SEQUENCE.md)      |
-| Phase            | 2                                              |
-| MVP              | true                                           |
-| Status           | `documented` (manifests/module-registry.yaml)  |
-| Reference tables | 0 — the baseline a rebuilt module should reach |
+See `docs/build/stages/STAGE_2_3_M07_RULES_*.md` and ADR-032…037.
 
-## Before building this module
+## Reuses (never duplicates)
+`DB` / `AUTHZ` (RbacAuthz) / `AUDIT` (m03 AuditService) via kernel tokens; **`OUTBOX` = the one durable
+WorkflowOutbox m06 owns** (m07 publishes through it, never a second outbox). m07 does NOT import m06 internals.
 
-1. Confirm stage 1 is `approved_for_build` in `manifests/implementation-manifest.yaml`.
-   Never start an unapproved stage.
-2. Read the module's spec in `docs/04-modules/`, `docs/03-platform/`, or `docs/05-ai/`.
-3. Check `manifests/naming-map.yaml` for this module's API prefix, permission namespace, event
-   family, and audit prefix. Those four axes are named differently on purpose and no rule derives
-   one from another.
-4. Consume shared services through their DI tokens (`DB`, `AUDIT`, `AUTHZ`, `OUTBOX`). Never add a
-   second implementation of a shared service, and never read another module's tables.
+## Safety (ADR-033)
+Conditions are STRUCTURED typed JSON — never free-text — so there is no host-code interpreter to attack:
+no eval/Function/vm/require/SQL/shell/filesystem/network/reflection. Money is decimal-safe (BigInt, no float).
+Deterministic: no clock/random/env; "now" comes from `context.evaluatedAt`. Hard limits fail closed.
 
-## What ships with the code
-
-Permissions, domain events, audit codes, a PURE smoke suite, a DB-integration spec, updated docs, and
-an updated manifest — in the same change as the module (CLAUDE.md).
-
-Tenant-scoped tables copy the convention proved by `tools/migrate/samples/rls_convention_sample.sql`:
-RLS FORCE, a `tenant_isolation` policy, composite `(tenant_id, id)` keys, and composite foreign keys.
+## Layout
+- `src/domain/` — PURE: decimal, conditions, decision-table (FIRST/UNIQUE/COLLECT/PRIORITY), lifecycles,
+  ruleset (+ RULE_LIMITS), validator, evaluate (+ structured Explanation, inputHash). No I/O; unit-tested.
+- `src/repository.ts` · `src/*.service.ts` · `src/emit.ts` — persistence + tenant-tx services (audit+outbox).
+- `migrations/` — 5 tables (RLS FORCE, append-only evidence, permission seed).
+- `test/` — PURE smoke + DB integration spec (`DATABASE_APP_ROLE=finapp_app`).
