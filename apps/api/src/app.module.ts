@@ -10,6 +10,7 @@ import { RulesModule } from './rules/rules.module.ts';
 import { NotifyModule } from './notify/notify.module.ts';
 import { DocumentsModule } from './documents/documents.module.ts';
 import { FeedbackModule } from './feedback/feedback.module.ts';
+import { CasesModule } from './cases/cases.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -64,6 +65,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     NotifyModule,
     DocumentsModule,
     FeedbackModule,
+    CasesModule,
   ],
   controllers: [HealthController],
   providers: [],

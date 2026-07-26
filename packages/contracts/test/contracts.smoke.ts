@@ -30,6 +30,12 @@ import {
   FEEDBACK_LIFECYCLE_FAMILY,
   FEEDBACK_LIFECYCLE_EVENT_TYPES,
   FEEDBACK_LIFECYCLE_VERSION,
+  CASE_LIFECYCLE_FAMILY,
+  CASE_LIFECYCLE_EVENT_TYPES,
+  CASE_LIFECYCLE_VERSION,
+  CASE_CONVERTED_TO_MATTER_FAMILY,
+  CASE_CONVERTED_TO_MATTER_EVENT_TYPES,
+  CASE_CONVERTED_TO_MATTER_VERSION,
 } from '@finapp/contracts';
 
 /**
@@ -43,7 +49,7 @@ import {
  * m02-identity).
  */
 export default defineSuite('contracts', (t) => {
-  t.equal(DOMAIN_EVENT_FAMILIES.length, 9, 'Stage 3.1 declares nine event families');
+  t.equal(DOMAIN_EVENT_FAMILIES.length, 11, 'Stage 3.2 declares eleven event families');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(AUTH_LIFECYCLE_FAMILY), 'identity.authentication is declared (1C)');
@@ -56,6 +62,11 @@ export default defineSuite('contracts', (t) => {
   );
   t.ok(DOMAIN_EVENT_FAMILIES.includes(DOCUMENT_LIFECYCLE_FAMILY), 'document.lifecycle is declared (2.5)');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(FEEDBACK_LIFECYCLE_FAMILY), 'feedback.lifecycle is declared (3.1)');
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(CASE_LIFECYCLE_FAMILY), 'case.lifecycle is declared (3.2)');
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(CASE_CONVERTED_TO_MATTER_FAMILY),
+    'case.converted_to_matter is declared (3.2)',
+  );
   // Order is append-only: consumers and the outbox key off the family name, and reordering the union is
   // how a replay silently reinterprets history.
   t.equal(
@@ -118,6 +129,20 @@ export default defineSuite('contracts', (t) => {
     'no feedback event type is declared twice',
   );
   t.ok(isValidEventFamily(FEEDBACK_LIFECYCLE_FAMILY), 'feedback.lifecycle satisfies the family pattern');
+  t.equal(CASE_LIFECYCLE_VERSION, 1, 'case.lifecycle payloads are at version 1');
+  t.equal(CASE_LIFECYCLE_EVENT_TYPES.length, 32, 'case.lifecycle declares 32 event types');
+  t.equal(
+    new Set(CASE_LIFECYCLE_EVENT_TYPES).size,
+    CASE_LIFECYCLE_EVENT_TYPES.length,
+    'no case event type is declared twice',
+  );
+  t.ok(isValidEventFamily(CASE_LIFECYCLE_FAMILY), 'case.lifecycle satisfies the family pattern');
+  t.equal(CASE_CONVERTED_TO_MATTER_VERSION, 1, 'case.converted_to_matter payloads are at version 1');
+  t.equal(CASE_CONVERTED_TO_MATTER_EVENT_TYPES.length, 1, 'case.converted_to_matter declares one event type');
+  t.ok(
+    isValidEventFamily(CASE_CONVERTED_TO_MATTER_FAMILY),
+    'case.converted_to_matter satisfies the family pattern',
+  );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');
 
