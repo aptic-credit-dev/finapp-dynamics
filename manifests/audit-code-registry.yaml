@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 213 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 263 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -353,6 +353,57 @@ codes:
   - { code: FEEDBACK_SLA_POLICY_PUBLISHED, module: m12-feedback, severity: elevated, reason_required: false }
   - { code: FEEDBACK_SOURCE_CONFIGURED, module: m12-feedback, severity: normal, reason_required: false }
   - { code: FEEDBACK_EXPORT_REQUESTED, module: m12-feedback, severity: elevated, reason_required: false }
+  # --- m13-case (Stage 3.2) — 50 codes ---------------------------------------------------------
+  - { code: CASE_TYPE_CREATED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_TYPE_PUBLISHED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_SLA_POLICY_PUBLISHED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_RECORD_CREATED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_RECORD_OPENED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_HANDOFF_CONSUMED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_TRIAGE_COMPLETED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_RECORD_ASSIGNED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_RECORD_REASSIGNED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_PARTY_ADDED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_PARTY_REMOVED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_PARTY_CONTACT_ACCESSED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_ACTIVITY_CREATED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_ACTIVITY_COMPLETED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_TASK_CREATED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_TASK_COMPLETED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_DOCUMENT_LINKED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_EVIDENCE_REGISTERED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_EVIDENCE_VERIFIED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_ISSUE_ADDED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_INVESTIGATION_STARTED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_INVESTIGATION_COMPLETED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_FINDING_RECORDED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_DECISION_SUBMITTED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_DECISION_APPROVED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_DEADLINE_CREATED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_DEADLINE_EXTENDED, module: m13-case, severity: elevated, reason_required: true }
+  - { code: CASE_DEADLINE_BREACHED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_HEARING_SCHEDULED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_HEARING_UPDATED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_HEARING_COMPLETED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_LEGAL_UPDATED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_SETTLEMENT_PROPOSED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_SETTLEMENT_APPROVED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_RECOVERY_UPDATED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_CORRESPONDENCE_RECORDED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_NOTE_CREATED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_RELATIONSHIP_CREATED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_CLOSURE_EVALUATED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_RECORD_RESOLVED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_RECORD_CLOSED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_RECORD_REOPENED, module: m13-case, severity: elevated, reason_required: true }
+  - { code: CASE_RECORD_ARCHIVED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_CONVERTED_TO_MATTER, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_PRIVILEGED_ACCESSED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_CONFIDENTIAL_ACCESSED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_EXPORT_REQUESTED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_SLA_STARTED, module: m13-case, severity: normal, reason_required: false }
+  - { code: CASE_SLA_BREACHED, module: m13-case, severity: elevated, reason_required: false }
+  - { code: CASE_ESCALATION_TRIGGERED, module: m13-case, severity: elevated, reason_required: true }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

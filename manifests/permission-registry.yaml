@@ -107,7 +107,22 @@ namespaces:
              "feedback.source.ingest", "feedback.case_handoff.read", "feedback.case_handoff.request",
              "feedback.analytics.read", "feedback.analytics.export", "feedback.customer_contact.read",
              "feedback.platform.administer"]}
-  - {namespace: "cases.*", module: m13-case, mvp: true, status: documented}
+  - {namespace: "cases.*", module: m13-case, mvp: true, status: implemented, substage: "3.2",
+     codes: ["cases.case.read", "cases.case.create", "cases.case.update", "cases.case.open", "cases.case.assign",
+             "cases.case.reassign", "cases.case.triage", "cases.case.resolve", "cases.case.close",
+             "cases.case.reopen", "cases.case.archive", "cases.handoff.accept", "cases.intake.create",
+             "cases.type.read", "cases.type.manage", "cases.sla_policy.read", "cases.sla_policy.manage",
+             "cases.party.read", "cases.party.manage", "cases.party_contact.read", "cases.activity.read",
+             "cases.activity.create", "cases.activity.complete", "cases.task.read", "cases.task.manage",
+             "cases.document.read", "cases.document.link", "cases.evidence.read", "cases.evidence.manage",
+             "cases.evidence.verify", "cases.investigation.read", "cases.investigation.manage",
+             "cases.finding.read", "cases.finding.manage", "cases.legal.read", "cases.legal.manage",
+             "cases.hearing.read", "cases.hearing.manage", "cases.deadline.read", "cases.deadline.manage",
+             "cases.decision.read", "cases.decision.submit", "cases.decision.approve", "cases.settlement.read",
+             "cases.settlement.manage", "cases.settlement.approve", "cases.recovery.read", "cases.recovery.manage",
+             "cases.confidential.read", "cases.privileged_notes.read", "cases.privileged_notes.create",
+             "cases.relationship.read", "cases.relationship.manage", "cases.analytics.read",
+             "cases.analytics.export", "cases.platform.administer"]}
   - {namespace: "legal.*", module: m14-legal, mvp: partial, status: documented}
   - {namespace: "recovery.*", module: m17-recovery, mvp: false, status: deferred}
   - {namespace: "reconciliation.*", module: m15-recon, mvp: true, status: documented}
