@@ -27,6 +27,7 @@
     "@finapp/m07-rules": "*",
     "@finapp/m08-notify": "*",
     "@finapp/m09-docs": "*",
+    "@finapp/m12-feedback": "*",
     "pg": "^8.13.1"
   },
   "devDependencies": {

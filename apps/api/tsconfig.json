@@ -32,6 +32,7 @@
     { "path": "../../packages/m07-rules" },
     { "path": "../../packages/m08-notify" },
     { "path": "../../packages/m09-docs" },
+    { "path": "../../packages/m12-feedback" },
     { "path": "../../tools/test-runner" }
   ]
 }
