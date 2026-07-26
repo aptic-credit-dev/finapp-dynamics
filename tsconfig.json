@@ -18,6 +18,7 @@
     { "path": "./packages/m08-notify" },
     { "path": "./packages/m09-docs" },
     { "path": "./packages/m12-feedback" },
+    { "path": "./packages/m13-case" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

@@ -1,0 +1,33 @@
+{
+  "name": "@finapp/m13-case",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M13 (3.2) — enterprise case management: configurable case types, M12 feedback handoff, triage, assignment, parties, activities, tasks, issues, investigation, evidence, deadlines, hearings, legal-matter support, decisions, settlement, recovery boundary, closure, analytics.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
