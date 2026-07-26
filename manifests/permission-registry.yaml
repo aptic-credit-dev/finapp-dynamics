@@ -93,7 +93,20 @@ namespaces:
              "documents.disposition.execute", "documents.scan.override", "documents.relationship.manage",
              "documents.platform.administer"]}
   - {namespace: "admin.*", module: m04-admin, mvp: true, status: documented}
-  - {namespace: "feedback.*", module: m12-feedback, mvp: true, status: documented}
+  - {namespace: "feedback.*", module: m12-feedback, mvp: true, status: implemented, substage: "3.1",
+     codes: ["feedback.queue.read", "feedback.queue.claim", "feedback.queue.assign",
+             "feedback.record.read", "feedback.record.create", "feedback.record.capture",
+             "feedback.record.update", "feedback.record.classify", "feedback.record.close",
+             "feedback.record.reopen", "feedback.activity.read", "feedback.activity.create",
+             "feedback.activity.complete", "feedback.assignment.read", "feedback.assignment.manage",
+             "feedback.response.read", "feedback.response.submit", "feedback.root_cause.manage",
+             "feedback.resolution.submit", "feedback.resolution.approve", "feedback.confirmation.record",
+             "feedback.sla.read", "feedback.sla.manage", "feedback.escalation.read",
+             "feedback.escalation.trigger", "feedback.questionnaire.read", "feedback.questionnaire.manage",
+             "feedback.category.manage", "feedback.sla_policy.manage", "feedback.source.manage",
+             "feedback.source.ingest", "feedback.case_handoff.read", "feedback.case_handoff.request",
+             "feedback.analytics.read", "feedback.analytics.export", "feedback.customer_contact.read",
+             "feedback.platform.administer"]}
   - {namespace: "cases.*", module: m13-case, mvp: true, status: documented}
   - {namespace: "legal.*", module: m14-legal, mvp: partial, status: documented}
   - {namespace: "recovery.*", module: m17-recovery, mvp: false, status: deferred}

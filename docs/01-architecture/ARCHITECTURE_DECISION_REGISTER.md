@@ -458,3 +458,38 @@ admin bypass secret; embedding credentials; unrestricted repeated admin creation
 **Decision:** content scanning is a `ContentScanner` port with a deterministic test double; a version is not downloadable/activatable until required scanning is satisfied (`clean`/`bypassed`). m09 ships NO real antivirus, NO production OCR/extraction, and NO production e-signature — extraction and signature are modelled as deferred framework hooks (signature/approval flags on the type; approval orchestration delegated to m06 workflow). No provider credentials are committed and no real delivery/scan is claimed.
 
 **Consequence:** the scan gate and signature/approval metadata exist and are enforced, with real providers deferred behind ports. Rejected: embedding a real AV/OCR/e-sign SDK; claiming production scanning.
+
+## ADR-052 — Granular feedback permissions; no vague `feedback.admin` (Stage 3.1)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m12-feedback`, branch `feature/stage-3-1-m12-feedback`.
+
+**Decision:** m12 exposes **37 granular `feedback.*` permissions** (three-segment `feedback.<entity>.<action>`), enforced server-side inside the services (default deny, the single choke point) and declared on every mutating route's `@Endpoint`. Access to the two most sensitive capabilities is gated by **dedicated privileged permissions** — `feedback.customer_contact.read` (see the un-redacted customer contact) and `feedback.platform.administer` (platform-scoped specs) — rather than a catch-all `feedback.admin`. Reading un-redacted contact is itself audited (`FEEDBACK_CONTACT_ACCESSED`).
+
+**Consequence:** least-privilege is expressible (a contact-centre agent can work feedback without seeing raw contact details; a reviewer can read without mutating). Rejected: a single coarse admin permission; header-carried permissions (an `x-permissions` header can never grant — proven by the API spec's 403).
+
+## ADR-053 — Questionnaires, categories & closure criteria are declarative data; decisioning delegated to m07 (Stage 3.1)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m12-feedback`, branch as ADR-052.
+
+**Decision:** questionnaires (with deterministic CSAT/NPS/effort normalization), categories, severities and closure criteria are **declarative data** — versioned, immutable-after-publish specs (mirroring the m09 doctype pattern, one ACTIVE per code, content-hash frozen at publish) and simple criteria maps. There is **NO executable expression inside a questionnaire**; complex, explainable decisioning (severity/routing/eligibility rules) is delegated to the **m07 rules engine** via a recorded `ruleEvaluationId`, never re-implemented in m12.
+
+**Consequence:** feedback content and scoring are testable and replayable; the one rules engine stays authoritative. Rejected: an embedded expression/rules mini-language in m12; mutable-after-publish specs.
+
+## ADR-054 — Deterministic clock-driven SLA math via a Clock port; timers delegated to m06/m08 (Stage 3.1)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m12-feedback`, branch as ADR-052.
+
+**Decision:** SLA due dates and warn/breach state are **PURE functions** of a policy spec, a supplied clock (epoch ms) and accumulated paused duration — injected through a `Clock` port, so there is **no ambient `Date.now`** and SLA behaviour is fully deterministic, testable and replayable. m12 builds **no timer engine**: timer dispatch and escalation are delegated to m06/m08; m12 records the breach and publishes an event.
+
+**Consequence:** SLA behaviour is proven with a `FixedClock` in the DB spec (breach/pause/resume) with zero flakiness; no second scheduler. Rejected: ambient wall-clock reads; a bespoke m12 timer/cron.
+
+## ADR-055 — Customer contact & narrative sensitivity: redaction + never in events/audit (Stage 3.1)
+**Status:** **ACCEPTED** — 2026-07-26 (product owner + security). Module `m12-feedback`, branch as ADR-052.
+
+**Decision:** customer contact details and free-text narratives (and confidential internal responses) are treated as **sensitive**: stored under RLS, **REDACTED on read** unless the caller holds `feedback.customer_contact.read` (respectively the response-submit permission for the confidential response), and **NEVER placed in domain events or audit payloads**. `feedback.lifecycle` event payloads and audit `detail` carry identifiers, statuses, reason codes and safe analytics dimensions ONLY.
+
+**Consequence:** PII minimization holds across the event/audit spine and every API view; a privacy breach cannot leak through telemetry. Rejected: putting narratives/contacts in events for downstream convenience; returning raw contact to any authenticated caller.
+
+## ADR-056 — Hard limits fail-closed; controlled M13 case handoff via port + pending record + event (Stage 3.1)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m12-feedback`, branch as ADR-052.
+
+**Decision:** every bound (narrative/answer length, answer/question/batch counts, search limit) is enforced **fail-closed**. Handoff to **M13 case management (which does not exist yet)** is a **controlled seam only**: m12 stores a **pending `feedback_case_handoff` record** (idempotent), publishes a **versioned `CaseHandoffRequested` event**, and exposes a **port** — it creates **NO case table**, owns no case data, and builds **no second escalation engine** (escalation reuses m08 via an event). Completion (when M13 later creates the case) transitions the feedback to `converted_to_case`.
+
+**Consequence:** M12 can be built and certified before M13 exists, with the integration boundary explicit and idempotent. Rejected: a fake/placeholder case table owned by m12; a second escalation engine; a synchronous call into a non-existent M13.

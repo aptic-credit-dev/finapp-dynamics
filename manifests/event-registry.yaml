@@ -65,7 +65,15 @@ family_groups:
      classification: confidential,
      note: "Stage 2.5. Document + version + access + disposition lifecycle. Ordering key = aggregate id
             (payload documentId); consumers dedupe on eventId. Payloads carry ids/states/hashes, never content."}
-  - {group: operational, families: [feedback.lifecycle, case.lifecycle, case.converted_to_matter], mvp: true, status: documented}
+  # GAP-1 CLOSED for m12-feedback (Stage 3.1) — feedback.lifecycle registered with the engine that emits it,
+  # declared in packages/contracts/src/feedback-events.ts. Delivered through the single transactional outbox
+  # (m06). 24 event types, payload v1; identifiers/statuses/reason-codes/safe-dimensions ONLY (never customer
+  # contacts, narratives, confidential internal responses, document contents, or notification destinations).
+  - {group: feedback, families: [feedback.lifecycle], mvp: true, status: implemented, owner: m12-feedback,
+     classification: confidential,
+     note: "Stage 3.1. Feedback capture -> classification -> resolution -> closure + case handoff. Ordering key
+            = aggregate id (payload feedbackId); consumers dedupe on eventId. Payloads carry ids/statuses only."}
+  - {group: operational, families: [case.lifecycle, case.converted_to_matter], mvp: true, status: documented}
   - {group: legal, families: [legal.lifecycle, litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
   - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}

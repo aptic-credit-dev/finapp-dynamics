@@ -9,6 +9,7 @@ import { WorkflowModule } from './workflow/workflow.module.ts';
 import { RulesModule } from './rules/rules.module.ts';
 import { NotifyModule } from './notify/notify.module.ts';
 import { DocumentsModule } from './documents/documents.module.ts';
+import { FeedbackModule } from './feedback/feedback.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -44,6 +45,11 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
  * Stage 2.5 adds DocumentsModule — enterprise document & records management under `/api/v1/documents`. Same
  * posture: no kernel token, publishes document.lifecycle through the one m06 outbox; storage + scan are ports
  * bound to Framework-Only test doubles.
+ *
+ * Stage 3.1 adds FeedbackModule — the enterprise feedback platform under `/api/v1/feedback`. Same posture: no
+ * kernel token, publishes feedback.lifecycle through the one m06 outbox. It reuses m06 workflow, m07 rules, m08
+ * escalation/notifications and m09 documents; the SLA clock is a port. Case handoff to m13 is a pending record +
+ * event only — m12 builds no case table and no second escalation engine.
  */
 @Module({
   imports: [
@@ -57,6 +63,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     RulesModule,
     NotifyModule,
     DocumentsModule,
+    FeedbackModule,
   ],
   controllers: [HealthController],
   providers: [],

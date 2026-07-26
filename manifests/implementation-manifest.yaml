@@ -555,11 +555,11 @@ stages:
           ci_implementation: passed                     # PR #18 run 30207851985 on ac3c24b: Smoke + DB (PostgreSQL 16) both green
           smoke_certification: passed_locally           # 15 suites, 2261 assertions, 0 failures
           postgresql_certification: passed_locally      # 22 db specs, 626 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          ci_certification: passed                       # authoritative PG16: impl run 30207851985 + main push 30208050617 (byte-identical merged tree)
-          certification_status: certified_on_branch      # cert PR pending, not merged
-          certified_baseline_sha: 9b99c218e3cc74ca2c2fea45881538dd897a0de3   # merged main SHA (PR #18) tested for certification
-          certification_pr: pending
-          certification_merge_sha: pending
+          ci_certification: passed                       # cert PR #19 run 30208538613 + main push 30208900775 (PostgreSQL 16) all green
+          certification_status: certified                # cert PR #19 merged 2026-07-26
+          certified_baseline_sha: 6aa474426b069182db5037b6c93ba5e305e2feba   # merged main SHA (PR #19) tested for certification
+          certification_pr: 19
+          certification_merge_sha: 6aa474426b069182db5037b6c93ba5e305e2feba
           local_reverification: {smoke_suites: 15, smoke_assertions: 2261, conformance_assertions: 828,
                                  db_specs: 22, db_assertions: 626, migrations: 18, postgres_version: "15.2",
                                  node_version: "22.14.0", clean_checkout: true, tree_identical_to_ci_head: true}
@@ -586,15 +586,54 @@ stages:
     depends_on_stage: 1
     modules:
       - module: m12-feedback
-        capability: Feedback Management (closed loop)
-        status: documented
+        capability: Feedback Management (enterprise, closed loop)
+        status: implemented   # Stage 3.1 — implemented_on_branch (not merged/certified); see certification_3_1
         mvp: true
-        db_ownership: [feedback_records, feedback_categories, feedback_escalations, feedback_sentiment, ...]
+        db_ownership: [feedback_source_system(configurable), feedback_category(configurable),
+                       feedback_questionnaire(versioned spec, one ACTIVE per code, immutable-after-publish),
+                       feedback_sla_policy(versioned spec, one ACTIVE per code, immutable-after-publish),
+                       feedback_source_transaction(ingestion, external-tx unique + idempotent),
+                       feedback_record(core aggregate; customer_contact + narrative SENSITIVE; 15-state lifecycle),
+                       feedback_answer(append-only), feedback_queue_item(single-winner claim),
+                       feedback_contact_attempt(append-only), feedback_assignment_history(append-only),
+                       feedback_activity, feedback_resolution(one per feedback),
+                       feedback_sla_instance(one per feedback, deterministic clock), feedback_case_handoff(pending
+                       unique + idempotent), feedback_relationship(duplicate/related)]
         api_ownership: [/api/v1/feedback]
         event_ownership: [feedback.lifecycle]
-        shared_services_consumed: [m02, m03, m06, m08, m09]
+        shared_services_consumed: [kernel, m01, m02, m03, m06, m07, m08, m09]
         permissions_required: [feedback.*]
-        testing_required: [smoke, db_spec]
+        testing_required: [smoke, db_spec, services_db_spec, api_http_spec]
+        tests_present: [m12-feedback.smoke (61), m12-feedback.db-spec (27), m12-services.db-spec (36),
+                        api-feedback.db-spec (14)]
+        # Enterprise feedback-management platform (not a survey table) for post-transaction customer calls across
+        # loans, insurance, bid/performance bonds, advance-payment guarantees and trade finance. Nothing is
+        # Aptic-specific: sources, products, departments, branches, officers and transaction types are CONFIGURABLE.
+        # Full lifecycle: ingest -> contact queue (single-winner) -> capture (deterministic CSAT/NPS) -> classify ->
+        # assign -> resolve (maker-checker SoD) -> rule-gated closure, with reopen / converted_to_case branches.
+        # Reuses m06 workflow, m07 rules, m08 escalation+notifications, m09 documents THROUGH EVENTS/CONTRACTS only
+        # (no duplicate engines). SLA is deterministic via a Clock port. Case handoff to m13 is a port + pending
+        # record + versioned event ONLY (no case table, no second escalation engine). Customer contacts + narratives
+        # are sensitive: RLS-stored, redacted on read (feedback.customer_contact.read), NEVER in events/audit.
+        # Publishes feedback.lifecycle (24 event types) through the ONE m06 outbox.
+        certification_3_1:
+          module: m12-feedback
+          substage: "3.1"
+          branch: feature/stage-3-1-m12-feedback
+          parent_baseline: 6aa474426b069182db5037b6c93ba5e305e2feba   # certified Stage 2.5 main (PR #19 merge)
+          implementation_status: implemented_on_branch   # STOP before merge; certification recorded post-merge
+          smoke_certification: passed_locally            # 16 suites, 2476 assertions, 0 failures (incl. m12 smoke 61 + conformance 976)
+          postgresql_certification: passed_locally       # 25 db specs, 703 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          local_reverification: {smoke_suites: 16, smoke_assertions: 2476, conformance_assertions: 976,
+                                 db_specs: 25, db_assertions: 703, migrations: 20, postgres_version: "15.2",
+                                 node_version: "22.14.0", clean_checkout: false}
+          adrs: [ADR-052, ADR-053, ADR-054, ADR-055, ADR-056]
+          docs: [docs/build/stages/STAGE_3_1_M12_FEEDBACK_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_3_1_M12_FEEDBACK_READINESS.md,
+                 docs/build/stages/STAGE_3_1_M12_FEEDBACK_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_3_1_M12_FEEDBACK_COMPLETION.md]
+          # ci_implementation / implementation_pr / implementation_merge_sha / ci_certification /
+          # certification_status / certification_pr recorded during post-merge Stage 3.1 certification.
       - module: m13-case
         capability: Case Management
         status: documented
