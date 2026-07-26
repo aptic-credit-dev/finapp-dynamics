@@ -491,25 +491,31 @@ stages:
           module: m08-notify
           substage: "2.4"
           branch: feature/stage-2-4-m08-notifications
+          certification_branch: cert/stage-2-4-m08-notifications
           parent_baseline: f5b06d7dda4619c7062a89c52ac2ee17a3e494f6   # certified Stage 2.3 main (PR #15 merge)
-          implementation_status: implemented_on_branch
-          implementation_pr: pending
-          implementation_head: pending
-          implementation_merge_sha: pending
-          merge_status: not_merged
-          ci_implementation: pending
-          certification_status: not_started
+          # Merged 2026-07-26 via PR #16 (squash) onto certified Stage 2.3 main. Post-merge certification recorded on branch.
+          implementation_status: merged
+          implementation_pr: 16
+          implementation_head: caebe7e62913b4f299f150e4c8f91e73bc7c0c74
+          implementation_merge_sha: f7a8c6b1f909c2e5602f1cc6c60de68d5f69f81d
+          merge_status: merged
+          ci_implementation: passed                     # PR #16 run 30204816392 on caebe7e: Smoke + DB (PostgreSQL 16) both green
+          smoke_certification: passed_locally           # 14 suites, 2066 assertions, 0 failures
+          postgresql_certification: passed_locally      # 19 db specs, 552 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          ci_certification: passed                       # authoritative PG16: impl run 30204816392 + main push 30204969089 (byte-identical merged tree)
+          certification_status: certified_on_branch      # cert PR pending, not merged
+          certified_baseline_sha: f7a8c6b1f909c2e5602f1cc6c60de68d5f69f81d   # merged main SHA (PR #16) tested for certification
           certification_pr: pending
           certification_merge_sha: pending
-          ci_certification: pending
-          local_verification: {smoke_suites: 14, smoke_assertions: 2066, conformance_assertions: 708,
-                               db_specs: 19, db_assertions: 552, migrations: 16, postgres_version: "15.2",
-                               node_version: "22.14.0"}
+          local_reverification: {smoke_suites: 14, smoke_assertions: 2066, conformance_assertions: 708,
+                                 db_specs: 19, db_assertions: 552, migrations: 16, postgres_version: "15.2",
+                                 node_version: "22.14.0", clean_checkout: true, tree_identical_to_ci_head: true}
           adrs: [ADR-038, ADR-039, ADR-040, ADR-041, ADR-042, ADR-043]
           docs: [docs/build/stages/STAGE_2_4_M08_NOTIFICATIONS_ARCHITECTURE.md,
                  docs/build/stages/STAGE_2_4_M08_NOTIFICATIONS_READINESS.md,
                  docs/build/stages/STAGE_2_4_M08_NOTIFICATIONS_IMPLEMENTATION_PLAN.md,
-                 docs/build/stages/STAGE_2_4_M08_NOTIFICATIONS_COMPLETION.md]
+                 docs/build/stages/STAGE_2_4_M08_NOTIFICATIONS_COMPLETION.md,
+                 docs/build/stages/STAGE_2_4_M08_NOTIFICATIONS_CERTIFICATION.md]
       - module: m09-docs
         capability: Document service (classified, linked, versioned)
         status: documented
