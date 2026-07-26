@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 148 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 178 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -283,6 +283,40 @@ codes:
   - { code: NOTIFY_PREFERENCE_CHANGED, module: m08-notify, severity: normal, reason_required: false }
   - { code: NOTIFY_INBOX_READ, module: m08-notify, severity: normal, reason_required: false }
   - { code: NOTIFY_PLATFORM_CONFIGURED, module: m08-notify, severity: critical, reason_required: true }
+
+  # --- m09-docs — Stage 2.5 --- every controlled document/records mutation + governed access/scan/disposition
+  # event is audited. Payloads carry ids/states/hashes only — never content, extracted text, storage
+  # credentials, signed URLs, encryption keys, or AV payloads (ADR-046).
+  - { code: DOC_DOCUMENT_CREATED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_METADATA_UPDATED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_CLASSIFICATION_CHANGED, module: m09-docs, severity: elevated, reason_required: false }
+  - { code: DOC_VERSION_INITIATED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_VERSION_COMPLETED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_VERSION_ACTIVATED, module: m09-docs, severity: elevated, reason_required: false }
+  - { code: DOC_VERSION_SUPERSEDED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_DOCUMENT_ACTIVATED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_DOCUMENT_ARCHIVED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_DOCUMENT_WITHDRAWN, module: m09-docs, severity: elevated, reason_required: false }
+  - { code: DOC_DOCUMENT_ACCESSED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_DOCUMENT_DOWNLOADED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_ACCESS_GRANTED, module: m09-docs, severity: elevated, reason_required: false }
+  - { code: DOC_ACCESS_REVOKED, module: m09-docs, severity: elevated, reason_required: false }
+  - { code: DOC_CHECKOUT_ACQUIRED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_CHECKOUT_RELEASED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_TYPE_CREATED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_TYPE_PUBLISHED, module: m09-docs, severity: elevated, reason_required: false }
+  - { code: DOC_RETENTION_CREATED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_RETENTION_PUBLISHED, module: m09-docs, severity: elevated, reason_required: false }
+  - { code: DOC_LEGAL_HOLD_PLACED, module: m09-docs, severity: elevated, reason_required: true }
+  - { code: DOC_LEGAL_HOLD_RELEASED, module: m09-docs, severity: elevated, reason_required: false }
+  - { code: DOC_DISPOSITION_REQUESTED, module: m09-docs, severity: elevated, reason_required: false }
+  - { code: DOC_DISPOSITION_APPROVED, module: m09-docs, severity: elevated, reason_required: false }
+  - { code: DOC_DISPOSITION_REJECTED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_DISPOSITION_COMPLETED, module: m09-docs, severity: critical, reason_required: true }
+  - { code: DOC_SCAN_COMPLETED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_SCAN_FAILED, module: m09-docs, severity: elevated, reason_required: false }
+  - { code: DOC_RELATIONSHIP_CREATED, module: m09-docs, severity: normal, reason_required: false }
+  - { code: DOC_RELATIONSHIP_REMOVED, module: m09-docs, severity: normal, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

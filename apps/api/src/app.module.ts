@@ -8,6 +8,7 @@ import { AuditModule } from './audit/audit.module.ts';
 import { WorkflowModule } from './workflow/workflow.module.ts';
 import { RulesModule } from './rules/rules.module.ts';
 import { NotifyModule } from './notify/notify.module.ts';
+import { DocumentsModule } from './documents/documents.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -39,6 +40,10 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
  *
  * Stage 2.4 adds NotifyModule — generic multi-tenant notifications + escalation under `/api/v1/notifications`.
  * Same posture: it binds no kernel token and publishes notification.lifecycle through the one m06 outbox.
+ *
+ * Stage 2.5 adds DocumentsModule — enterprise document & records management under `/api/v1/documents`. Same
+ * posture: no kernel token, publishes document.lifecycle through the one m06 outbox; storage + scan are ports
+ * bound to Framework-Only test doubles.
  */
 @Module({
   imports: [
@@ -51,6 +56,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     WorkflowModule,
     RulesModule,
     NotifyModule,
+    DocumentsModule,
   ],
   controllers: [HealthController],
   providers: [],

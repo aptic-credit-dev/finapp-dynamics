@@ -166,7 +166,7 @@ modules:
     api_prefixes: [/api/v1/documents]
     permission_namespaces: ['documents.*']
     event_families: [document.lifecycle]
-    event_family_registered: false # GAP-1: manifest:106, absent from event-registry.yaml
+    event_family_registered: true # Stage 2.5 — registered in event-registry.yaml alongside m09-docs
     audit_prefixes: [DOC_]
 
   - module: m04-admin

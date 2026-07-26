@@ -81,7 +81,17 @@ namespaces:
              "notifications.preference.view", "notifications.preference.update",
              "notifications.inbox.view", "notifications.inbox.manage",
              "notifications.suppression.manage", "notifications.platform.administer"]}
-  - {namespace: "documents.*", module: m09-docs, mvp: true, status: documented}
+  - {namespace: "documents.*", module: m09-docs, mvp: true, status: implemented, substage: "2.5",
+     codes: ["documents.document.read", "documents.document.create", "documents.document.update_metadata",
+             "documents.document.upload_version", "documents.document.activate", "documents.document.archive",
+             "documents.document.withdraw", "documents.document.download",
+             "documents.type.read", "documents.type.manage", "documents.retention.read", "documents.retention.manage",
+             "documents.access.read", "documents.access.grant", "documents.access.revoke",
+             "documents.checkout.acquire", "documents.checkout.release", "documents.checkout.force_release",
+             "documents.legal_hold.read", "documents.legal_hold.manage",
+             "documents.disposition.read", "documents.disposition.request", "documents.disposition.approve",
+             "documents.disposition.execute", "documents.scan.override", "documents.relationship.manage",
+             "documents.platform.administer"]}
   - {namespace: "admin.*", module: m04-admin, mvp: true, status: documented}
   - {namespace: "feedback.*", module: m12-feedback, mvp: true, status: documented}
   - {namespace: "cases.*", module: m13-case, mvp: true, status: documented}
