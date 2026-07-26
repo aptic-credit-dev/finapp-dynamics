@@ -49,6 +49,14 @@ family_groups:
      classification: confidential,
      note: "Stage 2.3. Rule-set lifecycle + evaluation outcomes. Ordering key = aggregate id; consumers
             dedupe on (type, aggregateId, version). Payloads carry input/context HASHES, never raw values."}
+  # GAP-1 CLOSED for m08-notify (Stage 2.4) — notification.lifecycle registered with the engine that emits it,
+  # declared in packages/contracts/src/notification-events.ts. Delivered through the single transactional outbox
+  # (m06). 21 event types, payload v1; identifiers/channel/status/reason-codes ONLY (never destinations, rendered
+  # bodies, provider secrets, or variable values).
+  - {group: notifications, families: [notification.lifecycle], mvp: true, status: implemented, owner: m08-notify,
+     classification: confidential,
+     note: "Stage 2.4. Template + request + escalation + inbox lifecycle. Ordering key = aggregate id (payload
+            id); consumers dedupe on eventId. Payloads carry ids/channel/status/reason-codes, never raw values."}
   - {group: operational, families: [feedback.lifecycle, case.lifecycle, case.converted_to_matter], mvp: true, status: documented}
   - {group: legal, families: [legal.lifecycle, litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}

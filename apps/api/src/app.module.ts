@@ -7,6 +7,7 @@ import { RbacModule } from './rbac/rbac.module.ts';
 import { AuditModule } from './audit/audit.module.ts';
 import { WorkflowModule } from './workflow/workflow.module.ts';
 import { RulesModule } from './rules/rules.module.ts';
+import { NotifyModule } from './notify/notify.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -35,6 +36,9 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
  *
  * Stage 2.3 adds RulesModule — the versioned, explainable decision-rules engine under `/api/v1/rules`. Like
  * WorkflowModule it binds no kernel token and publishes through the one outbox m06 owns.
+ *
+ * Stage 2.4 adds NotifyModule — generic multi-tenant notifications + escalation under `/api/v1/notifications`.
+ * Same posture: it binds no kernel token and publishes notification.lifecycle through the one m06 outbox.
  */
 @Module({
   imports: [
@@ -46,6 +50,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     AuthModule,
     WorkflowModule,
     RulesModule,
+    NotifyModule,
   ],
   controllers: [HealthController],
   providers: [],
