@@ -91,3 +91,17 @@ export type {
   RuleEvaluationPayload,
   RuleTestPayload,
 } from './rules-events.ts';
+export {
+  NOTIFICATION_LIFECYCLE_FAMILY,
+  NOTIFICATION_LIFECYCLE_VERSION,
+  NOTIFICATION_LIFECYCLE_EVENT_TYPES,
+} from './notification-events.ts';
+export type {
+  NotificationLifecycleEvent,
+  NotificationLifecycleEventType,
+  NotificationLifecyclePayload,
+  NotificationTemplateLifecyclePayload,
+  NotificationRequestPayload,
+  EscalationPayload,
+  InboxNotificationPayload,
+} from './notification-events.ts';

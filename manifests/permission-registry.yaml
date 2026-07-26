@@ -71,7 +71,16 @@ namespaces:
              "rules.engine.test",
              "rules.evaluation.view", "rules.evaluation.replay", "rules.evaluation.export",
              "rules.platform.administer"]}
-  - {namespace: "notifications.*", module: m08-notify, mvp: true, status: documented}
+  - {namespace: "notifications.*", module: m08-notify, mvp: true, status: implemented, substage: "2.4",
+     codes: ["notifications.template.view", "notifications.template.author", "notifications.template.validate",
+             "notifications.template.publish", "notifications.template.activate", "notifications.template.retire",
+             "notifications.request.view", "notifications.request.create", "notifications.request.cancel",
+             "notifications.request.retry", "notifications.delivery.view",
+             "notifications.escalation.view", "notifications.escalation.manage",
+             "notifications.escalation.acknowledge", "notifications.escalation.resolve",
+             "notifications.preference.view", "notifications.preference.update",
+             "notifications.inbox.view", "notifications.inbox.manage",
+             "notifications.suppression.manage", "notifications.platform.administer"]}
   - {namespace: "documents.*", module: m09-docs, mvp: true, status: documented}
   - {namespace: "admin.*", module: m04-admin, mvp: true, status: documented}
   - {namespace: "feedback.*", module: m12-feedback, mvp: true, status: documented}

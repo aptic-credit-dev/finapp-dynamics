@@ -356,3 +356,47 @@ admin bypass secret; embedding credentials; unrestricted repeated admin creation
 **Decision:** rule sets are **tenant-scoped by default** (composite `(tenant_id, id)`, RLS FORCE, no escape). Platform-global rule sets are modelled explicitly with a mixed-scope pattern (nullable `tenant_id` plus a system escape, like m03 audit / m02 roles) and administered only under `rules.platform.administer` (platform authority); a tenant cannot mutate a global rule set. For the Stage 2.3 MVP, evaluation resolves a rule set within the caller's tenant (global-rule override/fallback semantics are defined but the global-administration surface is minimal); there is no ambiguous fallback — resolution is explicit.
 
 **Consequence:** no faked global scope via an arbitrary tenant; a clear administration boundary. Full global-rule override semantics and the admin surface are a documented follow-on. Rejected: representing a global rule as a special tenant row; implicit tenant-to-global fallback.
+
+## ADR-038 — M08 channel-neutral notifications via ports/adapters (Stage 2.4)
+**Status:** **ACCEPTED** — 2026-07-26 (product owner + security). Module `m08-notify`, branch `feature/stage-2-4-m08-notifications`, parent `f5b06d7` (certified Stage 2.3).
+
+**Context:** the platform needs one generic notification + escalation service that Feedback, Cases, Finance, Workflow and others consume — not a marketing engine, and not a place where a real provider SDK or its secrets live in the core.
+
+**Decision:** m08 is **channel-neutral** (email / sms / in_app / webhook modelled as an allow-listed enum). Delivery is performed by a `NotificationProvider` **adapter** selected per channel through a `ProviderRegistry` (ports/adapters). The core ships **deterministic test doubles only** — NO real third-party integration, NO committed secrets, NO arbitrary-URL fetcher. An unconfigured channel fails safe as a retryable provider error (Framework Only). Webhook destinations pass an SSRF guard (https only, no credentials, no private/loopback/link-local/metadata hosts); m08 never fetches arbitrary URLs. m08 consumes DB/AUDIT/AUTHZ via kernel tokens and publishes `notification.lifecycle` through the **one** m06 outbox — it owns no outbox.
+
+**Consequence:** the whole module is testable with no network; a real provider is a later adapter behind a stable port. Rejected: hardcoding a vendor SDK; a generic URL fetcher; a second outbox.
+
+## ADR-039 — Versioned immutable notification templates & escalation policies (Stage 2.4)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m08-notify`, branch as ADR-038.
+
+**Decision:** a notification **template version** stores its entire validated template (channel, subject/body templates, typed variable schema, locale) as one **immutable `spec` JSON**, walked DRAFT→VALIDATED→PUBLISHED→ACTIVE→RETIRED→ARCHIVED and **frozen at publish** with a SHA-256 `content_hash`; at most one ACTIVE version per template governs sending (partial unique index). Escalation policies follow the same immutable-spec, one-ACTIVE-per-key model in a single versioned table. A material change is a NEW version — a published spec is never edited. Mirrors m07 ADR-032 / m06 ADR-022.
+
+**Consequence:** deterministic, replayable, auditable templates; a request binds to a frozen revision. Rejected: mutable published templates; shredding the template into per-row tables.
+
+## ADR-040 — Safe deterministic template rendering (Stage 2.4)
+**Status:** **ACCEPTED** — 2026-07-26 (product owner + security). Module `m08-notify`, branch as ADR-038.
+
+**Decision:** rendering is **explicit `{{ variable }}` substitution** over declared, typed variables — NOT an expression language. There is **no eval, no Function constructor, no vm, no dynamic require/import, no property access, no logic/conditionals, and no access to process/env/fs/network/Date.now/random/globals** — injection is impossible by construction. Rendering is a **pure function** of (template, values): identical inputs yield identical output. Output is HTML-escaped for email/in-app; every bound (template size, variable count, value size, placeholder count, rendered size) is enforced fail-closed; a malformed placeholder (`{{ 2+2 }}`, `{{ a.b }}`) is rejected at validation. Errors are structured and never echo a secret or raw value. This mirrors m07's structured-condition posture (ADR-033), adapted to text templating.
+
+**Consequence:** RCE/injection impossible by construction; DoS bounded and fail-closed; deterministic + replayable. Rejected: a Handlebars/Mustache-style logic engine; unbounded rendering.
+
+## ADR-041 — Notification evidence & sensitive-data minimization (Stage 2.4)
+**Status:** **ACCEPTED** — 2026-07-26 (product owner + security). Module `m08-notify`, branch as ADR-038.
+
+**Decision:** the notification **request** carries the variable VALUES it must render at dispatch (operational data held under RLS + classification, since deferred delivery inherently needs the payload) plus a `variables_hash` for idempotency-conflict detection. But the **audit spine, the `notification.lifecycle` events, and delivery-attempt evidence carry IDENTIFIERS / CHANNEL / STATUS / REASON-CODES ONLY** — never raw destinations, rendered message bodies, provider credentials, or variable values. Delivery attempts are **append-only** (INSERT+SELECT grant); no provider secret is ever stored. API views redact variable values (hash only), the worker lease, and provider secrets.
+
+**Consequence:** the operational store holds only what deferred delivery requires; the durable audit/event trail is minimized and safe for logs. Rejected: writing rendered bodies or destinations into audit/events; storing provider secrets in evidence.
+
+## ADR-042 — Communication categories, preferences & suppression (Stage 2.4)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m08-notify`, branch as ADR-038.
+
+**Decision:** every notification declares a **category** — `optional`, `operational`, `security`, or `legal`. Preferences (opt-out, quiet hours) and destination suppression apply to `optional` fully and may DEFER (never drop) `operational` during quiet hours; **`security` and `legal` are mandatory and bypass all preferences, suppression, and quiet hours** — a general opt-out can never silence a security or legally-required notice. Templates/policies are tenant-scoped by default with an explicit platform scope under `notifications.platform.administer`; there is no vague `notifications.admin`. This is a generic preference core, NOT a consent-management platform.
+
+**Consequence:** users control noise without being able to suppress what must reach them; a clear platform-vs-tenant boundary. Rejected: a single global mute; a full consent platform.
+
+## ADR-043 — Escalation policy model & lease-based worker concurrency (Stage 2.4)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m08-notify`, branch as ADR-038.
+
+**Decision:** an escalation policy is a bounded, ordered ladder of levels (delay, channel, recipients, optional template) stored as one immutable versioned `spec` in a **single** `escalation_policy` table (definition+version collapsed, one ACTIVE per key). Escalation instances and notification requests are advanced by workers under a **compare-and-set LEASE** (`locked_by`/`locked_until`): a due row is claimed by exactly one worker (single-winner under contention proven by the DB spec), advanced/dispatched, and released; stale leases are reclaimable. Advancement is bounded (no infinite escalation) and idempotent; creation is idempotent per originating event (unique idempotency key). Dispatch/advance are worker paths and are NOT exposed over HTTP (no worker internals in the public API).
+
+**Consequence:** safe concurrent processing without a second scheduler in the request path; bounded, idempotent, replay-safe escalation. Deferred (documented): a standing timer-dispatcher worker (the fire path is a service method invoked by tests/callers, like m06's SLA path); real recipient-resolver adapters; downstream notification fan-out on escalation advance. Rejected: unbounded escalation; advancing without a lease.

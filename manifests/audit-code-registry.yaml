@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 119 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 148 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -251,6 +251,38 @@ codes:
   - { code: RULES_TEST_FAILED, module: m07-rules, severity: elevated, reason_required: false }
   - { code: RULES_EXPORT_REQUESTED, module: m07-rules, severity: elevated, reason_required: false }
   - { code: RULES_PLATFORM_CONFIGURED, module: m07-rules, severity: critical, reason_required: true }
+
+  # --- m08-notify — Stage 2.4 --- every controlled template/request/escalation mutation + governed delivery
+  # attempt is audited. Delivery + retry evidence codes fire on the worker dispatch path (not @Endpoint routes).
+  - { code: NOTIFY_TEMPLATE_CREATED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_TEMPLATE_UPDATED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_TEMPLATE_VALIDATED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_TEMPLATE_VALIDATION_FAILED, module: m08-notify, severity: elevated, reason_required: false }
+  - { code: NOTIFY_VERSION_CREATED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_VERSION_PUBLISHED, module: m08-notify, severity: elevated, reason_required: false }
+  - { code: NOTIFY_VERSION_ACTIVATED, module: m08-notify, severity: elevated, reason_required: false }
+  - { code: NOTIFY_VERSION_RETIRED, module: m08-notify, severity: elevated, reason_required: false }
+  - { code: NOTIFY_REQUEST_CREATED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_REQUEST_CANCELLED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_REQUEST_EXPIRED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_REQUEST_SUPPRESSED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_DELIVERY_CLAIMED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_DELIVERY_ATTEMPTED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_DELIVERY_SUCCEEDED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_DELIVERY_FAILED, module: m08-notify, severity: elevated, reason_required: false }
+  - { code: NOTIFY_RETRY_SCHEDULED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_RETRY_EXHAUSTED, module: m08-notify, severity: elevated, reason_required: false }
+  - { code: NOTIFY_RETRY_REQUESTED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_ESCALATION_POLICY_CREATED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_ESCALATION_POLICY_UPDATED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_ESCALATION_ACTIVATED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_ESCALATION_ADVANCED, module: m08-notify, severity: elevated, reason_required: false }
+  - { code: NOTIFY_ESCALATION_ACKNOWLEDGED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_ESCALATION_RESOLVED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_ESCALATION_CANCELLED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_PREFERENCE_CHANGED, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_INBOX_READ, module: m08-notify, severity: normal, reason_required: false }
+  - { code: NOTIFY_PLATFORM_CONFIGURED, module: m08-notify, severity: critical, reason_required: true }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

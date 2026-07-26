@@ -15,6 +15,7 @@
     { "path": "./packages/m03-audit" },
     { "path": "./packages/m06-workflow" },
     { "path": "./packages/m07-rules" },
+    { "path": "./packages/m08-notify" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]
