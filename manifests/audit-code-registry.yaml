@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 178 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 213 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -317,6 +317,42 @@ codes:
   - { code: DOC_SCAN_FAILED, module: m09-docs, severity: elevated, reason_required: false }
   - { code: DOC_RELATIONSHIP_CREATED, module: m09-docs, severity: normal, reason_required: false }
   - { code: DOC_RELATIONSHIP_REMOVED, module: m09-docs, severity: normal, reason_required: false }
+  # --- m12-feedback (Stage 3.1) — 35 codes -----------------------------------------------------
+  - { code: FEEDBACK_TRANSACTION_INGESTED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_QUEUE_CREATED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_QUEUE_CLAIMED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_CONTACT_ATTEMPTED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_CONTACT_ACCESSED, module: m12-feedback, severity: elevated, reason_required: false }
+  - { code: FEEDBACK_RECORD_CREATED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_RECORD_CAPTURED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_RECORD_CLASSIFIED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_RECORD_ASSIGNED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_ACTIVITY_CREATED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_ACTIVITY_COMPLETED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_RESPONSE_SUBMITTED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_ROOT_CAUSE_RECORDED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_RESOLUTION_SUBMITTED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_RESOLUTION_APPROVED, module: m12-feedback, severity: elevated, reason_required: false }
+  - { code: FEEDBACK_CONFIRMATION_RECORDED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_SLA_STARTED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_SLA_PAUSED, module: m12-feedback, severity: normal, reason_required: true }
+  - { code: FEEDBACK_SLA_RESUMED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_SLA_BREACHED, module: m12-feedback, severity: elevated, reason_required: false }
+  - { code: FEEDBACK_ESCALATION_TRIGGERED, module: m12-feedback, severity: elevated, reason_required: true }
+  - { code: FEEDBACK_CLOSURE_EVALUATED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_RECORD_CLOSED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_RECORD_REOPENED, module: m12-feedback, severity: elevated, reason_required: true }
+  - { code: FEEDBACK_DUPLICATE_LINKED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_RELATED_LINKED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_CASE_HANDOFF_REQUESTED, module: m12-feedback, severity: elevated, reason_required: false }
+  - { code: FEEDBACK_CASE_HANDOFF_COMPLETED, module: m12-feedback, severity: elevated, reason_required: false }
+  - { code: FEEDBACK_POSITIVE_RECOGNIZED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_QUESTIONNAIRE_CREATED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_QUESTIONNAIRE_PUBLISHED, module: m12-feedback, severity: elevated, reason_required: false }
+  - { code: FEEDBACK_CATEGORY_CONFIGURED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_SLA_POLICY_PUBLISHED, module: m12-feedback, severity: elevated, reason_required: false }
+  - { code: FEEDBACK_SOURCE_CONFIGURED, module: m12-feedback, severity: normal, reason_required: false }
+  - { code: FEEDBACK_EXPORT_REQUESTED, module: m12-feedback, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
