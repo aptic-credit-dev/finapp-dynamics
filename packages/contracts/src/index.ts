@@ -118,3 +118,16 @@ export type {
   DocumentAccessPayload,
   DocumentRelationshipPayload,
 } from './document-events.ts';
+export {
+  FEEDBACK_LIFECYCLE_FAMILY,
+  FEEDBACK_LIFECYCLE_VERSION,
+  FEEDBACK_LIFECYCLE_EVENT_TYPES,
+} from './feedback-events.ts';
+export type {
+  FeedbackLifecycleEvent,
+  FeedbackLifecycleEventType,
+  FeedbackEventPayload,
+  FeedbackLifecyclePayload,
+  FeedbackIngestionPayload,
+  FeedbackCaseHandoffPayload,
+} from './feedback-events.ts';

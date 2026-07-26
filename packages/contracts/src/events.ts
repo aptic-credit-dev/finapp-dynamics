@@ -14,6 +14,8 @@ import type { NotificationLifecycleEvent } from './notification-events.ts';
 import { NOTIFICATION_LIFECYCLE_FAMILY } from './notification-events.ts';
 import type { DocumentLifecycleEvent } from './document-events.ts';
 import { DOCUMENT_LIFECYCLE_FAMILY } from './document-events.ts';
+import type { FeedbackLifecycleEvent } from './feedback-events.ts';
+import { FEEDBACK_LIFECYCLE_FAMILY } from './feedback-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -36,7 +38,8 @@ export type DomainEvent =
   | WorkflowLifecycleEvent
   | RulesLifecycleEvent
   | NotificationLifecycleEvent
-  | DocumentLifecycleEvent;
+  | DocumentLifecycleEvent
+  | FeedbackLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -48,6 +51,7 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   RULES_LIFECYCLE_FAMILY,
   NOTIFICATION_LIFECYCLE_FAMILY,
   DOCUMENT_LIFECYCLE_FAMILY,
+  FEEDBACK_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */
