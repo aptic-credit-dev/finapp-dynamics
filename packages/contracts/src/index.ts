@@ -131,3 +131,20 @@ export type {
   FeedbackIngestionPayload,
   FeedbackCaseHandoffPayload,
 } from './feedback-events.ts';
+export {
+  CASE_LIFECYCLE_FAMILY,
+  CASE_LIFECYCLE_VERSION,
+  CASE_LIFECYCLE_EVENT_TYPES,
+  CASE_CONVERTED_TO_MATTER_FAMILY,
+  CASE_CONVERTED_TO_MATTER_VERSION,
+  CASE_CONVERTED_TO_MATTER_EVENT_TYPES,
+} from './case-events.ts';
+export type {
+  CaseLifecycleEvent,
+  CaseLifecycleEventType,
+  CaseLifecyclePayload,
+  CaseConvertedToMatterEvent,
+  CaseConvertedToMatterEventType,
+  CaseConvertedToMatterPayload,
+  CaseEventPayload,
+} from './case-events.ts';

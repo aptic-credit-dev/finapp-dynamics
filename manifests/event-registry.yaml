@@ -73,7 +73,17 @@ family_groups:
      classification: confidential,
      note: "Stage 3.1. Feedback capture -> classification -> resolution -> closure + case handoff. Ordering key
             = aggregate id (payload feedbackId); consumers dedupe on eventId. Payloads carry ids/statuses only."}
-  - {group: operational, families: [case.lifecycle, case.converted_to_matter], mvp: true, status: documented}
+  # GAP-1 CLOSED for m13-case (Stage 3.2) — case.lifecycle + case.converted_to_matter registered with the engine
+  # that emits them, declared in packages/contracts/src/case-events.ts. Delivered through the single transactional
+  # outbox (m06). case.lifecycle: 32 event types; case.converted_to_matter: 1 event type; payloads v1; carry
+  # identifiers/states/dates/safe-reason-codes/safe-dimensions ONLY (never privileged notes, private party
+  # contacts, correspondence bodies, full allegations, legal advice, document contents, confidential settlement
+  # terms, storage references, or notification destinations).
+  - {group: case, families: [case.lifecycle, case.converted_to_matter], mvp: true, status: implemented, owner: m13-case,
+     classification: confidential,
+     note: "Stage 3.2. Case intake (incl. M12 handoff) -> triage -> assignment -> investigation/legal/recovery ->
+            decision -> resolution -> closure, + the controlled m14 legal-matter boundary (case.converted_to_matter).
+            Ordering key = aggregate id (payload caseId); consumers dedupe on eventId. Payloads carry ids/states only."}
   - {group: legal, families: [legal.lifecycle, litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
   - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}
