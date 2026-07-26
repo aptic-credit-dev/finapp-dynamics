@@ -26,6 +26,7 @@
     "@finapp/m06-workflow": "*",
     "@finapp/m07-rules": "*",
     "@finapp/m08-notify": "*",
+    "@finapp/m09-docs": "*",
     "pg": "^8.13.1"
   },
   "devDependencies": {

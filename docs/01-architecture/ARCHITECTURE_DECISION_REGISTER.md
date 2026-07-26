@@ -400,3 +400,61 @@ admin bypass secret; embedding credentials; unrestricted repeated admin creation
 **Decision:** an escalation policy is a bounded, ordered ladder of levels (delay, channel, recipients, optional template) stored as one immutable versioned `spec` in a **single** `escalation_policy` table (definition+version collapsed, one ACTIVE per key). Escalation instances and notification requests are advanced by workers under a **compare-and-set LEASE** (`locked_by`/`locked_until`): a due row is claimed by exactly one worker (single-winner under contention proven by the DB spec), advanced/dispatched, and released; stale leases are reclaimable. Advancement is bounded (no infinite escalation) and idempotent; creation is idempotent per originating event (unique idempotency key). Dispatch/advance are worker paths and are NOT exposed over HTTP (no worker internals in the public API).
 
 **Consequence:** safe concurrent processing without a second scheduler in the request path; bounded, idempotent, replay-safe escalation. Deferred (documented): a standing timer-dispatcher worker (the fire path is a service method invoked by tests/callers, like m06's SLA path); real recipient-resolver adapters; downstream notification fan-out on escalation advance. Rejected: unbounded escalation; advancing without a lease.
+
+## ADR-044 — M09 document storage via ports; bytes never in PostgreSQL (Stage 2.5)
+**Status:** **ACCEPTED** — 2026-07-26 (product owner + security). Module `m09-docs`, branch `feature/stage-2-5-m09-documents`, parent `30b69c2` (certified Stage 2.4).
+
+**Context:** an enterprise document module must store large binary content, but PostgreSQL is the wrong place for multi-GB blobs, and hardcoding a cloud provider couples the platform to a vendor and its secrets.
+
+**Decision:** document content lives in an **object store behind a `DocumentStorage` port** (put/head/read/purge). PostgreSQL holds only an **opaque storage reference** plus metadata (filename, media type, byte size, content hash). m09 ships a **deterministic in-memory adapter** as a Framework-Only default and commits NO cloud credentials; a real S3/Azure/GCS adapter is a future responsibility behind the port. Downloads are server-mediated (or short-lived signed access from a real adapter); the raw storage reference is never exposed in an API response.
+
+**Consequence:** the module is fully testable without network or secrets; storage is swappable. Rejected: bytea/large-object columns; a hardcoded vendor SDK.
+
+## ADR-045 — Immutable versions & versioned type/retention specs (Stage 2.5)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m09-docs`, branch as ADR-044.
+
+**Decision:** a document is a stable logical record (identified by a code, never a filename) with **immutable versions**: a version's content columns (storage ref, hash, size, filename, media type) are frozen once it commits, and exactly **one ACTIVE version** governs a document (partial unique index). A committed version requires a content hash + byte size (CHECK). Document **types** and **retention policies** are versioned, immutable-after-publish `spec` JSON with one ACTIVE per code and a frozen content_hash (mirrors m07 ADR-032 / m08 ADR-039). Metadata is a constrained, typed map validated against the type's schema — never unbounded arbitrary JSON.
+
+**Consequence:** tamper-evident, auditable version history; deterministic type/retention resolution. Rejected: mutable published content; filename-as-identity; free-form metadata blobs.
+
+## ADR-046 — Document evidence & sensitive-data minimization (Stage 2.5)
+**Status:** **ACCEPTED** — 2026-07-26 (product owner + security). Module `m09-docs`, branch as ADR-044.
+
+**Decision:** the audit spine, `document.lifecycle` events, and scan/disposition evidence carry **identifiers, states, and content HASHES only** — never raw document content, extracted text, signed URLs, storage credentials, encryption keys, or antivirus payloads. Scan evidence records a status + scanner code + a safe signature label; a malicious payload is never stored. API views redact the internal storage reference. Scan evidence is append-only (INSERT+SELECT grant); no table grants DELETE.
+
+**Consequence:** the durable trail is safe for logs and minimized; a leak of the event stream or audit log discloses no content. Rejected: embedding content/URLs/keys in audit or events.
+
+## ADR-047 — Content safety, hard limits & no arbitrary paths/URLs (Stage 2.5)
+**Status:** **ACCEPTED** — 2026-07-26 (product owner + security). Module `m09-docs`, branch as ADR-044.
+
+**Decision:** filenames are normalized to a **safe leaf label** with a strict guard — path separators, `.`/`..`/traversal sequences, control characters, and reserved shell/Windows characters are rejected; the module NEVER builds a filesystem path or a remote URL from a filename (the real location is the adapter's opaque reference). Media types are validated against a strict grammar + the type's allow-list. Every bound (title/code/filename/media-type/byte-size/metadata key+value/tags/relationships) is enforced fail-closed. Permissions are three-segment `documents.<entity>.<action>`; there is no vague `documents.admin`.
+
+**Consequence:** path-traversal, SSRF-via-filename, MIME abuse, and oversized-payload DoS are impossible by construction. Rejected: arbitrary filesystem paths or remote URLs derived from user input.
+
+## ADR-048 — Document ACLs supplement RBAC (Stage 2.5)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m09-docs`, branch as ADR-044.
+
+**Decision:** a `document_access_grant` narrows access to a specific document for a declarative grantee (user/role/permission/participant/custodian) at a bounded access level. It **supplements** the M02 RBAC permission check — every document endpoint still enforces its `documents.*` permission first; a grant never replaces RBAC and there is no second authorization engine. Grants are explicit, tenant-scoped, auditable, and revocable (by status; no DELETE).
+
+**Consequence:** fine-grained per-document sharing without a parallel RBAC system. Rejected: a document-owned permission engine that bypasses M02.
+
+## ADR-049 — Classification model & controlled downgrade (Stage 2.5)
+**Status:** **ACCEPTED** — 2026-07-26 (product owner + security). Module `m09-docs`, branch as ADR-044.
+
+**Decision:** documents carry an ordered classification (`public < internal < confidential < restricted`, the contracts vocab) defaulted from the document type. Classification is enforced through authorization and access policy, not UI labels. A **downgrade** (to a less sensitive level) requires **platform authority** (`documents.platform.administer`) and is audited; an upgrade is a normal update.
+
+**Consequence:** sensitivity cannot be quietly lowered to widen access. Rejected: label-only classification; unprivileged downgrades.
+
+## ADR-050 — Retention, legal hold & controlled disposition (Stage 2.5)
+**Status:** **ACCEPTED** — 2026-07-26 (product owner + security). Module `m09-docs`, branch as ADR-044.
+
+**Decision:** retention computes an earliest-disposition date from the active policy at activation. Disposal is **never automatic**: it requires a request → explicit **privileged approval by a different actor** (maker≠checker) → execution, which purges object bytes but leaves a **tombstone** (the document row is set `disposed` and the append-only disposition + version rows remain as evidence). An active **legal hold ALWAYS blocks** disposal and retention expiry can never override it (a hard guard, fail closed). Legal-hold and disposition history are append-only (no DELETE).
+
+**Consequence:** defensible records management; no destruction of held or evidence records. Rejected: auto-destroy on expiry; single-actor disposal; hard-deletion without a tombstone.
+
+## ADR-051 — Scan / extraction / signature ports; Framework Only (Stage 2.5)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m09-docs`, branch as ADR-044.
+
+**Decision:** content scanning is a `ContentScanner` port with a deterministic test double; a version is not downloadable/activatable until required scanning is satisfied (`clean`/`bypassed`). m09 ships NO real antivirus, NO production OCR/extraction, and NO production e-signature — extraction and signature are modelled as deferred framework hooks (signature/approval flags on the type; approval orchestration delegated to m06 workflow). No provider credentials are committed and no real delivery/scan is claimed.
+
+**Consequence:** the scan gate and signature/approval metadata exist and are enforced, with real providers deferred behind ports. Rejected: embedding a real AV/OCR/e-sign SDK; claiming production scanning.

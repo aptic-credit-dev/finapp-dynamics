@@ -57,6 +57,14 @@ family_groups:
      classification: confidential,
      note: "Stage 2.4. Template + request + escalation + inbox lifecycle. Ordering key = aggregate id (payload
             id); consumers dedupe on eventId. Payloads carry ids/channel/status/reason-codes, never raw values."}
+  # GAP-1 CLOSED for m09-docs (Stage 2.5) — document.lifecycle registered with the engine that emits it,
+  # declared in packages/contracts/src/document-events.ts. Delivered through the single transactional outbox
+  # (m06). 22 event types, payload v1; identifiers/states/content-hashes/storage-refs ONLY (never raw content,
+  # extracted text, signed URLs, storage credentials, or encryption keys).
+  - {group: documents, families: [document.lifecycle], mvp: true, status: implemented, owner: m09-docs,
+     classification: confidential,
+     note: "Stage 2.5. Document + version + access + disposition lifecycle. Ordering key = aggregate id
+            (payload documentId); consumers dedupe on eventId. Payloads carry ids/states/hashes, never content."}
   - {group: operational, families: [feedback.lifecycle, case.lifecycle, case.converted_to_matter], mvp: true, status: documented}
   - {group: legal, families: [legal.lifecycle, litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}

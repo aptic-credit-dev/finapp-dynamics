@@ -105,3 +105,16 @@ export type {
   EscalationPayload,
   InboxNotificationPayload,
 } from './notification-events.ts';
+export {
+  DOCUMENT_LIFECYCLE_FAMILY,
+  DOCUMENT_LIFECYCLE_VERSION,
+  DOCUMENT_LIFECYCLE_EVENT_TYPES,
+} from './document-events.ts';
+export type {
+  DocumentLifecycleEvent,
+  DocumentLifecycleEventType,
+  DocumentEventPayload,
+  DocumentLifecyclePayload,
+  DocumentAccessPayload,
+  DocumentRelationshipPayload,
+} from './document-events.ts';
