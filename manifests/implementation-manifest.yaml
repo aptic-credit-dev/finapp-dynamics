@@ -619,21 +619,32 @@ stages:
         certification_3_1:
           module: m12-feedback
           substage: "3.1"
-          branch: feature/stage-3-1-m12-feedback
+          branch: feature/stage-3-1-m12-feedback-management
+          certification_branch: cert/stage-3-1-m12-feedback-management
           parent_baseline: 6aa474426b069182db5037b6c93ba5e305e2feba   # certified Stage 2.5 main (PR #19 merge)
-          implementation_status: implemented_on_branch   # STOP before merge; certification recorded post-merge
+          # Merged 2026-07-26 via PR #20 (squash) onto certified Stage 2.5 main. Post-merge certification recorded on branch.
+          implementation_status: merged
+          implementation_pr: 20
+          implementation_head: de604d5b1fb7f5281a3048fd19a94f8fb3d40433
+          implementation_merge_sha: f9f32dfb27a524ff9eb5385e2576866143d2236c
+          merge_status: merged
+          ci_implementation: passed                      # PR #20 head de604d5: Smoke + DB (PostgreSQL 16) both green
           smoke_certification: passed_locally            # 16 suites, 2476 assertions, 0 failures (incl. m12 smoke 61 + conformance 976)
           postgresql_certification: passed_locally       # 25 db specs, 703 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          ci_certification: pending                       # cert PR CI recorded once green (see certification report §11)
+          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
+          certified_baseline_sha: f9f32dfb27a524ff9eb5385e2576866143d2236c   # merged main SHA (PR #20) tested for certification
+          tree_identical_to_reviewed_head: true          # git diff de604d5 f9f32df is empty (byte-identical)
           local_reverification: {smoke_suites: 16, smoke_assertions: 2476, conformance_assertions: 976,
                                  db_specs: 25, db_assertions: 703, migrations: 20, postgres_version: "15.2",
-                                 node_version: "22.14.0", clean_checkout: false}
+                                 node_version: "22.14.0", clean_checkout: true, tree_identical_to_ci_head: true}
           adrs: [ADR-052, ADR-053, ADR-054, ADR-055, ADR-056]
           docs: [docs/build/stages/STAGE_3_1_M12_FEEDBACK_ARCHITECTURE.md,
                  docs/build/stages/STAGE_3_1_M12_FEEDBACK_READINESS.md,
                  docs/build/stages/STAGE_3_1_M12_FEEDBACK_IMPLEMENTATION_PLAN.md,
-                 docs/build/stages/STAGE_3_1_M12_FEEDBACK_COMPLETION.md]
-          # ci_implementation / implementation_pr / implementation_merge_sha / ci_certification /
-          # certification_status / certification_pr recorded during post-merge Stage 3.1 certification.
+                 docs/build/stages/STAGE_3_1_M12_FEEDBACK_COMPLETION.md,
+                 docs/build/stages/STAGE_3_1_M12_FEEDBACK_CERTIFICATION.md]
+          # certification_pr recorded once the docs-only cert PR is opened.
       - module: m13-case
         capability: Case Management
         status: documented
