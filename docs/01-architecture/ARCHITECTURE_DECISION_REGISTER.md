@@ -493,3 +493,31 @@ admin bypass secret; embedding credentials; unrestricted repeated admin creation
 **Decision:** every bound (narrative/answer length, answer/question/batch counts, search limit) is enforced **fail-closed**. Handoff to **M13 case management (which does not exist yet)** is a **controlled seam only**: m12 stores a **pending `feedback_case_handoff` record** (idempotent), publishes a **versioned `CaseHandoffRequested` event**, and exposes a **port** — it creates **NO case table**, owns no case data, and builds **no second escalation engine** (escalation reuses m08 via an event). Completion (when M13 later creates the case) transitions the feedback to `converted_to_case`.
 
 **Consequence:** M12 can be built and certified before M13 exists, with the integration boundary explicit and idempotent. Rejected: a fake/placeholder case table owned by m12; a second escalation engine; a synchronous call into a non-existent M13.
+
+## ADR-057 — Declarative versioned case types + granular permissions; decisioning delegated to m07 (Stage 3.2)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m13-case`, branch `feature/stage-3-2-m13-case-management`.
+
+**Decision:** case types and SLA policies are **declarative, versioned, immutable-after-publish specs** (one ACTIVE per code+scope, content-hash frozen at publish, mirroring m09 doctype / m12). Legal and non-legal case types, jurisdictions, party roles and references are **configured as data per tenant** — never hardcoded in service logic (no Aptic-/Kenya-specific procedure in the generic core). There is **NO executable expression** inside a case type; complex, explainable decisioning (severity / assignment / SLA selection / closure eligibility) is delegated to the **m07 rules engine** via a recorded `ruleEvaluationId`, and rules never mutate a case directly. Authorization is **56 granular `cases.*` permissions** (three-segment, enforced server-side, default deny) — no vague `cases.admin`; sensitive reads + approvals + configuration are individually privileged.
+
+**Consequence:** the platform is generic and configurable, decisioning stays in the one rules engine, and least-privilege is expressible. Rejected: hardcoded legal case types; an embedded rules mini-language in m13; a coarse admin permission; header-carried permissions (a header can never grant — proven by the 403).
+
+## ADR-058 — Deterministic clock-driven SLA + deadline math via ports; timers delegated; fail-closed limits (Stage 3.2)
+**Status:** **ACCEPTED** — 2026-07-26. Module `m13-case`, branch as ADR-057.
+
+**Decision:** SLA due dates + warn/breach state and deadline due instants are **PURE functions** of a spec/rule, a supplied `Clock` (epoch ms) and accumulated paused duration — injected through a port, so there is **no ambient `Date.now`** and behaviour is deterministic, testable and replayable. m13 builds **no timer engine**: timer dispatch + escalation are delegated to m06/m08; m13 records the breach and publishes an event. SLA "start" materializes **stage deadlines** rather than a bespoke SLA-instance table. Every bound (title/summary/description/note/allegation length, party/issue/batch counts, search limit) is enforced **fail-closed**. Business-calendar expansion is consumed from m06, not reimplemented.
+
+**Consequence:** deadline/SLA behaviour is proven with a `FixedClock` (breach) with zero flakiness; no second scheduler; no runaway payload. Rejected: ambient wall-clock reads; a bespoke m13 timer/cron; unbounded free-text.
+
+## ADR-059 — Recovery + settlement store finance references only; no finance implementation (Stage 3.2)
+**Status:** **ACCEPTED** — 2026-07-26 (product owner + finance). Module `m13-case`, branch as ADR-057.
+
+**Decision:** recovery/enforcement tracking and settlements capture **references and states only** — amounts are decimal-safe integer **minor units** used purely as reference data (debt reference, amount claimed/recovered, currency, payment reference, finance reference). m13 implements **NO general ledger, NO journal posting, NO payment allocation, NO collections accounting, NO reconciliation** — those remain later modules (m19/m15/m20/m21). Settlement approval is **maker-checker** (proposer ≠ approver, enforced in the service AND a DB CHECK); confidential settlement terms are sensitive (redacted; never in events/audit).
+
+**Consequence:** m13 tracks the case dimension of recovery/settlement without touching money movement, keeping Finance's controls (no auto-post, balanced journals, SoD) the sole responsibility of the Finance modules. Rejected: posting or allocating payments from m13; a collections ledger in m13; floating-point money.
+
+## ADR-060 — Case confidentiality/privilege model + the M12/M14 boundaries (Stage 3.2)
+**Status:** **ACCEPTED** — 2026-07-26 (product owner + security + legal). Module `m13-case`, branch as ADR-057.
+
+**Decision:** a case carries a **confidentiality level** (`standard`/`confidential`/`restricted`/`privileged`); party contacts, privileged/confidential/legal-advice **notes**, correspondence bodies and confidential settlement terms are **sensitive**: stored under RLS, **redacted on read** behind dedicated privileged permissions (`cases.confidential.read`, `cases.privileged_notes.read`, `cases.party_contact.read`), and **NEVER placed in domain events or audit payloads** (which carry ids, states, dates and safe reason codes only). Reading un-redacted confidential/privileged data is itself audited. The **M12→M13 handoff** is idempotent (exactly one case per handoff, guarded by a `case_handoff_intake` unique ledger), consumes m12's handoff through a **port** (m13 never reads m12's tables), preserves the originating feedback id + correlation, and completes the handoff on the m12 side only on first creation. The **M13→M14 boundary** is the versioned `case.converted_to_matter` event — m13 owns no legal-matter tables; full legal matters are m14.
+
+**Consequence:** PII/privilege minimization holds across every API view, event and audit entry; M13 integrates with M12 and M14 through explicit, idempotent, event/port boundaries. Rejected: putting notes/contacts/settlement terms in events for convenience; returning confidential detail to any authenticated caller; reading m12's tables directly; a second case creation on a duplicate handoff; owning legal-matter data in m13.

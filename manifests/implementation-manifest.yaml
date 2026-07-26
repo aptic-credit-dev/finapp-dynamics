@@ -622,7 +622,7 @@ stages:
           branch: feature/stage-3-1-m12-feedback-management
           certification_branch: cert/stage-3-1-m12-feedback-management
           parent_baseline: 6aa474426b069182db5037b6c93ba5e305e2feba   # certified Stage 2.5 main (PR #19 merge)
-          # Merged 2026-07-26 via PR #20 (squash) onto certified Stage 2.5 main. Post-merge certification recorded on branch.
+          # Merged 2026-07-26 via PR #20 (squash) onto certified Stage 2.5 main; certified via cert PR #21 (squash) → main 936e337.
           implementation_status: merged
           implementation_pr: 20
           implementation_head: de604d5b1fb7f5281a3048fd19a94f8fb3d40433
@@ -631,9 +631,11 @@ stages:
           ci_implementation: passed                      # PR #20 head de604d5: Smoke + DB (PostgreSQL 16) both green
           smoke_certification: passed_locally            # 16 suites, 2476 assertions, 0 failures (incl. m12 smoke 61 + conformance 976)
           postgresql_certification: passed_locally       # 25 db specs, 703 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          ci_certification: pending                       # cert PR CI recorded once green (see certification report §11)
-          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
-          certified_baseline_sha: f9f32dfb27a524ff9eb5385e2576866143d2236c   # merged main SHA (PR #20) tested for certification
+          ci_certification: passed                        # cert PR #21 head 9dbdad2 + main push 936e337: Smoke + DB (PostgreSQL 16) both green
+          certification_status: certified                 # cert PR #21 merged 2026-07-26
+          certification_pr: 21
+          certification_merge_sha: 936e33779e0944b0a1630fd87220a2c1447fe2d9
+          certified_baseline_sha: 936e33779e0944b0a1630fd87220a2c1447fe2d9   # merged main SHA (cert PR #21) — certified Stage 3.1 baseline
           tree_identical_to_reviewed_head: true          # git diff de604d5 f9f32df is empty (byte-identical)
           local_reverification: {smoke_suites: 16, smoke_assertions: 2476, conformance_assertions: 976,
                                  db_specs: 25, db_assertions: 703, migrations: 20, postgres_version: "15.2",
@@ -646,16 +648,56 @@ stages:
                  docs/build/stages/STAGE_3_1_M12_FEEDBACK_CERTIFICATION.md]
           # certification_pr recorded once the docs-only cert PR is opened.
       - module: m13-case
-        capability: Case Management
-        status: documented
+        capability: Case Management (enterprise; cases/complaints/investigation/legal/recovery)
+        status: implemented   # Stage 3.2 — implemented_on_branch (not merged/certified); see certification_3_2
         mvp: true
-        db_ownership: [cases, case_activities, case_documents, case_notes, ...]
+        db_ownership: [case_type(versioned spec, one ACTIVE), case_sla_policy(versioned spec, one ACTIVE),
+                       case_record(core aggregate; SENSITIVE fields + inline legal/recovery dims; 18-state lifecycle),
+                       case_handoff_intake(M12 idempotency ledger), case_status_history(append-only),
+                       case_assignment_history(append-only), case_party, case_activity(also correspondence),
+                       case_task, case_issue, case_investigation, case_finding(append-only), case_document(m09 refs),
+                       case_evidence, case_deadline, case_hearing, case_decision(maker-checker + SoD CHECK),
+                       case_settlement, case_note(append-only; confidential/privileged), case_relationship]
         api_ownership: [/api/v1/cases]
         event_ownership: [case.lifecycle, case.converted_to_matter]
-        shared_services_consumed: [m02, m03, m06, m08, m09]
-        consumes_events: [feedback.escalated]
+        shared_services_consumed: [kernel, m01, m02, m03, m06, m07, m08, m09, m12]
+        consumes_events: [feedback.lifecycle (CaseHandoffRequested / feedback.escalated)]
+        emits_events: [case.converted_to_matter (to m14)]
         permissions_required: [cases.*]
-        testing_required: [smoke, db_spec]
+        testing_required: [smoke, db_spec, services_db_spec, api_http_spec]
+        tests_present: [m13-case.smoke (67), m13-case.db-spec (34), m13-services.db-spec (31),
+                        api-cases.db-spec (15)]
+        # Enterprise, configurable, multi-tenant case-management platform (not merely a case table): cases,
+        # complaints, investigations, legal-matter support, litigation + recovery/enforcement tracking, internal/
+        # regulatory/incident matters. NOTHING Aptic-/Kenya-specific: case types, jurisdictions, references, SLA
+        # policies are CONFIGURABLE. Full lifecycle: intake (manual / external / idempotent M12 handoff) -> triage
+        # -> assignment -> investigation/legal/recovery -> maker-checker decision -> resolution -> rule-gated
+        # closure, with reopen / archived. Reuses m06 workflow, m07 rules, m08 escalation+notifications, m09
+        # documents/evidence and the m12 handoff THROUGH EVENTS/CONTRACTS + PORTS only (no duplicate engines). SLA
+        # + deadlines are deterministic via a Clock port. Decision + settlement approval are maker-checker
+        # (submitter != approver). Recovery/settlement store finance REFERENCES only (no ledger/posting/payment).
+        # Party contacts, privileged notes, correspondence bodies + confidential settlement terms are sensitive:
+        # RLS-stored, redacted on read, NEVER in events/audit. M12 handoff = one case per handoff (idempotent);
+        # M14 boundary = case.converted_to_matter event (m13 owns no legal-matter tables). Publishes
+        # case.lifecycle (32 event types) + case.converted_to_matter (1) through the ONE m06 outbox.
+        certification_3_2:
+          module: m13-case
+          substage: "3.2"
+          branch: feature/stage-3-2-m13-case-management
+          parent_baseline: 936e33779e0944b0a1630fd87220a2c1447fe2d9   # certified Stage 3.1 main (cert PR #21 merge)
+          implementation_status: implemented_on_branch   # STOP before merge; certification recorded post-merge
+          smoke_certification: passed_locally            # 17 suites, 2771 assertions, 0 failures (incl. m13 smoke 67 + conformance 1193)
+          postgresql_certification: passed_locally       # 28 db specs, 783 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          local_reverification: {smoke_suites: 17, smoke_assertions: 2771, conformance_assertions: 1193,
+                                 db_specs: 28, db_assertions: 783, migrations: 22, postgres_version: "15.2",
+                                 node_version: "22.14.0", clean_checkout: false}
+          adrs: [ADR-057, ADR-058, ADR-059, ADR-060]
+          docs: [docs/build/stages/STAGE_3_2_M13_CASES_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_3_2_M13_CASES_READINESS.md,
+                 docs/build/stages/STAGE_3_2_M13_CASES_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_3_2_M13_CASES_COMPLETION.md]
+          # ci_implementation / implementation_pr / implementation_merge_sha / ci_certification /
+          # certification_status / certification_pr recorded during post-merge Stage 3.2 certification.
 
   - stage: 3
     name: Finance
