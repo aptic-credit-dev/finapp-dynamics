@@ -781,7 +781,7 @@ stages:
     modules:
       - module: m14-legal
         capability: Enterprise Legal Matter Management (matter as a first-class object)
-        status: implemented   # Stage 4.1 — implemented_on_branch (not merged/certified); see certification_4_1
+        status: implemented   # Stage 4.1 — merged (PR #24) + certified_on_branch (cert PR pending); see certification_4_1
         mvp: partial
         db_ownership: [legal_matter_type(versioned spec, one ACTIVE), legal_sla_policy(versioned spec, one ACTIVE),
                        legal_jurisdiction(configurable reference), legal_matter(core aggregate; SENSITIVE fields;
@@ -823,18 +823,31 @@ stages:
           module: m14-legal
           substage: "4.1"
           branch: feature/stage-4-1-m14-legal-matters
+          certification_branch: cert/stage-4-1-m14-legal-matters
           parent_baseline: 12628451a9b4427724d08adbca8b9d626160aa92   # certified Stage 3.2 main (cert PR #23 merge)
-          implementation_status: implemented_on_branch
-          merge_status: pending                          # STOP before merge — awaiting manual GitHub merge
-          smoke_local: passed_locally                    # 18 suites, 3092 assertions, 0 failures (incl. m14 smoke 60 + conformance 1448)
-          postgresql_local: passed_locally               # 31 db specs, 876 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          certification_status: pending                  # post-merge M14 certification not yet run
+          # Merged 2026-07-27 via PR #24 (squash) onto certified Stage 3.2 main; post-merge certification on branch.
+          implementation_status: merged
+          implementation_pr: 24
+          implementation_head: baf4c71330a894fba378bb24a908b622fb68d8cf
+          implementation_merge_sha: 41e7bf42ce8ba9b2cd02d50a9af73e8bb70d30a2
+          merge_status: merged
+          ci_implementation: passed                      # PR #24 head baf4c71 + main push 41e7bf4: Smoke + DB (PostgreSQL 16) both green
+          smoke_certification: passed_locally            # 18 suites, 3092 assertions, 0 failures (incl. m14 smoke 60 + conformance 1448)
+          postgresql_certification: passed_locally       # 31 db specs, 876 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          ci_certification: pending                       # cert PR CI recorded once green (see certification report §11)
+          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
+          certified_baseline_sha: 41e7bf42ce8ba9b2cd02d50a9af73e8bb70d30a2   # merged main SHA (PR #24) tested for certification
+          tree_identical_to_reviewed_head: true          # git diff baf4c71 41e7bf4 is empty (byte-identical)
+          local_reverification: {smoke_suites: 18, smoke_assertions: 3092, conformance_assertions: 1448,
+                                 db_specs: 31, db_assertions: 876, migrations: 24, postgres_version: "15.2",
+                                 clean_checkout: true, tree_identical_to_ci_head: true}
           adrs: [ADR-061, ADR-062, ADR-063, ADR-064]
           docs: [docs/build/stages/STAGE_4_1_M14_LEGAL_ARCHITECTURE.md,
                  docs/build/stages/STAGE_4_1_M14_LEGAL_READINESS.md,
                  docs/build/stages/STAGE_4_1_M14_LEGAL_IMPLEMENTATION_PLAN.md,
-                 docs/build/stages/STAGE_4_1_M14_LEGAL_COMPLETION.md]
-          # implementation_pr / implementation_head recorded once the PR is opened and CI reports on the full SHA.
+                 docs/build/stages/STAGE_4_1_M14_LEGAL_COMPLETION.md,
+                 docs/build/stages/STAGE_4_1_M14_LEGAL_CERTIFICATION.md]
+          # certification_pr recorded once the docs-only cert PR is opened.
       - module: m16-litigation
         capability: Litigation & court management
         status: documented
