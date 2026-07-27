@@ -123,7 +123,27 @@ namespaces:
              "cases.confidential.read", "cases.privileged_notes.read", "cases.privileged_notes.create",
              "cases.relationship.read", "cases.relationship.manage", "cases.analytics.read",
              "cases.analytics.export", "cases.platform.administer"]}
-  - {namespace: "legal.*", module: m14-legal, mvp: partial, status: documented}
+  - {namespace: "legal.*", module: m14-legal, mvp: partial, status: implemented, substage: "4.1",
+     codes: ["legal.matter.read", "legal.matter.create", "legal.matter.update", "legal.matter.open",
+             "legal.matter.assign", "legal.matter.reassign", "legal.matter.resolve", "legal.matter.close",
+             "legal.matter.reopen", "legal.matter.archive", "legal.conversion.accept", "legal.matter_type.read",
+             "legal.matter_type.manage", "legal.sla_policy.read", "legal.sla_policy.manage",
+             "legal.jurisdiction.read", "legal.jurisdiction.manage", "legal.instruction.read",
+             "legal.instruction.create", "legal.instruction.accept", "legal.instruction.reject",
+             "legal.party.read", "legal.party.manage", "legal.party_contact.read", "legal.activity.read",
+             "legal.activity.create", "legal.activity.complete", "legal.task.read", "legal.task.manage",
+             "legal.pleading.read", "legal.pleading.manage", "legal.document.read", "legal.document.link",
+             "legal.court_event.read", "legal.court_event.manage", "legal.deadline.read", "legal.deadline.manage",
+             "legal.issue.read", "legal.issue.manage", "legal.position.read", "legal.position.manage",
+             "legal.opinion.read", "legal.opinion.manage", "legal.research.read", "legal.research.manage",
+             "legal.external_counsel.read", "legal.external_counsel.manage", "legal.counsel_report.read",
+             "legal.counsel_report.manage", "legal.settlement.read", "legal.settlement.submit",
+             "legal.settlement.approve", "legal.judgment.read", "legal.judgment.manage", "legal.appeal.read",
+             "legal.appeal.manage", "legal.enforcement.read", "legal.enforcement.manage", "legal.cost.read",
+             "legal.cost.manage", "legal.exposure.read", "legal.exposure.manage", "legal.confidential.read",
+             "legal.privileged.read", "legal.privileged.create", "legal.relationship.read",
+             "legal.relationship.manage", "legal.analytics.read", "legal.analytics.export",
+             "legal.platform.administer"]}
   - {namespace: "recovery.*", module: m17-recovery, mvp: false, status: deferred}
   - {namespace: "reconciliation.*", module: m15-recon, mvp: true, status: documented}
   - {namespace: "gl_reconciliation.*", module: m20-glrecon, mvp: true, status: documented}

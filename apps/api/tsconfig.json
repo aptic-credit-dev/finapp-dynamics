@@ -34,6 +34,7 @@
     { "path": "../../packages/m09-docs" },
     { "path": "../../packages/m12-feedback" },
     { "path": "../../packages/m13-case" },
+    { "path": "../../packages/m14-legal" },
     { "path": "../../tools/test-runner" }
   ]
 }

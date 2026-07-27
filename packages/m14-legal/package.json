@@ -1,0 +1,33 @@
+{
+  "name": "@finapp/m14-legal",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M14 (4.1) — enterprise legal matter management: configurable matter types + jurisdictions, M13 case conversion, legal instructions, parties, activities, tasks, issues, positions, opinions, pleadings, court diary, deadlines/limitation, external counsel, costs/exposure references, settlement, judgment, appeal, enforcement references, closure, analytics.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
