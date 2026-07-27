@@ -148,3 +148,9 @@ export type {
   CaseConvertedToMatterPayload,
   CaseEventPayload,
 } from './case-events.ts';
+export {
+  LEGAL_LIFECYCLE_FAMILY,
+  LEGAL_LIFECYCLE_VERSION,
+  LEGAL_LIFECYCLE_EVENT_TYPES,
+} from './legal-events.ts';
+export type { LegalLifecycleEvent, LegalLifecycleEventType, LegalLifecyclePayload } from './legal-events.ts';
