@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 263 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 318 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -404,6 +404,62 @@ codes:
   - { code: CASE_SLA_STARTED, module: m13-case, severity: normal, reason_required: false }
   - { code: CASE_SLA_BREACHED, module: m13-case, severity: elevated, reason_required: false }
   - { code: CASE_ESCALATION_TRIGGERED, module: m13-case, severity: elevated, reason_required: true }
+  # --- m14-legal (Stage 4.1) — 55 codes --------------------------------------------------------
+  - { code: LEGAL_MATTER_TYPE_CREATED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_MATTER_TYPE_PUBLISHED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_SLA_POLICY_PUBLISHED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_JURISDICTION_CONFIGURED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_MATTER_CREATED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_MATTER_CONVERTED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_MATTER_OPENED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_MATTER_ASSIGNED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_MATTER_REASSIGNED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_INSTRUCTION_RECEIVED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_INSTRUCTION_ACCEPTED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_INSTRUCTION_REJECTED, module: m14-legal, severity: elevated, reason_required: true }
+  - { code: LEGAL_PARTY_ADDED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_PARTY_REMOVED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_PARTY_CONTACT_ACCESSED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_ACTIVITY_CREATED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_ACTIVITY_COMPLETED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_TASK_CREATED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_TASK_COMPLETED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_PLEADING_REGISTERED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_PLEADING_FILED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_DOCUMENT_LINKED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_COURT_EVENT_SCHEDULED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_COURT_EVENT_UPDATED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_COURT_EVENT_COMPLETED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_DEADLINE_CREATED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_DEADLINE_EXTENDED, module: m14-legal, severity: elevated, reason_required: true }
+  - { code: LEGAL_DEADLINE_BREACHED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_ISSUE_CREATED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_POSITION_RECORDED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_OPINION_REGISTERED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_RESEARCH_ADDED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_COUNSEL_INSTRUCTED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_COUNSEL_REPORT_RECEIVED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_COST_RECORDED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_EXPOSURE_UPDATED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_SETTLEMENT_PROPOSED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_SETTLEMENT_APPROVED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_JUDGMENT_RECORDED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_APPEAL_INITIATED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_ENFORCEMENT_UPDATED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_CORRESPONDENCE_RECORDED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_NOTE_CREATED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_RELATIONSHIP_CREATED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_CLOSURE_EVALUATED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_MATTER_RESOLVED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_MATTER_CLOSED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_MATTER_REOPENED, module: m14-legal, severity: elevated, reason_required: true }
+  - { code: LEGAL_MATTER_ARCHIVED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_PRIVILEGED_ACCESSED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_CONFIDENTIAL_ACCESSED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_EXPORT_REQUESTED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_SLA_STARTED, module: m14-legal, severity: normal, reason_required: false }
+  - { code: LEGAL_SLA_BREACHED, module: m14-legal, severity: elevated, reason_required: false }
+  - { code: LEGAL_ESCALATION_TRIGGERED, module: m14-legal, severity: elevated, reason_required: true }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

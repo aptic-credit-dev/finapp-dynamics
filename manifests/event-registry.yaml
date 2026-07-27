@@ -84,7 +84,17 @@ family_groups:
      note: "Stage 3.2. Case intake (incl. M12 handoff) -> triage -> assignment -> investigation/legal/recovery ->
             decision -> resolution -> closure, + the controlled m14 legal-matter boundary (case.converted_to_matter).
             Ordering key = aggregate id (payload caseId); consumers dedupe on eventId. Payloads carry ids/states only."}
-  - {group: legal, families: [legal.lifecycle, litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
+  # GAP-1 CLOSED for m14-legal (Stage 4.1) — legal.lifecycle registered with the engine that emits it, declared in
+  # packages/contracts/src/legal-events.ts. Delivered through the single transactional outbox (m06). 36 event types,
+  # payload v1; carry ids/states/dates/safe-amounts/reason-codes/dimensions ONLY (never legal advice, strategy,
+  # full opinions, privileged notes, private party contacts, full pleadings, document contents, confidential
+  # settlement terms, counsel bank/payment details, or raw correspondence). m14 consumes m13's case.converted_to_matter.
+  - {group: legal_matter, families: [legal.lifecycle], mvp: true, status: implemented, owner: m14-legal,
+     classification: confidential,
+     note: "Stage 4.1. Legal matter intake (incl. M13 case conversion) -> instruction -> assignment -> analysis/
+            litigation/court diary -> settlement/judgment/appeal/enforcement -> closure. Ordering key = aggregate id
+            (payload matterId); consumers dedupe on eventId. Payloads carry ids/states only."}
+  - {group: legal, families: [litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
   - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}
   - {group: platform, families: [platform.lifecycle, studio.lifecycle, analytics.lifecycle], mvp: false, status: documented}

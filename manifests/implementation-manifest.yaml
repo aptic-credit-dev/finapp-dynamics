@@ -686,7 +686,7 @@ stages:
           branch: feature/stage-3-2-m13-case-management
           certification_branch: cert/stage-3-2-m13-case-management
           parent_baseline: 936e33779e0944b0a1630fd87220a2c1447fe2d9   # certified Stage 3.1 main (cert PR #21 merge)
-          # Merged 2026-07-26 via PR #22 (squash) onto certified Stage 3.1 main. Post-merge certification recorded on branch.
+          # Merged 2026-07-26 via PR #22 (squash) onto certified Stage 3.1 main; certified via cert PR #23 (squash) → main 1262845.
           implementation_status: merged
           implementation_pr: 22
           implementation_head: 5cf058637a3dd03fd08ee0a5928a5e19c977b679
@@ -695,9 +695,11 @@ stages:
           ci_implementation: passed                      # PR #22 head 5cf0586 + main push 4c5ae6a: Smoke + DB (PostgreSQL 16) both green
           smoke_certification: passed_locally            # 17 suites, 2771 assertions, 0 failures (incl. m13 smoke 67 + conformance 1193)
           postgresql_certification: passed_locally       # 28 db specs, 783 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          ci_certification: pending                       # cert PR CI recorded once green (see certification report §11)
-          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
-          certified_baseline_sha: 4c5ae6a41d2d693014ecb6a603f967e542c6c28f   # merged main SHA (PR #22) tested for certification
+          ci_certification: passed                        # cert PR #23 head 52d1eae + main push 1262845: Smoke + DB (PostgreSQL 16) both green
+          certification_status: certified                 # cert PR #23 merged 2026-07-27
+          certification_pr: 23
+          certification_merge_sha: 12628451a9b4427724d08adbca8b9d626160aa92
+          certified_baseline_sha: 12628451a9b4427724d08adbca8b9d626160aa92   # merged main SHA (cert PR #23) — certified Stage 3.2 baseline
           tree_identical_to_reviewed_head: true          # git diff 5cf0586 4c5ae6a is empty (byte-identical)
           local_reverification: {smoke_suites: 17, smoke_assertions: 2771, conformance_assertions: 1193,
                                  db_specs: 28, db_assertions: 783, migrations: 22, postgres_version: "15.2",
@@ -778,16 +780,61 @@ stages:
     depends_on_stage: 2
     modules:
       - module: m14-legal
-        capability: Legal matter management (read-only in MVP)
-        status: documented
+        capability: Enterprise Legal Matter Management (matter as a first-class object)
+        status: implemented   # Stage 4.1 — implemented_on_branch (not merged/certified); see certification_4_1
         mvp: partial
-        db_ownership: [legal_matters, legal_deadlines, matter_parties, matter_documents]
+        db_ownership: [legal_matter_type(versioned spec, one ACTIVE), legal_sla_policy(versioned spec, one ACTIVE),
+                       legal_jurisdiction(configurable reference), legal_matter(core aggregate; SENSITIVE fields;
+                       25-state lifecycle), legal_case_conversion(M13 idempotency ledger; one matter per source case),
+                       legal_matter_status_history(append-only), legal_assignment_history(append-only),
+                       legal_instruction(controlled accept/reject), legal_party, legal_activity(also correspondence),
+                       legal_task, legal_issue, legal_position(SENSITIVE strategy), legal_opinion(SENSITIVE),
+                       legal_research_reference, legal_pleading(m09 refs), legal_court_event, legal_deadline,
+                       legal_external_counsel, legal_counsel_report(append-only), legal_cost_reference(finance refs),
+                       legal_settlement(maker-checker + SoD CHECK; SENSITIVE terms), legal_outcome(append-only),
+                       legal_note(append-only; confidential/privileged), legal_relationship]
         api_ownership: [/api/v1/legal]
         event_ownership: [legal.lifecycle]
-        shared_services_consumed: [m02, m03, m06, m09, m13, m26]
+        shared_services_consumed: [kernel, m01, m02, m03, m06, m07, m08, m09, m13]
+        consumes_events: [case.converted_to_matter (from m13; fire-and-forget, idempotent)]
+        emits_events: [legal.lifecycle (36 event types)]
         permissions_required: [legal.*]
         hard_rules: [privilege, ethical_walls]
-        testing_required: [smoke, db_spec_privilege]
+        testing_required: [smoke, db_spec, services_db_spec, api_http_spec]
+        tests_present: [m14-legal.smoke (60), m14-legal.db-spec (40), m14-services.db-spec (30),
+                        api-legal.db-spec (23)]
+        # Enterprise, configurable, multi-tenant legal-matter platform (matter as a first-class object, not a
+        # read-only view): matters created from M13 case conversion or direct legal intake; instructions,
+        # parties, activities/correspondence, tasks, issues, legal positions/strategy, opinions, research,
+        # pleadings, court events, deadlines (incl. limitation), external counsel + reports, costs, settlements
+        # (maker-checker), judgments/outcomes, appeal + enforcement tracking. NOTHING Aptic-/Kenya-specific:
+        # matter types, jurisdictions, forums, SLA policies are CONFIGURABLE. Full lifecycle: intake -> open ->
+        # assign -> work -> resolve -> rule-gated close -> reopen/archive (25 states). Reuses m06 workflow,
+        # m07 rules, m08 escalation+notifications, m09 documents/evidence THROUGH EVENTS/CONTRACTS + PORTS only
+        # (no duplicate engines). SLA + deadlines + limitation are deterministic via a Clock port. Settlement
+        # approval is maker-checker (proposer != approver, DB CHECK). Costs/exposure/enforcement store finance
+        # REFERENCES only (no ledger/posting/payment/tax/reconciliation). Legal positions/strategy, opinions,
+        # privileged notes, party contacts + confidential settlement terms are sensitive: RLS-stored, redacted
+        # on read, NEVER in events/audit. M13 conversion = consume case.converted_to_matter, exactly one matter
+        # per source case (legal_case_conversion ledger), never reads m13-owned tables. Publishes legal.lifecycle
+        # (36 event types) through the ONE m06 outbox. No M16/M17/M18 internals, no finance, no AI decisioning,
+        # no production court/telephony/messaging integrations (deferred behind ports).
+        certification_4_1:
+          module: m14-legal
+          substage: "4.1"
+          branch: feature/stage-4-1-m14-legal-matters
+          parent_baseline: 12628451a9b4427724d08adbca8b9d626160aa92   # certified Stage 3.2 main (cert PR #23 merge)
+          implementation_status: implemented_on_branch
+          merge_status: pending                          # STOP before merge — awaiting manual GitHub merge
+          smoke_local: passed_locally                    # 18 suites, 3092 assertions, 0 failures (incl. m14 smoke 60 + conformance 1448)
+          postgresql_local: passed_locally               # 31 db specs, 876 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          certification_status: pending                  # post-merge M14 certification not yet run
+          adrs: [ADR-061, ADR-062, ADR-063, ADR-064]
+          docs: [docs/build/stages/STAGE_4_1_M14_LEGAL_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_4_1_M14_LEGAL_READINESS.md,
+                 docs/build/stages/STAGE_4_1_M14_LEGAL_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_4_1_M14_LEGAL_COMPLETION.md]
+          # implementation_pr / implementation_head recorded once the PR is opened and CI reports on the full SHA.
       - module: m16-litigation
         capability: Litigation & court management
         status: documented
