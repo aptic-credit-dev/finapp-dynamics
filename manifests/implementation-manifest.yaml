@@ -928,7 +928,7 @@ stages:
                  docs/build/stages/STAGE_4_2_M16_LITIGATION_CERTIFICATION.md]
       - module: m17-recovery
         capability: Recovery & enforcement
-        status: deferred
+        status: approved_for_build   # governance approval 2026-07-28: cleared for build in dependency order (m14, m16 certified)
         mvp: false
         shared_services_consumed: [m14, m16]
         testing_required: [smoke, db_spec]
