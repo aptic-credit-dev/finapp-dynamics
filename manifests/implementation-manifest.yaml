@@ -978,23 +978,33 @@ stages:
           module: m17-recovery
           substage: "4.3"
           branch: feature/stage-4-3-m17-recovery-enforcement
+          certification_branch: cert/stage-4-3-m17-recovery-enforcement
           parent_baseline: b959298cee18601b3768f72285062f776bbc35cb   # certified Stage 4.2 main (cert PR #27 merge)
           governance_approval_pr: 28                     # m17-recovery deferred -> approved_for_build (PR #28, main fd594ab)
-          implementation_status: implemented_on_branch
-          implementation_pr: pending                     # recorded once the PR is opened
-          implementation_merge_sha: pending
-          merge_status: not_merged                       # STOP before merge — awaiting manual GitHub merge
-          ci_implementation: pending                     # recorded once CI reports on the full head SHA
-          smoke_local: passed_locally                    # 20 suites, 3709 assertions, 0 failures (incl. m17 smoke 72 + conformance 1910)
-          postgresql_local: passed_locally               # 37 db specs, 1075 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          certification_status: not_started              # post-merge M17 certification not yet run
+          # Merged 2026-07-28 via PR #29 (squash) onto governance-approved main fd594ab; post-merge certification on branch.
+          implementation_status: merged
+          implementation_pr: 29
+          implementation_head: 311757c2824c1ff2eeac2128af5ec3ff365d953e
+          implementation_merge_sha: 452376d1787b742aa6a1786934ed16ee3c954ea1
+          merge_status: merged
+          ci_implementation: passed                      # PR #29 head 311757c + main push 452376d: Smoke + DB (PostgreSQL 16) both green
+          smoke_certification: passed_locally            # 20 suites, 3709 assertions, 0 failures (incl. m17 smoke 72 + conformance 1910)
+          postgresql_certification: passed_locally       # 37 db specs, 1075 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          ci_certification: pending                       # cert PR CI recorded once green (see certification report §14)
+          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
+          certified_baseline_sha: 452376d1787b742aa6a1786934ed16ee3c954ea1   # merged main SHA (PR #29) tested for certification
+          tree_identical_to_reviewed_head: true          # git diff 311757c 452376d is empty (byte-identical)
+          local_reverification: {smoke_suites: 20, smoke_assertions: 3709, conformance_assertions: 1910,
+                                 db_specs: 37, db_assertions: 1075, migrations: 28, postgres_version: "15.2",
+                                 clean_checkout: true, tree_identical_to_ci_head: true}
           certification_pr: pending
           certification_merge_sha: pending
           adrs: [ADR-069, ADR-070, ADR-071, ADR-072]
           docs: [docs/build/stages/STAGE_4_3_M17_RECOVERY_ARCHITECTURE.md,
                  docs/build/stages/STAGE_4_3_M17_RECOVERY_READINESS.md,
                  docs/build/stages/STAGE_4_3_M17_RECOVERY_IMPLEMENTATION_PLAN.md,
-                 docs/build/stages/STAGE_4_3_M17_RECOVERY_COMPLETION.md]
+                 docs/build/stages/STAGE_4_3_M17_RECOVERY_COMPLETION.md,
+                 docs/build/stages/STAGE_4_3_M17_RECOVERY_CERTIFICATION.md]
       - module: m18-legaldocs
         capability: Legal documents & knowledge
         status: documented
