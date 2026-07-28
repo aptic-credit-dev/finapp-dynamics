@@ -297,8 +297,8 @@ modules:
   - module: m16-litigation
     stage: 4
     mvp: false
-    api_prefixes: [] # GAP-2
-    permission_namespaces: [] # GAP-2
+    api_prefixes: [/api/v1/litigation]
+    permission_namespaces: [litigation]
     event_families: [litigation.lifecycle]
     event_family_registered: true
     audit_prefixes: [LITIGATION_]

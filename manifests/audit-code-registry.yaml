@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 318 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 376 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -84,6 +84,7 @@ prefixes:
   - { prefix: APPROVAL_, module: m22-approval, mvp: true, prefix_provenance: derived }
   # --- Stage 4 — Legal ---
   - { prefix: LEGAL_, module: m14-legal, mvp: partial, prefix_provenance: derived }
+  - { prefix: LITIGATION_, module: m16-litigation, mvp: false, prefix_provenance: derived }
   - { prefix: LITIGATION_, module: m16-litigation, mvp: false, prefix_provenance: derived }
   - { prefix: RECOVERY_, module: m17-recovery, mvp: false, prefix_provenance: derived }
   - { prefix: LEGALDOC_, module: m18-legaldocs, mvp: false, prefix_provenance: derived }
@@ -460,6 +461,66 @@ codes:
   - { code: LEGAL_SLA_STARTED, module: m14-legal, severity: normal, reason_required: false }
   - { code: LEGAL_SLA_BREACHED, module: m14-legal, severity: elevated, reason_required: false }
   - { code: LEGAL_ESCALATION_TRIGGERED, module: m14-legal, severity: elevated, reason_required: true }
+
+  # --- m16-litigation (Stage 4.2) — 58 codes ---------------------------------------------------
+  - { code: LITIGATION_PROCEEDING_TYPE_CREATED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_PROCEEDING_TYPE_PUBLISHED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_SLA_POLICY_PUBLISHED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_PROCEEDING_CREATED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_PROCEEDING_REFERRED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_PROCEEDING_ASSIGNED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_PROCEEDING_REASSIGNED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_PARTY_ADDED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_PARTY_REMOVED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_PARTY_CONTACT_ACCESSED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_CLAIM_ADDED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_CLAIM_UPDATED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_FILING_REGISTERED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_FILING_REVIEWED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_FILING_APPROVED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_FILING_FILED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_SERVICE_RECORDED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_SERVICE_COMPLETED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_SERVICE_VERIFIED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_APPEARANCE_SCHEDULED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_APPEARANCE_UPDATED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_APPEARANCE_COMPLETED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_APPEARANCE_ADJOURNED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_RECORD_CAPTURED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_WITNESS_ADDED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_WITNESS_STATEMENT_LINKED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_EXPERT_ADDED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_EXHIBIT_REGISTERED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_EXHIBIT_ADMITTED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_BUNDLE_CREATED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_BUNDLE_APPROVED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_BUNDLE_FILED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_ORDER_RECORDED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_COMPLIANCE_CREATED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_COMPLIANCE_COMPLETED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_COMPLIANCE_BREACHED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_RULING_RECORDED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_JUDGMENT_RECORDED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_APPEAL_INITIATED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_DEADLINE_CREATED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_DEADLINE_EXTENDED, module: m16-litigation, severity: normal, reason_required: true }
+  - { code: LITIGATION_DEADLINE_BREACHED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_COST_RECORDED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_NOTE_CREATED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_RELATIONSHIP_CREATED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_CLOSURE_EVALUATED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_PROCEEDING_CONCLUDED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_PROCEEDING_CLOSED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_PROCEEDING_REOPENED, module: m16-litigation, severity: elevated, reason_required: true }
+  - { code: LITIGATION_PROCEEDING_ARCHIVED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_PRIVILEGED_ACCESSED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_CONFIDENTIAL_ACCESSED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_EXPORT_REQUESTED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_SLA_STARTED, module: m16-litigation, severity: normal, reason_required: false }
+  - { code: LITIGATION_SLA_BREACHED, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_ESCALATION_TRIGGERED, module: m16-litigation, severity: elevated, reason_required: true }
+  - { code: LITIGATION_ENFORCEMENT_REFERRAL_READY, module: m16-litigation, severity: elevated, reason_required: false }
+  - { code: LITIGATION_KNOWLEDGE_CANDIDATE_CREATED, module: m16-litigation, severity: normal, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

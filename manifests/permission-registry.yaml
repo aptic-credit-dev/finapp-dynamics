@@ -144,6 +144,26 @@ namespaces:
              "legal.privileged.read", "legal.privileged.create", "legal.relationship.read",
              "legal.relationship.manage", "legal.analytics.read", "legal.analytics.export",
              "legal.platform.administer"]}
+  - {namespace: "litigation.*", module: m16-litigation, mvp: false, status: implemented, substage: "4.2",
+     codes: ["litigation.proceeding.read", "litigation.proceeding.create", "litigation.proceeding.update",
+             "litigation.proceeding.assign", "litigation.proceeding.reassign", "litigation.proceeding.conclude",
+             "litigation.proceeding.close", "litigation.proceeding.reopen", "litigation.proceeding.archive",
+             "litigation.referral.accept", "litigation.proceeding_type.read", "litigation.proceeding_type.manage",
+             "litigation.sla_policy.read", "litigation.sla_policy.manage", "litigation.party.read",
+             "litigation.party.manage", "litigation.party_contact.read", "litigation.claim.read",
+             "litigation.claim.manage", "litigation.filing.read", "litigation.filing.manage",
+             "litigation.filing.approve", "litigation.service.read", "litigation.service.manage",
+             "litigation.service.verify", "litigation.appearance.read", "litigation.appearance.manage",
+             "litigation.appearance.complete", "litigation.witness.read", "litigation.witness.manage",
+             "litigation.witness_contact.read", "litigation.expert.read", "litigation.expert.manage",
+             "litigation.exhibit.read", "litigation.exhibit.manage", "litigation.bundle.read",
+             "litigation.bundle.manage", "litigation.bundle.approve", "litigation.order.read",
+             "litigation.order.manage", "litigation.compliance.read", "litigation.compliance.manage",
+             "litigation.outcome.read", "litigation.outcome.manage", "litigation.appeal.read",
+             "litigation.appeal.manage", "litigation.deadline.read", "litigation.deadline.manage",
+             "litigation.cost.read", "litigation.cost.manage", "litigation.confidential.read",
+             "litigation.privileged.read", "litigation.privileged.create", "litigation.analytics.read",
+             "litigation.analytics.export", "litigation.platform.administer"]}
   - {namespace: "recovery.*", module: m17-recovery, mvp: false, status: deferred}
   - {namespace: "reconciliation.*", module: m15-recon, mvp: true, status: documented}
   - {namespace: "gl_reconciliation.*", module: m20-glrecon, mvp: true, status: documented}

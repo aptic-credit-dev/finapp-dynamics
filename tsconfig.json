@@ -20,6 +20,7 @@
     { "path": "./packages/m12-feedback" },
     { "path": "./packages/m13-case" },
     { "path": "./packages/m14-legal" },
+    { "path": "./packages/m16-litigation" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

@@ -154,3 +154,13 @@ export {
   LEGAL_LIFECYCLE_EVENT_TYPES,
 } from './legal-events.ts';
 export type { LegalLifecycleEvent, LegalLifecycleEventType, LegalLifecyclePayload } from './legal-events.ts';
+export {
+  LITIGATION_LIFECYCLE_FAMILY,
+  LITIGATION_LIFECYCLE_VERSION,
+  LITIGATION_LIFECYCLE_EVENT_TYPES,
+} from './litigation-events.ts';
+export type {
+  LitigationLifecycleEvent,
+  LitigationLifecycleEventType,
+  LitigationLifecyclePayload,
+} from './litigation-events.ts';
