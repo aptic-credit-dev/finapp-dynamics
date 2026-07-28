@@ -105,7 +105,18 @@ family_groups:
      note: "Stage 4.2. Proceeding referral/creation -> assignment -> filings/service -> appearances/hearings ->
             orders/compliance -> ruling/judgment -> appeal -> conclusion/closure. Ordering key = aggregate id
             (payload proceedingId); consumers dedupe on eventId. Payloads carry ids/states only."}
-  - {group: legal, families: [recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
+  # GAP CLOSED for m17-recovery (Stage 4.3) — recovery.lifecycle registered with the engine that emits it,
+  # declared in packages/contracts/src/recovery-events.ts. Delivered through the single transactional outbox (m06).
+  # 36 event types, payload v1; carry ids/states/dates/safe-amounts/reason-codes/dimensions ONLY (never debtor
+  # contacts, negotiation strategy, settlement terms, bank/payment details, security valuations, or document
+  # contents). m17 consumes an M16 enforcement referral (governed inbound contract). ALL amounts are REFERENCES
+  # only — m17 performs no cash application, no ledger posting, no accounting write-off.
+  - {group: recovery, families: [recovery.lifecycle], mvp: false, status: implemented, owner: m17-recovery,
+     classification: confidential,
+     note: "Stage 4.3. Recovery referral/creation -> strategy -> demand/negotiation -> arrangement/enforcement ->
+            security/agent -> receipt/waiver/write-off -> outcome -> resolution/closure. Ordering key = aggregate
+            id (payload recoveryId); consumers dedupe on eventId. Payloads carry ids/states only."}
+  - {group: legal, families: [legaldocs.lifecycle], mvp: partial, status: documented}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
   - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}
   - {group: platform, families: [platform.lifecycle, studio.lifecycle, analytics.lifecycle], mvp: false, status: documented}

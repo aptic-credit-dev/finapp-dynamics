@@ -1,0 +1,33 @@
+{
+  "name": "@finapp/m17-recovery",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M17 (4.3) — enterprise recovery & enforcement: configurable recovery types + SLA policies, the M16 enforcement referral, recovery cases, debtors/liable parties, enforceable instruments, demands, negotiations, operational repayment arrangements + installment schedules, enforcement actions, security/collateral references, external recovery agents, receipt references, waivers, write-off recommendations, outcomes, closure, analytics.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

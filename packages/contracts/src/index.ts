@@ -164,3 +164,13 @@ export type {
   LitigationLifecycleEventType,
   LitigationLifecyclePayload,
 } from './litigation-events.ts';
+export {
+  RECOVERY_LIFECYCLE_FAMILY,
+  RECOVERY_LIFECYCLE_VERSION,
+  RECOVERY_LIFECYCLE_EVENT_TYPES,
+} from './recovery-events.ts';
+export type {
+  RecoveryLifecycleEvent,
+  RecoveryLifecycleEventType,
+  RecoveryLifecyclePayload,
+} from './recovery-events.ts';

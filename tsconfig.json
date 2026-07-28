@@ -21,6 +21,7 @@
     { "path": "./packages/m13-case" },
     { "path": "./packages/m14-legal" },
     { "path": "./packages/m16-litigation" },
+    { "path": "./packages/m17-recovery" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]
