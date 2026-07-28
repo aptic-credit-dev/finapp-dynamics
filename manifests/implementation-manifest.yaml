@@ -852,7 +852,7 @@ stages:
           # certification_pr recorded once the docs-only cert PR is opened.
       - module: m16-litigation
         capability: Enterprise Litigation Management (proceeding as a first-class object)
-        status: implemented   # Stage 4.2 — implemented_on_branch (not merged/certified); see certification_4_2
+        status: implemented   # Stage 4.2 — merged (PR #26) + certified_on_branch (cert PR pending); see certification_4_2
         mvp: false
         db_ownership: [litigation_proceeding_type(versioned spec, one ACTIVE), litigation_sla_policy(versioned spec,
                        one ACTIVE), litigation_proceeding(core aggregate; SENSITIVE fields; 30-state lifecycle),
@@ -900,22 +900,32 @@ stages:
           module: m16-litigation
           substage: "4.2"
           branch: feature/stage-4-2-m16-litigation-management
+          certification_branch: cert/stage-4-2-m16-litigation-management
           parent_baseline: b6660a037a6e25717e0b7a48e6d9baf9bde3d9e0   # certified Stage 4.1 main (cert PR #25 merge)
-          implementation_status: implemented_on_branch
-          implementation_pr: pending                     # recorded once the PR is opened
-          implementation_merge_sha: pending
-          merge_status: not_merged                       # STOP before merge — awaiting manual GitHub merge
-          ci_implementation: pending                     # recorded once CI reports on the full head SHA
-          smoke_local: passed_locally                    # 19 suites, 3401 assertions, 0 failures (incl. m16 smoke 71 + conformance 1680)
-          postgresql_local: passed_locally               # 34 db specs, 978 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          certification_status: not_started              # post-merge M16 certification not yet run
+          # Merged 2026-07-28 via PR #26 (squash) onto certified Stage 4.1 main; post-merge certification on branch.
+          implementation_status: merged
+          implementation_pr: 26
+          implementation_head: 3b629fd77dfd1d44082e3682230c6a29f2830435
+          implementation_merge_sha: de3bc46bd556b1179933488c2511d1f67845281e
+          merge_status: merged
+          ci_implementation: passed                      # PR #26 head 3b629fd + main push de3bc46: Smoke + DB (PostgreSQL 16) both green
+          smoke_certification: passed_locally            # 19 suites, 3401 assertions, 0 failures (incl. m16 smoke 71 + conformance 1680)
+          postgresql_certification: passed_locally       # 34 db specs, 978 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          ci_certification: pending                       # cert PR CI recorded once green (see certification report §13)
+          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
+          certified_baseline_sha: de3bc46bd556b1179933488c2511d1f67845281e   # merged main SHA (PR #26) tested for certification
+          tree_identical_to_reviewed_head: true          # git diff 3b629fd de3bc46 is empty (byte-identical)
+          local_reverification: {smoke_suites: 19, smoke_assertions: 3401, conformance_assertions: 1680,
+                                 db_specs: 34, db_assertions: 978, migrations: 26, postgres_version: "15.2",
+                                 clean_checkout: true, tree_identical_to_ci_head: true}
           certification_pr: pending
           certification_merge_sha: pending
           adrs: [ADR-065, ADR-066, ADR-067, ADR-068]
           docs: [docs/build/stages/STAGE_4_2_M16_LITIGATION_ARCHITECTURE.md,
                  docs/build/stages/STAGE_4_2_M16_LITIGATION_READINESS.md,
                  docs/build/stages/STAGE_4_2_M16_LITIGATION_IMPLEMENTATION_PLAN.md,
-                 docs/build/stages/STAGE_4_2_M16_LITIGATION_COMPLETION.md]
+                 docs/build/stages/STAGE_4_2_M16_LITIGATION_COMPLETION.md,
+                 docs/build/stages/STAGE_4_2_M16_LITIGATION_CERTIFICATION.md]
       - module: m17-recovery
         capability: Recovery & enforcement
         status: deferred
