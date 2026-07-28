@@ -1007,7 +1007,7 @@ stages:
                  docs/build/stages/STAGE_4_3_M17_RECOVERY_CERTIFICATION.md]
       - module: m18-legaldocs
         capability: Legal documents & knowledge
-        status: documented
+        status: approved_for_build   # governance approval 2026-07-28: cleared for build in dependency order (m09, m14 certified; m16, m17 also merged/certified)
         mvp: false
         shared_services_consumed: [m09, m14]
         testing_required: [smoke, db_spec]
