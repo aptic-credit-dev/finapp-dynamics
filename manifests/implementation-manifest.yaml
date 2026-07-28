@@ -911,15 +911,15 @@ stages:
           ci_implementation: passed                      # PR #26 head 3b629fd + main push de3bc46: Smoke + DB (PostgreSQL 16) both green
           smoke_certification: passed_locally            # 19 suites, 3401 assertions, 0 failures (incl. m16 smoke 71 + conformance 1680)
           postgresql_certification: passed_locally       # 34 db specs, 978 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          ci_certification: pending                       # cert PR CI recorded once green (see certification report §13)
-          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
-          certified_baseline_sha: de3bc46bd556b1179933488c2511d1f67845281e   # merged main SHA (PR #26) tested for certification
+          ci_certification: passed                        # cert PR #27 head 7f4dcee + main push b959298: Smoke + DB (PostgreSQL 16) both green
+          certification_status: certified                 # cert PR #27 merged 2026-07-28 → main b959298
+          certified_baseline_sha: b959298cee18601b3768f72285062f776bbc35cb   # merged main SHA (cert PR #27) — certified Stage 4.2 baseline
           tree_identical_to_reviewed_head: true          # git diff 3b629fd de3bc46 is empty (byte-identical)
           local_reverification: {smoke_suites: 19, smoke_assertions: 3401, conformance_assertions: 1680,
                                  db_specs: 34, db_assertions: 978, migrations: 26, postgres_version: "15.2",
                                  clean_checkout: true, tree_identical_to_ci_head: true}
-          certification_pr: pending
-          certification_merge_sha: pending
+          certification_pr: 27
+          certification_merge_sha: b959298cee18601b3768f72285062f776bbc35cb
           adrs: [ADR-065, ADR-066, ADR-067, ADR-068]
           docs: [docs/build/stages/STAGE_4_2_M16_LITIGATION_ARCHITECTURE.md,
                  docs/build/stages/STAGE_4_2_M16_LITIGATION_READINESS.md,
@@ -927,11 +927,74 @@ stages:
                  docs/build/stages/STAGE_4_2_M16_LITIGATION_COMPLETION.md,
                  docs/build/stages/STAGE_4_2_M16_LITIGATION_CERTIFICATION.md]
       - module: m17-recovery
-        capability: Recovery & enforcement
-        status: approved_for_build   # governance approval 2026-07-28: cleared for build in dependency order (m14, m16 certified)
+        capability: Enterprise Recovery & Enforcement (recovery as a first-class object)
+        status: implemented   # Stage 4.3 — implemented_on_branch (not merged/certified); see certification_4_3
         mvp: false
-        shared_services_consumed: [m14, m16]
-        testing_required: [smoke, db_spec]
+        db_ownership: [recovery_type(versioned spec, one ACTIVE), recovery_sla_policy(versioned spec, one ACTIVE),
+                       recovery_case(core aggregate; SENSITIVE fields; 29-state lifecycle),
+                       recovery_referral(M16 idempotency ledger; one recovery per referral key),
+                       recovery_status_history(append-only), recovery_assignment_history(append-only),
+                       recovery_party(debtors/liable parties), recovery_instrument(enforceable instruments),
+                       recovery_strategy(append-only), recovery_demand, recovery_negotiation,
+                       recovery_arrangement(maker-checker SoD CHECK), recovery_installment(schedule metadata only),
+                       recovery_enforcement_action, recovery_security, recovery_agent,
+                       recovery_agent_report(append-only), recovery_receipt(append-only; REFERENCE only),
+                       recovery_waiver(append-only), recovery_writeoff_recommendation(maker-checker SoD CHECK),
+                       recovery_outcome(append-only), recovery_deadline, recovery_cost_reference,
+                       recovery_note(append-only; confidential/privileged), recovery_relationship]
+        api_ownership: [/api/v1/recovery]
+        event_ownership: [recovery.lifecycle]
+        shared_services_consumed: [kernel, m01, m02, m03, m06, m07, m08, m09, m14, m16]
+        consumes_events: [M16 enforcement referral (governed inbound contract; fire-and-forget, idempotent)]
+        emits_events: [recovery.lifecycle (36 event types)]
+        permissions_required: [recovery.*]
+        hard_rules: [privilege, ethical_walls, maker_checker, finance_boundary]
+        testing_required: [smoke, db_spec, services_db_spec, api_http_spec]
+        tests_present: [m17-recovery.smoke (72), m17-recovery.db-spec (41), m17-services.db-spec (34),
+                        api-recovery.db-spec (22)]
+        # Enterprise, configurable, multi-tenant recovery & enforcement platform (a recovery as a first-class
+        # object): operational tracking of recoveries from judgments/decrees/orders/awards/settlements/defaults/
+        # guarantees/securities, created from an M16 enforcement referral or direct recovery intake; debtors/liable
+        # parties, enforceable instruments, strategy, demands, negotiations, operational repayment arrangements +
+        # installment schedules, enforcement actions (attachment/garnishee/execution/auction/repossession refs),
+        # security/collateral references, external recovery agents + reports, recovery receipt REFERENCES, waivers,
+        # write-off RECOMMENDATIONS, outcomes. NOTHING Kenya-specific: recovery types, jurisdictions, procedures,
+        # notices, enforcement methods are CONFIGURABLE. Full lifecycle: draft -> referred -> strategy -> demand/
+        # negotiation -> arrangement/enforcement -> security/agent -> receipt/waiver/write-off -> outcome ->
+        # resolved -> closed, 29 states with reopen/suspended/settled/uncollectible/withdrawn/archived. Reuses m06
+        # workflow, m07 rules, m08 escalation+notifications, m09 documents THROUGH EVENTS/CONTRACTS + PORTS only (no
+        # duplicate engines). SLA + deadlines + limitation are deterministic via a Clock port. Arrangement + write-
+        # off approval are maker-checker (approver != proposer/recommender, DB CHECK). FINANCE BOUNDARY (ADR-071):
+        # ALL amounts are REFERENCES only — NO cash application, NO general ledger, NO accounts receivable, NO
+        # payment execution, NO reconciliation, NO accounting write-off. Write-off is a RECOMMENDATION with maker-
+        # checker approval; receipts carry an external/finance reference; recovered/outstanding tallies are
+        # reference figures. Debtor contacts, negotiation strategy, settlement terms, bank/payment details and
+        # security valuations are sensitive: RLS-stored, redacted on read, NEVER in events/audit (ADR-072). M16
+        # referral = consume a governed inbound contract, exactly one recovery per referral key (a proceeding may
+        # produce several), never reads m16/m14-owned tables. Publishes recovery.lifecycle (36 event types) through
+        # the ONE m06 outbox. No M18 internals, no finance/GL/AR/payment/reconciliation, no AI, no production
+        # e-auction/court/telephony/messaging (deferred behind ports).
+        certification_4_3:
+          module: m17-recovery
+          substage: "4.3"
+          branch: feature/stage-4-3-m17-recovery-enforcement
+          parent_baseline: b959298cee18601b3768f72285062f776bbc35cb   # certified Stage 4.2 main (cert PR #27 merge)
+          governance_approval_pr: 28                     # m17-recovery deferred -> approved_for_build (PR #28, main fd594ab)
+          implementation_status: implemented_on_branch
+          implementation_pr: pending                     # recorded once the PR is opened
+          implementation_merge_sha: pending
+          merge_status: not_merged                       # STOP before merge — awaiting manual GitHub merge
+          ci_implementation: pending                     # recorded once CI reports on the full head SHA
+          smoke_local: passed_locally                    # 20 suites, 3709 assertions, 0 failures (incl. m17 smoke 72 + conformance 1910)
+          postgresql_local: passed_locally               # 37 db specs, 1075 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          certification_status: not_started              # post-merge M17 certification not yet run
+          certification_pr: pending
+          certification_merge_sha: pending
+          adrs: [ADR-069, ADR-070, ADR-071, ADR-072]
+          docs: [docs/build/stages/STAGE_4_3_M17_RECOVERY_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_4_3_M17_RECOVERY_READINESS.md,
+                 docs/build/stages/STAGE_4_3_M17_RECOVERY_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_4_3_M17_RECOVERY_COMPLETION.md]
       - module: m18-legaldocs
         capability: Legal documents & knowledge
         status: documented

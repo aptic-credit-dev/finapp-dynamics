@@ -164,7 +164,26 @@ namespaces:
              "litigation.cost.read", "litigation.cost.manage", "litigation.confidential.read",
              "litigation.privileged.read", "litigation.privileged.create", "litigation.analytics.read",
              "litigation.analytics.export", "litigation.platform.administer"]}
-  - {namespace: "recovery.*", module: m17-recovery, mvp: false, status: deferred}
+  - {namespace: "recovery.*", module: m17-recovery, mvp: false, status: implemented, substage: "4.3",
+     codes: ["recovery.case.read", "recovery.case.create", "recovery.case.update", "recovery.case.assign",
+             "recovery.case.reassign", "recovery.case.resolve", "recovery.case.close", "recovery.case.reopen",
+             "recovery.case.archive", "recovery.referral.accept", "recovery.recovery_type.read",
+             "recovery.recovery_type.manage", "recovery.sla_policy.read", "recovery.sla_policy.manage",
+             "recovery.party.read", "recovery.party.manage", "recovery.party_contact.read",
+             "recovery.instrument.read", "recovery.instrument.manage", "recovery.strategy.read",
+             "recovery.strategy.manage", "recovery.demand.read", "recovery.demand.manage",
+             "recovery.negotiation.read", "recovery.negotiation.manage", "recovery.arrangement.read",
+             "recovery.arrangement.manage", "recovery.arrangement.approve", "recovery.installment.read",
+             "recovery.installment.manage", "recovery.enforcement.read", "recovery.enforcement.manage",
+             "recovery.security.read", "recovery.security.manage", "recovery.security.realize",
+             "recovery.agent.read", "recovery.agent.manage", "recovery.agent_report.read",
+             "recovery.agent_report.manage", "recovery.receipt.read", "recovery.receipt.manage",
+             "recovery.cost.read", "recovery.cost.manage", "recovery.waiver.read", "recovery.waiver.grant",
+             "recovery.writeoff.read", "recovery.writeoff.recommend", "recovery.writeoff.approve",
+             "recovery.outcome.read", "recovery.outcome.manage", "recovery.deadline.read",
+             "recovery.deadline.manage", "recovery.confidential.read", "recovery.privileged.read",
+             "recovery.privileged.create", "recovery.analytics.read", "recovery.analytics.export",
+             "recovery.platform.administer"]}
   - {namespace: "reconciliation.*", module: m15-recon, mvp: true, status: documented}
   - {namespace: "gl_reconciliation.*", module: m20-glrecon, mvp: true, status: documented}
   - {namespace: "journals.*", module: m21-journal, mvp: true, status: documented}

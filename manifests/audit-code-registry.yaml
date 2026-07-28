@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 376 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 431 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -521,6 +521,63 @@ codes:
   - { code: LITIGATION_ESCALATION_TRIGGERED, module: m16-litigation, severity: elevated, reason_required: true }
   - { code: LITIGATION_ENFORCEMENT_REFERRAL_READY, module: m16-litigation, severity: elevated, reason_required: false }
   - { code: LITIGATION_KNOWLEDGE_CANDIDATE_CREATED, module: m16-litigation, severity: normal, reason_required: false }
+
+  # --- m17-recovery (Stage 4.3) — 55 codes -----------------------------------------------------
+  - { code: RECOVERY_TYPE_CREATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_TYPE_PUBLISHED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_SLA_PUBLISHED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_CASE_CREATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_CASE_REFERRED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_CASE_ASSIGNED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_CASE_REASSIGNED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_CASE_SUSPENDED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_PARTY_ADDED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_PARTY_UPDATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_PARTY_REMOVED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_PARTY_CONTACT_ACCESSED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_INSTRUMENT_REGISTERED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_INSTRUMENT_UPDATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_STRATEGY_SELECTED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_DEMAND_ISSUED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_DEMAND_RESPONDED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_NEGOTIATION_OPENED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_NEGOTIATION_CLOSED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_ARRANGEMENT_CREATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_ARRANGEMENT_APPROVED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_ARRANGEMENT_ACTIVATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_ARRANGEMENT_DEFAULTED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_ARRANGEMENT_COMPLETED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_INSTALLMENT_RECORDED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_ENFORCEMENT_INITIATED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_ENFORCEMENT_UPDATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_ENFORCEMENT_COMPLETED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_SECURITY_REGISTERED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_SECURITY_REALIZED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_AGENT_INSTRUCTED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_AGENT_REPORT_RECEIVED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_AGENT_TERMINATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_RECEIPT_RECORDED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_WAIVER_GRANTED, module: m17-recovery, severity: elevated, reason_required: true }
+  - { code: RECOVERY_WRITEOFF_RECOMMENDED, module: m17-recovery, severity: elevated, reason_required: true }
+  - { code: RECOVERY_WRITEOFF_APPROVED, module: m17-recovery, severity: critical, reason_required: true }
+  - { code: RECOVERY_OUTCOME_RECORDED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_COST_RECORDED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_DEADLINE_CREATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_DEADLINE_EXTENDED, module: m17-recovery, severity: normal, reason_required: true }
+  - { code: RECOVERY_DEADLINE_BREACHED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_NOTE_CREATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_RELATIONSHIP_CREATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_CLOSURE_EVALUATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_CASE_RESOLVED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_CASE_CLOSED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_CASE_REOPENED, module: m17-recovery, severity: elevated, reason_required: true }
+  - { code: RECOVERY_CASE_ARCHIVED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_PRIVILEGED_ACCESSED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_CONFIDENTIAL_ACCESSED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_EXPORT_REQUESTED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_SLA_STARTED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_SLA_BREACHED, module: m17-recovery, severity: elevated, reason_required: false }
+  - { code: RECOVERY_ESCALATION_TRIGGERED, module: m17-recovery, severity: elevated, reason_required: true }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
