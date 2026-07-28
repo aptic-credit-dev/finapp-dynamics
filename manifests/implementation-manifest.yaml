@@ -834,9 +834,11 @@ stages:
           ci_implementation: passed                      # PR #24 head baf4c71 + main push 41e7bf4: Smoke + DB (PostgreSQL 16) both green
           smoke_certification: passed_locally            # 18 suites, 3092 assertions, 0 failures (incl. m14 smoke 60 + conformance 1448)
           postgresql_certification: passed_locally       # 31 db specs, 876 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          ci_certification: pending                       # cert PR CI recorded once green (see certification report §11)
-          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
-          certified_baseline_sha: 41e7bf42ce8ba9b2cd02d50a9af73e8bb70d30a2   # merged main SHA (PR #24) tested for certification
+          ci_certification: passed                        # cert PR #25 head f7a3c62 + main push b6660a0: Smoke + DB (PostgreSQL 16) both green
+          certification_status: certified                 # cert PR #25 merged 2026-07-27 → main b6660a0
+          certification_pr: 25
+          certification_merge_sha: b6660a037a6e25717e0b7a48e6d9baf9bde3d9e0
+          certified_baseline_sha: b6660a037a6e25717e0b7a48e6d9baf9bde3d9e0   # merged main SHA (cert PR #25) — certified Stage 4.1 baseline
           tree_identical_to_reviewed_head: true          # git diff baf4c71 41e7bf4 is empty (byte-identical)
           local_reverification: {smoke_suites: 18, smoke_assertions: 3092, conformance_assertions: 1448,
                                  db_specs: 31, db_assertions: 876, migrations: 24, postgres_version: "15.2",
@@ -849,11 +851,71 @@ stages:
                  docs/build/stages/STAGE_4_1_M14_LEGAL_CERTIFICATION.md]
           # certification_pr recorded once the docs-only cert PR is opened.
       - module: m16-litigation
-        capability: Litigation & court management
-        status: documented
+        capability: Enterprise Litigation Management (proceeding as a first-class object)
+        status: implemented   # Stage 4.2 — implemented_on_branch (not merged/certified); see certification_4_2
         mvp: false
-        shared_services_consumed: [m14]
-        testing_required: [smoke, db_spec]
+        db_ownership: [litigation_proceeding_type(versioned spec, one ACTIVE), litigation_sla_policy(versioned spec,
+                       one ACTIVE), litigation_proceeding(core aggregate; SENSITIVE fields; 30-state lifecycle),
+                       litigation_referral(M14 idempotency ledger; one proceeding per referral key),
+                       litigation_status_history(append-only), litigation_assignment_history(append-only),
+                       litigation_party, litigation_claim, litigation_filing(maker-checker SoD CHECK),
+                       litigation_service(single-winner verify), litigation_appearance,
+                       litigation_proceeding_record(append-only), litigation_witness, litigation_expert,
+                       litigation_exhibit(single-winner admission), litigation_bundle(maker-checker SoD CHECK),
+                       litigation_bundle_item, litigation_order(append-only), litigation_compliance_obligation,
+                       litigation_outcome(append-only), litigation_appeal(one-active), litigation_deadline,
+                       litigation_cost_reference, litigation_note(append-only; confidential/privileged),
+                       litigation_relationship]
+        api_ownership: [/api/v1/litigation]
+        event_ownership: [litigation.lifecycle]
+        shared_services_consumed: [kernel, m01, m02, m03, m06, m07, m08, m09, m14]
+        consumes_events: [M14 matter referral (governed inbound contract; fire-and-forget, idempotent)]
+        emits_events: [litigation.lifecycle (36 event types)]
+        permissions_required: [litigation.*]
+        hard_rules: [privilege, ethical_walls, maker_checker]
+        testing_required: [smoke, db_spec, services_db_spec, api_http_spec]
+        tests_present: [m16-litigation.smoke (71), m16-litigation.db-spec (41), m16-services.db-spec (40),
+                        api-litigation.db-spec (21)]
+        # Enterprise, configurable, multi-tenant litigation & adjudicative-proceedings platform (a proceeding as a
+        # first-class object, not a court-event on a matter): proceedings before configurable forums (courts /
+        # tribunals / arbitration / mediation / regulatory / disciplinary), created from an M14 matter referral or
+        # direct litigation intake; parties, claims, filings, service of process, appearances/diary, hearing
+        # records, witnesses, experts, exhibits, hearing bundles, orders, compliance obligations, rulings/judgments,
+        # appeals, litigation deadlines (incl. limitation), cost references. NOTHING Kenya-specific: proceeding
+        # types, jurisdictions, forums, SLA policies are CONFIGURABLE. Full lifecycle: draft -> referred ->
+        # under_review -> filed -> served -> pleadings -> hearing -> decision -> concluded -> closed, 30 states with
+        # reopen/stayed/settled/withdrawn/dismissed/archived. Reuses m06 workflow, m07 rules, m08 escalation+
+        # notifications, m09 documents/bundles THROUGH EVENTS/CONTRACTS + PORTS only (no duplicate engines). SLA +
+        # deadlines + limitation are deterministic via a Clock port. Filing + bundle approval are maker-checker
+        # (approver != preparer, DB CHECK); service verification + exhibit admission are single-winner CAS. Costs
+        # store court + finance REFERENCES only (no ledger/posting/payment/tax/reconciliation). Legal strategy, full
+        # pleadings, witness statements, full submissions, private witness/party contacts + confidential order/
+        # outcome terms are sensitive: RLS-stored, redacted on read, NEVER in events/audit. M14 referral = consume a
+        # governed inbound contract, exactly one proceeding per referral key (a matter may have several
+        # proceedings), never reads m14-owned tables. m17 enforcement + m18 knowledge are DOWNSTREAM boundaries
+        # reached by safe events only (EnforcementReferralReady / KnowledgeCandidateCreated). Publishes
+        # litigation.lifecycle (36 event types) through the ONE m06 outbox. No M17/M18 internals, no finance, no AI,
+        # no production e-filing/court-scraping/calendar/telephony/messaging (deferred behind ports).
+        certification_4_2:
+          module: m16-litigation
+          substage: "4.2"
+          branch: feature/stage-4-2-m16-litigation-management
+          parent_baseline: b6660a037a6e25717e0b7a48e6d9baf9bde3d9e0   # certified Stage 4.1 main (cert PR #25 merge)
+          implementation_status: implemented_on_branch
+          implementation_pr: pending                     # recorded once the PR is opened
+          implementation_merge_sha: pending
+          merge_status: not_merged                       # STOP before merge — awaiting manual GitHub merge
+          ci_implementation: pending                     # recorded once CI reports on the full head SHA
+          smoke_local: passed_locally                    # 19 suites, 3401 assertions, 0 failures (incl. m16 smoke 71 + conformance 1680)
+          postgresql_local: passed_locally               # 34 db specs, 978 assertions, 0 failures (PostgreSQL 15.2 throwaway)
+          certification_status: not_started              # post-merge M16 certification not yet run
+          certification_pr: pending
+          certification_merge_sha: pending
+          adrs: [ADR-065, ADR-066, ADR-067, ADR-068]
+          docs: [docs/build/stages/STAGE_4_2_M16_LITIGATION_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_4_2_M16_LITIGATION_READINESS.md,
+                 docs/build/stages/STAGE_4_2_M16_LITIGATION_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_4_2_M16_LITIGATION_COMPLETION.md]
       - module: m17-recovery
         capability: Recovery & enforcement
         status: deferred

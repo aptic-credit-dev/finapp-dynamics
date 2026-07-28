@@ -94,7 +94,18 @@ family_groups:
      note: "Stage 4.1. Legal matter intake (incl. M13 case conversion) -> instruction -> assignment -> analysis/
             litigation/court diary -> settlement/judgment/appeal/enforcement -> closure. Ordering key = aggregate id
             (payload matterId); consumers dedupe on eventId. Payloads carry ids/states only."}
-  - {group: legal, families: [litigation.lifecycle, recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
+  # GAP CLOSED for m16-litigation (Stage 4.2) — litigation.lifecycle registered with the engine that emits it,
+  # declared in packages/contracts/src/litigation-events.ts. Delivered through the single transactional outbox (m06).
+  # 36 event types, payload v1; carry ids/states/dates/safe-amounts/reason-codes/dimensions ONLY (never legal
+  # strategy, full pleadings, witness statements, full submissions, private witness/party contacts, full orders,
+  # document contents, or confidential outcome terms). m16 consumes an M14 matter referral (governed inbound
+  # contract) and emits safe enforcement (m17) / knowledge (m18) boundary signals.
+  - {group: litigation, families: [litigation.lifecycle], mvp: false, status: implemented, owner: m16-litigation,
+     classification: confidential,
+     note: "Stage 4.2. Proceeding referral/creation -> assignment -> filings/service -> appearances/hearings ->
+            orders/compliance -> ruling/judgment -> appeal -> conclusion/closure. Ordering key = aggregate id
+            (payload proceedingId); consumers dedupe on eventId. Payloads carry ids/states only."}
+  - {group: legal, families: [recovery.lifecycle, legaldocs.lifecycle], mvp: partial, status: documented}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
   - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}
   - {group: platform, families: [platform.lifecycle, studio.lifecycle, analytics.lifecycle], mvp: false, status: documented}
