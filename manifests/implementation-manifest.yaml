@@ -722,7 +722,7 @@ stages:
     modules:
       - module: m19-finance
         capability: Finance operations foundation
-        status: documented
+        status: approved_for_build   # governance approval 2026-07-29: next module after Stage 4.4 (M18) per BUILD_SEQUENCE (Stage 3 Finance, m19 first); deps m02/m03/m06 certified; Stage 1 SaaS foundation complete
         mvp: true
         shared_services_consumed: [m02, m03, m06]
         permissions_required: [finance.*]
