@@ -271,8 +271,8 @@ export default defineSuite('m02-identity', (t) => {
   );
   t.equal(
     DOMAIN_EVENT_FAMILIES.length,
-    14,
-    'fourteen families are declared through Stage 4.3 (+ recovery.lifecycle)',
+    15,
+    'fifteen families are declared through Stage 4.4 (+ legaldocs.lifecycle)',
   );
   const eventRegistry = readYaml('manifests/event-registry.yaml') as {
     family_groups?: { families: string[] }[];
