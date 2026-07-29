@@ -1,0 +1,33 @@
+{
+  "name": "@finapp/m19-finance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M19 (3.1) — finance operations foundation: accounting entities, chart of accounts + ledger accounts, the fiscal calendar (fiscal years + accounting periods with open/closed/locked state), currencies + FX rates, cost centres, analytical dimensions, tax codes + rates, payment terms, and finance configuration. The finance reference-data foundation consumed by reconciliation (m15), GL reconciliation (m20) and the journal engine (m21). Owns NO journals, NO postings, NO reconciliation.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

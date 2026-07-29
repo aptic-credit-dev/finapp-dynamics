@@ -220,10 +220,11 @@ modules:
   - module: m19-finance
     stage: 3
     mvp: true
-    api_prefixes: [] # GAP-2: no prefix registered
+    api_prefixes: [/api/v1/finance] # GAP-2 resolved in Stage 3.1: m19 exposes its finance-foundation API
     permission_namespaces: ['finance.*']
-    permission_namespace_registered: false # GAP-4: manifest:160 requires finance.*, absent from permission-registry.yaml
-    event_families: []
+    permission_namespace_registered: true # GAP-4 resolved in Stage 3.1: finance.* seeded + registered
+    event_families: [finance.lifecycle]
+    event_family_registered: true
     audit_prefixes: [FIN_]
     note: No module spec exists in docs/04-modules/ — first module of Stage 3 is unspecified.
 

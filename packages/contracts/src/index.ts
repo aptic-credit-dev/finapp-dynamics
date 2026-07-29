@@ -184,3 +184,13 @@ export type {
   LegalDocsLifecycleEventType,
   LegalDocsLifecyclePayload,
 } from './legaldocs-events.ts';
+export {
+  FINANCE_LIFECYCLE_FAMILY,
+  FINANCE_LIFECYCLE_VERSION,
+  FINANCE_LIFECYCLE_EVENT_TYPES,
+} from './finance-events.ts';
+export type {
+  FinanceLifecycleEvent,
+  FinanceLifecycleEventType,
+  FinanceLifecyclePayload,
+} from './finance-events.ts';

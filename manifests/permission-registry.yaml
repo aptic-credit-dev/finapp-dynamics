@@ -201,6 +201,22 @@ namespaces:
              "legaldocs.tag.manage", "legaldocs.confidential.read", "legaldocs.privileged.read",
              "legaldocs.privileged.create", "legaldocs.analytics.read", "legaldocs.analytics.export",
              "legaldocs.platform.administer"]}
+  - {namespace: "finance.*", module: m19-finance, mvp: true, status: implemented, substage: "3.1",
+     codes: ["finance.entity.read", "finance.entity.manage", "finance.entity.activate",
+             "finance.entity.deactivate", "finance.account_type.read", "finance.account_type.manage",
+             "finance.account.read", "finance.account.create", "finance.account.update",
+             "finance.account.activate", "finance.account.deactivate", "finance.account.archive",
+             "finance.fiscal_year.read", "finance.fiscal_year.manage", "finance.fiscal_year.close",
+             "finance.fiscal_year.reopen", "finance.period.read", "finance.period.manage",
+             "finance.period.open", "finance.period.close", "finance.period.lock", "finance.period.reopen",
+             "finance.currency.read", "finance.currency.manage", "finance.exchange_rate.read",
+             "finance.exchange_rate.manage", "finance.entity_currency.read", "finance.entity_currency.manage",
+             "finance.cost_center.read", "finance.cost_center.manage", "finance.cost_center.archive",
+             "finance.dimension.read", "finance.dimension.manage", "finance.dimension_value.manage",
+             "finance.tax_code.read", "finance.tax_code.manage", "finance.tax_rate.manage",
+             "finance.payment_term.read", "finance.payment_term.manage", "finance.config.read",
+             "finance.config.manage", "finance.config.publish", "finance.analytics.read",
+             "finance.analytics.export", "finance.platform.administer"]}
   - {namespace: "reconciliation.*", module: m15-recon, mvp: true, status: documented}
   - {namespace: "gl_reconciliation.*", module: m20-glrecon, mvp: true, status: documented}
   - {namespace: "journals.*", module: m21-journal, mvp: true, status: documented}
