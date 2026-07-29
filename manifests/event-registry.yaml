@@ -128,6 +128,18 @@ family_groups:
             archive/reopen; authorities/treatments, precedents, opinions (maker-checker), research; templates +
             clauses (versioned, immutable-after-publish, maker-checker); references/relationships/reviews. Ordering
             key = aggregate id (payload recordId); consumers dedupe on eventId. Payloads carry ids/states only."}
+  # GAP CLOSED for m19-finance (Stage 3.1) — finance.lifecycle registered with the engine that emits it, declared
+  # in packages/contracts/src/finance-events.ts. Delivered through the single transactional outbox (m06). 33 event
+  # types, payload v1; carry ids/codes/states/dates/reference-dimensions ONLY — never monetary amounts, balances or
+  # float (ADR-007). m19 is the finance FOUNDATION (accounting entities, chart of accounts, fiscal calendar/periods,
+  # currencies + FX, cost centres/dimensions, tax codes/rates, payment terms, config); it holds no journals,
+  # postings, reconciliation or approvals (those are m21/m15/m20/m22). Period open/close/lock is the cross-module
+  # signal downstream posting (m21) consumes to honour "no posting into a closed period".
+  - {group: finance_foundation, families: [finance.lifecycle], mvp: true, status: implemented, owner: m19-finance,
+     classification: internal,
+     note: "Stage 3.1. Accounting entity/chart-of-accounts/fiscal-period/currency/FX/cost-centre/dimension/tax/
+            payment-term/config lifecycle. Ordering key = aggregate id (payload recordId); consumers dedupe on
+            eventId. Payloads carry ids/codes/states/dates only — never amounts."}
   - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
   - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}
   - {group: platform, families: [platform.lifecycle, studio.lifecycle, analytics.lifecycle], mvp: false, status: documented}

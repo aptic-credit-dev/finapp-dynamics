@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 486 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 520 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -635,6 +635,42 @@ codes:
   - { code: LEGALDOC_CONFIDENTIAL_ACCESSED, module: m18-legaldocs, severity: elevated, reason_required: false }
   - { code: LEGALDOC_EXPORT_REQUESTED, module: m18-legaldocs, severity: elevated, reason_required: false }
   - { code: LEGALDOC_KNOWLEDGE_ESCALATED, module: m18-legaldocs, severity: elevated, reason_required: true }
+
+  # --- m19-finance (Stage 3.1) — 34 codes ------------------------------------------------------
+  - { code: FIN_ENTITY_REGISTERED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_ENTITY_UPDATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_ENTITY_ACTIVATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_ENTITY_DEACTIVATED, module: m19-finance, severity: elevated, reason_required: true }
+  - { code: FIN_ACCOUNT_TYPE_REGISTERED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_ACCOUNT_CREATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_ACCOUNT_UPDATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_ACCOUNT_ACTIVATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_ACCOUNT_DEACTIVATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_ACCOUNT_ARCHIVED, module: m19-finance, severity: elevated, reason_required: true }
+  - { code: FIN_FISCAL_YEAR_CREATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_FISCAL_YEAR_CLOSED, module: m19-finance, severity: elevated, reason_required: true }
+  - { code: FIN_FISCAL_YEAR_REOPENED, module: m19-finance, severity: elevated, reason_required: true }
+  - { code: FIN_PERIOD_OPENED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_PERIOD_CLOSED, module: m19-finance, severity: elevated, reason_required: true }
+  - { code: FIN_PERIOD_LOCKED, module: m19-finance, severity: elevated, reason_required: true }
+  - { code: FIN_PERIOD_REOPENED, module: m19-finance, severity: elevated, reason_required: true }
+  - { code: FIN_CURRENCY_REGISTERED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_CURRENCY_UPDATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_CURRENCY_DEACTIVATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_EXCHANGE_RATE_RECORDED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_ENTITY_CURRENCY_CONFIGURED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_COST_CENTER_CREATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_COST_CENTER_UPDATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_COST_CENTER_ARCHIVED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_DIMENSION_REGISTERED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_DIMENSION_VALUE_ADDED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_TAX_CODE_REGISTERED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_TAX_RATE_ADDED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_PAYMENT_TERM_REGISTERED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_CONFIG_CREATED, module: m19-finance, severity: normal, reason_required: false }
+  - { code: FIN_CONFIG_PUBLISHED, module: m19-finance, severity: elevated, reason_required: false }
+  - { code: FIN_CONFIG_SUPERSEDED, module: m19-finance, severity: elevated, reason_required: false }
+  - { code: FIN_ANALYTICS_EXPORTED, module: m19-finance, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
