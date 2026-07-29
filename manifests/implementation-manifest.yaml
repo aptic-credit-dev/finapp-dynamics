@@ -721,12 +721,67 @@ stages:
     depends_on_stage: 1
     modules:
       - module: m19-finance
-        capability: Finance operations foundation
-        status: approved_for_build   # governance approval 2026-07-29: next module after Stage 4.4 (M18) per BUILD_SEQUENCE (Stage 3 Finance, m19 first); deps m02/m03/m06 certified; Stage 1 SaaS foundation complete
+        capability: Finance Operations Foundation (the finance reference-data root — chart of accounts, fiscal calendar, currencies/FX, dimensions, tax, config)
+        status: implemented   # Stage 3.1 — implemented_on_branch (not merged/certified); see certification_3_1
         mvp: true
-        shared_services_consumed: [m02, m03, m06]
+        db_ownership: [finance_entity(accounting entity; hierarchy), finance_account_type(class + normal side),
+                       finance_account(chart of accounts; tree; postable; lifecycle; SoD-free config), finance_account_history(append-only),
+                       finance_fiscal_year(open/closed), finance_fiscal_period(open/closed/locked; the posting gate),
+                       finance_period_history(append-only), finance_currency(ISO code + minor units),
+                       finance_exchange_rate(EXACT-decimal FX; idempotent natural key), finance_entity_currency(functional/presentation/transaction),
+                       finance_cost_center(tree), finance_dimension, finance_dimension_value,
+                       finance_tax_code, finance_tax_rate(EXACT-decimal, effective-dated), finance_payment_term,
+                       finance_config(versioned, immutable-after-publish, one-active, idempotency-keyed), finance_config_history(append-only)]
+        api_ownership: [/api/v1/finance]
+        event_ownership: [finance.lifecycle]
+        shared_services_consumed: [kernel, m01, m02, m03, m06]
+        emits_events: [finance.lifecycle (33 event types)]
         permissions_required: [finance.*]
-        testing_required: [smoke, db_spec]
+        hard_rules: [decimal_safe, no_float, no_monetary_amounts_in_foundation, no_posting, no_journals, tenant_isolation]
+        testing_required: [smoke, db_spec, services_db_spec, api_http_spec]
+        tests_present: [m19-finance.smoke (73), m19-finance.db-spec (37), m19-services.db-spec (60),
+                        api-finance.db-spec (12)]
+        # The finance FOUNDATION / reference-data root of the finance domain, consumed by reconciliation (m15),
+        # GL reconciliation (m20) and the journal engine (m21). Owns accounting entities, the chart of accounts
+        # (account types + ledger accounts), the fiscal calendar (fiscal years + accounting periods with an
+        # open/closed/locked state), currencies + EXACT-decimal FX rates, cost centres, analytical dimensions, tax
+        # codes + EXACT-decimal effective-dated rates, payment terms, and versioned finance configuration. Owns NO
+        # journals, NO journal lines, NO postings/ledger-posting engine (m21), NO reconciliation (m15/m15a), NO GL
+        # reconciliation (m20), NO approval workflow (m22), NO finance integration (m23), NO AI (m27), NO cash/AR/AP/
+        # payments. Carries NO monetary amounts or balances — the only money-adjacent values are EXACT NUMERIC FX +
+        # tax rates, never float (ADR-007/078). Period close/lock is the cross-module "no posting into a closed
+        # period" gate downstream posting (m21) reads (ADR-078). 18 FORCE-RLS tables, composite keys, 3 append-only
+        # ledgers, no DELETE grant; ledger accounts/periods/config have explicit state machines; config is
+        # immutable-after-publish (one active per entity+scope) + idempotency-keyed; optimistic-concurrency CAS.
+        # Reuses m02 (authz), m03 (audit), m06 (workflow + the ONE outbox) THROUGH tokens/events only. GAPs closed at
+        # 3.1: the 18-table composition (ADR-077; repo gave only the count), /api/v1/finance (GAP-2), finance.*
+        # namespace (GAP-4), the finance.lifecycle event family (ADR-079; naming-map had none). 45 permissions (16
+        # privileged), 34 FIN_ audit codes (prefix shared with m23), finance.lifecycle (33 event types).
+        certification_3_1:
+          module: m19-finance
+          substage: "3.1"
+          branch: feature/stage-3-1-m19-finance-operations
+          parent_baseline: 470d19a5b8aba933270ca360a271437c93afbe34   # governance-approved main (PR #34 merge)
+          governance_approval_pr: 34                     # m19-finance documented -> approved_for_build (PR #34, main 470d19a)
+          implementation_status: implemented_on_branch   # PR open; STOPPED before merge
+          implementation_pr: pending
+          implementation_head: pending
+          merge_status: not_merged
+          ci_implementation: pending
+          smoke_certification: passed_locally            # 22 suites, 4238 assertions, 0 failures (incl. m19 smoke 73 + conformance 2280)
+          postgresql_certification: passed_locally       # 43 db specs, 1410 assertions, 0 failures; fresh replay of 32 migrations (PostgreSQL 15.2 throwaway)
+          local_verification: {smoke_suites: 22, smoke_assertions: 4238, conformance_assertions: 2280,
+                               db_specs: 43, db_assertions: 1410, migrations_replayed: 32, postgres_version: "15.2",
+                               m19_tables: 18, force_rls: 18, delete_grants: 0, append_only_ledgers: 3,
+                               composite_fks: 23, single_col_fks: 0, float_columns: 0, permissions: 45,
+                               privileged_permissions: 16, audit_codes: 34, registered_code_count: 520,
+                               event_types: 33, event_families: 16, mutating_routes: 38, read_routes: 21}
+          certification_status: implemented_not_certified
+          adrs: [ADR-077, ADR-078, ADR-079, ADR-080]
+          docs: [docs/build/stages/STAGE_3_1_M19_FINANCE_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_3_1_M19_FINANCE_READINESS.md,
+                 docs/build/stages/STAGE_3_1_M19_FINANCE_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_3_1_M19_FINANCE_COMPLETION.md]
       - module: m15-recon + m15a-matching
         capability: Bank reconciliation + matching engine
         status: documented
