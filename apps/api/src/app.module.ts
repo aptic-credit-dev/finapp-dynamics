@@ -15,6 +15,7 @@ import { LegalModule } from './legal/legal.module.ts';
 import { LitigationModule } from './litigation/litigation.module.ts';
 import { RecoveryModule } from './recovery/recovery.module.ts';
 import { LegaldocsModule } from './legaldocs/legaldocs.module.ts';
+import { FinanceModule } from './finance/finance.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -74,6 +75,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     LitigationModule,
     RecoveryModule,
     LegaldocsModule,
+    FinanceModule,
   ],
   controllers: [HealthController],
   providers: [],
