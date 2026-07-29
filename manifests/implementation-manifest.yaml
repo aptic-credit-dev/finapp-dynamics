@@ -1058,27 +1058,39 @@ stages:
           module: m18-legaldocs
           substage: "4.4"
           branch: feature/stage-4-4-m18-legal-knowledge-management
+          certification_branch: cert/stage-4-4-m18-legal-knowledge-management
           parent_baseline: f3f053df94f5a9cc0ddb27a214a2c2c8427d0c1d   # governance-approved main (PR #31 merge)
           governance_approval_pr: 31                     # m18-legaldocs documented -> approved_for_build (PR #31, main f3f053d)
-          implementation_status: implemented_on_branch   # PR open; STOPPED before merge
-          implementation_pr: pending
-          implementation_head: pending
-          merge_status: not_merged
-          ci_implementation: pending                     # recorded once the impl PR CI is green on the full head SHA
+          # Merged 2026-07-29 via PR #32 (squash) onto governance-approved main f3f053d; post-merge certification on branch.
+          implementation_status: merged
+          implementation_pr: 32
+          implementation_head: 2168d83065b2221191f8d9cbf9e4ed1060476c8d
+          implementation_merge_sha: 9bf1a0ce69a7fe75deffedfd5d0d859b2cb05755
+          merge_status: merged
+          ci_implementation: passed                      # PR #32 head 2168d83 + merge 9bf1a0c: Smoke lane + DB lane (PostgreSQL 16) both green
           smoke_certification: passed_locally            # 21 suites, 3995 assertions, 0 failures (incl. m18 smoke 74 + conformance 2116)
           postgresql_certification: passed_locally       # 40 db specs, 1301 assertions, 0 failures; fresh replay of 30 migrations (PostgreSQL 15.2 throwaway)
-          local_verification: {smoke_suites: 21, smoke_assertions: 3995, conformance_assertions: 2116,
-                               db_specs: 40, db_assertions: 1301, migrations_replayed: 30, postgres_version: "15.2",
-                               m18_tables: 20, force_rls: 20, delete_grants: 0, append_only_ledgers: 6,
-                               composite_fks: 13, sod_checks: 4, permissions: 46, privileged_permissions: 19,
-                               audit_codes: 55, registered_code_count: 486, event_types: 36, event_families: 15,
-                               mutating_routes: 48, read_routes: 21, lifecycle_states: 9}
-          certification_status: implemented_not_certified # post-merge certification is a separate stage
+          ci_certification: pending                       # cert PR CI recorded once green (see certification report §14)
+          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
+          certified_baseline_sha: 9bf1a0ce69a7fe75deffedfd5d0d859b2cb05755   # merged main SHA (PR #32) tested for certification
+          tree_identical_to_reviewed_head: true          # git diff 2168d83 9bf1a0c is empty (byte-identical)
+          local_reverification: {smoke_suites: 21, smoke_assertions: 3995, conformance_assertions: 2116,
+                                 db_specs: 40, db_assertions: 1301, migrations_replayed: 30, postgres_version: "15.2",
+                                 clean_checkout: true, tree_identical_to_ci_head: true,
+                                 m18_tables: 20, force_rls: 20, composite_pk: 20, delete_grants: 0,
+                                 append_only_ledgers: 6, composite_fks: 13, single_col_fks: 0, sod_checks: 4,
+                                 selfedge_checks: 2, version_checks: 13, one_published_indexes: 3,
+                                 permissions: 46, privileged_permissions: 19, audit_codes: 55,
+                                 registered_code_count: 486, event_types: 36, event_families: 15,
+                                 mutating_routes: 48, read_routes: 21, lifecycle_states: 9, outbox_tables: 1}
+          certification_pr: pending
+          certification_merge_sha: pending
           adrs: [ADR-073, ADR-074, ADR-075, ADR-076]
           docs: [docs/build/stages/STAGE_4_4_M18_LEGALDOCS_ARCHITECTURE.md,
                  docs/build/stages/STAGE_4_4_M18_LEGALDOCS_READINESS.md,
                  docs/build/stages/STAGE_4_4_M18_LEGALDOCS_IMPLEMENTATION_PLAN.md,
-                 docs/build/stages/STAGE_4_4_M18_LEGALDOCS_COMPLETION.md]
+                 docs/build/stages/STAGE_4_4_M18_LEGALDOCS_COMPLETION.md,
+                 docs/build/stages/STAGE_4_4_M18_LEGALDOCS_CERTIFICATION.md]
 
   - stage: 5
     name: AI layer
