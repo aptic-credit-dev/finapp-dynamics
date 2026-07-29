@@ -48,6 +48,9 @@ import {
   LEGALDOCS_LIFECYCLE_FAMILY,
   LEGALDOCS_LIFECYCLE_EVENT_TYPES,
   LEGALDOCS_LIFECYCLE_VERSION,
+  FINANCE_LIFECYCLE_FAMILY,
+  FINANCE_LIFECYCLE_EVENT_TYPES,
+  FINANCE_LIFECYCLE_VERSION,
 } from '@finapp/contracts';
 
 /**
@@ -61,7 +64,7 @@ import {
  * m02-identity).
  */
 export default defineSuite('contracts', (t) => {
-  t.equal(DOMAIN_EVENT_FAMILIES.length, 15, 'Stage 4.4 declares fifteen event families');
+  t.equal(DOMAIN_EVENT_FAMILIES.length, 16, 'Stage 3.1 declares sixteen event families');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(AUTH_LIFECYCLE_FAMILY), 'identity.authentication is declared (1C)');
@@ -191,6 +194,15 @@ export default defineSuite('contracts', (t) => {
     'legaldocs.lifecycle event types are unique',
   );
   t.ok(isValidEventFamily(LEGALDOCS_LIFECYCLE_FAMILY), 'legaldocs.lifecycle satisfies the family pattern');
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(FINANCE_LIFECYCLE_FAMILY), 'finance.lifecycle is declared (3.1)');
+  t.equal(FINANCE_LIFECYCLE_VERSION, 1, 'finance.lifecycle payloads are at version 1');
+  t.equal(FINANCE_LIFECYCLE_EVENT_TYPES.length, 33, 'finance.lifecycle declares 33 event types');
+  t.equal(
+    new Set(FINANCE_LIFECYCLE_EVENT_TYPES).size,
+    FINANCE_LIFECYCLE_EVENT_TYPES.length,
+    'finance.lifecycle event types are unique',
+  );
+  t.ok(isValidEventFamily(FINANCE_LIFECYCLE_FAMILY), 'finance.lifecycle satisfies the family pattern');
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');
 
