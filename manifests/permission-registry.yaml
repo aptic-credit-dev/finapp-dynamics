@@ -184,6 +184,23 @@ namespaces:
              "recovery.deadline.manage", "recovery.confidential.read", "recovery.privileged.read",
              "recovery.privileged.create", "recovery.analytics.read", "recovery.analytics.export",
              "recovery.platform.administer"]}
+  - {namespace: "legaldocs.*", module: m18-legaldocs, mvp: partial, status: implemented, substage: "4.4",
+     codes: ["legaldocs.knowledge.read", "legaldocs.knowledge.create", "legaldocs.knowledge.update",
+             "legaldocs.knowledge.assign", "legaldocs.knowledge.submit", "legaldocs.knowledge.review",
+             "legaldocs.knowledge.approve", "legaldocs.knowledge.publish", "legaldocs.knowledge.supersede",
+             "legaldocs.knowledge.withdraw", "legaldocs.knowledge.archive", "legaldocs.knowledge.reopen",
+             "legaldocs.taxonomy.read", "legaldocs.taxonomy.manage", "legaldocs.authority.read",
+             "legaldocs.authority.manage", "legaldocs.authority.treat", "legaldocs.citation.manage",
+             "legaldocs.precedent.read", "legaldocs.precedent.manage", "legaldocs.opinion.read",
+             "legaldocs.opinion.manage", "legaldocs.opinion.approve", "legaldocs.research.read",
+             "legaldocs.research.manage", "legaldocs.template.read", "legaldocs.template.manage",
+             "legaldocs.template.approve", "legaldocs.template.publish", "legaldocs.clause.read",
+             "legaldocs.clause.manage", "legaldocs.clause.approve", "legaldocs.clause.publish",
+             "legaldocs.reference.read", "legaldocs.reference.manage", "legaldocs.relationship.read",
+             "legaldocs.relationship.manage", "legaldocs.review.read", "legaldocs.review.manage",
+             "legaldocs.tag.manage", "legaldocs.confidential.read", "legaldocs.privileged.read",
+             "legaldocs.privileged.create", "legaldocs.analytics.read", "legaldocs.analytics.export",
+             "legaldocs.platform.administer"]}
   - {namespace: "reconciliation.*", module: m15-recon, mvp: true, status: documented}
   - {namespace: "gl_reconciliation.*", module: m20-glrecon, mvp: true, status: documented}
   - {namespace: "journals.*", module: m21-journal, mvp: true, status: documented}

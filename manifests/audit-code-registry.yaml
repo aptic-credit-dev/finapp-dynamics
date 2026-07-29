@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 431 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 486 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -578,6 +578,63 @@ codes:
   - { code: RECOVERY_SLA_STARTED, module: m17-recovery, severity: normal, reason_required: false }
   - { code: RECOVERY_SLA_BREACHED, module: m17-recovery, severity: elevated, reason_required: false }
   - { code: RECOVERY_ESCALATION_TRIGGERED, module: m17-recovery, severity: elevated, reason_required: true }
+
+  # --- m18-legaldocs (Stage 4.4) — 55 codes ----------------------------------------------------
+  - { code: LEGALDOC_TAXONOMY_CREATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_TAXONOMY_UPDATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_TAXONOMY_RETIRED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_KNOWLEDGE_CREATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_KNOWLEDGE_UPDATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_KNOWLEDGE_ASSIGNED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_KNOWLEDGE_SUBMITTED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_KNOWLEDGE_REVIEWED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_KNOWLEDGE_CHANGES_REQUESTED, module: m18-legaldocs, severity: normal, reason_required: true }
+  - { code: LEGALDOC_KNOWLEDGE_APPROVED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_KNOWLEDGE_PUBLISHED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_KNOWLEDGE_SUPERSEDED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_KNOWLEDGE_WITHDRAWN, module: m18-legaldocs, severity: elevated, reason_required: true }
+  - { code: LEGALDOC_KNOWLEDGE_ARCHIVED, module: m18-legaldocs, severity: elevated, reason_required: true }
+  - { code: LEGALDOC_KNOWLEDGE_REOPENED, module: m18-legaldocs, severity: elevated, reason_required: true }
+  - { code: LEGALDOC_KNOWLEDGE_VERSIONED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_CLASSIFICATION_CHANGED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_AUTHORITY_REGISTERED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_AUTHORITY_UPDATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_AUTHORITY_TREATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_PRECEDENT_REGISTERED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_PRECEDENT_UPDATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_OPINION_REGISTERED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_OPINION_APPROVED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_RESEARCH_REGISTERED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_RESEARCH_UPDATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_TEMPLATE_CREATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_TEMPLATE_SUBMITTED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_TEMPLATE_APPROVED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_TEMPLATE_PUBLISHED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_TEMPLATE_SUPERSEDED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_TEMPLATE_WITHDRAWN, module: m18-legaldocs, severity: elevated, reason_required: true }
+  - { code: LEGALDOC_CLAUSE_CREATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_CLAUSE_SUBMITTED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_CLAUSE_APPROVED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_CLAUSE_PUBLISHED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_CLAUSE_SUPERSEDED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_CLAUSE_WITHDRAWN, module: m18-legaldocs, severity: elevated, reason_required: true }
+  - { code: LEGALDOC_CLAUSE_RELATION_CREATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_DOCUMENT_LINKED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_REFERENCE_LINKED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_RELATIONSHIP_CREATED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_RELATIONSHIP_RETIRED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_REVIEW_SCHEDULED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_REVIEW_COMPLETED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_REVIEW_OVERDUE, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_TAG_ADDED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_TAG_REMOVED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_CITATION_ADDED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_NOTE_ADDED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_USAGE_RECORDED, module: m18-legaldocs, severity: normal, reason_required: false }
+  - { code: LEGALDOC_PRIVILEGED_ACCESSED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_CONFIDENTIAL_ACCESSED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_EXPORT_REQUESTED, module: m18-legaldocs, severity: elevated, reason_required: false }
+  - { code: LEGALDOC_KNOWLEDGE_ESCALATED, module: m18-legaldocs, severity: elevated, reason_required: true }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
