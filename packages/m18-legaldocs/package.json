@@ -1,0 +1,33 @@
+{
+  "name": "@finapp/m18-legaldocs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M18 (4.4) — enterprise legal documents & knowledge: legal knowledge records, legal authorities + citations, precedents, opinions, research notes, versioned document templates + clause library (maker-checker), configurable taxonomy/classification, cross-module references (m09 documents, m14 matters, m16 litigation, m17 recovery), review/expiry deadlines, publication controls, supersession, archival, analytics.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
