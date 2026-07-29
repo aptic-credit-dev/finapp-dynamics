@@ -174,3 +174,13 @@ export type {
   RecoveryLifecycleEventType,
   RecoveryLifecyclePayload,
 } from './recovery-events.ts';
+export {
+  LEGALDOCS_LIFECYCLE_FAMILY,
+  LEGALDOCS_LIFECYCLE_VERSION,
+  LEGALDOCS_LIFECYCLE_EVENT_TYPES,
+} from './legaldocs-events.ts';
+export type {
+  LegalDocsLifecycleEvent,
+  LegalDocsLifecycleEventType,
+  LegalDocsLifecyclePayload,
+} from './legaldocs-events.ts';

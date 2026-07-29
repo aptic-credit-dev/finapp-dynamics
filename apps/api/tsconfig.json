@@ -37,6 +37,7 @@
     { "path": "../../packages/m14-legal" },
     { "path": "../../packages/m16-litigation" },
     { "path": "../../packages/m17-recovery" },
+    { "path": "../../packages/m18-legaldocs" },
     { "path": "../../tools/test-runner" }
   ]
 }

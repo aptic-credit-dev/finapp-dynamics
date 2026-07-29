@@ -315,8 +315,8 @@ modules:
   - module: m18-legaldocs
     stage: 4
     mvp: false
-    api_prefixes: [] # GAP-2
-    permission_namespaces: [] # GAP-2
+    api_prefixes: [/api/v1/legaldocs] # GAP-2 resolved in Stage 4.4: m18 exposes its knowledge/library/catalog API
+    permission_namespaces: ['legaldocs.*']
     event_families: [legaldocs.lifecycle]
     event_family_registered: true
     audit_prefixes: [LEGALDOC_]
@@ -545,7 +545,7 @@ gaps:
   - id: GAP-2
     severity: blocks_owning_stage
     issue: Modules with no registered API prefix and/or no permission namespace.
-    affects: [m07-rules, m16-litigation, m18-legaldocs, m19-finance, m30-platform, m39-saas]
+    affects: [m07-rules, m16-litigation, m19-finance, m30-platform, m39-saas] # m18-legaldocs resolved in Stage 4.4
   - id: GAP-3
     severity: blocks_stage_1
     issue: m05-hub and m10-report are mvp:true but appear in no manifest stage; m11-ai likewise absent.

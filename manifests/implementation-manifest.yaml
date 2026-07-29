@@ -990,15 +990,15 @@ stages:
           ci_implementation: passed                      # PR #29 head 311757c + main push 452376d: Smoke + DB (PostgreSQL 16) both green
           smoke_certification: passed_locally            # 20 suites, 3709 assertions, 0 failures (incl. m17 smoke 72 + conformance 1910)
           postgresql_certification: passed_locally       # 37 db specs, 1075 assertions, 0 failures (PostgreSQL 15.2 throwaway)
-          ci_certification: pending                       # cert PR CI recorded once green (see certification report §14)
-          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
+          ci_certification: passed                        # cert PR #30 CI green; merged to main as 5aec639
+          certification_status: certified                 # cert PR #30 merged 2026-07-29 onto main (5aec639)
           certified_baseline_sha: 452376d1787b742aa6a1786934ed16ee3c954ea1   # merged main SHA (PR #29) tested for certification
           tree_identical_to_reviewed_head: true          # git diff 311757c 452376d is empty (byte-identical)
           local_reverification: {smoke_suites: 20, smoke_assertions: 3709, conformance_assertions: 1910,
                                  db_specs: 37, db_assertions: 1075, migrations: 28, postgres_version: "15.2",
                                  clean_checkout: true, tree_identical_to_ci_head: true}
-          certification_pr: pending
-          certification_merge_sha: pending
+          certification_pr: 30
+          certification_merge_sha: 5aec639571af370e9570a0316ab48d461c1b6b2d
           adrs: [ADR-069, ADR-070, ADR-071, ADR-072]
           docs: [docs/build/stages/STAGE_4_3_M17_RECOVERY_ARCHITECTURE.md,
                  docs/build/stages/STAGE_4_3_M17_RECOVERY_READINESS.md,
@@ -1006,11 +1006,79 @@ stages:
                  docs/build/stages/STAGE_4_3_M17_RECOVERY_COMPLETION.md,
                  docs/build/stages/STAGE_4_3_M17_RECOVERY_CERTIFICATION.md]
       - module: m18-legaldocs
-        capability: Legal documents & knowledge
-        status: approved_for_build   # governance approval 2026-07-28: cleared for build in dependency order (m09, m14 certified; m16, m17 also merged/certified)
+        capability: Enterprise Legal Knowledge Management (legal knowledge as a first-class, governed corpus)
+        status: implemented   # Stage 4.4 — implemented_on_branch (not merged/certified); see certification_4_4
         mvp: false
-        shared_services_consumed: [m09, m14]
-        testing_required: [smoke, db_spec]
+        db_ownership: [legaldoc_taxonomy(configurable practice-area/jurisdiction/legal-topic/document-type/tag;
+                       one-active per kind+code), legaldoc_knowledge(core aggregate; SENSITIVE abstract; 9-state
+                       PUBLISHABLE lifecycle; versioned via supersession; one published per code; SoD CHECK;
+                       idempotency-keyed), legaldoc_status_history(append-only), legaldoc_assignment_history(append-only),
+                       legaldoc_authority(statutes/case-law/regulations/opinions), legaldoc_authority_treatment(append-only;
+                       followed/distinguished/overruled/...), legaldoc_precedent(SENSITIVE holding),
+                       legaldoc_opinion(PRIVILEGED; maker-checker SoD CHECK), legaldoc_research(SENSITIVE findings),
+                       legaldoc_template(versioned, immutable-after-publish, one-published, SoD CHECK),
+                       legaldoc_clause(versioned clause library, immutable-after-publish, one-published, SoD CHECK),
+                       legaldoc_clause_relation(self-edge CHECK; active-unique), legaldoc_reference(OPAQUE cross-module
+                       ids for m09 doc/m14 matter/m16 litigation/m17 recovery/authority/precedent/external),
+                       legaldoc_relationship(self-edge CHECK; active-unique), legaldoc_review(deterministic
+                       review/expiry deadlines via Clock port), legaldoc_tag(one-active per kind+code; soft-delete, no
+                       DELETE), legaldoc_citation, legaldoc_note(append-only; confidential/privileged/strategy),
+                       legaldoc_usage(append-only analytics), legaldoc_approval_history(append-only maker-checker evidence)]
+        api_ownership: [/api/v1/legaldocs]
+        event_ownership: [legaldocs.lifecycle]
+        shared_services_consumed: [kernel, m01, m02, m03, m06, m07, m08, m09, m14, m16, m17]
+        emits_events: [legaldocs.lifecycle (36 event types)]
+        permissions_required: [legaldocs.*]
+        hard_rules: [privilege, ethical_walls, maker_checker, no_ai_search, no_cross_module_mutation]
+        testing_required: [smoke, db_spec, services_db_spec, api_http_spec]
+        tests_present: [m18-legaldocs.smoke (74), m18-legaldocs.db-spec (41), m18-services.db-spec (163),
+                        api-legaldocs.db-spec (22)]
+        # Enterprise, configurable, multi-tenant legal KNOWLEDGE platform (legal knowledge as a first-class corpus):
+        # legal knowledge records (memos/practice-notes/guidance/checklists/interpretations/advisories/playbooks/
+        # standard-positions), legal authorities + citations + case-law/statutory treatments, precedents, PRIVILEGED
+        # legal opinions (maker-checker approval), research notes, versioned document TEMPLATES + a CLAUSE library
+        # (maker-checker, immutable-after-publish), configurable taxonomy/classification, keyword search (NO AI /
+        # vector / semantic / embeddings), supersession-based versioning, review/expiry deadlines, cross-module
+        # references. NOTHING jurisdiction-specific: practice areas, jurisdictions, legal topics, document types and
+        # tags are CONFIGURABLE per tenant (ADR-073). One shared 9-state PUBLISHABLE lifecycle (draft -> under_review
+        # -> changes_requested -> approved -> published -> superseded/withdrawn -> archived, with reopened) for
+        # knowledge/template/clause, single choke point, maker-checker SoD (approver != submitter/author, DB CHECK).
+        # Published content is IMMUTABLE — a change is a new version via supersession; content_hash frozen at publish;
+        # one published per code (ADR-074). Deterministic review/expiry math via a Clock port. Reuses m06 workflow,
+        # m07 rules, m08 escalation+notifications, m09 documents THROUGH EVENTS/CONTRACTS + PORTS only (no duplicate
+        # engines). OWNS NO STORAGE — document bytes live in m09; m18 stores references. Cross-module references (m09
+        # documents, m14 matters, m16 litigation, m17 recoveries) are OPAQUE ids — m18 reads no other module's tables
+        # and mutates nothing cross-module (ADR-075). Privileged legal advice, confidential clause/opinion/analysis
+        # text, drafting strategy and restricted notes are sensitive: RLS-stored, redacted on read, gated by dedicated
+        # privileged permissions, and NEVER placed in events/audit/logs/analytics/search snippets (ADR-076); ethical
+        # walls via RLS FORCE. Publishes legaldocs.lifecycle (36 event types) through the ONE m06 outbox. No finance/
+        # accounting/ledger/AR/payment/reconciliation, no AI, no portals, no production court or legal-research vendor
+        # ingestion (deferred behind ports).
+        certification_4_4:
+          module: m18-legaldocs
+          substage: "4.4"
+          branch: feature/stage-4-4-m18-legal-knowledge-management
+          parent_baseline: f3f053df94f5a9cc0ddb27a214a2c2c8427d0c1d   # governance-approved main (PR #31 merge)
+          governance_approval_pr: 31                     # m18-legaldocs documented -> approved_for_build (PR #31, main f3f053d)
+          implementation_status: implemented_on_branch   # PR open; STOPPED before merge
+          implementation_pr: pending
+          implementation_head: pending
+          merge_status: not_merged
+          ci_implementation: pending                     # recorded once the impl PR CI is green on the full head SHA
+          smoke_certification: passed_locally            # 21 suites, 3995 assertions, 0 failures (incl. m18 smoke 74 + conformance 2116)
+          postgresql_certification: passed_locally       # 40 db specs, 1301 assertions, 0 failures; fresh replay of 30 migrations (PostgreSQL 15.2 throwaway)
+          local_verification: {smoke_suites: 21, smoke_assertions: 3995, conformance_assertions: 2116,
+                               db_specs: 40, db_assertions: 1301, migrations_replayed: 30, postgres_version: "15.2",
+                               m18_tables: 20, force_rls: 20, delete_grants: 0, append_only_ledgers: 6,
+                               composite_fks: 13, sod_checks: 4, permissions: 46, privileged_permissions: 19,
+                               audit_codes: 55, registered_code_count: 486, event_types: 36, event_families: 15,
+                               mutating_routes: 48, read_routes: 21, lifecycle_states: 9}
+          certification_status: implemented_not_certified # post-merge certification is a separate stage
+          adrs: [ADR-073, ADR-074, ADR-075, ADR-076]
+          docs: [docs/build/stages/STAGE_4_4_M18_LEGALDOCS_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_4_4_M18_LEGALDOCS_READINESS.md,
+                 docs/build/stages/STAGE_4_4_M18_LEGALDOCS_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_4_4_M18_LEGALDOCS_COMPLETION.md]
 
   - stage: 5
     name: AI layer

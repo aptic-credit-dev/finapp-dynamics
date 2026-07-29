@@ -32,6 +32,7 @@
     "@finapp/m14-legal": "*",
     "@finapp/m16-litigation": "*",
     "@finapp/m17-recovery": "*",
+    "@finapp/m18-legaldocs": "*",
     "pg": "^8.13.1"
   },
   "devDependencies": {
