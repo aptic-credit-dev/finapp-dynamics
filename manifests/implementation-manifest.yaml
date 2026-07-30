@@ -761,27 +761,38 @@ stages:
           module: m19-finance
           substage: "3.1"
           branch: feature/stage-3-1-m19-finance-operations
+          certification_branch: cert/stage-3-1-m19-finance-operations
           parent_baseline: 470d19a5b8aba933270ca360a271437c93afbe34   # governance-approved main (PR #34 merge)
           governance_approval_pr: 34                     # m19-finance documented -> approved_for_build (PR #34, main 470d19a)
-          implementation_status: implemented_on_branch   # PR open; STOPPED before merge
-          implementation_pr: pending
-          implementation_head: pending
-          merge_status: not_merged
-          ci_implementation: pending
+          # Merged 2026-07-29 via PR #35 (squash) onto governance-approved main 470d19a; post-merge certification on branch.
+          implementation_status: merged
+          implementation_pr: 35
+          implementation_head: 712e0a17c3ee8ce1acd07944a54ab9197bdfbda5
+          implementation_merge_sha: b0f86f84bb57aac06ff2d0b9d018a451b5f2da61
+          merge_status: merged
+          ci_implementation: passed                      # PR #35 head 712e0a1 + merge b0f86f8: Smoke lane + DB lane (PostgreSQL 16) both green
           smoke_certification: passed_locally            # 22 suites, 4238 assertions, 0 failures (incl. m19 smoke 73 + conformance 2280)
           postgresql_certification: passed_locally       # 43 db specs, 1410 assertions, 0 failures; fresh replay of 32 migrations (PostgreSQL 15.2 throwaway)
-          local_verification: {smoke_suites: 22, smoke_assertions: 4238, conformance_assertions: 2280,
-                               db_specs: 43, db_assertions: 1410, migrations_replayed: 32, postgres_version: "15.2",
-                               m19_tables: 18, force_rls: 18, delete_grants: 0, append_only_ledgers: 3,
-                               composite_fks: 23, single_col_fks: 0, float_columns: 0, permissions: 45,
-                               privileged_permissions: 16, audit_codes: 34, registered_code_count: 520,
-                               event_types: 33, event_families: 16, mutating_routes: 38, read_routes: 21}
-          certification_status: implemented_not_certified
+          ci_certification: pending                       # cert PR CI recorded once green (see certification report §S)
+          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
+          certified_baseline_sha: b0f86f84bb57aac06ff2d0b9d018a451b5f2da61   # merged main SHA (PR #35) tested for certification
+          tree_identical_to_reviewed_head: true          # git diff 712e0a1 b0f86f8 is empty (byte-identical)
+          local_reverification: {smoke_suites: 22, smoke_assertions: 4238, conformance_assertions: 2280,
+                                 db_specs: 43, db_assertions: 1410, migrations_replayed: 32, postgres_version: "15.2",
+                                 clean_checkout: true, tree_identical_to_ci_head: true,
+                                 m19_tables: 18, force_rls: 18, composite_pk: 18, delete_grants: 0,
+                                 append_only_ledgers: 3, composite_fks: 23, single_col_fks: 0, float_columns: 0,
+                                 numeric_rate_columns: 2, permissions: 45, privileged_permissions: 16,
+                                 audit_codes: 34, registered_code_count: 520, event_types: 33, event_families: 16,
+                                 mutating_routes: 38, read_routes: 21, outbox_tables: 1}
+          certification_pr: pending
+          certification_merge_sha: pending
           adrs: [ADR-077, ADR-078, ADR-079, ADR-080]
           docs: [docs/build/stages/STAGE_3_1_M19_FINANCE_ARCHITECTURE.md,
                  docs/build/stages/STAGE_3_1_M19_FINANCE_READINESS.md,
                  docs/build/stages/STAGE_3_1_M19_FINANCE_IMPLEMENTATION_PLAN.md,
-                 docs/build/stages/STAGE_3_1_M19_FINANCE_COMPLETION.md]
+                 docs/build/stages/STAGE_3_1_M19_FINANCE_COMPLETION.md,
+                 docs/build/stages/STAGE_3_1_M19_FINANCE_CERTIFICATION.md]
       - module: m15-recon + m15a-matching
         capability: Bank reconciliation + matching engine
         status: documented
