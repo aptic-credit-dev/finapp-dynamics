@@ -194,3 +194,13 @@ export type {
   FinanceLifecycleEventType,
   FinanceLifecyclePayload,
 } from './finance-events.ts';
+export {
+  RECONCILIATION_LIFECYCLE_FAMILY,
+  RECONCILIATION_LIFECYCLE_VERSION,
+  RECONCILIATION_LIFECYCLE_EVENT_TYPES,
+} from './reconciliation-events.ts';
+export type {
+  ReconciliationLifecycleEvent,
+  ReconciliationLifecycleEventType,
+  ReconciliationLifecyclePayload,
+} from './reconciliation-events.ts';
