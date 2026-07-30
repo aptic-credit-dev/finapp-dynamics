@@ -1,0 +1,27 @@
+{
+  "name": "@finapp/m15a-matching",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M15a — the PURE, deterministic, explainable bank-reconciliation matching engine (no I/O, no tables). Scores statement lines against ledger entries by configurable rule kinds (exact reference/amount, date window, similarity, composite), assigns confidence bands + colour status, and classifies match types (1:1, 1:many, many:1, split, grouped). Money is integer minor units — never float. Consumed by m15-recon.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@finapp/test-runner": "*"
+  }
+}
