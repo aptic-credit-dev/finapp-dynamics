@@ -23,6 +23,8 @@
     { "path": "./packages/m16-litigation" },
     { "path": "./packages/m17-recovery" },
     { "path": "./packages/m18-legaldocs" },
+    { "path": "./packages/m15a-matching" },
+    { "path": "./packages/m15-recon" },
     { "path": "./packages/m19-finance" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
