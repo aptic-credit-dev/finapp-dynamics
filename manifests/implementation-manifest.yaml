@@ -837,27 +837,39 @@ stages:
           module: m15-recon + m15a-matching
           substage: "3"
           branch: feature/stage-3-m15-reconciliation-matching
+          certification_branch: cert/stage-3-m15-reconciliation-matching
           parent_baseline: f01f9cff73838c9347a90de9f95e71c8c739ec51   # governance-approved main (PR #37 merge)
           governance_approval_pr: 37                     # documented -> approved_for_build (PR #37, main f01f9cf)
-          implementation_status: implemented_on_branch   # PR open; STOPPED before merge
-          implementation_pr: pending
-          implementation_head: pending
-          merge_status: not_merged
-          ci_implementation: pending
+          # Merged 2026-07-30 via PR #38 (squash) onto governance-approved main f01f9cf; post-merge certification on branch.
+          implementation_status: merged
+          implementation_pr: 38
+          implementation_head: 640c008f42249aa436b110b0825ab592e14a3db0
+          implementation_merge_sha: 46880e71e8365e99c55b101e6a67b9793d460c14
+          merge_status: merged
+          ci_implementation: passed                      # PR #38 head 640c008 + merge 46880e7: Smoke lane + DB lane (PostgreSQL 16) both green
           smoke_certification: passed_locally            # 23 suites, 4407 assertions, 0 failures (incl. m15a-matching 43 + conformance 2400)
           postgresql_certification: passed_locally       # 46 db specs, 1494 assertions, 0 failures; fresh replay of 34 migrations (PostgreSQL 15.2 throwaway)
-          local_verification: {smoke_suites: 23, smoke_assertions: 4407, conformance_assertions: 2400,
-                               db_specs: 46, db_assertions: 1494, migrations_replayed: 34, postgres_version: "15.2",
-                               m15_tables: 18, m15a_tables: 0, force_rls: 18, delete_grants: 0, append_only_ledgers: 8,
-                               composite_fks: 19, single_col_fks: 0, float_columns: 0, permissions: 29,
-                               privileged_permissions: 11, audit_codes: 28, registered_code_count: 548,
-                               event_types: 24, event_families: 17, mutating_routes: 20, read_routes: 22}
-          certification_status: implemented_not_certified
+          ci_certification: pending                       # cert PR CI recorded once green (see certification report)
+          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
+          certified_baseline_sha: 46880e71e8365e99c55b101e6a67b9793d460c14   # merged main SHA (PR #38) tested for certification
+          tree_identical_to_reviewed_head: true          # git diff 640c008 46880e7 is empty (byte-identical)
+          local_reverification: {clean_checkout: true, tree_identical_to_ci_head: true, matching_deterministic: true,
+                                 smoke_suites: 23, smoke_assertions: 4407, conformance_assertions: 2400,
+                                 db_specs: 46, db_assertions: 1494, migrations_replayed: 34, postgres_version: "15.2",
+                                 m15_tables: 18, m15a_tables: 0, force_rls: 18, policies: 18, delete_grants: 0,
+                                 append_only_ledgers: 8, composite_fks: 19, single_col_fks: 0, float_columns: 0,
+                                 bigint_money_columns: 10, permissions: 29, privileged_permissions: 11,
+                                 audit_codes: 28, registered_code_count: 548, event_types: 24, event_families: 17,
+                                 mutating_routes: 20, read_routes: 22, outbox_tables: 1}
+          certification_pr: 39
+          certification_head: 1fe90a18363bf44aedb66a14077c932f015f7606
+          certification_merge_sha: pending
           adrs: [ADR-081, ADR-082, ADR-083, ADR-084]
           docs: [docs/build/stages/STAGE_3_M15_RECONCILIATION_ARCHITECTURE.md,
                  docs/build/stages/STAGE_3_M15_RECONCILIATION_READINESS.md,
                  docs/build/stages/STAGE_3_M15_RECONCILIATION_IMPLEMENTATION_PLAN.md,
-                 docs/build/stages/STAGE_3_M15_RECONCILIATION_COMPLETION.md]
+                 docs/build/stages/STAGE_3_M15_RECONCILIATION_COMPLETION.md,
+                 docs/build/stages/STAGE_3_M15_RECON_CERTIFICATION.md]
       - module: m20-glrecon
         capability: GL reconciliation
         status: documented
