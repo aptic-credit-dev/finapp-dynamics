@@ -861,7 +861,8 @@ stages:
                                  bigint_money_columns: 10, permissions: 29, privileged_permissions: 11,
                                  audit_codes: 28, registered_code_count: 548, event_types: 24, event_families: 17,
                                  mutating_routes: 20, read_routes: 22, outbox_tables: 1}
-          certification_pr: pending
+          certification_pr: 39
+          certification_head: 1fe90a18363bf44aedb66a14077c932f015f7606
           certification_merge_sha: pending
           adrs: [ADR-081, ADR-082, ADR-083, ADR-084]
           docs: [docs/build/stages/STAGE_3_M15_RECONCILIATION_ARCHITECTURE.md,
