@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m15-recon",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M15 — bank reconciliation: multi-bank accounts, statement + ledger ingestion (CSV/Excel/PDF, duplicate-protected), reconciliation runs, the deterministic matching engine (via m15a) with confidence bands + colour status, 1:1/1:many/many:1/split/grouped matches, exception management + aging, manual review/override, explainable evidence and run summaries. Money is integer minor units — never float. Owns no chart of accounts (m19), GL reconciliation (m20), journals/postings (m21), approvals (m22).",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m15a-matching": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

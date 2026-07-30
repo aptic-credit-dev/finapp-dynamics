@@ -28,6 +28,8 @@ import type { LegalDocsLifecycleEvent } from './legaldocs-events.ts';
 import { LEGALDOCS_LIFECYCLE_FAMILY } from './legaldocs-events.ts';
 import type { FinanceLifecycleEvent } from './finance-events.ts';
 import { FINANCE_LIFECYCLE_FAMILY } from './finance-events.ts';
+import type { ReconciliationLifecycleEvent } from './reconciliation-events.ts';
+import { RECONCILIATION_LIFECYCLE_FAMILY } from './reconciliation-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -58,7 +60,8 @@ export type DomainEvent =
   | LitigationLifecycleEvent
   | RecoveryLifecycleEvent
   | LegalDocsLifecycleEvent
-  | FinanceLifecycleEvent;
+  | FinanceLifecycleEvent
+  | ReconciliationLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -78,6 +81,7 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   RECOVERY_LIFECYCLE_FAMILY,
   LEGALDOCS_LIFECYCLE_FAMILY,
   FINANCE_LIFECYCLE_FAMILY,
+  RECONCILIATION_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */

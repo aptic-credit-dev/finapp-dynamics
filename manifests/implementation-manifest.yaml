@@ -794,15 +794,70 @@ stages:
                  docs/build/stages/STAGE_3_1_M19_FINANCE_COMPLETION.md,
                  docs/build/stages/STAGE_3_1_M19_FINANCE_CERTIFICATION.md]
       - module: m15-recon + m15a-matching
-        capability: Bank reconciliation + matching engine
-        status: approved_for_build   # governance approval 2026-07-30: next Finance module after Stage 3.1 (M19) per BUILD_SEQUENCE (m19 -> m15/m15a); deps m06/m07/m09/m19 certified; m27 is a forward/optional AI-suggestion consumer (Stage 5, not a Stage-3 blocker)
+        capability: Bank Reconciliation + Matching Engine (deterministic, explainable)
+        status: implemented   # Stage 3 — implemented_on_branch (not merged/certified); see certification_3
         mvp: true
-        db_ownership: [bank_accounts, bank_statement_imports, bank_statement_lines, reconciliation_runs, reconciliation_matches, reconciliation_exceptions]
+        db_ownership: [recon_bank_account, recon_matching_ruleset(versioned, one-active), recon_matching_rule,
+                       recon_ruleset_history(append-only), recon_statement_import(dup-protected by file hash),
+                       recon_statement_line(bigint minor units), recon_ledger_import, recon_ledger_entry(bigint minor units),
+                       recon_run(lifecycle; the reconciliation), recon_status_history(append-only),
+                       recon_match(1:1/1:many/many:1/split/grouped; idempotency-keyed), recon_match_line(append-only),
+                       recon_match_candidate(append-only engine evidence; score/band/variances/reason codes),
+                       recon_exception(aging; required-exception gate), recon_manual_decision(append-only override evidence),
+                       recon_run_summary(append-only), recon_note(append-only), recon_import_error(append-only)]
+        # m15a-matching owns ZERO tables — a PURE deterministic explainable engine (scoring/confidence/colour/
+        # match-type/split-balance) consumed by m15-recon.
         api_ownership: [/api/v1/reconciliation]
         event_ownership: [reconciliation.lifecycle]
-        shared_services_consumed: [m06, m07, m09, m19, m27]
+        shared_services_consumed: [kernel, m01, m02, m03, m06, m07, m09, m19, m15a]
+        consumes_events: [none inbound; m27 finance-AI suggestions are OPTIONAL (Stage 5, not required for MVP)]
+        emits_events: [reconciliation.lifecycle (24 event types)]
         permissions_required: [reconciliation.*]
-        testing_required: [smoke, db_spec]
+        hard_rules: [decimal_safe, integer_minor_units, no_float, deterministic_matching, manual_override_append_only,
+                     no_autoclose_with_open_required_exception, tenant_isolation]
+        testing_required: [smoke, db_spec, services_db_spec, matching_engine_spec, api_http_spec]
+        tests_present: [m15a-matching.smoke (43), m15-recon.db-spec (36), m15-services.db-spec (37),
+                        api-reconciliation.db-spec (11)]
+        # Bank reconciliation + the matching engine: multi-bank accounts; statement + ledger ingestion (CSV/Excel/PDF/
+        # API, DUPLICATE-PROTECTED by per-account file hash) with normalized lines in INTEGER MINOR UNITS; versioned
+        # matching rulesets (immutable-after-publish, one-active); reconciliation runs with a controlled lifecycle
+        # (draft -> matching -> review -> completed, reopened); the DETERMINISTIC, EXPLAINABLE matching engine (m15a,
+        # PURE, zero tables) producing candidates with score/confidence band/colour status/variances(minor units)/
+        # reason codes; exact/probable/split/grouped matches (1:1/1:many/many:1); exception management + aging with a
+        # required-exception completion gate; manual review/override as APPEND-ONLY evidence that never overwrites the
+        # engine's candidate evidence; run summaries + notes. Money is INTEGER MINOR UNITS (bigint) — never float
+        # (ADR-007/082). Matching is reproducible from the same inputs + ruleset version; AI suggestions (m27) are an
+        # OPTIONAL separable layer — reconciliation works fully without them (ADR-082). 18 FORCE-RLS tables, composite
+        # keys, 8 append-only ledgers, no DELETE grant. Reuses m02 (authz), m03 (audit), m06 (workflow + the ONE
+        # outbox), m07 (rules), m09 (documents, opaque ref), m19 (finance foundation, opaque entity/currency ref).
+        # Owns NO chart of accounts (m19), NO GL reconciliation (m20), NO journals/postings (m21), NO approvals (m22),
+        # NO integration posting (m23), NO AI models (m27). 29 permissions (11 privileged), 25 RECON_ audit codes,
+        # reconciliation.lifecycle (24 event types). ADR-081..084.
+        certification_3:
+          module: m15-recon + m15a-matching
+          substage: "3"
+          branch: feature/stage-3-m15-reconciliation-matching
+          parent_baseline: f01f9cff73838c9347a90de9f95e71c8c739ec51   # governance-approved main (PR #37 merge)
+          governance_approval_pr: 37                     # documented -> approved_for_build (PR #37, main f01f9cf)
+          implementation_status: implemented_on_branch   # PR open; STOPPED before merge
+          implementation_pr: pending
+          implementation_head: pending
+          merge_status: not_merged
+          ci_implementation: pending
+          smoke_certification: passed_locally            # 23 suites, 4407 assertions, 0 failures (incl. m15a-matching 43 + conformance 2400)
+          postgresql_certification: passed_locally       # 46 db specs, 1494 assertions, 0 failures; fresh replay of 34 migrations (PostgreSQL 15.2 throwaway)
+          local_verification: {smoke_suites: 23, smoke_assertions: 4407, conformance_assertions: 2400,
+                               db_specs: 46, db_assertions: 1494, migrations_replayed: 34, postgres_version: "15.2",
+                               m15_tables: 18, m15a_tables: 0, force_rls: 18, delete_grants: 0, append_only_ledgers: 8,
+                               composite_fks: 19, single_col_fks: 0, float_columns: 0, permissions: 29,
+                               privileged_permissions: 11, audit_codes: 28, registered_code_count: 548,
+                               event_types: 24, event_families: 17, mutating_routes: 20, read_routes: 22}
+          certification_status: implemented_not_certified
+          adrs: [ADR-081, ADR-082, ADR-083, ADR-084]
+          docs: [docs/build/stages/STAGE_3_M15_RECONCILIATION_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_3_M15_RECONCILIATION_READINESS.md,
+                 docs/build/stages/STAGE_3_M15_RECONCILIATION_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_3_M15_RECONCILIATION_COMPLETION.md]
       - module: m20-glrecon
         capability: GL reconciliation
         status: documented

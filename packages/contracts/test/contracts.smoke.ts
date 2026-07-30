@@ -51,6 +51,9 @@ import {
   FINANCE_LIFECYCLE_FAMILY,
   FINANCE_LIFECYCLE_EVENT_TYPES,
   FINANCE_LIFECYCLE_VERSION,
+  RECONCILIATION_LIFECYCLE_FAMILY,
+  RECONCILIATION_LIFECYCLE_EVENT_TYPES,
+  RECONCILIATION_LIFECYCLE_VERSION,
 } from '@finapp/contracts';
 
 /**
@@ -64,7 +67,7 @@ import {
  * m02-identity).
  */
 export default defineSuite('contracts', (t) => {
-  t.equal(DOMAIN_EVENT_FAMILIES.length, 16, 'Stage 3.1 declares sixteen event families');
+  t.equal(DOMAIN_EVENT_FAMILIES.length, 17, 'Stage 3 declares seventeen event families');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(AUTH_LIFECYCLE_FAMILY), 'identity.authentication is declared (1C)');
@@ -203,6 +206,25 @@ export default defineSuite('contracts', (t) => {
     'finance.lifecycle event types are unique',
   );
   t.ok(isValidEventFamily(FINANCE_LIFECYCLE_FAMILY), 'finance.lifecycle satisfies the family pattern');
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(RECONCILIATION_LIFECYCLE_FAMILY),
+    'reconciliation.lifecycle is declared (3)',
+  );
+  t.equal(RECONCILIATION_LIFECYCLE_VERSION, 1, 'reconciliation.lifecycle payloads are at version 1');
+  t.equal(
+    RECONCILIATION_LIFECYCLE_EVENT_TYPES.length,
+    24,
+    'reconciliation.lifecycle declares 24 event types',
+  );
+  t.equal(
+    new Set(RECONCILIATION_LIFECYCLE_EVENT_TYPES).size,
+    RECONCILIATION_LIFECYCLE_EVENT_TYPES.length,
+    'reconciliation.lifecycle event types are unique',
+  );
+  t.ok(
+    isValidEventFamily(RECONCILIATION_LIFECYCLE_FAMILY),
+    'reconciliation.lifecycle satisfies the family pattern',
+  );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');
 

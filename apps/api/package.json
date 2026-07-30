@@ -33,6 +33,7 @@
     "@finapp/m16-litigation": "*",
     "@finapp/m17-recovery": "*",
     "@finapp/m18-legaldocs": "*",
+    "@finapp/m15-recon": "*",
     "@finapp/m19-finance": "*",
     "pg": "^8.13.1"
   },

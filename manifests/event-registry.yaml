@@ -140,7 +140,18 @@ family_groups:
      note: "Stage 3.1. Accounting entity/chart-of-accounts/fiscal-period/currency/FX/cost-centre/dimension/tax/
             payment-term/config lifecycle. Ordering key = aggregate id (payload recordId); consumers dedupe on
             eventId. Payloads carry ids/codes/states/dates only — never amounts."}
-  - {group: finance, families: [reconciliation.lifecycle, glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
+  # GAP CLOSED for m15-recon (Stage 3) — reconciliation.lifecycle registered with the engine that emits it,
+  # declared in packages/contracts/src/reconciliation-events.ts. Delivered through the single transactional outbox
+  # (m06). 24 event types, payload v1; carry ids/states/match-types/confidence-bands/scores/variances(minor units)/
+  # reason-codes/dates ONLY — never full account numbers, raw statement content, counterparty PII or secrets.
+  # Deterministic matching (m15a); AI suggestions (m27) are optional. Owns no GL recon (m20), journals (m21) or
+  # approvals (m22).
+  - {group: bank_reconciliation, families: [reconciliation.lifecycle], mvp: true, status: implemented, owner: m15-recon,
+     classification: confidential,
+     note: "Stage 3. Bank account/statement/ledger import -> run -> deterministic matching (candidate/match/exception)
+            -> manual review -> completion. Ordering key = aggregate id (payload recordId); consumers dedupe on
+            eventId. Payloads carry ids/states/scores/variances(minor units) only — never account numbers or amounts."}
+  - {group: finance, families: [glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
   - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}
   - {group: platform, families: [platform.lifecycle, studio.lifecycle, analytics.lifecycle], mvp: false, status: documented}
   - {group: integration, families: [connector.lifecycle, marketplace.lifecycle, devportal.lifecycle, webhook.lifecycle, eventstream.lifecycle, govrelease.lifecycle], mvp: false, status: documented}

@@ -217,7 +217,18 @@ namespaces:
              "finance.payment_term.read", "finance.payment_term.manage", "finance.config.read",
              "finance.config.manage", "finance.config.publish", "finance.analytics.read",
              "finance.analytics.export", "finance.platform.administer"]}
-  - {namespace: "reconciliation.*", module: m15-recon, mvp: true, status: documented}
+  - {namespace: "reconciliation.*", module: m15-recon, mvp: true, status: implemented, substage: "3",
+     codes: ["reconciliation.bank_account.read", "reconciliation.bank_account.manage",
+             "reconciliation.bank_account.deactivate", "reconciliation.statement.import",
+             "reconciliation.statement.read", "reconciliation.ledger.import", "reconciliation.ledger.read",
+             "reconciliation.run.read", "reconciliation.run.create", "reconciliation.run.start",
+             "reconciliation.run.review", "reconciliation.run.complete", "reconciliation.run.reopen",
+             "reconciliation.match.read", "reconciliation.match.run", "reconciliation.match.confirm",
+             "reconciliation.match.reject", "reconciliation.match.unmatch", "reconciliation.ruleset.read",
+             "reconciliation.ruleset.manage", "reconciliation.ruleset.publish", "reconciliation.exception.read",
+             "reconciliation.exception.resolve", "reconciliation.exception.waive", "reconciliation.manual.match",
+             "reconciliation.manual.group", "reconciliation.analytics.read", "reconciliation.analytics.export",
+             "reconciliation.platform.administer"]}
   - {namespace: "gl_reconciliation.*", module: m20-glrecon, mvp: true, status: documented}
   - {namespace: "journals.*", module: m21-journal, mvp: true, status: documented}
   - {namespace: "approvals.*", module: m22-approval, mvp: true, status: documented}
