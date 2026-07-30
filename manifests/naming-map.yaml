@@ -233,6 +233,7 @@ modules:
     mvp: true
     api_prefixes: [/api/v1/reconciliation]
     permission_namespaces: ['reconciliation.*']
+    permission_namespace_registered: true # Stage 3: reconciliation.* seeded + registered
     event_families: [reconciliation.lifecycle]
     event_family_registered: true
     audit_prefixes: [RECON_]

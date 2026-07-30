@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 520 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 548 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -671,6 +671,36 @@ codes:
   - { code: FIN_CONFIG_PUBLISHED, module: m19-finance, severity: elevated, reason_required: false }
   - { code: FIN_CONFIG_SUPERSEDED, module: m19-finance, severity: elevated, reason_required: false }
   - { code: FIN_ANALYTICS_EXPORTED, module: m19-finance, severity: elevated, reason_required: false }
+
+  # --- m15-recon (Stage 3) — 28 codes ----------------------------------------------------------
+  - { code: RECON_BANK_ACCOUNT_REGISTERED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_BANK_ACCOUNT_UPDATED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_BANK_ACCOUNT_DEACTIVATED, module: m15-recon, severity: elevated, reason_required: true }
+  - { code: RECON_STATEMENT_IMPORTED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_STATEMENT_IMPORT_REJECTED, module: m15-recon, severity: elevated, reason_required: false }
+  - { code: RECON_LEDGER_IMPORTED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_RUN_CREATED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_RUN_MATCHING_STARTED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_RUN_MATCHING_COMPLETED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_RUN_REVIEW_STARTED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_RUN_COMPLETED, module: m15-recon, severity: elevated, reason_required: false }
+  - { code: RECON_RUN_REOPENED, module: m15-recon, severity: elevated, reason_required: true }
+  - { code: RECON_MATCH_PROPOSED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_MATCH_CONFIRMED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_MATCH_REJECTED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_MATCH_UNMATCHED, module: m15-recon, severity: elevated, reason_required: true }
+  - { code: RECON_SPLIT_MATCH_CREATED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_GROUPED_MATCH_CREATED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_EXCEPTION_RAISED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_EXCEPTION_RESOLVED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_EXCEPTION_WAIVED, module: m15-recon, severity: elevated, reason_required: true }
+  - { code: RECON_MANUAL_DECISION_RECORDED, module: m15-recon, severity: elevated, reason_required: false }
+  - { code: RECON_RULESET_CREATED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_RULE_ADDED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_RULESET_PUBLISHED, module: m15-recon, severity: elevated, reason_required: false }
+  - { code: RECON_RULESET_SUPERSEDED, module: m15-recon, severity: elevated, reason_required: false }
+  - { code: RECON_NOTE_ADDED, module: m15-recon, severity: normal, reason_required: false }
+  - { code: RECON_ANALYTICS_EXPORTED, module: m15-recon, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
