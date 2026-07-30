@@ -795,7 +795,7 @@ stages:
                  docs/build/stages/STAGE_3_1_M19_FINANCE_CERTIFICATION.md]
       - module: m15-recon + m15a-matching
         capability: Bank reconciliation + matching engine
-        status: documented
+        status: approved_for_build   # governance approval 2026-07-30: next Finance module after Stage 3.1 (M19) per BUILD_SEQUENCE (m19 -> m15/m15a); deps m06/m07/m09/m19 certified; m27 is a forward/optional AI-suggestion consumer (Stage 5, not a Stage-3 blocker)
         mvp: true
         db_ownership: [bank_accounts, bank_statement_imports, bank_statement_lines, reconciliation_runs, reconciliation_matches, reconciliation_exceptions]
         api_ownership: [/api/v1/reconciliation]
