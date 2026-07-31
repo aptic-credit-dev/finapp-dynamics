@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 548 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 585 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -701,6 +701,45 @@ codes:
   - { code: RECON_RULESET_SUPERSEDED, module: m15-recon, severity: elevated, reason_required: false }
   - { code: RECON_NOTE_ADDED, module: m15-recon, severity: normal, reason_required: false }
   - { code: RECON_ANALYTICS_EXPORTED, module: m15-recon, severity: elevated, reason_required: false }
+
+  # --- m20-glrecon (Stage 3) — 37 codes --------------------------------------------------------
+  - { code: GLRECON_ACCOUNT_REGISTERED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_ACCOUNT_UPDATED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_ACCOUNT_DEACTIVATED, module: m20-glrecon, severity: elevated, reason_required: true }
+  - { code: GLRECON_IMPORT_CREATED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_IMPORT_VALIDATED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_IMPORT_ACCEPTED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_IMPORT_REJECTED, module: m20-glrecon, severity: elevated, reason_required: false }
+  - { code: GLRECON_SOURCE_IMPORTED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_RULESET_CREATED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_RULE_ADDED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_RULESET_PUBLISHED, module: m20-glrecon, severity: elevated, reason_required: false }
+  - { code: GLRECON_RULESET_SUPERSEDED, module: m20-glrecon, severity: elevated, reason_required: false }
+  - { code: GLRECON_RUN_CREATED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_RUN_STARTED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_BALANCE_COMPUTED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_RUN_COMPLETED, module: m20-glrecon, severity: elevated, reason_required: false }
+  - { code: GLRECON_RUN_FAILED, module: m20-glrecon, severity: elevated, reason_required: false }
+  - { code: GLRECON_RUN_REOPENED, module: m20-glrecon, severity: elevated, reason_required: true }
+  - { code: GLRECON_MATCH_PROPOSED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_MATCH_CONFIRMED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_MATCH_REJECTED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_MATCH_UNMATCHED, module: m20-glrecon, severity: elevated, reason_required: true }
+  - { code: GLRECON_GROUPED_MATCH_CREATED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_RECONCILING_ITEM_RAISED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_RECONCILING_ITEM_CLEARED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_EXCEPTION_RAISED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_EXCEPTION_ASSIGNED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_EXCEPTION_RESOLVED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_EXCEPTION_WAIVED, module: m20-glrecon, severity: elevated, reason_required: true }
+  - { code: GLRECON_MANUAL_DECISION_RECORDED, module: m20-glrecon, severity: elevated, reason_required: false }
+  - { code: GLRECON_CERTIFICATION_CREATED, module: m20-glrecon, severity: elevated, reason_required: false }
+  - { code: GLRECON_CERTIFICATION_REJECTED, module: m20-glrecon, severity: elevated, reason_required: false }
+  - { code: GLRECON_CERTIFICATION_OVERRIDDEN, module: m20-glrecon, severity: critical, reason_required: true }
+  - { code: GLRECON_RECOMMENDATION_CREATED, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_RECOMMENDATION_WITHDRAWN, module: m20-glrecon, severity: normal, reason_required: false }
+  - { code: GLRECON_RECOMMENDATION_HANDED_OFF, module: m20-glrecon, severity: elevated, reason_required: false }
+  - { code: GLRECON_NOTE_ADDED, module: m20-glrecon, severity: normal, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

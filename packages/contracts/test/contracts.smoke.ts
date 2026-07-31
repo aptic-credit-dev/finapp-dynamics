@@ -54,6 +54,9 @@ import {
   RECONCILIATION_LIFECYCLE_FAMILY,
   RECONCILIATION_LIFECYCLE_EVENT_TYPES,
   RECONCILIATION_LIFECYCLE_VERSION,
+  GLRECON_LIFECYCLE_FAMILY,
+  GLRECON_LIFECYCLE_EVENT_TYPES,
+  GLRECON_LIFECYCLE_VERSION,
 } from '@finapp/contracts';
 
 /**
@@ -67,7 +70,7 @@ import {
  * m02-identity).
  */
 export default defineSuite('contracts', (t) => {
-  t.equal(DOMAIN_EVENT_FAMILIES.length, 17, 'Stage 3 declares seventeen event families');
+  t.equal(DOMAIN_EVENT_FAMILIES.length, 18, 'Stage 3 declares eighteen event families');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(AUTH_LIFECYCLE_FAMILY), 'identity.authentication is declared (1C)');
@@ -224,6 +227,20 @@ export default defineSuite('contracts', (t) => {
   t.ok(
     isValidEventFamily(RECONCILIATION_LIFECYCLE_FAMILY),
     'reconciliation.lifecycle satisfies the family pattern',
+  );
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(GLRECON_LIFECYCLE_FAMILY), 'glrecon.lifecycle is declared (3)');
+  t.equal(GLRECON_LIFECYCLE_VERSION, 1, 'glrecon.lifecycle payloads are at version 1');
+  t.equal(GLRECON_LIFECYCLE_EVENT_TYPES.length, 33, 'glrecon.lifecycle declares 33 event types');
+  t.equal(
+    new Set(GLRECON_LIFECYCLE_EVENT_TYPES).size,
+    GLRECON_LIFECYCLE_EVENT_TYPES.length,
+    'glrecon.lifecycle event types are unique',
+  );
+  t.ok(isValidEventFamily(GLRECON_LIFECYCLE_FAMILY), 'glrecon.lifecycle satisfies the family pattern');
+  t.equal(
+    DOMAIN_EVENT_FAMILIES[DOMAIN_EVENT_FAMILIES.length - 1],
+    GLRECON_LIFECYCLE_FAMILY,
+    'glrecon.lifecycle is the newest family — appended at the tail',
   );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');

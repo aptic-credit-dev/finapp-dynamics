@@ -229,7 +229,28 @@ namespaces:
              "reconciliation.exception.resolve", "reconciliation.exception.waive", "reconciliation.manual.match",
              "reconciliation.manual.group", "reconciliation.analytics.read", "reconciliation.analytics.export",
              "reconciliation.platform.administer"]}
-  - {namespace: "gl_reconciliation.*", module: m20-glrecon, mvp: true, status: documented}
+  # Stage 3 registered the concrete gl_reconciliation.* codes. Three segments (gl_reconciliation.<entity>.<action>),
+  # per the kernel @Endpoint validator; seeded in m20's migration 0001 and enforced server-side (default deny). The
+  # 11 privileged codes gate account manage/deactivate, ruleset manage/publish, run reopen, manual match, unmatch,
+  # exception waive, certification override, analytics export and platform administration; there is no vague
+  # gl_reconciliation.admin. Recommendations are DRAFT-only (create/withdraw) — m20 never posts or approves.
+  - {namespace: "gl_reconciliation.*", module: m20-glrecon, mvp: true, status: implemented, substage: "3",
+     codes: ["gl_reconciliation.account.read", "gl_reconciliation.account.manage",
+             "gl_reconciliation.account.deactivate", "gl_reconciliation.import.create",
+             "gl_reconciliation.import.read", "gl_reconciliation.import.validate",
+             "gl_reconciliation.import.accept", "gl_reconciliation.import.reject",
+             "gl_reconciliation.source.import", "gl_reconciliation.ruleset.read",
+             "gl_reconciliation.ruleset.manage", "gl_reconciliation.ruleset.publish",
+             "gl_reconciliation.run.read", "gl_reconciliation.run.create", "gl_reconciliation.run.execute",
+             "gl_reconciliation.run.reopen", "gl_reconciliation.match.read", "gl_reconciliation.match.review",
+             "gl_reconciliation.match.manual", "gl_reconciliation.match.unmatch", "gl_reconciliation.item.read",
+             "gl_reconciliation.item.manage", "gl_reconciliation.exception.read",
+             "gl_reconciliation.exception.assign", "gl_reconciliation.exception.resolve",
+             "gl_reconciliation.exception.waive", "gl_reconciliation.certification.read",
+             "gl_reconciliation.certification.create", "gl_reconciliation.certification.override",
+             "gl_reconciliation.recommendation.read", "gl_reconciliation.recommendation.create",
+             "gl_reconciliation.recommendation.withdraw", "gl_reconciliation.analytics.read",
+             "gl_reconciliation.analytics.export", "gl_reconciliation.platform.administer"]}
   - {namespace: "journals.*", module: m21-journal, mvp: true, status: documented}
   - {namespace: "approvals.*", module: m22-approval, mvp: true, status: documented}
   - {namespace: "ai.*", module: m24-ai-foundation, mvp: partial, status: documented}

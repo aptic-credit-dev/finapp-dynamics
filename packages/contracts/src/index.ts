@@ -204,3 +204,13 @@ export type {
   ReconciliationLifecycleEventType,
   ReconciliationLifecyclePayload,
 } from './reconciliation-events.ts';
+export {
+  GLRECON_LIFECYCLE_FAMILY,
+  GLRECON_LIFECYCLE_VERSION,
+  GLRECON_LIFECYCLE_EVENT_TYPES,
+} from './glrecon-events.ts';
+export type {
+  GlreconLifecycleEvent,
+  GlreconLifecycleEventType,
+  GlreconLifecyclePayload,
+} from './glrecon-events.ts';
