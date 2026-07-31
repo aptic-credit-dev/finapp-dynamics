@@ -25,7 +25,7 @@ modules:
   - {code: m17-recovery, name: Recovery & Enforcement, phase: 4, reference_tables: 38, mvp: false, status: deferred}
   - {code: m18-legaldocs, name: Legal Documents & Knowledge, phase: 4, reference_tables: 49, mvp: false, status: documented}
   - {code: m19-finance, name: Finance Operations, phase: 3, reference_tables: 18, mvp: true, status: documented}
-  - {code: m20-glrecon, name: GL Reconciliation, phase: 3, reference_tables: 24, mvp: true, status: documented}
+  - {code: m20-glrecon, name: GL Reconciliation, phase: 3, reference_tables: 24, mvp: true, status: implemented}
   - {code: m21-journal, name: Journal Engine (draft-only MVP), phase: 3, reference_tables: 18, mvp: true, status: documented}
   - {code: m22-approval, name: Finance Approval Workflow, phase: 3, reference_tables: 24, mvp: true, status: documented}
   - {code: m23-finance-integration, name: Finance integration/QA/release, phase: 3, reference_tables: 3, mvp: false, status: documented}

@@ -872,13 +872,73 @@ stages:
                  docs/build/stages/STAGE_3_M15_RECON_CERTIFICATION.md]
       - module: m20-glrecon
         capability: GL reconciliation
-        status: approved_for_build   # governance/approve-m20-glrecon: documented -> approved_for_build (next per BUILD_SEQUENCE m19 -> m15 -> m20); deps m06/m07/m19 (+ m15 sibling) certified
+        status: implemented   # Stage 3 — implemented_on_branch (not merged/certified); see certification_4
         mvp: true
-        db_ownership: [gl_imports, gl_lines, gl_reconciliation_runs, gl_exceptions]
+        db_ownership: [gl_recon_account, gl_ruleset(versioned, one-active), gl_rule, gl_ruleset_history(append-only),
+                       gl_import(dup-protected by file hash), gl_import_error(append-only),
+                       gl_balance(invariant-checked; opening/debits/credits/closing), gl_line(bigint minor units),
+                       gl_source_import, gl_source_line(bigint minor units), gl_recon_run(lifecycle),
+                       gl_run_status_history(append-only), gl_run_balance(append-only; invariant evidence),
+                       gl_match(1:1/1:many/many:1/split/grouped; idempotency-keyed), gl_match_line(append-only),
+                       gl_match_candidate(append-only engine evidence; score/band/variances/reason codes),
+                       gl_reconciling_item(aging), gl_exception(open/under_review/resolved/waived; required-exception gate),
+                       gl_manual_decision(append-only override evidence), gl_certification(privileged override gate),
+                       gl_certification_history(append-only), gl_journal_recommendation(DRAFT-only; is_draft CHECK),
+                       gl_run_summary(append-only), gl_note(append-only)]
         api_ownership: [/api/v1/gl-reconciliation]
-        shared_services_consumed: [m06, m07, m19, m21, m22]
+        event_ownership: [glrecon.lifecycle]
+        shared_services_consumed: [kernel, m01, m02, m03, m06, m15a, m19]
+        consumes_events: [none inbound; m27 finance-AI suggestions are OPTIONAL (Stage 5, not required for MVP)]
+        emits_events: [glrecon.lifecycle (33 event types)]
+        downstream_consumers: [m21 (draft journal recommendations handed off; never posted by m20), m22 (approval)]
         permissions_required: [gl_reconciliation.*]
-        testing_required: [smoke, db_spec]
+        hard_rules: [decimal_safe, integer_minor_units, no_float, gl_balance_invariant, deterministic_matching,
+                     reuse_m15a_no_duplicate_matching, manual_override_append_only,
+                     no_autoclose_with_open_required_exception, certification_override_privileged_with_reason,
+                     draft_only_recommendations_never_post, tenant_isolation]
+        testing_required: [smoke, db_spec, services_db_spec, matching_engine_spec, api_http_spec]
+        tests_present: [m20-glrecon.smoke (54), m20-glrecon.db-spec (48), m20-services.db-spec (31),
+                        api-gl-reconciliation.db-spec (14)]
+        # GL reconciliation: reconcile GL balances + transactions against a source system; the balance invariant
+        # (opening + debits - credits = calculated closing) in INTEGER MINOR UNITS, enforced in the engine AND by DB
+        # CHECKs on gl_balance + gl_run_balance; multi-account GL/source ingestion (DUPLICATE-PROTECTED by per-account
+        # file hash); versioned matching rulesets (immutable-after-publish, one-active); reconciliation runs with a
+        # controlled lifecycle (draft -> running -> review_required -> completed/failed, reopened); DETERMINISTIC,
+        # EXPLAINABLE matching that REUSES the PURE m15a engine (no duplicated matching logic) producing candidates
+        # with score/band/colour/variances(minor units)/reason codes; reconciling items + exceptions (aging) with a
+        # required-exception completion gate; manual review/override as APPEND-ONLY evidence that never overwrites the
+        # engine's candidate evidence; balance certification that fails closed over open blockers unless a PRIVILEGED
+        # override carrying a reason is supplied (permission + non-empty reason + DB CHECK); and DRAFT journal
+        # recommendations (is_draft always true, DB-CHECKed) handed off to m21 -- m20 NEVER posts a journal, writes to
+        # the general ledger, or approves anything. Money is INTEGER MINOR UNITS (bigint) -- never float (ADR-007/088).
+        # 24 FORCE-RLS tables, composite keys, 10 append-only ledgers, no DELETE grant. Reuses m02 (authz), m03
+        # (audit), m06 (workflow + the ONE outbox), m15a (matching engine), m19 (finance foundation, opaque
+        # account/currency ref). Owns NO chart of accounts (m19), NO bank reconciliation (m15), NO journals/postings
+        # (m21), NO approvals (m22), NO integration posting (m23), NO AI models (m27). 35 permissions (11 privileged),
+        # 37 GLRECON_ audit codes, glrecon.lifecycle (33 event types). ADR-085..090.
+        certification_4:
+          module: m20-glrecon
+          substage: "3"
+          branch: feature/stage-3-m20-gl-reconciliation
+          parent_baseline: 6cf749bf4c798e4863d564693e04dfcdcacce2d5   # governance-approved main (PR #40 merge)
+          governance_approval_pr: 40                     # documented -> approved_for_build (PR #40, main 6cf749b)
+          implementation_status: implemented_on_branch   # PR #41 open; STOPPED before merge
+          implementation_pr: 41
+          implementation_head: 8e781060b65f236711ecfe4b9d272bf1901d8df2
+          merge_status: not_merged
+          ci_implementation: pending                     # PR #41: Smoke + PostgreSQL 16 DB lanes recorded green once observed
+          smoke_certification: passed_locally            # 24 suites, 4619 assertions, 0 failures (incl. m20-glrecon 54 + conformance 2551)
+          postgresql_certification: passed_locally       # 49 db specs, 1587 assertions, 0 failures; fresh replay of 36 migrations (PostgreSQL 15.2 throwaway)
+          local_verification: {smoke_suites: 24, smoke_assertions: 4619, conformance_assertions: 2551,
+                               db_specs: 49, db_assertions: 1587, migrations_replayed: 36, postgres_version: "15.2",
+                               m20_tables: 24, force_rls: 24, policies: 24, delete_grants: 0, append_only_ledgers: 10,
+                               composite_fks: 27, single_col_fks: 0, float_columns: 0, bigint_money_columns: 26,
+                               permissions: 35, privileged_permissions: 11, audit_codes: 37, registered_code_count: 585,
+                               event_types: 33, event_families: 18, mutating_routes: 30, read_routes: 31, outbox_tables: 1}
+          certification_status: implemented_not_certified
+          adrs: [ADR-085, ADR-086, ADR-087, ADR-088, ADR-089, ADR-090]
+          docs: [docs/build/stages/STAGE_3_M20_GLRECON_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_3_M20_GLRECON_COMPLETION.md]
       - module: m21-journal
         capability: Journal engine (DRAFT ONLY in MVP)
         status: documented

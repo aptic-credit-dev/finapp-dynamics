@@ -40,6 +40,7 @@
     { "path": "../../packages/m17-recovery" },
     { "path": "../../packages/m18-legaldocs" },
     { "path": "../../packages/m19-finance" },
+    { "path": "../../packages/m20-glrecon" },
     { "path": "../../tools/test-runner" }
   ]
 }

@@ -151,7 +151,19 @@ family_groups:
      note: "Stage 3. Bank account/statement/ledger import -> run -> deterministic matching (candidate/match/exception)
             -> manual review -> completion. Ordering key = aggregate id (payload recordId); consumers dedupe on
             eventId. Payloads carry ids/states/scores/variances(minor units) only — never account numbers or amounts."}
-  - {group: finance, families: [glrecon.lifecycle, journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
+  # GAP CLOSED for m20-glrecon (Stage 3) — glrecon.lifecycle registered with the engine that emits it, declared in
+  # packages/contracts/src/glrecon-events.ts. Delivered through the single transactional outbox (m06). 33 event
+  # types, payload v1; carry ids/states/match-types/confidence-bands/scores/variances(minor units)/balance-variances/
+  # reason-codes/dates ONLY — never GL account numbers, raw source content, counterparty PII or secrets. Deterministic
+  # matching (reuses m15a); AI suggestions (m27) are optional. Owns no chart of accounts (m19), bank recon (m15),
+  # journals/postings (m21), approvals (m22) or integration (m23). Recommendations are DRAFT only — never posts.
+  - {group: gl_reconciliation, families: [glrecon.lifecycle], mvp: true, status: implemented, owner: m20-glrecon,
+     classification: confidential,
+     note: "Stage 3. GL account/import -> run -> balance invariant (opening+debits-credits=closing) + deterministic
+            matching (candidate/match/reconciling-item/exception) -> manual review -> certification -> DRAFT journal
+            recommendation handoff to m21. Ordering key = aggregate id (payload recordId); consumers dedupe on
+            eventId. Payloads carry ids/states/scores/variances(minor units) only — never GL account numbers."}
+  - {group: finance, families: [journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
   - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}
   - {group: platform, families: [platform.lifecycle, studio.lifecycle, analytics.lifecycle], mvp: false, status: documented}
   - {group: integration, families: [connector.lifecycle, marketplace.lifecycle, devportal.lifecycle, webhook.lifecycle, eventstream.lifecycle, govrelease.lifecycle], mvp: false, status: documented}

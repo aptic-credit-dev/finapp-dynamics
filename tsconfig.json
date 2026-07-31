@@ -26,6 +26,7 @@
     { "path": "./packages/m15a-matching" },
     { "path": "./packages/m15-recon" },
     { "path": "./packages/m19-finance" },
+    { "path": "./packages/m20-glrecon" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

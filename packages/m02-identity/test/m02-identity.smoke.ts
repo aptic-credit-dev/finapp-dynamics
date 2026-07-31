@@ -271,8 +271,8 @@ export default defineSuite('m02-identity', (t) => {
   );
   t.equal(
     DOMAIN_EVENT_FAMILIES.length,
-    17,
-    'seventeen families are declared through Stage 3 (+ reconciliation.lifecycle)',
+    18,
+    'eighteen families are declared through Stage 3 (+ glrecon.lifecycle)',
   );
   const eventRegistry = readYaml('manifests/event-registry.yaml') as {
     family_groups?: { families: string[] }[];

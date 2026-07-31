@@ -251,6 +251,7 @@ modules:
     mvp: true
     api_prefixes: [/api/v1/gl-reconciliation]
     permission_namespaces: ['gl_reconciliation.*']
+    permission_namespace_registered: true # Stage 3: gl_reconciliation.* seeded + registered
     event_families: [glrecon.lifecycle]
     event_family_registered: true
     audit_prefixes: [GLRECON_]
