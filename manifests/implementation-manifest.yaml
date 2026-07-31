@@ -872,7 +872,7 @@ stages:
                  docs/build/stages/STAGE_3_M15_RECON_CERTIFICATION.md]
       - module: m20-glrecon
         capability: GL reconciliation
-        status: documented
+        status: approved_for_build   # governance/approve-m20-glrecon: documented -> approved_for_build (next per BUILD_SEQUENCE m19 -> m15 -> m20); deps m06/m07/m19 (+ m15 sibling) certified
         mvp: true
         db_ownership: [gl_imports, gl_lines, gl_reconciliation_runs, gl_exceptions]
         api_ownership: [/api/v1/gl-reconciliation]
