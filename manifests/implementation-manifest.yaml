@@ -920,25 +920,38 @@ stages:
           module: m20-glrecon
           substage: "3"
           branch: feature/stage-3-m20-gl-reconciliation
+          certification_branch: cert/stage-3-m20-gl-reconciliation
           parent_baseline: 6cf749bf4c798e4863d564693e04dfcdcacce2d5   # governance-approved main (PR #40 merge)
           governance_approval_pr: 40                     # documented -> approved_for_build (PR #40, main 6cf749b)
-          implementation_status: implemented_on_branch   # PR #41 open; STOPPED before merge
+          # Merged 2026-07-31 via PR #41 (squash) onto governance-approved main 6cf749b; post-merge certification on branch.
+          implementation_status: merged
           implementation_pr: 41
-          implementation_head: 8e781060b65f236711ecfe4b9d272bf1901d8df2
-          merge_status: not_merged
-          ci_implementation: pending                     # PR #41: Smoke + PostgreSQL 16 DB lanes recorded green once observed
+          implementation_head: 862d6e3caecaf7b4d881bbf4712e3035968b4bad
+          implementation_merge_sha: c05a7722a9262cbf111320a7be31802e05c43204
+          merge_status: merged
+          ci_implementation: passed                      # PR #41 head 862d6e3 + merge c05a772: Smoke lane + DB lane (PostgreSQL 16) both green
           smoke_certification: passed_locally            # 24 suites, 4619 assertions, 0 failures (incl. m20-glrecon 54 + conformance 2551)
           postgresql_certification: passed_locally       # 49 db specs, 1587 assertions, 0 failures; fresh replay of 36 migrations (PostgreSQL 15.2 throwaway)
-          local_verification: {smoke_suites: 24, smoke_assertions: 4619, conformance_assertions: 2551,
+          ci_certification: passed                        # cert PR #42 head 5933f77: Smoke lane + DB lane (PostgreSQL 16) both green
+          certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
+          certified_baseline_sha: c05a7722a9262cbf111320a7be31802e05c43204   # merged main SHA (PR #41) tested for certification
+          tree_identical_to_reviewed_head: true          # git diff 862d6e3 c05a772 is empty (byte-identical)
+          local_reverification: {clean_checkout: true, tree_identical_to_ci_head: true, matching_deterministic: true,
+                               balance_invariant_deterministic: true,
+                               smoke_suites: 24, smoke_assertions: 4619, conformance_assertions: 2551,
                                db_specs: 49, db_assertions: 1587, migrations_replayed: 36, postgres_version: "15.2",
                                m20_tables: 24, force_rls: 24, policies: 24, delete_grants: 0, append_only_ledgers: 10,
                                composite_fks: 27, single_col_fks: 0, float_columns: 0, bigint_money_columns: 26,
+                               balance_invariant_checks: 2, draft_only_checks: 1, override_checks: 1,
                                permissions: 35, privileged_permissions: 11, audit_codes: 37, registered_code_count: 585,
                                event_types: 33, event_families: 18, mutating_routes: 30, read_routes: 31, outbox_tables: 1}
-          certification_status: implemented_not_certified
+          certification_pr: 42
+          certification_head: 13630117975699d9f2119082eac86233082918cc
+          certification_merge_sha: pending
           adrs: [ADR-085, ADR-086, ADR-087, ADR-088, ADR-089, ADR-090]
           docs: [docs/build/stages/STAGE_3_M20_GLRECON_ARCHITECTURE.md,
-                 docs/build/stages/STAGE_3_M20_GLRECON_COMPLETION.md]
+                 docs/build/stages/STAGE_3_M20_GLRECON_COMPLETION.md,
+                 docs/build/stages/STAGE_3_M20_GL_RECON_CERTIFICATION.md]
       - module: m21-journal
         capability: Journal engine (DRAFT ONLY in MVP)
         status: documented
