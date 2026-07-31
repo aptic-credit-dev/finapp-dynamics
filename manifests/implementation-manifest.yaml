@@ -932,7 +932,7 @@ stages:
           ci_implementation: passed                      # PR #41 head 862d6e3 + merge c05a772: Smoke lane + DB lane (PostgreSQL 16) both green
           smoke_certification: passed_locally            # 24 suites, 4619 assertions, 0 failures (incl. m20-glrecon 54 + conformance 2551)
           postgresql_certification: passed_locally       # 49 db specs, 1587 assertions, 0 failures; fresh replay of 36 migrations (PostgreSQL 15.2 throwaway)
-          ci_certification: pending                       # cert PR CI recorded once green (see certification report)
+          ci_certification: passed                        # cert PR #42 head 5933f77: Smoke lane + DB lane (PostgreSQL 16) both green
           certification_status: certified_on_branch      # cert PR pending, not merged (stopped before merge)
           certified_baseline_sha: c05a7722a9262cbf111320a7be31802e05c43204   # merged main SHA (PR #41) tested for certification
           tree_identical_to_reviewed_head: true          # git diff 862d6e3 c05a772 is empty (byte-identical)
