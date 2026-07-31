@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m20-glrecon",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M20 — general-ledger reconciliation: reconcile GL balances + transactions against a source system, enforce the balance invariant (opening + debits - credits = calculated closing) in integer minor units, deterministic + explainable matching (reuses the m15a engine), reconciling items, exception management + aging, balance certification, and DRAFT journal recommendations handed off to m21. Money is integer minor units — never float. It never posts journals, writes to the general ledger, or approves anything. Owns no chart of accounts (m19), bank reconciliation (m15), journal posting (m21), approval workflow (m22) or integration (m23).",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m15a-matching": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
