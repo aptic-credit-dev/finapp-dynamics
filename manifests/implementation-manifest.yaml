@@ -954,7 +954,7 @@ stages:
                  docs/build/stages/STAGE_3_M20_GL_RECON_CERTIFICATION.md]
       - module: m21-journal
         capability: Journal engine (DRAFT ONLY in MVP)
-        status: documented
+        status: approved_for_build   # governance/approve-m21-journal: documented -> approved_for_build (next per BUILD_SEQUENCE m20 -> m21); deps m06/m07/m19/m20 certified (m33 posting-push is post-MVP)
         mvp: true
         db_ownership: [journal_recommendations, journal_drafts, journal_lines, posting_requests, posting_results]
         api_ownership: [/api/v1/journals]
