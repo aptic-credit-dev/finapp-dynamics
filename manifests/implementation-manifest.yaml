@@ -922,11 +922,11 @@ stages:
           branch: feature/stage-3-m20-gl-reconciliation
           parent_baseline: 6cf749bf4c798e4863d564693e04dfcdcacce2d5   # governance-approved main (PR #40 merge)
           governance_approval_pr: 40                     # documented -> approved_for_build (PR #40, main 6cf749b)
-          implementation_status: implemented_on_branch   # PR open; STOPPED before merge
-          implementation_pr: pending
-          implementation_head: pending
+          implementation_status: implemented_on_branch   # PR #41 open; STOPPED before merge
+          implementation_pr: 41
+          implementation_head: 8e781060b65f236711ecfe4b9d272bf1901d8df2
           merge_status: not_merged
-          ci_implementation: pending
+          ci_implementation: pending                     # PR #41: Smoke + PostgreSQL 16 DB lanes recorded green once observed
           smoke_certification: passed_locally            # 24 suites, 4619 assertions, 0 failures (incl. m20-glrecon 54 + conformance 2551)
           postgresql_certification: passed_locally       # 49 db specs, 1587 assertions, 0 failures; fresh replay of 36 migrations (PostgreSQL 15.2 throwaway)
           local_verification: {smoke_suites: 24, smoke_assertions: 4619, conformance_assertions: 2551,
