@@ -945,7 +945,8 @@ stages:
                                balance_invariant_checks: 2, draft_only_checks: 1, override_checks: 1,
                                permissions: 35, privileged_permissions: 11, audit_codes: 37, registered_code_count: 585,
                                event_types: 33, event_families: 18, mutating_routes: 30, read_routes: 31, outbox_tables: 1}
-          certification_pr: pending
+          certification_pr: 42
+          certification_head: 13630117975699d9f2119082eac86233082918cc
           certification_merge_sha: pending
           adrs: [ADR-085, ADR-086, ADR-087, ADR-088, ADR-089, ADR-090]
           docs: [docs/build/stages/STAGE_3_M20_GLRECON_ARCHITECTURE.md,
