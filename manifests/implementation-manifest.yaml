@@ -991,8 +991,17 @@ stages:
           substage: "3"
           branch: feature/stage-3-m21-journal
           certification_branch: cert/stage-3-m21-journal
-          parent_baseline: 88b0549706dbced51520a7013dc7e052bdb6563b   # governance approval PR #43 squash-merge on main
-          status: implemented_on_branch   # implementation PR open; post-merge certification pending (not certified)
+          governance_pr: 43   # m21 documented -> approved_for_build; governance merge 88b0549
+          implementation_pr: 44   # merged 2026-08-03T11:35:20Z
+          reviewed_implementation_head: 1d276ebaea06eef70739d2e67a269c62db183506
+          implementation_merge_sha: fb743563b1815e1d6d55ece9b815990498bff1f8   # squash on 88b0549; current origin/main
+          tree_equivalence: empty_diff   # git diff 1d276eb fb74356 == EMPTY (reviewed tree == merged tree)
+          parent_baseline: fb743563b1815e1d6d55ece9b815990498bff1f8   # certification baseline = implementation merge SHA
+          implementation_ci: both_pg16_lanes_success   # smoke + PostgreSQL 16 DB, head 1d276eb
+          local_gates: format+lint(0err)+build+smoke(25/4816,conformance 2656)+migrate(38 fresh-replay)+db(52/1673 - m21-journal 44, m21-services 28, api-journals 14); PostgreSQL 15.2 (CI is PG16)
+          metrics: 18 tables (18 FORCE-RLS, 18 policies, 16 composite FKs, 0 single-col tenant FKs, 43 CHECKs, 0 float, 11 bigint minor, 0 DELETE grants, 10 append-only ledgers), 27 permissions (9 privileged), 23 JOURNAL_ audit codes (registered total 608), journal.lifecycle (16) + posting_request.lifecycle (6, deferred), 20 event families, 22 mutating + 14 read routes, 5 lifecycle machines, 13 reason codes
+          status: certified_on_branch   # CERTIFIED ON BRANCH; certification PR open, NOT merged
+          report: docs/build/stages/STAGE_3_M21_JOURNAL_CERTIFICATION.md
       - module: m22-approval
         capability: Finance approval workflow (maker-checker + SoD)
         status: documented
