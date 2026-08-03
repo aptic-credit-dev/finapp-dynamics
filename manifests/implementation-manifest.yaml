@@ -1004,7 +1004,7 @@ stages:
           report: docs/build/stages/STAGE_3_M21_JOURNAL_CERTIFICATION.md
       - module: m22-approval
         capability: Finance approval workflow (maker-checker + SoD)
-        status: documented
+        status: approved_for_build   # governance/approve-m22-approval: documented -> approved_for_build (next per BUILD_SEQUENCE m21 -> m22); deps m02/m03/m06/m19/m20/m21 implemented+certified; m23 is downstream (consumes m22), not a prerequisite
         mvp: true
         shared_services_consumed: [m06]
         permissions_required: [approvals.*]
