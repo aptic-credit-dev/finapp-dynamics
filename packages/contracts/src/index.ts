@@ -214,3 +214,23 @@ export type {
   GlreconLifecycleEventType,
   GlreconLifecyclePayload,
 } from './glrecon-events.ts';
+export {
+  JOURNAL_LIFECYCLE_FAMILY,
+  JOURNAL_LIFECYCLE_VERSION,
+  JOURNAL_LIFECYCLE_EVENT_TYPES,
+} from './journal-events.ts';
+export type {
+  JournalLifecycleEvent,
+  JournalLifecycleEventType,
+  JournalLifecyclePayload,
+} from './journal-events.ts';
+export {
+  POSTING_REQUEST_LIFECYCLE_FAMILY,
+  POSTING_REQUEST_LIFECYCLE_VERSION,
+  POSTING_REQUEST_LIFECYCLE_EVENT_TYPES,
+} from './posting-request-events.ts';
+export type {
+  PostingRequestLifecycleEvent,
+  PostingRequestLifecycleEventType,
+  PostingRequestLifecyclePayload,
+} from './posting-request-events.ts';

@@ -954,15 +954,45 @@ stages:
                  docs/build/stages/STAGE_3_M20_GL_RECON_CERTIFICATION.md]
       - module: m21-journal
         capability: Journal engine (DRAFT ONLY in MVP)
-        status: approved_for_build   # governance/approve-m21-journal: documented -> approved_for_build (next per BUILD_SEQUENCE m20 -> m21); deps m06/m07/m19/m20 certified (m33 posting-push is post-MVP)
+        status: implemented   # Stage 3 — implemented_on_branch feature/stage-3-m21-journal (not merged/certified); see certification_3_m21
         mvp: true
-        db_ownership: [journal_recommendations, journal_drafts, journal_lines, posting_requests, posting_results]
+        db_ownership: [journal_type(versioned, one-active), journal_config(versioned, immutable-after-publish, one-active, idempotency-keyed),
+                       journal_reason_code(configurable reason-code registry), journal_recommendation(m20 handoff intake; opaque refs),
+                       journal_recommendation_line(append-only), journal_recommendation_history(append-only),
+                       journal_draft(header; balanced-before-advance CHECK; bigint minor-unit totals; lifecycle),
+                       journal_line(bigint minor units; direction debit/credit; active/removed), journal_status_history(append-only),
+                       journal_draft_balance(append-only; balanced=(debits=credits) CHECK; invariant evidence),
+                       journal_note(append-only), journal_validation(append-only; deterministic validation run),
+                       journal_validation_finding(append-only; machine-readable reason codes),
+                       posting_request(approval-gated; approval_ref + approved_by SoD CHECK; period-open CHECK; idempotency-keyed; DRAFT-first, posting deferred),
+                       posting_request_history(append-only), posting_result(evidence; pending/succeeded/failed; idempotency-keyed),
+                       posting_result_history(append-only), posting_idempotency(append-only; no-duplicate-post ledger)]
         api_ownership: [/api/v1/journals]
-        event_ownership: [journal.lifecycle]
-        shared_services_consumed: [m06, m07, m19, m20, m33]
+        event_ownership: [journal.lifecycle, posting_request.lifecycle]
+        shared_services_consumed: [kernel, m01, m02, m03, m06, m07, m19, m20]
+        consumes_events: [glrecon.lifecycle RecommendationHandedOff (from m20; fire-and-forget, idempotent intake); m33 posting-push is POST-MVP]
+        emits_events: [journal.lifecycle (16 event types), posting_request.lifecycle (6 event types; posting deferred)]
         permissions_required: [journals.*]
         testing_required: [smoke, db_spec_balanced_no_autopost]
+        tests_present: [m21-journal.smoke (80), m21-journal.db-spec (44), m21-services.db-spec (28), api-journals.db-spec (14)]
         hard_rules: [decimal_safe, balanced_before_post, no_autopost, no_closed_period_post, no_duplicate_post, maker_not_checker]
+        # DRAFT-first journal engine: ingest m20 DRAFT recommendations (opaque refs; RecommendationHandedOff), create/edit BALANCED
+        # draft journals (debits==credits in INTEGER MINOR UNITS, DB-enforced balanced-before-advance), deterministic + explainable
+        # validation (reason codes), draft lifecycle up to submit-for-approval, and PREPARE approval-gated posting requests + record
+        # posting-result evidence. It NEVER approves (m22 owns maker-checker + SoD), NEVER posts to a ledger/ERP/core system, NEVER
+        # auto-posts, NEVER posts into a closed/locked period (reads m19 period state), NEVER duplicate-posts (idempotency ledger).
+        # 18 FORCE-RLS tables, composite keys, 10 append-only ledgers, no DELETE grant. Reuses m02 (authz), m03 (audit), m06 (workflow
+        # + the ONE outbox), m07 (rules), m19 (finance foundation, opaque account/period/currency ref), m20 (recommendation handoff).
+        # Owns NO chart of accounts/periods (m19), NO GL reconciliation (m20), NO approval workflow (m22), NO integration/posting push
+        # (m23/m33), NO AI (m27). 27 permissions (9 privileged), 23 JOURNAL_ audit codes, journal.lifecycle (16) +
+        # posting_request.lifecycle (6, deferred). ADR-091..096.
+        certification_3_m21:
+          module: m21-journal
+          substage: "3"
+          branch: feature/stage-3-m21-journal
+          certification_branch: cert/stage-3-m21-journal
+          parent_baseline: 88b0549706dbced51520a7013dc7e052bdb6563b   # governance approval PR #43 squash-merge on main
+          status: implemented_on_branch   # implementation PR open; post-merge certification pending (not certified)
       - module: m22-approval
         capability: Finance approval workflow (maker-checker + SoD)
         status: documented
