@@ -32,6 +32,10 @@ import type { ReconciliationLifecycleEvent } from './reconciliation-events.ts';
 import { RECONCILIATION_LIFECYCLE_FAMILY } from './reconciliation-events.ts';
 import type { GlreconLifecycleEvent } from './glrecon-events.ts';
 import { GLRECON_LIFECYCLE_FAMILY } from './glrecon-events.ts';
+import type { JournalLifecycleEvent } from './journal-events.ts';
+import { JOURNAL_LIFECYCLE_FAMILY } from './journal-events.ts';
+import type { PostingRequestLifecycleEvent } from './posting-request-events.ts';
+import { POSTING_REQUEST_LIFECYCLE_FAMILY } from './posting-request-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -64,7 +68,9 @@ export type DomainEvent =
   | LegalDocsLifecycleEvent
   | FinanceLifecycleEvent
   | ReconciliationLifecycleEvent
-  | GlreconLifecycleEvent;
+  | GlreconLifecycleEvent
+  | JournalLifecycleEvent
+  | PostingRequestLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -86,6 +92,8 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   FINANCE_LIFECYCLE_FAMILY,
   RECONCILIATION_LIFECYCLE_FAMILY,
   GLRECON_LIFECYCLE_FAMILY,
+  JOURNAL_LIFECYCLE_FAMILY,
+  POSTING_REQUEST_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */

@@ -262,6 +262,7 @@ modules:
     mvp: true
     api_prefixes: [/api/v1/journals]
     permission_namespaces: ['journals.*']
+    permission_namespace_registered: true # Stage 3: journals.* seeded (migration 0001) + registered
     event_families: [journal.lifecycle, posting_request.lifecycle]
     event_family_registered: true
     audit_prefixes: [JOURNAL_]

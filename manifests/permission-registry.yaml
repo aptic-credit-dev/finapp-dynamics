@@ -251,7 +251,16 @@ namespaces:
              "gl_reconciliation.recommendation.read", "gl_reconciliation.recommendation.create",
              "gl_reconciliation.recommendation.withdraw", "gl_reconciliation.analytics.read",
              "gl_reconciliation.analytics.export", "gl_reconciliation.platform.administer"]}
-  - {namespace: "journals.*", module: m21-journal, mvp: true, status: documented}
+  - {namespace: "journals.*", module: m21-journal, mvp: true, status: implemented, substage: "3",
+     codes: ["journals.recommendation.read", "journals.recommendation.ingest", "journals.recommendation.manage",
+             "journals.draft.read", "journals.draft.create", "journals.draft.edit", "journals.draft.submit",
+             "journals.draft.withdraw", "journals.line.manage", "journals.validation.read",
+             "journals.validation.run", "journals.type.read", "journals.type.manage", "journals.config.read",
+             "journals.config.manage", "journals.config.publish", "journals.posting_request.read",
+             "journals.posting_request.create", "journals.posting_request.authorize",
+             "journals.posting_request.cancel", "journals.posting_result.read", "journals.posting_result.record",
+             "journals.reason_code.read", "journals.reason_code.manage", "journals.note.add",
+             "journals.analytics.read", "journals.platform.administer"]}
   - {namespace: "approvals.*", module: m22-approval, mvp: true, status: documented}
   - {namespace: "ai.*", module: m24-ai-foundation, mvp: partial, status: documented}
   - {namespace: "reports.*", module: m10-report, mvp: true, status: documented}

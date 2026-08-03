@@ -57,6 +57,12 @@ import {
   GLRECON_LIFECYCLE_FAMILY,
   GLRECON_LIFECYCLE_EVENT_TYPES,
   GLRECON_LIFECYCLE_VERSION,
+  JOURNAL_LIFECYCLE_FAMILY,
+  JOURNAL_LIFECYCLE_EVENT_TYPES,
+  JOURNAL_LIFECYCLE_VERSION,
+  POSTING_REQUEST_LIFECYCLE_FAMILY,
+  POSTING_REQUEST_LIFECYCLE_EVENT_TYPES,
+  POSTING_REQUEST_LIFECYCLE_VERSION,
 } from '@finapp/contracts';
 
 /**
@@ -70,7 +76,11 @@ import {
  * m02-identity).
  */
 export default defineSuite('contracts', (t) => {
-  t.equal(DOMAIN_EVENT_FAMILIES.length, 18, 'Stage 3 declares eighteen event families');
+  t.equal(
+    DOMAIN_EVENT_FAMILIES.length,
+    20,
+    'Stage 3 declares twenty event families (m21 adds journal + posting_request)',
+  );
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(AUTH_LIFECYCLE_FAMILY), 'identity.authentication is declared (1C)');
@@ -237,10 +247,40 @@ export default defineSuite('contracts', (t) => {
     'glrecon.lifecycle event types are unique',
   );
   t.ok(isValidEventFamily(GLRECON_LIFECYCLE_FAMILY), 'glrecon.lifecycle satisfies the family pattern');
+
+  // m21-journal (Stage 3) — journal.lifecycle + posting_request.lifecycle (posting deferred; draft-first MVP).
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(JOURNAL_LIFECYCLE_FAMILY), 'journal.lifecycle is declared (3)');
+  t.equal(JOURNAL_LIFECYCLE_VERSION, 1, 'journal.lifecycle payloads are at version 1');
+  t.equal(JOURNAL_LIFECYCLE_EVENT_TYPES.length, 16, 'journal.lifecycle declares 16 event types');
+  t.equal(
+    new Set(JOURNAL_LIFECYCLE_EVENT_TYPES).size,
+    JOURNAL_LIFECYCLE_EVENT_TYPES.length,
+    'journal.lifecycle event types are unique',
+  );
+  t.ok(isValidEventFamily(JOURNAL_LIFECYCLE_FAMILY), 'journal.lifecycle satisfies the family pattern');
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(POSTING_REQUEST_LIFECYCLE_FAMILY),
+    'posting_request.lifecycle is declared (3; registered but posting deferred)',
+  );
+  t.equal(POSTING_REQUEST_LIFECYCLE_VERSION, 1, 'posting_request.lifecycle payloads are at version 1');
+  t.equal(
+    POSTING_REQUEST_LIFECYCLE_EVENT_TYPES.length,
+    6,
+    'posting_request.lifecycle declares 6 event types',
+  );
+  t.equal(
+    new Set(POSTING_REQUEST_LIFECYCLE_EVENT_TYPES).size,
+    POSTING_REQUEST_LIFECYCLE_EVENT_TYPES.length,
+    'posting_request.lifecycle event types are unique',
+  );
+  t.ok(
+    isValidEventFamily(POSTING_REQUEST_LIFECYCLE_FAMILY),
+    'posting_request.lifecycle satisfies the family pattern',
+  );
   t.equal(
     DOMAIN_EVENT_FAMILIES[DOMAIN_EVENT_FAMILIES.length - 1],
-    GLRECON_LIFECYCLE_FAMILY,
-    'glrecon.lifecycle is the newest family — appended at the tail',
+    POSTING_REQUEST_LIFECYCLE_FAMILY,
+    'posting_request.lifecycle is the newest family — appended at the tail',
   );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');

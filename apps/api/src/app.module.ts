@@ -18,6 +18,7 @@ import { LegaldocsModule } from './legaldocs/legaldocs.module.ts';
 import { FinanceModule } from './finance/finance.module.ts';
 import { ReconciliationModule } from './reconciliation/reconciliation.module.ts';
 import { GlReconciliationModule } from './gl-reconciliation/gl-reconciliation.module.ts';
+import { JournalsModule } from './journals/journals.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -80,6 +81,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     FinanceModule,
     ReconciliationModule,
     GlReconciliationModule,
+    JournalsModule,
   ],
   controllers: [HealthController],
   providers: [],

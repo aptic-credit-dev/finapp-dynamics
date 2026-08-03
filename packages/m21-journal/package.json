@@ -1,0 +1,33 @@
+{
+  "name": "@finapp/m21-journal",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M21 — journal engine (DRAFT-first MVP): turns m20 DRAFT reconciliation recommendations (and operational inputs) into BALANCED, decimal-safe journal drafts (debits == credits in INTEGER MINOR UNITS), runs deterministic + explainable validation (reason codes), manages the draft lifecycle up to submit-for-approval, and PREPARES approval-gated posting requests + records posting-result evidence. Money is integer minor units — never float. It NEVER approves (m22 owns maker-checker + SoD), NEVER posts to a ledger/ERP/core system, NEVER auto-posts, NEVER posts into a closed/locked period, and NEVER duplicate-posts. Owns no chart of accounts/periods (m19), GL reconciliation (m20), approvals (m22) or integration/posting push (m23/m33); m19/m20/m22 referenced by opaque id.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

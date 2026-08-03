@@ -163,7 +163,20 @@ family_groups:
             matching (candidate/match/reconciling-item/exception) -> manual review -> certification -> DRAFT journal
             recommendation handoff to m21. Ordering key = aggregate id (payload recordId); consumers dedupe on
             eventId. Payloads carry ids/states/scores/variances(minor units) only — never GL account numbers."}
-  - {group: finance, families: [journal.lifecycle, approval.lifecycle, posting_request.lifecycle], mvp: true, status: documented, note: posting deferred}
+  # GAP CLOSED for m21-journal (Stage 3) — journal.lifecycle + posting_request.lifecycle registered with the engine
+  # that emits them, declared in packages/contracts/src/journal-events.ts + posting-request-events.ts. Delivered
+  # through the single transactional outbox (m06). DRAFT-first MVP: journal.lifecycle has 16 event types (payload
+  # v1); posting_request.lifecycle has 6 (payload v1) but posting is DEFERRED — m21 only prepares + records posting
+  # requests/results, never pushes to a core system, never approves (m22), never auto-posts. Payloads carry ids/
+  # states/totals(minor units)/reason-codes/counts/dates ONLY — never account numbers, line narratives, external
+  # credentials or secrets. Owns no chart of accounts/periods (m19), GL recon (m20), approvals (m22) or integration
+  # (m23/m33). Reads m19's period open/closed/locked state as the "no posting into a closed period" gate.
+  - {group: journal, families: [journal.lifecycle, posting_request.lifecycle], mvp: true, status: implemented, owner: m21-journal,
+     classification: confidential,
+     note: "Stage 3. Recommendation intake (m20 handoff) -> balanced draft (debits==credits) -> deterministic
+            validation -> submit for approval (m22). posting_request.lifecycle registered but posting deferred
+            (draft-first MVP). Ordering key = aggregate id (payload recordId); consumers dedupe on eventId."}
+  - {group: finance, families: [approval.lifecycle], mvp: true, status: documented, note: m22 approval (maker-checker + SoD); posting deferred}
   - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}
   - {group: platform, families: [platform.lifecycle, studio.lifecycle, analytics.lifecycle], mvp: false, status: documented}
   - {group: integration, families: [connector.lifecycle, marketplace.lifecycle, devportal.lifecycle, webhook.lifecycle, eventstream.lifecycle, govrelease.lifecycle], mvp: false, status: documented}
