@@ -27,6 +27,7 @@
     { "path": "./packages/m15-recon" },
     { "path": "./packages/m19-finance" },
     { "path": "./packages/m20-glrecon" },
+    { "path": "./packages/m21-journal" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]
