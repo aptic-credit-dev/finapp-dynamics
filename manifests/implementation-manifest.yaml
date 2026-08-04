@@ -1031,7 +1031,38 @@ stages:
                    Owns no journals (m21), chart of accounts/periods (m19) or integration/posting (m23); subject/workflow/timer/notification/
                    document refs are OPAQUE ids (no FK). m23 is downstream (consumes m22), not a prerequisite."
         testing_required: [smoke, db_spec_sod, services_db_spec]
-        tests_present: [m22-approval.smoke (72), m22-approval.db-spec, m22-services.db-spec]
+        tests_present: [m22-approval.smoke (72), m22-approval.db-spec (50), m22-services.db-spec (33)]
+        certification_3:
+          module: m22-approval
+          stage: "3"
+          branch: feature/stage-3-m22-approval-workflow
+          certification_branch: cert/stage-3-m22-approval
+          parent_baseline: 1b4ced19b1dbd0d6a400fe711ddefd3688655500   # main after governance PR #46 (m22 approved_for_build)
+          implementation_pr: 47
+          implementation_head: dba234acd1f98ec371347cf1ba037403d627da39   # reviewed head
+          implementation_merge_sha: ec931e79b37d3b1d109e39d1dab52a284f83ef61   # squash merge onto main (1 parent)
+          merge_status: merged
+          merged_at: "2026-08-04T09:50:19Z"
+          tree_identical_to_reviewed_head: true   # git diff dba234a ec931e7 is empty (byte-identical)
+          ci_implementation: passed   # run 30895571158 head dba234a: Smoke + DB (PostgreSQL 16) both success
+          ci_main_push: passed        # main push ec931e7: Smoke + DB (PostgreSQL 16) both success
+          smoke_certification: passed_locally         # 26 suites, 4995 assertions, 0 failures (incl. m22 smoke 72, conformance 2757)
+          postgresql_certification: passed_locally     # 54 db specs, 1756 assertions, 0 failures (PostgreSQL 15.2 throwaway; m22-approval 50 + m22-services 33)
+          lint: passed                                 # 0 errors (67 pre-existing baseline warnings; m22 adds none)
+          certification_status: certified_on_branch    # cert PR pending merge
+          local_reverification: {tables_force_rls: 24, tenant_isolation_policies: 24, delete_grants: 0,
+                                 append_only_update_grants: 0, float_columns: 0, money_bigint_minor: 2,
+                                 permissions: 25, privileged: 12, outboxes: 1, sod_check_constraints: 8,
+                                 db_specs: 54, db_assertions: 1756, smoke_assertions: 4995, migrations: 40,
+                                 postgres_version: "15.2", clean_checkout: true, wiped_dist: true}
+          verdicts: {maker_checker_sod: PASS, delegation: PASS, escalation: PASS, m21_intake: PASS,
+                     m23_boundary: PASS, tenancy_rls: PASS, privacy: PASS, idempotency_concurrency: PASS,
+                     contamination: CLEAN}
+          adrs: [ADR-097, ADR-098, ADR-099, ADR-100]
+          docs: [docs/04-modules/APPROVAL_WORKFLOW.md,
+                 docs/build/stages/STAGE_3_M22_APPROVAL_COMPLETION.md,
+                 docs/build/stages/STAGE_3_M22_APPROVAL_CERTIFICATION.md]
+          # certification_pr recorded once the docs-only cert PR is opened.
       - module: m23-finance-integration
         capability: Finance integration, QA & release
         status: documented
