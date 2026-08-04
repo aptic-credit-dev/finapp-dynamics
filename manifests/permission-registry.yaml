@@ -92,7 +92,15 @@ namespaces:
              "documents.disposition.read", "documents.disposition.request", "documents.disposition.approve",
              "documents.disposition.execute", "documents.scan.override", "documents.relationship.manage",
              "documents.platform.administer"]}
-  - {namespace: "admin.*", module: m04-admin, mvp: true, status: documented}
+  - {namespace: "admin.*", module: m04-admin, mvp: true, status: implemented, substage: "1",
+     codes: ["admin.tenant.read", "admin.tenant.manage", "admin.tenant.suspend", "admin.tenant.reactivate",
+             "admin.identity.read", "admin.identity.manage", "admin.account.activate", "admin.account.deactivate",
+             "admin.role.read", "admin.role.manage", "admin.role.assign", "admin.role.revoke",
+             "admin.permission.read", "admin.sod.read", "admin.sod.manage", "admin.workflow.read",
+             "admin.workflow.manage", "admin.rules.read", "admin.rules.manage", "admin.notification.read",
+             "admin.notification.manage", "admin.audit.read", "admin.audit.export", "admin.audit.verify",
+             "admin.dashboard.read", "admin.operations.read", "admin.savedview.manage", "admin.preference.manage",
+             "admin.platform_audit.read", "admin.platform.administer"]}
   - {namespace: "feedback.*", module: m12-feedback, mvp: true, status: implemented, substage: "3.1",
      codes: ["feedback.queue.read", "feedback.queue.claim", "feedback.queue.assign",
              "feedback.record.read", "feedback.record.create", "feedback.record.capture",

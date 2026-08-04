@@ -571,12 +571,35 @@ stages:
                  docs/build/stages/STAGE_2_5_M09_DOCUMENTS_CERTIFICATION.md]
       - module: m04-admin
         capability: Admin console (tenant/user/role/config)
-        status: approved_for_build   # governance/approve-m04-admin: documented -> approved_for_build. NEXT per BUILD_SEQUENCE: m04-admin is the FIRST unbuilt module in the whole sequence (Stage 1 tail, skipped during Stage 1); it is mvp:true and ALL its dependencies (m01/m02/m03/m06/m07/m08) are implemented+certified, with NO dependency gap. Preferred over m24-ai-foundation (Stage 5, mvp:partial) whose dependency m41-security is still documented/unbuilt. Naming reserved: /api/v1/admin, admin.*, ADMIN_ audit, NO event family (console over m01/m02/m03/m06/m07/m08).
+        status: implemented   # Stage 1 — ORCHESTRATION-ONLY admin console built on branch feature/stage-1-m04-admin-console. Owns 4 FORCE-RLS console tables (NO mirrors), 30 admin.* permissions (17 privileged, 2 platform), 29 ADMIN_ audit codes, NO event family/outbox. Smoke + DB (PostgreSQL 16 CI) to certify post-merge.
         mvp: true
+        db_ownership: [admin_saved_view(per-admin filter), admin_preference(per-admin key/value), admin_operation_request(governed
+                       admin-operation aggregate; idempotency-keyed; opaque target refs), admin_operation_history(append-only)]
         api_ownership: [/api/v1/admin]
+        event_ownership: []   # naming-map authoritative: NO event family (console over m01/m02/m03/m06/m07/m08; reuses their events)
         shared_services_consumed: [m01, m02, m03, m06, m07, m08]
+        emits_events: []
+        consumes_events: []
         permissions_required: [admin.*]
-        testing_required: [smoke]
+        audit_prefix: ADMIN_   # 29 codes
+        hard_rules: [orchestration_only, no_mirror_tables, delegated_authority, platform_vs_tenant_boundary, default_deny, no_event_family, no_second_outbox_or_engine, redaction_of_secrets_contacts_narratives]
+        boundary: "ORCHESTRATION ONLY: a tenant + platform administration surface OVER m01 tenancy, m02 identity/auth/RBAC, m03 audit,
+                   m06 workflow, m07 rules, m08 notifications. Owns only its 4 admin_* console tables (saved views, preferences,
+                   governed admin-operation ledger) — NO mirror of tenant/identity/account/role/assignment/SoD/audit/workflow/rules/
+                   notification data (those exist once, owned by their modules, reached through their PUBLIC services). Every route
+                   authenticated + declares a 3-segment admin.* permission (tenant vs platform vs privileged; no vague bypass) +
+                   enforces platform-vs-tenant scope; delegated mutations are authorized + audited by the owning module (M04 adds an
+                   admin-facing operation trail + audits its own sensitive reads). NO event family, NO second outbox, NO duplicate
+                   engine, NO universal admin bypass, NO secret/token/contact exposure. SystemContext is not a universal allow; a
+                   tenant admin can never become/act-as platform admin, cross tenants, assign platform roles, or modify immutable
+                   system roles (all enforced by the owning modules and honoured unchanged)."
+        testing_required: [smoke, db_spec, services_db_spec]
+        tests_present: [m04-admin.smoke (37), m04-admin.db-spec (29), m04-services.db-spec (16)]
+        divergence_note: "Full HTTP surface: the owned console (operations/saved-views/preferences/dashboard) + tenant administration are
+                          wired under /api/v1/admin; the remaining orchestration areas (identity/RBAC/workflow/rules/notifications/audit)
+                          ship as tested library services in @finapp/m04-admin following the identical delegated pattern and are exposed
+                          incrementally. No module spec pre-existed; see ADR-103."
+        adrs: [ADR-103, ADR-104]
 
   - stage: 2
     name: Operational modules

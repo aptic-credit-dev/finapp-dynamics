@@ -1,0 +1,39 @@
+{
+  "name": "@finapp/m04-admin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M04 — admin console (ORCHESTRATION ONLY). A tenant + platform administration surface over the existing platform services (m01 tenancy, m02 identity/auth/RBAC, m03 audit, m06 workflow, m07 rules, m08 notifications). It OWNS no tenant/identity/account/role/assignment/SoD/audit/workflow/rules/notification data — it CALLS those modules' PUBLIC services through their contracts (never their private tables) and records only its OWN admin state: saved views, preferences, and a governed admin-operation request/history ledger. It creates NO event family (naming-map authoritative), NO second outbox, and NO duplicate engine. Every route is authenticated, declares a registered admin.* permission (3-segment; tenant-scoped vs platform vs privileged, no vague admin bypass), enforces platform-vs-tenant scope, and audits controlled actions with ADMIN_ codes through m03 in the same transaction where M04 owns state. Default deny; SystemContext is not a universal allow; headers cannot self-grant.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m02-identity": "*",
+    "@finapp/m02-auth": "*",
+    "@finapp/m02-rbac": "*",
+    "@finapp/m03-audit": "*",
+    "@finapp/m06-workflow": "*",
+    "@finapp/m07-rules": "*",
+    "@finapp/m08-notify": "*"
+  },
+  "devDependencies": {
+    "@finapp/test-runner": "*"
+  }
+}

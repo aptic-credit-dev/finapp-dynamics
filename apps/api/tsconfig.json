@@ -43,6 +43,7 @@
     { "path": "../../packages/m20-glrecon" },
     { "path": "../../packages/m21-journal" },
     { "path": "../../packages/m22-approval" },
+    { "path": "../../packages/m04-admin" },
     { "path": "../../tools/test-runner" }
   ]
 }
