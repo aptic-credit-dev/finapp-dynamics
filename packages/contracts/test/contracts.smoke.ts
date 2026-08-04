@@ -63,6 +63,9 @@ import {
   POSTING_REQUEST_LIFECYCLE_FAMILY,
   POSTING_REQUEST_LIFECYCLE_EVENT_TYPES,
   POSTING_REQUEST_LIFECYCLE_VERSION,
+  APPROVAL_LIFECYCLE_FAMILY,
+  APPROVAL_LIFECYCLE_EVENT_TYPES,
+  APPROVAL_LIFECYCLE_VERSION,
 } from '@finapp/contracts';
 
 /**
@@ -78,8 +81,8 @@ import {
 export default defineSuite('contracts', (t) => {
   t.equal(
     DOMAIN_EVENT_FAMILIES.length,
-    20,
-    'Stage 3 declares twenty event families (m21 adds journal + posting_request)',
+    21,
+    'Stage 3 declares twenty-one event families (m21 adds journal + posting_request; m22 adds approval)',
   );
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
@@ -277,10 +280,24 @@ export default defineSuite('contracts', (t) => {
     isValidEventFamily(POSTING_REQUEST_LIFECYCLE_FAMILY),
     'posting_request.lifecycle satisfies the family pattern',
   );
+
+  // m22-approval — the finance approval workflow (maker-checker + SoD).
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(APPROVAL_LIFECYCLE_FAMILY),
+    'approval.lifecycle is declared (3; m22 maker-checker + SoD)',
+  );
+  t.equal(APPROVAL_LIFECYCLE_VERSION, 1, 'approval.lifecycle payloads are at version 1');
+  t.equal(APPROVAL_LIFECYCLE_EVENT_TYPES.length, 16, 'approval.lifecycle declares 16 event types');
+  t.equal(
+    new Set(APPROVAL_LIFECYCLE_EVENT_TYPES).size,
+    APPROVAL_LIFECYCLE_EVENT_TYPES.length,
+    'approval.lifecycle event types are unique',
+  );
+  t.ok(isValidEventFamily(APPROVAL_LIFECYCLE_FAMILY), 'approval.lifecycle satisfies the family pattern');
   t.equal(
     DOMAIN_EVENT_FAMILIES[DOMAIN_EVENT_FAMILIES.length - 1],
-    POSTING_REQUEST_LIFECYCLE_FAMILY,
-    'posting_request.lifecycle is the newest family — appended at the tail',
+    APPROVAL_LIFECYCLE_FAMILY,
+    'approval.lifecycle is the newest family — appended at the tail',
   );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');

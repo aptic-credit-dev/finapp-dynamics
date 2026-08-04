@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 608 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 631 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -765,6 +765,31 @@ codes:
   - { code: JOURNAL_POSTING_REQUEST_AUTHORIZED, module: m21-journal, severity: elevated, reason_required: false }
   - { code: JOURNAL_POSTING_REQUEST_CANCELLED, module: m21-journal, severity: elevated, reason_required: true }
   - { code: JOURNAL_POSTING_RESULT_RECORDED, module: m21-journal, severity: elevated, reason_required: false }
+
+  # --- m22-approval (Stage 3) — 23 codes; APPROVAL_ prefix; maker-checker + SoD (never approves on behalf of a human) -
+  - { code: APPROVAL_POLICY_CREATED, module: m22-approval, severity: normal, reason_required: false }
+  - { code: APPROVAL_POLICY_PUBLISHED, module: m22-approval, severity: elevated, reason_required: false }
+  - { code: APPROVAL_CONFIG_CREATED, module: m22-approval, severity: normal, reason_required: false }
+  - { code: APPROVAL_CONFIG_PUBLISHED, module: m22-approval, severity: elevated, reason_required: false }
+  - { code: APPROVAL_REASON_CODE_REGISTERED, module: m22-approval, severity: normal, reason_required: false }
+  - { code: APPROVAL_REQUEST_CREATED, module: m22-approval, severity: normal, reason_required: false }
+  - { code: APPROVAL_REQUEST_SUBMITTED, module: m22-approval, severity: normal, reason_required: false }
+  - { code: APPROVAL_REQUEST_APPROVED, module: m22-approval, severity: elevated, reason_required: false }
+  - { code: APPROVAL_REQUEST_REJECTED, module: m22-approval, severity: elevated, reason_required: true }
+  - { code: APPROVAL_REQUEST_RETURNED, module: m22-approval, severity: elevated, reason_required: true }
+  - { code: APPROVAL_REQUEST_CANCELLED, module: m22-approval, severity: elevated, reason_required: true }
+  - { code: APPROVAL_REQUEST_ESCALATED, module: m22-approval, severity: elevated, reason_required: false }
+  - { code: APPROVAL_DECISION_RECORDED, module: m22-approval, severity: elevated, reason_required: false }
+  - { code: APPROVAL_STEP_APPROVED, module: m22-approval, severity: normal, reason_required: false }
+  - { code: APPROVAL_STEP_REJECTED, module: m22-approval, severity: elevated, reason_required: false }
+  - { code: APPROVAL_DELEGATION_GRANTED, module: m22-approval, severity: elevated, reason_required: false }
+  - { code: APPROVAL_DELEGATION_REVOKED, module: m22-approval, severity: elevated, reason_required: true }
+  - { code: APPROVAL_ESCALATION_FIRED, module: m22-approval, severity: elevated, reason_required: false }
+  - { code: APPROVAL_NOTIFICATION_DISPATCHED, module: m22-approval, severity: normal, reason_required: false }
+  - { code: APPROVAL_OVERRIDE_APPLIED, module: m22-approval, severity: critical, reason_required: true }
+  - { code: APPROVAL_OUTCOME_RELEASED, module: m22-approval, severity: elevated, reason_required: false }
+  - { code: APPROVAL_SOD_BLOCKED, module: m22-approval, severity: critical, reason_required: false }
+  - { code: APPROVAL_TIMER_REGISTERED, module: m22-approval, severity: normal, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

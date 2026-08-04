@@ -1,0 +1,33 @@
+{
+  "name": "@finapp/m22-approval",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M22 — finance approval workflow (maker-checker + Segregation of Duties). The single lifecycle choke point for controlled finance actions (e.g. journal posting from m21): one aggregate, explicit valid transitions, transition reason codes, service-layer authorization, optimistic concurrency, idempotency, append-only status/decision history, audit, events, workflow + notification hooks, deterministic escalation, controlled cancellation + resubmission, terminal-state protection. It NEVER approves on behalf of a human, NEVER lets one identity both make and check a controlled action (SoD, DB CHECK), and NEVER builds a second workflow/timer/notification engine — it reuses m06 (workflow/SLA/timers + the ONE outbox) and m08 (notifications) through opaque references. It owns no journals (m21), no ledger/posting (m21/m23), no chart of accounts/periods (m19); subject/workflow/timer/notification/document refs are OPAQUE ids.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

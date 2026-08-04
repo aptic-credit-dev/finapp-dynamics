@@ -234,3 +234,13 @@ export type {
   PostingRequestLifecycleEventType,
   PostingRequestLifecyclePayload,
 } from './posting-request-events.ts';
+export {
+  APPROVAL_LIFECYCLE_FAMILY,
+  APPROVAL_LIFECYCLE_VERSION,
+  APPROVAL_LIFECYCLE_EVENT_TYPES,
+} from './approval-events.ts';
+export type {
+  ApprovalLifecycleEvent,
+  ApprovalLifecycleEventType,
+  ApprovalLifecyclePayload,
+} from './approval-events.ts';

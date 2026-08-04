@@ -261,7 +261,16 @@ namespaces:
              "journals.posting_request.cancel", "journals.posting_result.read", "journals.posting_result.record",
              "journals.reason_code.read", "journals.reason_code.manage", "journals.note.add",
              "journals.analytics.read", "journals.platform.administer"]}
-  - {namespace: "approvals.*", module: m22-approval, mvp: true, status: documented}
+  - {namespace: "approvals.*", module: m22-approval, mvp: true, status: implemented, substage: "3",
+     codes: ["approvals.policy.read", "approvals.policy.manage", "approvals.policy.publish",
+             "approvals.config.read", "approvals.config.manage", "approvals.config.publish",
+             "approvals.reason_code.read", "approvals.reason_code.manage", "approvals.request.read",
+             "approvals.request.create", "approvals.request.submit", "approvals.request.cancel",
+             "approvals.decision.approve", "approvals.decision.reject", "approvals.decision.return",
+             "approvals.decision.abstain", "approvals.decision.escalate", "approvals.decision.override",
+             "approvals.delegation.read", "approvals.delegation.manage", "approvals.assignment.read",
+             "approvals.escalation.manage", "approvals.note.add", "approvals.analytics.read",
+             "approvals.platform.administer"]}
   - {namespace: "ai.*", module: m24-ai-foundation, mvp: partial, status: documented}
   - {namespace: "reports.*", module: m10-report, mvp: true, status: documented}
   - {namespace: "analytics.*", module: m32-analytics, mvp: false, status: documented}

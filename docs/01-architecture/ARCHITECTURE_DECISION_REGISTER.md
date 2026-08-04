@@ -773,3 +773,62 @@ admin bypass secret; embedding credentials; unrestricted repeated admin creation
 **Decision:** the MVP is **draft-first**: m21 **prepares** an approval-gated `posting_request` and **records** `posting_result` evidence, but it **never pushes** an entry to a core banking / accounting / ERP system — that integration is **m23/m33 and POST-MVP**. The posting request/result tables, their state machines and the `posting_request.lifecycle` family exist so the downstream contract is expressible and the controls (ADR-095) are testable, but no external connector is invoked. Honouring the "never claim untested integrations are production-ready" prohibition, the external-posting capability ships as **Framework Only** until proven against real systems with confirmed posting contracts; a `posting_result` in the MVP is human/operator-recorded evidence, not the output of a live push.
 
 **Consequence:** the journal engine is complete and useful (recommend -> balanced draft -> validate -> submit for approval) without any unproven external integration masquerading as production-ready; posting can be switched on later behind m23/m33 without reshaping m21. Rejected: pushing to an external system in the MVP; marking the posting connector production-ready before it is proven; recording a posting success with no governed result evidence; deleting the posting tables until posting lands (the controls + contract are needed now).
+
+## ADR-097 — M22 is the single approval choke point; maker-checker + SoD is enforced in three layers (Stage 3)
+**Status:** **ACCEPTED** — 2026-08-04. Module `m22-approval`, branch `governance/approve-m22-approval`.
+
+**Decision:** every controlled finance action (e.g. posting an m21 journal) passes through **one** aggregate,
+`approval_request`, with an explicit state machine (`draft → pending → approved | rejected | returned`, plus
+`escalated` and terminal `cancelled`). There is **no direct status mutation**: every transition goes through a service
+that consults the lifecycle machine, appends history, and CAS-guards the write (optimistic concurrency / stale-version
+rejection). **Maker-checker + Segregation of Duties** is enforced in **three** layers — (1) a PURE engine (`engine.ts`)
+that fails **closed**, (2) `DecisionService`, which records an `approval_sod_check` and audits `APPROVAL_SOD_BLOCKED`
+on a block (never silent), and (3) DB CHECKs (`final_approver <> requested_by`; an `approve`/`override_approve` actor
+`<> maker`; `delegate <> delegator`). A request becomes `approved` only when the distinct-approver quorum is met **and**
+a final approver — provably not the maker — is named.
+
+**Consequence:** one identity can never both make and check a controlled action, and a refused controlled action is
+always auditable. Rejected: enforcing SoD only in application code; letting a request reach `approved` below quorum or
+with a self-approval; a second mutation path that bypasses the choke point.
+
+## ADR-098 — M22 reuses m06 (workflow + SLA + timers) and m08 (notifications) by opaque reference; escalation is single-fire and depth-bounded (Stage 3)
+**Status:** **ACCEPTED** — 2026-08-04. Module `m22-approval`, branch as ADR-097.
+
+**Decision:** m22 builds **no** second workflow, timer or notification engine. It records an m06 workflow instance
+(`approval_workflow_link`), registers m06 SLA timers (`approval_timer`) and dispatches m08 notifications
+(`approval_notification`) as **opaque references** only, and publishes `approval.lifecycle` through the **one** m06
+outbox (it owns none). Escalation is **deterministic** (a `Clock` port, no ambient `Date.now`), **single-fire** per
+`(request, step, to_level)` — enforced by `UNIQUE NULLS NOT DISTINCT`, load-bearing because a request-level escalation
+has `step_id IS NULL` and a plain UNIQUE lets NULLs through — and **depth-bounded** by a CHECK, in either notify-only or
+reassignment mode.
+
+**Consequence:** the platform keeps exactly one authoritative implementation of each shared service; escalation cannot
+double-fire or run away. Rejected: a per-module outbox/timer/notification engine; a standard UNIQUE for single-fire
+(NULL step ids would silently permit duplicates); unbounded escalation.
+
+## ADR-099 — The 24-table design: append-only decision/SoD/participant ledgers, and an outcome that releases the approval reference (Stage 3)
+**Status:** **ACCEPTED** — 2026-08-04. Module `m22-approval`, branch as ADR-097.
+
+**Decision:** m22 owns 24 FORCE-RLS tables — 6 mutable aggregates (policy, config, reason-code, request, request-step,
+delegation) and 18 append-only ledgers (all `*_history`, `approval_decision`, `approval_sod_check`,
+`approval_participant`, `approval_assignment`, `approval_escalation`, `approval_timer`, `approval_notification`,
+`approval_workflow_link`, `approval_idempotency`, `approval_note`, `approval_evidence`, `approval_outcome`,
+`approval_override`). The application role has **no DELETE** anywhere; ledgers are INSERT+SELECT only. `approval_outcome`
+records the terminal result and, for an approval, the **released approval reference** downstream modules (m21/m23) gate
+posting on — one outcome per request, and a released outcome must be an approval naming its final approver.
+
+**Consequence:** the decision trail, SoD evaluations and participant roles are immutable evidence; the downstream
+posting contract is expressible without m22 posting anything. Rejected: mutable decision rows; deriving the approval
+reference implicitly; releasing an outcome without a named approver.
+
+## ADR-100 — M22 never approves on behalf of a human and never posts; m23 is downstream, not a prerequisite (Stage 3)
+**Status:** **ACCEPTED** — 2026-08-04. Module `m22-approval`, branch as ADR-097.
+
+**Decision:** m22 assists, records and **enforces**; a **human** decides. It never approves, posts, files or reaches a
+conclusion on behalf of a person, and never pushes to a ledger/ERP/core system — m21/m23 post, gated on the approval
+reference m22 releases. The `subject_ref` is an **opaque** id owned by another module; m22 never reads that module's
+tables. m23 (finance integration) **consumes** m22 and is therefore **downstream**, not a build prerequisite.
+
+**Consequence:** the maker-checker guarantee holds end to end, and m22 can ship and be certified before m23 exists.
+Rejected: an AI/automation approval or posting path; treating m23 as a dependency of m22; m22 reading m21/m19 tables
+instead of using opaque references.

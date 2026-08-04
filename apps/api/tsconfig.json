@@ -42,6 +42,7 @@
     { "path": "../../packages/m19-finance" },
     { "path": "../../packages/m20-glrecon" },
     { "path": "../../packages/m21-journal" },
+    { "path": "../../packages/m22-approval" },
     { "path": "../../tools/test-runner" }
   ]
 }

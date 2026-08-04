@@ -176,7 +176,13 @@ family_groups:
      note: "Stage 3. Recommendation intake (m20 handoff) -> balanced draft (debits==credits) -> deterministic
             validation -> submit for approval (m22). posting_request.lifecycle registered but posting deferred
             (draft-first MVP). Ordering key = aggregate id (payload recordId); consumers dedupe on eventId."}
-  - {group: finance, families: [approval.lifecycle], mvp: true, status: documented, note: m22 approval (maker-checker + SoD); posting deferred}
+  - {group: finance, families: [approval.lifecycle], mvp: true, status: implemented,
+     version: 1, event_type_count: 16, classification: confidential,
+     note: "Stage 3. m22 finance approval workflow (maker-checker + SoD). The one lifecycle choke point for controlled
+            finance actions: RequestCreated -> RequestSubmitted -> DecisionRecorded/StepApproved -> RequestApproved +
+            OutcomeReleased (releases the approval reference m21/m23 gate posting on), or RequestRejected/Returned/
+            Cancelled/Escalated/Overridden/Delegated. Payloads carry ids/states/levels/decisions/reason codes/opaque
+            refs only — never subject narratives or secrets. Delivered through the ONE m06 outbox; m22 owns none."}
   - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}
   - {group: platform, families: [platform.lifecycle, studio.lifecycle, analytics.lifecycle], mvp: false, status: documented}
   - {group: integration, families: [connector.lifecycle, marketplace.lifecycle, devportal.lifecycle, webhook.lifecycle, eventstream.lifecycle, govrelease.lifecycle], mvp: false, status: documented}
