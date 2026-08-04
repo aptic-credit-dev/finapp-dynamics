@@ -571,7 +571,7 @@ stages:
                  docs/build/stages/STAGE_2_5_M09_DOCUMENTS_CERTIFICATION.md]
       - module: m04-admin
         capability: Admin console (tenant/user/role/config)
-        status: documented
+        status: approved_for_build   # governance/approve-m04-admin: documented -> approved_for_build. NEXT per BUILD_SEQUENCE: m04-admin is the FIRST unbuilt module in the whole sequence (Stage 1 tail, skipped during Stage 1); it is mvp:true and ALL its dependencies (m01/m02/m03/m06/m07/m08) are implemented+certified, with NO dependency gap. Preferred over m24-ai-foundation (Stage 5, mvp:partial) whose dependency m41-security is still documented/unbuilt. Naming reserved: /api/v1/admin, admin.*, ADMIN_ audit, NO event family (console over m01/m02/m03/m06/m07/m08).
         mvp: true
         api_ownership: [/api/v1/admin]
         shared_services_consumed: [m01, m02, m03, m06, m07, m08]
