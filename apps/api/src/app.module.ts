@@ -20,6 +20,7 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module.ts'
 import { GlReconciliationModule } from './gl-reconciliation/gl-reconciliation.module.ts';
 import { JournalsModule } from './journals/journals.module.ts';
 import { ApprovalsModule } from './approvals/approvals.module.ts';
+import { AdminModule } from './admin/admin.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -84,6 +85,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     GlReconciliationModule,
     JournalsModule,
     ApprovalsModule,
+    AdminModule,
   ],
   controllers: [HealthController],
   providers: [],

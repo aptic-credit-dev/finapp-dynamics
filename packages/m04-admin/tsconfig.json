@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": ".", "outDir": "./dist", "tsBuildInfoFile": "./dist/.tsbuildinfo" },
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "references": [
+    { "path": "../kernel" },
+    { "path": "../contracts" },
+    { "path": "../m01-tenant" },
+    { "path": "../m02-identity" },
+    { "path": "../m02-auth" },
+    { "path": "../m02-rbac" },
+    { "path": "../m03-audit" },
+    { "path": "../m06-workflow" },
+    { "path": "../m07-rules" },
+    { "path": "../m08-notify" },
+    { "path": "../../tools/test-runner" }
+  ]
+}

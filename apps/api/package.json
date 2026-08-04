@@ -36,6 +36,7 @@
     "@finapp/m15-recon": "*",
     "@finapp/m19-finance": "*",
     "@finapp/m22-approval": "*",
+    "@finapp/m04-admin": "*",
     "pg": "^8.13.1"
   },
   "devDependencies": {
