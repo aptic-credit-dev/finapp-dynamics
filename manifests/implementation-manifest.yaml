@@ -1091,6 +1091,38 @@ stages:
         tests_present: [m23-finance-integration.smoke, m23-finance-integration.db-spec, m23-services.db-spec]
         divergence_note: "module-registry reference_tables was a 3-table placeholder (m23 was never spec'd); actual Framework-Only foundation is 8 tables (ADR-101). naming-map's empty api/permission/event namespaces are intentionally preserved (no unproven surface claimed)."
         adrs: [ADR-101, ADR-102]
+        certification_3_m23:
+          module: m23-finance-integration
+          stage: "3"
+          branch: feature/stage-3-m23-finance-integration
+          certification_branch: cert/stage-3-m23-finance-integration
+          parent_baseline: 2f91fe2d0b4b9cf86b621a2bc8a602440a40f556   # main after governance PR #49 (m23 approved_for_build)
+          implementation_pr: 50
+          implementation_head: 0424ffac9da3ee4dfad1f5873bbe0c02ad48cacf   # reviewed head
+          implementation_merge_sha: 9b8bec95ee35f386ae629a40bceb3e120d6579b7   # squash merge onto main (1 parent)
+          merge_status: merged
+          merged_at: "2026-08-04T14:08:36Z"
+          tree_identical_to_reviewed_head: true   # git diff 0424ffa 9b8bec9 is empty (byte-identical)
+          ci_implementation: passed   # run 30916718937 head 0424ffa: Smoke + DB (PostgreSQL 16) both success
+          ci_main_push: passed        # main push 9b8bec9: Smoke + DB (PostgreSQL 16) both success
+          smoke_certification: passed_locally         # 27 suites, 5071 assertions, 0 failures (m23 smoke 51, conformance 2782)
+          postgresql_certification: passed_locally     # 56 db specs, 1808 assertions, 0 failures (PostgreSQL 15.2 throwaway; m23 db-spec 28 + m23-services 24)
+          lint: passed                                 # 0 errors (67 pre-existing baseline warnings; m23 adds none)
+          certification_status: certified_on_branch    # cert PR pending merge
+          framework_only: true
+          local_reverification: {tables_force_rls: 8, tenant_isolation_policies: 8, delete_grants: 0,
+                                 append_only_update_grants: 0, float_columns: 0, secret_value_columns: 0,
+                                 amount_minor_bigint: true, audit_codes: 12, gov_check_constraints: 7,
+                                 one_enabled_dest_index: true, outboxes: 1, db_specs: 56, db_assertions: 1808,
+                                 smoke_assertions: 5071, migrations: 42, postgres_version: "15.2",
+                                 clean_checkout: true, wiped_dist: true}
+          verdicts: {security: PASS, framework_only: PASS, secret_reference: PASS, m21_boundary: PASS,
+                     m22_boundary: PASS, m33_boundary: PASS, privacy: PASS, tenancy: PASS, contamination: CLEAN}
+          docs: [docs/04-modules/FINANCE_INTEGRATION.md,
+                 docs/build/stages/STAGE_3_M23_FINANCE_INTEGRATION_COMPLETION.md,
+                 docs/build/stages/STAGE_3_M23_FINANCE_INTEGRATION_CERTIFICATION.md]
+          # certification_pr recorded once the docs-only cert PR is opened.
+          stage_3_finance: complete   # m19 -> m15/m15a -> m20 -> m21 -> m22 -> m23 all implemented; m22/m23 certified_on_branch
 
   - stage: 4
     name: Legal
