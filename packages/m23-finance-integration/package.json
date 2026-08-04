@@ -1,0 +1,31 @@
+{
+  "name": "@finapp/m23-finance-integration",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M23 — finance integration foundation (FRAMEWORK ONLY / POST-MVP). Receives GOVERNED, already-approved posting intents (opaque m21 posting-request + m22 approval references) and records their integration EXECUTION against a configured external DESTINATION, with a Framework-Only lifecycle (prepared -> ready -> dispatched -> acknowledged | failed -> retryable -> exhausted | cancelled), bounded retry, append-only attempt/history evidence, external-reference mappings and an idempotency ledger. Because NO production connector exists, dispatch NEVER calls out — it records intent only (Framework Only, ADR-096). Destinations hold SECRET REFERENCES only (opaque vault refs; format-checked), NEVER credentials/secrets. It performs NO monetary transformation (amounts are carried as opaque bigint minor-unit evidence, never computed). It OWNS no journals or posting requests (m21), no approval decisions (m22), no GL/bank reconciliation (m20/m15), no chart of accounts (m19), no payments/AR/AP/treasury, no AI (m27), NO API surface, NO permission namespace, NO event family, and NO second outbox/workflow/timer/notification engine. Audit uses the FIN_ prefix (shared with m19, ADR-079; non-colliding).",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/test-runner": "*"
+  }
+}

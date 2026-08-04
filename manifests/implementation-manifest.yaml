@@ -1065,10 +1065,32 @@ stages:
           # certification_pr recorded once the docs-only cert PR is opened.
       - module: m23-finance-integration
         capability: Finance integration, QA & release
-        status: approved_for_build   # governance/approve-m23-finance-integration: documented -> approved_for_build (next per BUILD_SEQUENCE m22 -> m23; last Stage 3 module). NOTE for reviewer: m23 is mvp:false and Stage 3 defers posting to POST-MVP (ADR-096, Framework Only); its dep m33 (Integration Foundation, phase 6) is still `documented`/unbuilt; no m23 module spec exists yet. Naming-map is authoritative: m23 has NO api/permission/event namespaces and shares the FIN_ audit prefix with m19 (ADR-079) — it is NOT a new /api/v1/finance-integrations + finance_integration.* + FININT_ surface.
+        status: implemented   # Stage 3 — FRAMEWORK ONLY / POST-MVP foundation built on branch feature/stage-3-m23-finance-integration; 8 FORCE-RLS tables, 12 FIN_INTEGRATION_ audit codes, NO API/permission/event surface, NO second outbox; dispatch never calls out (ADR-096/101). Smoke + DB (PostgreSQL 16 CI) to certify post-merge.
         mvp: false
-        shared_services_consumed: [m19, m20, m21, m22, m33]
+        db_ownership: [integration_destination(versioned, one enabled per system_code+scope; secret_reference pointer only, no secret cols),
+                       integration_destination_history(append-only), integration_config(versioned, immutable-after-publish, idempotency-keyed;
+                       bounded retry defaults; allow-list always on), integration_execution(governed execution aggregate; Framework-Only lifecycle;
+                       opaque m21/m22 refs; bigint minor-unit evidence never transformed; no-dispatch-without-approval + bounded-retry CHECKs),
+                       integration_execution_history(append-only), integration_attempt(append-only; framework_only always true; bounded attempt_no),
+                       external_reference(append-only ack/failure/correlation mapping), integration_idempotency(append-only; unique per key)]
+        api_ownership: []   # naming-map authoritative: NO API surface (Framework-Only internal library)
+        event_ownership: []   # NO event family; publishes NO events; owns NO outbox
+        shared_services_consumed: [kernel, m01, m03]   # m19/m20/m21/m22 referenced by OPAQUE id only (no package dep, no table reads); m33 deferred
+        emits_events: []
+        consumes_events: []
+        permissions_required: []   # naming-map authoritative: NO permission namespace; RBAC-gated API deferred to the proven-integration phase (ADR-101)
+        audit_prefix: FIN_   # FIN_INTEGRATION_ codes; shared with m19 (ADR-079), non-colliding
+        hard_rules: [framework_only, secret_references_only, no_credential_columns, no_monetary_transformation, bounded_retry, idempotency, optimistic_concurrency, no_second_outbox_workflow_timer_notification_engine, no_external_call]
+        boundary: "Records the GOVERNED integration execution of already-approved posting intents (opaque m21 posting-request + m22 approval refs)
+                   against a configured external destination, FRAMEWORK ONLY — dispatch NEVER calls out (no connector; ADR-096/101), destinations
+                   hold secret REFERENCES only (never credentials; ADR-102), money is opaque bigint evidence never transformed. OWNS no journals/
+                   posting requests (m21), approval decisions (m22), GL/bank reconciliation (m20/m15), chart of accounts (m19), payments/AR/AP/
+                   treasury or AI (m27); NO API/permission/event surface; NO second outbox/workflow/timer/notification engine. m33 (Integration
+                   Foundation, phase 6) is an unbuilt dependency — a real connector is deferred behind the DispatchPort until proven."
         testing_required: [smoke, db_spec]
+        tests_present: [m23-finance-integration.smoke, m23-finance-integration.db-spec, m23-services.db-spec]
+        divergence_note: "module-registry reference_tables was a 3-table placeholder (m23 was never spec'd); actual Framework-Only foundation is 8 tables (ADR-101). naming-map's empty api/permission/event namespaces are intentionally preserved (no unproven surface claimed)."
+        adrs: [ADR-101, ADR-102]
 
   - stage: 4
     name: Legal
