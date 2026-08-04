@@ -1004,11 +1004,34 @@ stages:
           report: docs/build/stages/STAGE_3_M21_JOURNAL_CERTIFICATION.md
       - module: m22-approval
         capability: Finance approval workflow (maker-checker + SoD)
-        status: approved_for_build   # governance/approve-m22-approval: documented -> approved_for_build (next per BUILD_SEQUENCE m21 -> m22); deps m02/m03/m06/m19/m20/m21 implemented+certified; m23 is downstream (consumes m22), not a prerequisite
+        status: implemented   # Stage 3 — built on branch governance/approve-m22-approval; 24 FORCE-RLS tables, 25 permissions (12 privileged), 23 APPROVAL_ audit codes, approval.lifecycle (16 event types). Smoke + DB (PostgreSQL 16 CI) to certify post-merge.
         mvp: true
-        shared_services_consumed: [m06]
+        db_ownership: [approval_policy(versioned spec, one active per subject_type+scope), approval_policy_step(immutable spec),
+                       approval_policy_history(append-only), approval_config(versioned, immutable-after-publish, idempotency-keyed),
+                       approval_reason_code(configurable registry), approval_request(core aggregate; the maker-checker + SoD choke point;
+                       final_approver != requested_by CHECK; no-approval-without-quorum CHECK), approval_request_step(per-request step),
+                       approval_decision(append-only; maker != checker CHECK), approval_status_history(append-only),
+                       approval_step_history(append-only), approval_assignment(append-only), approval_delegation(delegate != delegator CHECK),
+                       approval_delegation_history(append-only), approval_sod_check(append-only SoD evidence), approval_participant(append-only
+                       distinct participant ledger), approval_escalation(append-only; single-fire + depth-bounded), approval_timer(append-only
+                       m06 SLA-timer link), approval_notification(append-only m08 dispatch), approval_workflow_link(append-only m06 instance
+                       link), approval_idempotency(append-only; unique per key), approval_note(append-only), approval_evidence(append-only m09
+                       refs), approval_outcome(append-only terminal + released approval ref), approval_override(append-only; SoD still applies)]
+        api_ownership: [/api/v1/approvals]
+        event_ownership: [approval.lifecycle]
+        shared_services_consumed: [kernel, m01, m02, m03, m06, m08]
+        emits_events: [approval.lifecycle (16 event types)]
+        consumes_events: []
         permissions_required: [approvals.*]
-        testing_required: [smoke, db_spec_sod]
+        hard_rules: [maker_checker, segregation_of_duties, terminal_state_protection, optimistic_concurrency, idempotency, no_second_workflow_timer_notification_engine]
+        audit_prefix: APPROVAL_   # 23 codes (incl. APPROVAL_SOD_BLOCKED — a refused controlled action is never silent)
+        boundary: "Owns the approval workflow ONLY. NEVER approves on behalf of a human (a human decides; m22 records + enforces), NEVER posts
+                   to a ledger/ERP (m21/m23 do, gated on the approval reference m22 releases), NEVER stands up a second workflow/timer/
+                   notification engine — reuses m06 (workflow + SLA + timers + the ONE outbox) and m08 (notifications) through OPAQUE refs.
+                   Owns no journals (m21), chart of accounts/periods (m19) or integration/posting (m23); subject/workflow/timer/notification/
+                   document refs are OPAQUE ids (no FK). m23 is downstream (consumes m22), not a prerequisite."
+        testing_required: [smoke, db_spec_sod, services_db_spec]
+        tests_present: [m22-approval.smoke (72), m22-approval.db-spec, m22-services.db-spec]
       - module: m23-finance-integration
         capability: Finance integration, QA & release
         status: documented
