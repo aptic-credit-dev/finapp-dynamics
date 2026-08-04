@@ -600,6 +600,37 @@ stages:
                           ship as tested library services in @finapp/m04-admin following the identical delegated pattern and are exposed
                           incrementally. No module spec pre-existed; see ADR-103."
         adrs: [ADR-103, ADR-104]
+        certification_1_m04:
+          module: m04-admin
+          stage: "1"
+          branch: feature/stage-1-m04-admin-console
+          certification_branch: cert/stage-1-m04-admin
+          parent_baseline: fed1c58e166e3389161134896dcfc3bf25e56f9d   # main after governance PR #52 (m04 approved_for_build)
+          implementation_pr: 53
+          implementation_head: e77f73db7ead4aa6add3d7bdb216d8c3aa58d40d   # reviewed head
+          implementation_merge_sha: e007437e231f0a21de3f1b61c1aa71499148d446   # squash merge onto main (1 parent)
+          merge_status: merged
+          merged_at: "2026-08-04T18:25:03Z"
+          tree_identical_to_reviewed_head: true   # git diff e77f73d e007437 is empty (byte-identical)
+          ci_implementation: passed   # run 30938009772 head e77f73d: Smoke + DB (PostgreSQL 16) both success
+          ci_main_push: passed        # main push e007437: Smoke + DB (PostgreSQL 16) both success
+          smoke_certification: passed_locally         # 28 suites, 5229 assertions, 0 failures (m04 smoke 37, conformance 2903)
+          postgresql_certification: passed_locally     # 58 db specs, 1853 assertions, 0 failures (PostgreSQL 15.2 throwaway; m04-admin 29 + m04-services 16)
+          lint: passed                                 # 0 errors
+          certification_status: certified_on_branch    # cert PR pending merge
+          orchestration_only: true
+          local_reverification: {tables_force_rls: 4, tenant_isolation_policies: 4, delete_grants: 0,
+                                 append_only_update_grants: 0, permissions: 30, privileged: 17, permissions_3seg: 30,
+                                 mirror_tables: 0, canonical_tables_once: true, audit_codes: 29, registered_code_count: 672,
+                                 operation_idempotency_index: true, outboxes: 1, db_specs: 58, db_assertions: 1853,
+                                 smoke_assertions: 5229, migrations: 44, postgres_version: "15.2", clean_checkout: true,
+                                 wiped_dist: true}
+          verdicts: {orchestration_only: PASS, audit: PASS, no_event_family: PASS, permissions_platform_vs_tenant: PASS,
+                     idempotency_concurrency: PASS, privacy_redaction: PASS, contamination: CLEAN}
+          documented_limitation: "Only the owned console + tenant-administration HTTP surface is wired; the remaining orchestration areas ship as tested library services and receive controllers incrementally."
+          docs: [docs/build/stages/STAGE_1_M04_ADMIN_CONSOLE_COMPLETION.md,
+                 docs/build/stages/STAGE_1_M04_ADMIN_CONSOLE_CERTIFICATION.md]
+          # certification_pr recorded once the docs-only cert PR is opened.
 
   - stage: 2
     name: Operational modules
