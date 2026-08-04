@@ -1065,7 +1065,7 @@ stages:
           # certification_pr recorded once the docs-only cert PR is opened.
       - module: m23-finance-integration
         capability: Finance integration, QA & release
-        status: documented
+        status: approved_for_build   # governance/approve-m23-finance-integration: documented -> approved_for_build (next per BUILD_SEQUENCE m22 -> m23; last Stage 3 module). NOTE for reviewer: m23 is mvp:false and Stage 3 defers posting to POST-MVP (ADR-096, Framework Only); its dep m33 (Integration Foundation, phase 6) is still `documented`/unbuilt; no m23 module spec exists yet. Naming-map is authoritative: m23 has NO api/permission/event namespaces and shares the FIN_ audit prefix with m19 (ADR-079) — it is NOT a new /api/v1/finance-integrations + finance_integration.* + FININT_ surface.
         mvp: false
         shared_services_consumed: [m19, m20, m21, m22, m33]
         testing_required: [smoke, db_spec]
