@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 631 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 643 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -82,6 +82,7 @@ prefixes:
   - { prefix: GLRECON_, module: m20-glrecon, mvp: true, prefix_provenance: derived }
   - { prefix: JOURNAL_, module: m21-journal, mvp: true, prefix_provenance: derived }
   - { prefix: APPROVAL_, module: m22-approval, mvp: true, prefix_provenance: derived }
+  - { prefix: FIN_, module: m23-finance-integration, mvp: false, prefix_provenance: shared_with_m19 }   # ADR-079: FIN_ shared with m19; m23 codes carry the FIN_INTEGRATION_ segment (non-colliding)
   # --- Stage 4 — Legal ---
   - { prefix: LEGAL_, module: m14-legal, mvp: partial, prefix_provenance: derived }
   - { prefix: LITIGATION_, module: m16-litigation, mvp: false, prefix_provenance: derived }
@@ -790,6 +791,21 @@ codes:
   - { code: APPROVAL_OUTCOME_RELEASED, module: m22-approval, severity: elevated, reason_required: false }
   - { code: APPROVAL_SOD_BLOCKED, module: m22-approval, severity: critical, reason_required: false }
   - { code: APPROVAL_TIMER_REGISTERED, module: m22-approval, severity: normal, reason_required: false }
+
+  # --- m23-finance-integration (Stage 3) — 12 codes; FIN_ prefix (FIN_INTEGRATION_ segment; shared with m19 per ADR-079,
+  #     non-colliding); FRAMEWORK ONLY (dispatch never calls out, secret references only, no monetary transformation) ---
+  - { code: FIN_INTEGRATION_DESTINATION_CONFIGURED, module: m23-finance-integration, severity: elevated, reason_required: false }
+  - { code: FIN_INTEGRATION_DESTINATION_ENABLED, module: m23-finance-integration, severity: elevated, reason_required: false }
+  - { code: FIN_INTEGRATION_DESTINATION_DISABLED, module: m23-finance-integration, severity: elevated, reason_required: false }
+  - { code: FIN_INTEGRATION_CONFIG_PUBLISHED, module: m23-finance-integration, severity: elevated, reason_required: false }
+  - { code: FIN_INTEGRATION_EXECUTION_PREPARED, module: m23-finance-integration, severity: normal, reason_required: false }
+  - { code: FIN_INTEGRATION_EXECUTION_DISPATCHED, module: m23-finance-integration, severity: elevated, reason_required: false }
+  - { code: FIN_INTEGRATION_EXECUTION_ACKNOWLEDGED, module: m23-finance-integration, severity: elevated, reason_required: false }
+  - { code: FIN_INTEGRATION_EXECUTION_FAILED, module: m23-finance-integration, severity: elevated, reason_required: false }
+  - { code: FIN_INTEGRATION_EXECUTION_RETRIED, module: m23-finance-integration, severity: normal, reason_required: false }
+  - { code: FIN_INTEGRATION_EXECUTION_EXHAUSTED, module: m23-finance-integration, severity: critical, reason_required: false }
+  - { code: FIN_INTEGRATION_EXECUTION_CANCELLED, module: m23-finance-integration, severity: elevated, reason_required: true }
+  - { code: FIN_INTEGRATION_EXTERNAL_REFERENCE_RECORDED, module: m23-finance-integration, severity: normal, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
