@@ -1510,7 +1510,7 @@ stages:
     modules:
       - module: m24-ai-foundation
         capability: AI gateway, model/prompt registries, RAG/vector, governance
-        status: documented
+        status: approved_for_build   # governance/approve-m24-ai-foundation: documented -> approved_for_build. NEXT per BUILD_SEQUENCE (Stage 5 AI: m24 -> m25..m29; m25-29 depend on m24). Stages 1-4 complete. Spec exists (docs/05-ai/ENTERPRISE_AI_FOUNDATION.md). 4/5 deps certified (m02/m03/m06/m09); NOTE for reviewer: (a) dep m41-security (Stage 6, mvp:false) is documented/UNBUILT — deferrable behind a security/DLP port (as m33 was for m23), integrate m41 when built; (b) mvp:partial + Stage 5 mvp_note "governed summaries/suggestions only; no AI-executed controlled actions ever"; (c) HARD RULES enforced: human_in_the_loop, confidence_and_citations, dlp, no_restricted_data_to_unapproved_providers — AI must NEVER approve/post/file/reach a legal conclusion or submit restricted data to unapproved providers (CLAUDE.md). Naming reserved: /api/v1/ai, ai.*, AI_ audit, ai.request_lifecycle/ai.output_lifecycle/ai.governance_lifecycle (registered).
         mvp: partial
         shared_services_consumed: [m02, m03, m06, m09, m41]
         permissions_required: [ai.*]
