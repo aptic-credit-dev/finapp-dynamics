@@ -66,6 +66,12 @@ import {
   APPROVAL_LIFECYCLE_FAMILY,
   APPROVAL_LIFECYCLE_EVENT_TYPES,
   APPROVAL_LIFECYCLE_VERSION,
+  AI_REQUEST_LIFECYCLE_FAMILY,
+  AI_REQUEST_LIFECYCLE_EVENT_TYPES,
+  AI_OUTPUT_LIFECYCLE_FAMILY,
+  AI_OUTPUT_LIFECYCLE_EVENT_TYPES,
+  AI_GOVERNANCE_LIFECYCLE_FAMILY,
+  AI_GOVERNANCE_LIFECYCLE_EVENT_TYPES,
 } from '@finapp/contracts';
 
 /**
@@ -81,8 +87,8 @@ import {
 export default defineSuite('contracts', (t) => {
   t.equal(
     DOMAIN_EVENT_FAMILIES.length,
-    21,
-    'Stage 3 declares twenty-one event families (m21 adds journal + posting_request; m22 adds approval)',
+    24,
+    'twenty-four event families (m21 journal + posting_request; m22 approval; m24 adds 3 AI families)',
   );
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
@@ -294,10 +300,27 @@ export default defineSuite('contracts', (t) => {
     'approval.lifecycle event types are unique',
   );
   t.ok(isValidEventFamily(APPROVAL_LIFECYCLE_FAMILY), 'approval.lifecycle satisfies the family pattern');
+
+  // m24-ai-foundation — three governed AI families (assistive only; never approve/post/execute).
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(AI_REQUEST_LIFECYCLE_FAMILY), 'ai.request_lifecycle is declared (5)');
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(AI_OUTPUT_LIFECYCLE_FAMILY), 'ai.output_lifecycle is declared (5)');
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(AI_GOVERNANCE_LIFECYCLE_FAMILY),
+    'ai.governance_lifecycle is declared (5)',
+  );
+  t.equal(AI_REQUEST_LIFECYCLE_EVENT_TYPES.length, 8, 'ai.request_lifecycle declares 8 event types');
+  t.equal(AI_OUTPUT_LIFECYCLE_EVENT_TYPES.length, 6, 'ai.output_lifecycle declares 6 event types');
+  t.equal(AI_GOVERNANCE_LIFECYCLE_EVENT_TYPES.length, 4, 'ai.governance_lifecycle declares 4 event types');
+  t.ok(
+    isValidEventFamily(AI_REQUEST_LIFECYCLE_FAMILY) &&
+      isValidEventFamily(AI_OUTPUT_LIFECYCLE_FAMILY) &&
+      isValidEventFamily(AI_GOVERNANCE_LIFECYCLE_FAMILY),
+    'AI families satisfy the family pattern',
+  );
   t.equal(
     DOMAIN_EVENT_FAMILIES[DOMAIN_EVENT_FAMILIES.length - 1],
-    APPROVAL_LIFECYCLE_FAMILY,
-    'approval.lifecycle is the newest family — appended at the tail',
+    AI_GOVERNANCE_LIFECYCLE_FAMILY,
+    'ai.governance_lifecycle is the newest family — appended at the tail',
   );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');

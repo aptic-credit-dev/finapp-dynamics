@@ -29,7 +29,7 @@ modules:
   - {code: m21-journal, name: Journal Engine (draft-only MVP), phase: 3, reference_tables: 18, mvp: true, status: implemented}
   - {code: m22-approval, name: Finance Approval Workflow, phase: 3, reference_tables: 24, mvp: true, status: implemented}
   - {code: m23-finance-integration, name: Finance integration/QA/release, phase: 3, reference_tables: 8, mvp: false, status: implemented}   # Framework-Only foundation; reference_tables 3->8 (actual, was an unspecified placeholder; see ADR-101)
-  - {code: m24-ai-foundation, name: Enterprise AI Foundation, phase: 5, reference_tables: 21, mvp: partial, status: documented}
+  - {code: m24-ai-foundation, name: Enterprise AI Foundation, phase: 5, reference_tables: 17, mvp: partial, status: implemented}   # MVP: gateway + registries + governed request/output (17 owned tables; RAG/vector deferred per spec); ADR-105/106
   - {code: m25-operational-ai, name: Operational AI, phase: 5, reference_tables: 9, mvp: partial, status: documented}
   - {code: m26-legal-ai, name: Legal AI, phase: 5, reference_tables: 11, mvp: false, status: documented}
   - {code: m27-finance-ai, name: Finance AI, phase: 5, reference_tables: 12, mvp: partial, status: documented}

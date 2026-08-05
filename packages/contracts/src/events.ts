@@ -38,6 +38,16 @@ import type { PostingRequestLifecycleEvent } from './posting-request-events.ts';
 import { POSTING_REQUEST_LIFECYCLE_FAMILY } from './posting-request-events.ts';
 import type { ApprovalLifecycleEvent } from './approval-events.ts';
 import { APPROVAL_LIFECYCLE_FAMILY } from './approval-events.ts';
+import type {
+  AiRequestLifecycleEvent,
+  AiOutputLifecycleEvent,
+  AiGovernanceLifecycleEvent,
+} from './ai-events.ts';
+import {
+  AI_REQUEST_LIFECYCLE_FAMILY,
+  AI_OUTPUT_LIFECYCLE_FAMILY,
+  AI_GOVERNANCE_LIFECYCLE_FAMILY,
+} from './ai-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -73,7 +83,10 @@ export type DomainEvent =
   | GlreconLifecycleEvent
   | JournalLifecycleEvent
   | PostingRequestLifecycleEvent
-  | ApprovalLifecycleEvent;
+  | ApprovalLifecycleEvent
+  | AiRequestLifecycleEvent
+  | AiOutputLifecycleEvent
+  | AiGovernanceLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -98,6 +111,9 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   JOURNAL_LIFECYCLE_FAMILY,
   POSTING_REQUEST_LIFECYCLE_FAMILY,
   APPROVAL_LIFECYCLE_FAMILY,
+  AI_REQUEST_LIFECYCLE_FAMILY,
+  AI_OUTPUT_LIFECYCLE_FAMILY,
+  AI_GOVERNANCE_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */
