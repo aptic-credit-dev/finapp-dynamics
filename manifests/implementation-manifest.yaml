@@ -1516,6 +1516,40 @@ stages:
         permissions_required: [ai.*]
         hard_rules: [human_in_the_loop, confidence_and_citations, dlp, no_restricted_data_to_unapproved_providers]
         testing_required: [smoke, db_spec]
+        certification_5_m24:
+          module: m24-ai-foundation
+          stage: "5"
+          branch: feature/stage-5-m24-ai-foundation
+          certification_branch: cert/stage-5-m24-ai-foundation
+          parent_baseline: ab686cd40ed0827b9e3499b2e8d094c522014b44   # main after governance PR #55 (m24 approved_for_build)
+          implementation_pr: 56
+          implementation_head: dfa84da05eb5d7ac65a39a91bca18d4ca8c4335e   # reviewed head
+          implementation_merge_sha: 22c3e032c2092b5c754942bf4027dd933501e311   # squash merge onto main (1 parent ab686cd)
+          merge_status: merged
+          merged_at: "2026-08-05T08:21:20Z"
+          tree_identical_to_reviewed_head: true   # git diff dfa84da 22c3e03 is empty (byte-identical)
+          ci_implementation: passed   # head dfa84da: Smoke + DB (PostgreSQL 16) both success
+          ci_main_push: passed        # main push 22c3e03: Smoke + DB (PostgreSQL 16) both success
+          smoke_certification: passed_locally         # 29 suites, 5403 assertions, 0 failures (m24 smoke 73, conformance 2994)
+          postgresql_certification: passed_locally     # 60 db specs, 1923 assertions, 0 failures (PostgreSQL 15.2 throwaway; m24-ai-foundation 41 + m24-services 29 + all api-* green)
+          lint: passed                                 # 0 errors (68 pre-existing baseline warnings; m24 adds none), wiped-dist
+          certification_status: certified_on_branch    # cert PR pending merge
+          governed_mvp: true
+          local_reverification: {tables_force_rls: 17, tenant_isolation_policies: 17, delete_grants: 0,
+                                 append_only_update_grants: 0, float_columns: 0, secret_value_columns: 0,
+                                 cost_minor_bigint: true, confidence_bps_integer: true, ai_permissions: 23,
+                                 ai_permissions_privileged: 10, gov_check_constraints: 10, outboxes: 1,
+                                 db_specs: 60, db_assertions: 1923, smoke_assertions: 5403, migrations: 46,
+                                 postgres_version: "15.2", clean_checkout: true, wiped_dist: true}
+          verdicts: {no_autonomous_action: PASS, dlp_before_routing: PASS, approved_provider_routing: PASS,
+                     human_review: PASS, citations: PASS, confidence_bps: PASS, usage_cost_no_float: PASS,
+                     secret_reference: PASS, permissions: PASS, tenancy: PASS, privacy: PASS,
+                     m41_boundary: PASS, single_outbox: PASS, contamination: CLEAN}
+          docs: [docs/05-ai/ENTERPRISE_AI_FOUNDATION.md,
+                 docs/build/stages/STAGE_5_M24_AI_FOUNDATION_COMPLETION.md,
+                 docs/build/stages/STAGE_5_M24_AI_FOUNDATION_CERTIFICATION.md]
+          # certification_pr recorded once the docs-only cert PR is opened.
+          stage_5_ai: m24_foundation_certified_on_branch   # next: M25 AI Governance & Orchestration (depends on m24)
       - module: m25-operational-ai
         capability: Operational AI (feedback/case)
         status: documented
