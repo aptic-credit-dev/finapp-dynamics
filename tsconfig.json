@@ -32,6 +32,7 @@
     { "path": "./packages/m22-approval" },
     { "path": "./packages/m23-finance-integration" },
     { "path": "./packages/m24-ai-foundation" },
+    { "path": "./packages/m25-operational-ai" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

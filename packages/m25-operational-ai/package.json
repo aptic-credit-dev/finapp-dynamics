@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m25-operational-ai",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M25 — Operational AI (Stage 5, GOVERNED MVP): AI assistance for Feedback (m12) and Case (m13) — summaries, sentiment, complaint/feedback classification, root-cause hints, suggested activities and routing/escalation recommendations — every one a human-reviewed SUGGESTION with confidence + citations. RECOMMENDS ONLY: it never closes, escalates, reassigns or resolves a controlled feedback/case item on its own (CLAUDE.md hard rules). It reuses the M24 governed AI gateway/registries + request->output->human-review pipeline BY CONTRACT (no second AI engine), references feedback/case subjects by OPAQUE id (reads no m12/m13 table), keeps restricted data on approved providers (m24 routing), audits every suggestion under the shared AI_ prefix, and owns NO second outbox and NO new event family (it reuses m24's ai.*_lifecycle events). Shares the m24 ai.* permission namespace.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m24-ai-foundation": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

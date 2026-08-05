@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 694 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 705 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -863,6 +863,18 @@ codes:
   - { code: AI_DLP_BLOCKED, module: m24-ai-foundation, severity: critical, reason_required: false }
   - { code: AI_USAGE_RECORDED, module: m24-ai-foundation, severity: normal, reason_required: false }
   - { code: AI_GOVERNANCE_CONTROL_UPDATED, module: m24-ai-foundation, severity: elevated, reason_required: false }
+  # M25 operational AI — shares the AI_ prefix (naming-map). 11 AI_OPS_* codes.
+  - { code: AI_OPS_SUBJECT_BOUND, module: m25-operational-ai, severity: normal, reason_required: false }
+  - { code: AI_OPS_ANALYSIS_REQUESTED, module: m25-operational-ai, severity: normal, reason_required: false }
+  - { code: AI_OPS_ANALYSIS_GENERATED, module: m25-operational-ai, severity: normal, reason_required: false }
+  - { code: AI_OPS_ANALYSIS_ACCEPTED, module: m25-operational-ai, severity: elevated, reason_required: false }
+  - { code: AI_OPS_ANALYSIS_REJECTED, module: m25-operational-ai, severity: elevated, reason_required: false }
+  - { code: AI_OPS_ANALYSIS_DISMISSED, module: m25-operational-ai, severity: normal, reason_required: false }
+  - { code: AI_OPS_ANALYSIS_FAILED, module: m25-operational-ai, severity: normal, reason_required: false }
+  - { code: AI_OPS_SUGGESTION_CREATED, module: m25-operational-ai, severity: normal, reason_required: false }
+  - { code: AI_OPS_SUGGESTION_DECIDED, module: m25-operational-ai, severity: elevated, reason_required: false }
+  - { code: AI_OPS_CONFIG_PUBLISHED, module: m25-operational-ai, severity: elevated, reason_required: false }
+  - { code: AI_OPS_EVIDENCE_RECORDED, module: m25-operational-ai, severity: normal, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
