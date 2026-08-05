@@ -279,12 +279,16 @@ namespaces:
              "approvals.delegation.read", "approvals.delegation.manage", "approvals.assignment.read",
              "approvals.escalation.manage", "approvals.note.add", "approvals.analytics.read",
              "approvals.platform.administer"]}
+  # Shared ai.* namespace: m24-ai-foundation registered the first 23 codes; m25-operational-ai (Stage 5) adds the
+  # 7 ai.operational.* / ai.suggestion.* codes (naming-map: m25 shares m24's namespace, adds no new one).
   - {namespace: "ai.*", module: m24-ai-foundation, mvp: partial, status: implemented, substage: "5",
      codes: ["ai.provider.read", "ai.provider.manage", "ai.provider.approve", "ai.model.read", "ai.model.manage",
              "ai.prompt.read", "ai.prompt.manage", "ai.prompt.publish", "ai.config.read", "ai.config.manage",
              "ai.dlp.read", "ai.dlp.manage", "ai.request.read", "ai.request.create", "ai.request.cancel",
              "ai.output.read", "ai.output.review", "ai.citation.add", "ai.usage.read", "ai.governance.read",
-             "ai.governance.manage", "ai.analytics.read", "ai.platform.administer"]}
+             "ai.governance.manage", "ai.analytics.read", "ai.platform.administer",
+             "ai.operational.read", "ai.operational.analyze", "ai.operational.review", "ai.operational.configure",
+             "ai.suggestion.read", "ai.suggestion.create", "ai.suggestion.decide"]}
   - {namespace: "reports.*", module: m10-report, mvp: true, status: documented}
   - {namespace: "analytics.*", module: m32-analytics, mvp: false, status: documented}
   - {namespace: "integration.*", module: m33-integration, mvp: false, status: documented}
