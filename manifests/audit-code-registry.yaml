@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 672 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 694 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -838,6 +838,31 @@ codes:
   - { code: FIN_INTEGRATION_EXECUTION_EXHAUSTED, module: m23-finance-integration, severity: critical, reason_required: false }
   - { code: FIN_INTEGRATION_EXECUTION_CANCELLED, module: m23-finance-integration, severity: elevated, reason_required: true }
   - { code: FIN_INTEGRATION_EXTERNAL_REFERENCE_RECORDED, module: m23-finance-integration, severity: normal, reason_required: false }
+
+  # --- m24-ai-foundation (Stage 5) — 22 codes; AI_ prefix; GOVERNED AI (assists only — never approves/posts/executes a
+  #     controlled action; DLP + confidence + citations + mandatory human review; no restricted data to unapproved providers) --
+  - { code: AI_PROVIDER_REGISTERED, module: m24-ai-foundation, severity: elevated, reason_required: false }
+  - { code: AI_PROVIDER_APPROVED, module: m24-ai-foundation, severity: critical, reason_required: false }
+  - { code: AI_MODEL_REGISTERED, module: m24-ai-foundation, severity: normal, reason_required: false }
+  - { code: AI_PROMPT_PUBLISHED, module: m24-ai-foundation, severity: elevated, reason_required: false }
+  - { code: AI_CONFIG_PUBLISHED, module: m24-ai-foundation, severity: elevated, reason_required: false }
+  - { code: AI_DLP_POLICY_PUBLISHED, module: m24-ai-foundation, severity: elevated, reason_required: false }
+  - { code: AI_REQUEST_RECEIVED, module: m24-ai-foundation, severity: normal, reason_required: false }
+  - { code: AI_REQUEST_DLP_CHECKED, module: m24-ai-foundation, severity: normal, reason_required: false }
+  - { code: AI_REQUEST_ROUTED, module: m24-ai-foundation, severity: normal, reason_required: false }
+  - { code: AI_REQUEST_COMPLETED, module: m24-ai-foundation, severity: elevated, reason_required: false }
+  - { code: AI_REQUEST_REJECTED, module: m24-ai-foundation, severity: elevated, reason_required: false }
+  - { code: AI_REQUEST_FAILED, module: m24-ai-foundation, severity: elevated, reason_required: false }
+  - { code: AI_REQUEST_CANCELLED, module: m24-ai-foundation, severity: normal, reason_required: true }
+  - { code: AI_OUTPUT_DRAFTED, module: m24-ai-foundation, severity: normal, reason_required: false }
+  - { code: AI_OUTPUT_VALIDATED, module: m24-ai-foundation, severity: normal, reason_required: false }
+  - { code: AI_OUTPUT_APPROVED, module: m24-ai-foundation, severity: elevated, reason_required: false }
+  - { code: AI_OUTPUT_REJECTED, module: m24-ai-foundation, severity: elevated, reason_required: false }
+  - { code: AI_HUMAN_REVIEW_RECORDED, module: m24-ai-foundation, severity: elevated, reason_required: false }
+  - { code: AI_CITATION_RECORDED, module: m24-ai-foundation, severity: normal, reason_required: false }
+  - { code: AI_DLP_BLOCKED, module: m24-ai-foundation, severity: critical, reason_required: false }
+  - { code: AI_USAGE_RECORDED, module: m24-ai-foundation, severity: normal, reason_required: false }
+  - { code: AI_GOVERNANCE_CONTROL_UPDATED, module: m24-ai-foundation, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

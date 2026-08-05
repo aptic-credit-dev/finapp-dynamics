@@ -183,7 +183,7 @@ family_groups:
             OutcomeReleased (releases the approval reference m21/m23 gate posting on), or RequestRejected/Returned/
             Cancelled/Escalated/Overridden/Delegated. Payloads carry ids/states/levels/decisions/reason codes/opaque
             refs only — never subject narratives or secrets. Delivered through the ONE m06 outbox; m22 owns none."}
-  - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: documented}
+  - {group: ai, families: [ai.request_lifecycle, ai.output_lifecycle, ai.governance_lifecycle], mvp: partial, status: implemented, note: "m24 governed AI (assists only; never approves/posts/executes); 18 event types across 3 families; delivered through the one m06 outbox"}
   - {group: platform, families: [platform.lifecycle, studio.lifecycle, analytics.lifecycle], mvp: false, status: documented}
   - {group: integration, families: [connector.lifecycle, marketplace.lifecycle, devportal.lifecycle, webhook.lifecycle, eventstream.lifecycle, govrelease.lifecycle], mvp: false, status: documented}
   - {group: automation, families: [automation.lifecycle, extension.lifecycle], mvp: false, status: documented}

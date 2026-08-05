@@ -244,3 +244,23 @@ export type {
   ApprovalLifecycleEventType,
   ApprovalLifecyclePayload,
 } from './approval-events.ts';
+export {
+  AI_REQUEST_LIFECYCLE_FAMILY,
+  AI_REQUEST_LIFECYCLE_VERSION,
+  AI_REQUEST_LIFECYCLE_EVENT_TYPES,
+  AI_OUTPUT_LIFECYCLE_FAMILY,
+  AI_OUTPUT_LIFECYCLE_VERSION,
+  AI_OUTPUT_LIFECYCLE_EVENT_TYPES,
+  AI_GOVERNANCE_LIFECYCLE_FAMILY,
+  AI_GOVERNANCE_LIFECYCLE_VERSION,
+  AI_GOVERNANCE_LIFECYCLE_EVENT_TYPES,
+} from './ai-events.ts';
+export type {
+  AiRequestLifecycleEvent,
+  AiRequestLifecycleEventType,
+  AiOutputLifecycleEvent,
+  AiOutputLifecycleEventType,
+  AiGovernanceLifecycleEvent,
+  AiGovernanceLifecycleEventType,
+  AiLifecyclePayload,
+} from './ai-events.ts';

@@ -1,0 +1,33 @@
+{
+  "name": "@finapp/m24-ai-foundation",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M24 — enterprise AI foundation (Stage 5, GOVERNED MVP): the central, provider-agnostic AI gateway + model/prompt/DLP registries and a governed AI request -> output lifecycle with DLP, confidence, source citations, mandatory human review, usage/cost metering and approved-provider routing per data classification. AI ASSISTS ONLY — it summarises, classifies and recommends with confidence + citations; it NEVER approves, posts, files, reaches a legal conclusion or executes any controlled action, and it NEVER submits restricted data to an unapproved provider (human accountability preserved; CLAUDE.md hard rules). Production provider adapters are PROHIBITED — only deterministic test doubles ship (no provider secrets, no network calls, no lock-in); a provider holds a secret REFERENCE only. Large inputs/outputs/evidence are referenced through m09 documents (opaque ids), never stored inline. It reuses m02 (auth/RBAC), m03 (audit), m06 (workflow + the ONE outbox), m09 (documents) and — deferred behind a DLP/security port — m41. It owns NO controlled-action execution, NO second outbox and NO duplicate engine.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
