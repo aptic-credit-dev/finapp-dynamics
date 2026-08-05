@@ -1552,7 +1552,7 @@ stages:
           stage_5_ai: m24_foundation_certified_on_branch   # next: M25 AI Governance & Orchestration (depends on m24)
       - module: m25-operational-ai
         capability: Operational AI (feedback/case)
-        status: documented
+        status: approved_for_build   # governance/approve-m25-operational-ai: documented -> approved_for_build. NEXT per BUILD_SEQUENCE (Stage 5: m24 -> m25 -> m26..m29). m24-ai-foundation certified (cert PR #57 merged; main aefa3bb); deps m12-feedback + m13-case implemented+certified on main. REPO-AUTHORITATIVE identity OVERRIDES the prompt's "AI Governance & Orchestration" label (that is m29-ai-governance): m25 = Operational AI (feedback/case), mvp:partial, reference_tables 9, spec docs/05-ai/OPERATIONAL_AI.md. Naming (naming-map, authoritative): api_prefixes [] (NO new REST root), permission_namespaces ['ai.*'] (SHARES m24 — no new namespace), event_families [] (reuses m24 ai.request/output/governance_lifecycle), audit AI_ (shared w/ m24). GOVERNED (Stage 5 mvp_note): governed summaries/suggestions only, no AI-executed controlled actions ever; AI assists with confidence+citations, human decides (CLAUDE.md). Consumes m24 gateway/registries + m12 feedback + m13 case BY CONTRACT; NO 2nd AI engine, NO 2nd outbox.
         mvp: partial
         shared_services_consumed: [m24, m12, m13]
         testing_required: [smoke, db_spec]
