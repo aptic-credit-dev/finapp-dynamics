@@ -1590,7 +1590,7 @@ stages:
           stage_5_ai: m25_operational_certified_on_branch   # next: M26 Credit/Legal AI (m26-legal-ai per BUILD_SEQUENCE)
       - module: m26-legal-ai
         capability: Legal AI
-        status: documented
+        status: approved_for_build   # governance/approve-m26-legal-ai: documented -> approved_for_build. NEXT per BUILD_SEQUENCE (Stage 5: m24 -> m25 -> m26 -> m27..m29). m25-operational-ai certified (cert PR #60 merged; main 92102b0); deps m24-ai-foundation + m14-legal implemented+certified on main. REPO TRUTH CORRECTION: the prompt's "M26 Credit AI" has NO repository module — there is NO Credit-AI module anywhere; m26 = Legal AI (m26-legal-ai). NOTE mvp:false (NON-MVP; Stage 5 mvp_note "governed summaries/suggestions only, no AI-executed controlled actions ever" still binds). reference_tables 11, spec docs/05-ai/LEGAL_AI.md. Naming (naming-map authoritative): api_prefixes [] (NO new REST root), permission_namespaces ['ai.*'] (SHARES m24 — no new namespace), event_families [] (reuses m24 ai.*_lifecycle), audit AI_ (shared). GOVERNED: AI assists on legal matters with confidence+citations; a human decides — AI must NEVER approve/file/reach a legal conclusion (CLAUDE.md). Consumes m24 gateway/registries + m14 legal-matter BY CONTRACT; NO 2nd AI engine, NO 2nd outbox.
         mvp: false
         shared_services_consumed: [m24, m14]
         testing_required: [smoke, db_spec]
