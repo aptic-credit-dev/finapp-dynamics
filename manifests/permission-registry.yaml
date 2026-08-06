@@ -288,7 +288,9 @@ namespaces:
              "ai.output.read", "ai.output.review", "ai.citation.add", "ai.usage.read", "ai.governance.read",
              "ai.governance.manage", "ai.analytics.read", "ai.platform.administer",
              "ai.operational.read", "ai.operational.analyze", "ai.operational.review", "ai.operational.configure",
-             "ai.suggestion.read", "ai.suggestion.create", "ai.suggestion.decide"]}
+             "ai.suggestion.read", "ai.suggestion.create", "ai.suggestion.decide",
+             "ai.legal.read", "ai.legal.analyze", "ai.legal.review", "ai.legal.configure", "ai.legal.export",
+             "ai.privileged.read"]}
   - {namespace: "reports.*", module: m10-report, mvp: true, status: documented}
   - {namespace: "analytics.*", module: m32-analytics, mvp: false, status: documented}
   - {namespace: "integration.*", module: m33-integration, mvp: false, status: documented}
