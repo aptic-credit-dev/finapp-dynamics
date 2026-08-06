@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m26-legal-ai",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M26 — Legal AI (Stage 5, GOVERNED, mvp:false): AI assistance for the legal domain — matter/case summaries, chronology, issue/obligation/deadline extraction, clause analysis, evidence-gap detection and drafting assistance — every output a human-reviewed, citation-backed SUGGESTION. LEGAL-ADVISORY ONLY: it never files, never reaches a legal conclusion, never settles or enforces, never mutates a matter, and never exposes privileged/work-product data to unauthorized users (privilege + ethical-wall boundaries; CLAUDE.md hard rules). It reuses the M24 governed AI gateway/registries + request->output->human-review pipeline BY CONTRACT (no second AI engine, no provider/routing/DLP), references M14 legal matters + M09 documents by OPAQUE id (reads no m14/m09 table; M14 stays the legal source of truth), audits every action under the shared AI_ prefix (AI_LEGAL_*), shares the m24 ai.* permission namespace, and owns NO second outbox and NO new event family (M24 emits the ai.*_lifecycle events). No production provider, no network, no HTTP client, no SDK.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m24-ai-foundation": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

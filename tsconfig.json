@@ -33,6 +33,7 @@
     { "path": "./packages/m23-finance-integration" },
     { "path": "./packages/m24-ai-foundation" },
     { "path": "./packages/m25-operational-ai" },
+    { "path": "./packages/m26-legal-ai" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]
