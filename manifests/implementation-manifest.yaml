@@ -1594,6 +1594,47 @@ stages:
         mvp: false
         shared_services_consumed: [m24, m14]
         testing_required: [smoke, db_spec]
+        certification_5_m26:
+          module: m26-legal-ai
+          stage: "5"
+          governance_pr: 61
+          governance_merge_sha: 96bc00db0f63356fc981b809361b4a122b6925d1   # main after governance PR #61 (m26 approved_for_build)
+          branch: feature/stage-5-m26-legal-ai
+          certification_branch: cert/stage-5-m26-legal-ai
+          parent_baseline: 96bc00db0f63356fc981b809361b4a122b6925d1
+          implementation_pr: 62
+          implementation_head: fccbf8c8bd87ed979cc1699b0baf6859f0b377c0   # reviewed head
+          implementation_merge_sha: cbb8356c215eb15d35223d27ca285f0a0d6e3661   # squash merge onto main (1 parent 96bc00d)
+          merge_status: merged
+          merged_at: "2026-08-06T06:15:13Z"
+          tree_identical_to_reviewed_head: true   # git diff fccbf8c cbb8356 is empty (byte-identical)
+          ci_implementation: passed   # head fccbf8c: Smoke + DB (PostgreSQL 16) both success
+          ci_main_push: passed        # main push cbb8356: Smoke + DB (PostgreSQL 16) both success
+          smoke_certification: passed_locally         # 31 suites, 5609 assertions, 0 failures (m26 smoke 71, conformance 3072)
+          postgresql_certification: passed_locally     # 64 db specs, 2029 assertions, 0 failures (PostgreSQL 15.2 throwaway; m26-legal-ai 33 + m26-services 24 + all api-* green)
+          lint: passed                                 # 0 errors (68 pre-existing baseline warnings; m26 adds none), wiped-dist
+          certification_status: certified_on_branch    # cert PR pending merge
+          certification_head: pending                  # docs-only cert commit
+          certification_merge_sha: pending
+          governed_mvp: false
+          local_reverification: {tables: 11, tables_force_rls: 11, tenant_isolation_policies: 11, delete_grants: 0,
+                                 append_only_update_grants: 0, unsafe_tenant_fks: 0, float_columns: 0, secret_columns: 0,
+                                 confidence_bps_integer: true, version_columns: 4, ai_permissions: 6, gov_check_constraints: 7,
+                                 outboxes: 1, db_specs: 64, db_assertions: 2029, smoke_assertions: 5609, migrations: 50,
+                                 audit_registry_total: 719, postgres_version: "15.2", clean_checkout: true, wiped_dist: true}
+          verdicts: {m24_handoff: PASS, m14_boundary: PASS, m09_citation_boundary: PASS, privilege_confidentiality: PASS,
+                     ethical_walls: PASS, dlp: PASS, confidence: PASS, citations: PASS, legal_findings: PASS,
+                     suggestions: PASS, human_review: PASS, no_autonomous_legal_action: PASS, idempotency: PASS,
+                     concurrency: PASS, tenancy_rls: PASS, privacy: PASS, event_family_reuse: PASS, api_absence: PASS,
+                     m24_m14_m09_unmodified: PASS, contamination: CLEAN}
+          docs: [docs/05-ai/LEGAL_AI.md,
+                 docs/build/stages/STAGE_5_M26_LEGAL_AI_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_5_M26_LEGAL_AI_READINESS.md,
+                 docs/build/stages/STAGE_5_M26_LEGAL_AI_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_5_M26_LEGAL_AI_COMPLETION.md,
+                 docs/build/stages/STAGE_5_M26_LEGAL_AI_CERTIFICATION.md]
+          # certification_pr recorded once the docs-only cert PR is opened.
+          stage_5_ai: m26_legal_certified_on_branch   # next: M27 Finance AI (m27-finance-ai; NO auto-post) per BUILD_SEQUENCE
       - module: m27-finance-ai
         capability: Finance AI (recon suggestions; NO auto-post)
         status: documented
