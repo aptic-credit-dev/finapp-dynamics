@@ -1637,7 +1637,7 @@ stages:
           stage_5_ai: m26_legal_certified_on_branch   # next: M27 Finance AI (m27-finance-ai; NO auto-post) per BUILD_SEQUENCE
       - module: m27-finance-ai
         capability: Finance AI (recon suggestions; NO auto-post)
-        status: documented
+        status: approved_for_build   # governance/approve-m27-finance-ai: documented -> approved_for_build. NEXT per BUILD_SEQUENCE (Stage 5: m24 -> m25 -> m26 -> m27 -> m28..m29). m26-legal-ai certified (cert PR #63 merged; main 229c57e); deps m24-ai-foundation (certified) + m15-recon (implemented) + m20-glrecon (implemented) all present on main. mvp:partial, reference_tables 12, spec docs/05-ai/FINANCE_AI.md. Naming (naming-map authoritative): api_prefixes [] (NO new REST root), permission_namespaces ['ai.*'] (SHARES m24 — no new namespace), event_families [] (reuses m24 ai.*_lifecycle), audit AI_ (shared). HARD RULES [no_autopost, explainable_matches]: AI assists reconciliation/finance (match suggestions with confidence, transaction classification, anomaly detection, risk flagging, journal-recommendation drafting) — it NEVER auto-posts, NEVER approves; suggestions feed DRAFT journals + human approval only; matches are explainable; restricted data stays with approved providers (CLAUDE.md + ADR-007 decimal-safe money). Consumes m24 gateway/registries + m15 bank-recon + m20 GL-recon BY CONTRACT; NO 2nd AI engine, NO 2nd outbox, NO posting.
         mvp: partial
         shared_services_consumed: [m24, m15, m20]
         hard_rules: [no_autopost, explainable_matches]
