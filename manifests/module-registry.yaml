@@ -32,7 +32,7 @@ modules:
   - {code: m24-ai-foundation, name: Enterprise AI Foundation, phase: 5, reference_tables: 17, mvp: partial, status: implemented}   # MVP: gateway + registries + governed request/output (17 owned tables; RAG/vector deferred per spec); ADR-105/106
   - {code: m25-operational-ai, name: Operational AI, phase: 5, reference_tables: 9, mvp: partial, status: implemented}   # 9 owned ops_ai_* tables (governed suggestions over m12/m13 via m24 gateway BY CONTRACT; shares ai.*/AI_; no new API/event family)
   - {code: m26-legal-ai, name: Legal AI, phase: 5, reference_tables: 11, mvp: false, status: implemented}   # 11 owned legal_ai_* tables (governed, citation-backed legal suggestions over m14 via m24 gateway BY CONTRACT; privilege/ethical-wall; shares ai.*/AI_; no new API/event family)
-  - {code: m27-finance-ai, name: Finance AI, phase: 5, reference_tables: 12, mvp: partial, status: documented}
+  - {code: m27-finance-ai, name: Finance AI, phase: 5, reference_tables: 12, mvp: partial, status: implemented}   # 12 owned finance_ai_* tables (governed, explainable recon suggestions over m15/m20 via m24 gateway BY CONTRACT; NO auto-post/auto-match; shares ai.*/AI_; no new API/event family)
   - {code: m28-executive-ai, name: Executive Copilot, phase: 5, reference_tables: 7, mvp: partial, status: documented}
   - {code: m29-ai-governance, name: AI governance & release, phase: 5, reference_tables: 7, mvp: false, status: documented}
   - {code: m30-platform, name: Enterprise Platform Foundation (6A), phase: 6, reference_tables: 26, mvp: false, status: documented}

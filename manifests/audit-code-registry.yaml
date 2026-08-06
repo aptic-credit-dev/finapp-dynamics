@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 719 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 732 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -890,6 +890,20 @@ codes:
   - { code: AI_LEGAL_SUGGESTION_REVIEWED, module: m26-legal-ai, severity: elevated, reason_required: false }
   - { code: AI_LEGAL_PRIVILEGED_READ, module: m26-legal-ai, severity: critical, reason_required: false }
   - { code: AI_LEGAL_CONFIG_UPDATED, module: m26-legal-ai, severity: elevated, reason_required: false }
+  # M27 finance AI — shares the AI_ prefix (naming-map). 13 AI_FINANCE_* codes.
+  - { code: AI_FINANCE_SUBJECT_BOUND, module: m27-finance-ai, severity: normal, reason_required: false }
+  - { code: AI_FINANCE_ANALYSIS_REQUESTED, module: m27-finance-ai, severity: normal, reason_required: false }
+  - { code: AI_FINANCE_ANALYSIS_COMPLETED, module: m27-finance-ai, severity: normal, reason_required: false }
+  - { code: AI_FINANCE_ANALYSIS_BLOCKED, module: m27-finance-ai, severity: elevated, reason_required: false }
+  - { code: AI_FINANCE_ANALYSIS_ACCEPTED, module: m27-finance-ai, severity: elevated, reason_required: false }
+  - { code: AI_FINANCE_ANALYSIS_REJECTED, module: m27-finance-ai, severity: elevated, reason_required: false }
+  - { code: AI_FINANCE_ANALYSIS_DISMISSED, module: m27-finance-ai, severity: normal, reason_required: false }
+  - { code: AI_FINANCE_SUGGESTION_CREATED, module: m27-finance-ai, severity: normal, reason_required: false }
+  - { code: AI_FINANCE_SUGGESTION_REVIEWED, module: m27-finance-ai, severity: elevated, reason_required: false }
+  - { code: AI_FINANCE_EXCEPTION_CLASSIFIED, module: m27-finance-ai, severity: normal, reason_required: false }
+  - { code: AI_FINANCE_FEATURE_RECORDED, module: m27-finance-ai, severity: normal, reason_required: false }
+  - { code: AI_FINANCE_EVIDENCE_LINKED, module: m27-finance-ai, severity: normal, reason_required: false }
+  - { code: AI_FINANCE_CONFIG_UPDATED, module: m27-finance-ai, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
