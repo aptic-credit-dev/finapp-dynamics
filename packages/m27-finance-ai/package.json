@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m27-finance-ai",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M27 — Finance AI (Stage 5, GOVERNED, mvp:partial): AI assistance for reconciliation and finance — reconciliation match suggestions (with confidence), transaction/exception classification, anomaly detection, risk flagging and journal-recommendation drafting — every output a human-reviewed, EXPLAINABLE SUGGESTION. NEVER AUTO-POSTS, never approves, never auto-matches, never auto-reconciles, never closes an exception and never mutates a finance record; suggestions feed DRAFT journals + human approval only (CLAUDE.md no-autopost hard rule). It reuses the M24 governed AI gateway BY CONTRACT (no second AI engine, no provider/routing/DLP), references M15/M15a bank-recon + M20 GL-recon subjects by OPAQUE id (reads no m15/m20 table; matching stays owned by M15a, GL recon by M20), audits every action under the shared AI_ prefix (AI_FINANCE_*), shares the m24 ai.* permission namespace, and owns NO second outbox and NO new event family. Money is bigint minor units (never float, ADR-007); a suggestion is never a confirmed accounting fact. No production provider, no network, no HTTP client.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m24-ai-foundation": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
