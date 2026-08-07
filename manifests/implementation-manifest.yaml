@@ -1642,6 +1642,49 @@ stages:
         shared_services_consumed: [m24, m15, m20]
         hard_rules: [no_autopost, explainable_matches]
         testing_required: [smoke, db_spec]
+        certification_5_m27:
+          module: m27-finance-ai
+          stage: "5"
+          governance_pr: 64
+          governance_merge_sha: ccce6d6798c7bf2484d829e20b181ea88f98c7a1   # main after governance PR #64 (m27 approved_for_build)
+          branch: feature/stage-5-m27-finance-ai
+          certification_branch: cert/stage-5-m27-finance-ai
+          parent_baseline: ccce6d6798c7bf2484d829e20b181ea88f98c7a1
+          implementation_pr: 65
+          implementation_original_tree: e59d8d1d89d4e6abe840aa55ec1cd548ec7449fb   # original push
+          implementation_head: 8c87583076b8d09dde2f061c50760f859324aeda   # final reviewed head (empty CI-retrigger commit; byte-identical to e59d8d1)
+          implementation_merge_sha: 97795a294733fec491207a75b6d7ccdd22cb161d   # squash merge onto main (1 parent ccce6d6)
+          merge_status: merged
+          merged_at: "2026-08-07T08:36:43Z"
+          tree_identical_to_reviewed_head: true   # git diff 8c87583 97795a2 (and e59d8d1 97795a2) empty (byte-identical)
+          ci_implementation: passed   # head 8c87583: Smoke + DB (PostgreSQL 16) both success
+          ci_main_push: passed        # main push 97795a2: Smoke + DB (PostgreSQL 16) both success
+          ci_note: transient_repo_wide_actions_stall_2026-08-06_13:49Z_to_21:24Z; empty retrigger commit 8c87583 (byte-identical) produced the clean run; no code changed to obtain the pass
+          smoke_certification: passed_locally         # 32 suites, 5703 assertions, 0 failures (m27 smoke 57, conformance 3109)
+          postgresql_certification: passed_locally     # 66 db specs, 2086 assertions, 0 failures (PostgreSQL 15.2 throwaway; m27-finance-ai 34 + m27-services 23 + all api-* green)
+          lint: passed                                 # 0 errors (68 pre-existing baseline warnings; m27 adds none)
+          certification_status: certified_on_branch    # cert PR pending merge
+          certification_head: pending                  # docs-only cert commit
+          certification_merge_sha: pending
+          governed_mvp: partial
+          local_reverification: {tables: 12, tables_force_rls: 12, tenant_isolation_policies: 12, delete_grants: 0,
+                                 append_only_update_grants: 0, unsafe_tenant_fks: 0, float_columns: 0, secret_columns: 0,
+                                 amount_minor_bigint: true, confidence_bps_integer: true, version_columns: 4,
+                                 ai_permissions: 5, gov_check_constraints: 6, outboxes: 1, db_specs: 66, db_assertions: 2086,
+                                 smoke_assertions: 5703, migrations: 52, audit_registry_total: 732, postgres_version: "15.2",
+                                 clean_checkout: true}
+          verdicts: {no_autopost: PASS, no_auto_match: PASS, explainability: PASS, money_safety: PASS, human_review: PASS,
+                     m24_boundary: PASS, m15_m15a_boundary: PASS, m20_boundary: PASS, rls_tenancy: PASS, privacy: PASS,
+                     idempotency_concurrency: PASS, permissions: PASS, audit: PASS, event_family_reuse: PASS,
+                     api_absence: PASS, m24_m15_m20_unmodified: PASS, contamination: CLEAN}
+          docs: [docs/05-ai/FINANCE_AI.md,
+                 docs/build/stages/STAGE_5_M27_FINANCE_AI_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_5_M27_FINANCE_AI_READINESS.md,
+                 docs/build/stages/STAGE_5_M27_FINANCE_AI_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_5_M27_FINANCE_AI_COMPLETION.md,
+                 docs/build/stages/STAGE_5_M27_FINANCE_AI_CERTIFICATION.md]
+          # certification_pr recorded once the docs-only cert PR is opened.
+          stage_5_ai: m27_finance_certified_on_branch   # next: M28 Executive Copilot (m28-executive-ai) per BUILD_SEQUENCE
       - module: m28-executive-ai
         capability: Executive Copilot (read-only, cited)
         status: documented
