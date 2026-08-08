@@ -1916,7 +1916,33 @@ stages:
       #   G-f SECRETS: any secret-bearing design value carries an m30 secretref: pointer only; never inline a secret in a definition.
       # Maker-checker: publish/release of a Studio artifact is a controlled action (approver != author). Deps m02/m03/m06/m07/m08/
       # m09/m30 all implemented+certified on main; no unbuilt HARD dep (m33 deferred behind port). GOVERNANCE-ONLY: status flip only.
-      - {module: m31-studio, capability: Workflow/BPM/Forms/Rules Studio (6B), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
+      # IMPLEMENTED (Stage 6B, 2026-08-08). All reviewer gaps above resolved: G-a studio.* namespace (ADR-118, 9 codes);
+      # G-b forms canonical ownership assigned (ADR-117 + SHARED_SERVICE_OWNERSHIP); G-c design-vs-runtime boundary
+      # (ADR-117 — binds to m06/m07, no duplicate engine/table); G-d no arbitrary code (reuses m06 sandbox + m07
+      # conditions, prohibited-expression + secret scan, fail closed); G-e m33 deferred behind a fail-closed port;
+      # G-f secretref-only. Publish is a controlled action (maker-checker/SoD, human approver); published version immutable.
+      - module: m31-studio
+        capability: Workflow/BPM/Forms/Rules Studio (6B)
+        status: implemented
+        mvp: false
+        testing_required: [smoke, db_spec]
+        implementation_6_m31:
+          adrs: [ADR-117, ADR-118]
+          tables: 9
+          reconciliation: "reference_tables 25 (full reference baseline) -> 9 governed tables; design-time layer binds to canonical m06/m07 runtime"
+          permission_namespace: "studio.* (9 codes, 5 privileged, all 3-segment)"
+          audit_prefix: STUDIO_
+          audit_codes: 14
+          event_family: studio.lifecycle
+          event_types: 6
+          outboxes: 0
+          api_prefixes: []
+          second_engine: none
+          secret_value_columns: 0
+          floats: 0
+          binds_to: [m06-workflow, m07-rules]
+          integration_boundary: "m33 deferred behind fail-closed IntegrationCapabilityCatalogPort"
+          branch: feature/stage-6-m31-studio
       - {module: m32-analytics, capability: Reporting & analytics builder (6C), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m33-integration, capability: Integration foundation (6D-1), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: documented, mvp: false, testing_required: [smoke, db_spec]}
