@@ -37,6 +37,7 @@
     { "path": "./packages/m27-finance-ai" },
     { "path": "./packages/m28-executive-ai" },
     { "path": "./packages/m29-ai-governance" },
+    { "path": "./packages/m30-platform" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]
