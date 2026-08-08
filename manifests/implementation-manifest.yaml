@@ -1896,7 +1896,27 @@ stages:
                      idempotency_concurrency: PASS, tenancy_platform_authority: PASS, privacy: PASS, contamination: CLEAN}
           docs: [docs/build/stages/STAGE_6_M30_PLATFORM_CERTIFICATION.md]
           stage_6: m30_platform_certified_on_branch   # FIRST Stage-6 module certified on branch; next per BUILD_SEQUENCE is m31-studio (6B) — NOT started
-      - {module: m31-studio, capability: Workflow/BPM/Forms/Rules Studio (6B), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      # m31-studio APPROVED FOR BUILD (Stage 6B governance, 2026-08-08). Studio is the design-time AUTHORING/publish
+      # layer only; it MUST NOT become a second runtime engine. Canonical runtime owners stay: m06 workflow (already owns
+      # workflow_definition/_version + workflow.definition.* authoring/publish + execution), m07 rules (owns
+      # rule_set/_version + rules.engine.author/publish + evaluation), m08 notifications, m30 config/feature-flags/secret-
+      # reference seam. Studio CONSUMES/BINDS these by contract (like m04-admin orchestrates) — no duplicate
+      # workflow_definition or rule_set table, no second outbox (reuse m06), studio.lifecycle = DESIGN-TIME events only.
+      # Reviewer gaps to resolve at build via ADR + SHARED_SERVICE_OWNERSHIP (non-blocking, precedent m30 GAP-2/GAP-5):
+      #   G-a PERMISSION NAMESPACE: naming-map permission_namespaces:[] (same shape as m30 GAP-2). Declare studio.* (3-seg,
+      #       default-deny) so every controlled design/validate/publish/bind op authorizes a permission; no studio.admin wildcard.
+      #   G-b FORMS OWNERSHIP: no canonical form/schema capability exists anywhere (only m12 feedback_questionnaire, a feedback
+      #       table). m31 MAY become the canonical owner of reusable form/schema definitions — record in SHARED_SERVICE_OWNERSHIP + ADR.
+      #   G-c DESIGN-vs-RUNTIME SECOND-ENGINE risk: m06/m07 already own their own definition authoring+publish. ADR must fix the
+      #       boundary (Studio authors design-artifacts that bind to m06/m07 definitions; it does not re-implement them).
+      #   G-d HIGH-RISK EXECUTION SURFACE: NO arbitrary code / expression / SQL / shell execution. Reuse m06's sandboxed expression
+      #       evaluation + m07's rule engine; registered capabilities/extension points only (per Phase-6 guarantee). Fail closed.
+      #   G-e INTEGRATION BOUNDARY: m33-integration is canonical + UNBUILT — connector/action nodes are opaque references only,
+      #       deferred behind a port until m33 (port-first, precedent m28→m32, m30→m41). Do NOT build m33.
+      #   G-f SECRETS: any secret-bearing design value carries an m30 secretref: pointer only; never inline a secret in a definition.
+      # Maker-checker: publish/release of a Studio artifact is a controlled action (approver != author). Deps m02/m03/m06/m07/m08/
+      # m09/m30 all implemented+certified on main; no unbuilt HARD dep (m33 deferred behind port). GOVERNANCE-ONLY: status flip only.
+      - {module: m31-studio, capability: Workflow/BPM/Forms/Rules Studio (6B), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m32-analytics, capability: Reporting & analytics builder (6C), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m33-integration, capability: Integration foundation (6D-1), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: documented, mvp: false, testing_required: [smoke, db_spec]}
