@@ -44,6 +44,8 @@
     { "path": "../../packages/m21-journal" },
     { "path": "../../packages/m22-approval" },
     { "path": "../../packages/m04-admin" },
+    { "path": "../../packages/m24-ai-foundation" },
+    { "path": "../../packages/m28-executive-ai" },
     { "path": "../../tools/test-runner" }
   ]
 }

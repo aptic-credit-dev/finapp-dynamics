@@ -37,6 +37,8 @@
     "@finapp/m19-finance": "*",
     "@finapp/m22-approval": "*",
     "@finapp/m04-admin": "*",
+    "@finapp/m24-ai-foundation": "*",
+    "@finapp/m28-executive-ai": "*",
     "pg": "^8.13.1"
   },
   "devDependencies": {
