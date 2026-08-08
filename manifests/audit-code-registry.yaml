@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 768 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 782 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -949,6 +949,22 @@ codes:
   - { code: PLATFORM_SECRET_REFERENCE_ROTATED, module: m30-platform, severity: elevated, reason_required: false }
   - { code: PLATFORM_SECRET_REFERENCE_REVOKED, module: m30-platform, severity: elevated, reason_required: false }
   - { code: PLATFORM_SECRET_REFERENCE_ACCESSED, module: m30-platform, severity: critical, reason_required: false }
+  # M31 Studio (Stage 6B) — STUDIO_ prefix. 14 STUDIO_* codes; design-time authoring/validation/review/publish/bind.
+  # Payloads carry ids/keys/kinds/scopes/states/reason codes only — never a design spec, a form field or a secret value.
+  - { code: STUDIO_PROJECT_CREATED, module: m31-studio, severity: normal, reason_required: false }
+  - { code: STUDIO_PROJECT_UPDATED, module: m31-studio, severity: normal, reason_required: false }
+  - { code: STUDIO_ARTIFACT_CREATED, module: m31-studio, severity: normal, reason_required: false }
+  - { code: STUDIO_ARTIFACT_VERSION_CREATED, module: m31-studio, severity: normal, reason_required: false }
+  - { code: STUDIO_ARTIFACT_VALIDATED, module: m31-studio, severity: normal, reason_required: false }
+  - { code: STUDIO_ARTIFACT_VALIDATION_FAILED, module: m31-studio, severity: elevated, reason_required: false }
+  - { code: STUDIO_REVIEW_REQUESTED, module: m31-studio, severity: normal, reason_required: false }
+  - { code: STUDIO_ARTIFACT_PUBLISHED, module: m31-studio, severity: elevated, reason_required: false }
+  - { code: STUDIO_REVIEW_REJECTED, module: m31-studio, severity: elevated, reason_required: false }
+  - { code: STUDIO_ARTIFACT_SUPERSEDED, module: m31-studio, severity: normal, reason_required: false }
+  - { code: STUDIO_ARTIFACT_ARCHIVED, module: m31-studio, severity: normal, reason_required: false }
+  - { code: STUDIO_BINDING_CREATED, module: m31-studio, severity: elevated, reason_required: false }
+  - { code: STUDIO_PUBLISH_BLOCKED, module: m31-studio, severity: elevated, reason_required: false }
+  - { code: STUDIO_SOD_BLOCKED, module: m31-studio, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
