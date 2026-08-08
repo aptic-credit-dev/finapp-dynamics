@@ -1858,7 +1858,44 @@ stages:
                  docs/build/stages/STAGE_6_M30_PLATFORM_READINESS.md,
                  docs/build/stages/STAGE_6_M30_PLATFORM_IMPLEMENTATION_PLAN.md,
                  docs/build/stages/STAGE_6_M30_PLATFORM_COMPLETION.md]
-          stage_6: m30_platform_implemented_on_branch   # FIRST Stage-6 module built; next per BUILD_SEQUENCE is m31-studio (6B) — NOT started   # governance/approve-m30-platform: documented -> approved_for_build. FIRST Stage-6 module per BUILD_SEQUENCE (Stage 6: m30 -> m31 -> ... -> m42). Stage 5 AI (m24..m29) COMPLETE + certified on main (m29 cert PR #72 merged; main aebbe78). Scope (docs/03-platform/ENTERPRISE_PLATFORM_PHASE_6.md 6A): Platform foundation = metadata, config, feature flags, secrets SEAM; reference_tables 26; mvp:false (post-MVP horizontal platform). Depends on Stage 1 (all certified); no later-stage dependency. Naming (naming-map authoritative): api_prefixes [] (no REST surface declared — internal platform library unless the implementer adds an admin API), permission_namespaces [] (**GAP-2**), event_families [platform.lifecycle] (registered, m30-owned), audit PLATFORM_. Reuses m06 outbox / m03 audit / m02 RBAC (owns NO 2nd engine). GOVERNANCE GAPS FOR IMPLEMENTER (flagged, resolve BEFORE/AT build — none blocks the status flip, per precedent m19/m28 approved with open gaps): (a) **GAP-2 (permission namespace):** m30 has permission_namespaces [] — declare a platform.* namespace (or reuse) so every controlled config/flag/secret-seam operation authorizes a permission (default deny), OR a naming ADR; (b) **GAP-5 (SECOND-ENGINE / feature-flag ownership):** feature flags are claimed by BOTH m04-admin (Stage 1, BUILT) and m30-platform — m30 MUST NOT create a second feature-flag service; reconcile ownership via ADR + SHARED_SERVICE_OWNERSHIP.md (ONE canonical engine per capability); (c) **secrets SEAM boundary:** m30's "secrets seam" overlaps m24 (secret REFERENCES) + m41-security (secrets/key management, 6H) — m30 owns only the SEAM/pointer, stores no secret value (no secret column), defers real secret/key mgmt to m41 behind a port. NO 2nd outbox/workflow/timer/notification/audit/RBAC engine; no production provider; no autonomous controlled action.
+          stage_6: m30_platform_implemented_on_branch   # FIRST Stage-6 module built; next per BUILD_SEQUENCE is m31-studio (6B) — NOT started
+        certification_6_m30:
+          module: m30-platform
+          stage: "6A"
+          governance_pr: 73
+          governance_merge_sha: 3fc66fb8dfb5d312cd642ed1c24dd72e9e5d9fc1
+          implementation_pr: 74
+          reviewed_implementation_head: 98c4331f7cb54792c678e223d5702df310ca9c96
+          implementation_merge_sha: 2acb1700a8e89f3f9747cb1a7c152eb3dcdbfff8   # squash onto main (single parent 3fc66fb)
+          merge_status: merged
+          merged_at: "2026-08-08T12:59:22Z"
+          tree_identical_to_reviewed_head: true   # git diff 98c4331 2acb170 EMPTY (byte-identical)
+          parent_baseline: 3fc66fb8dfb5d312cd642ed1c24dd72e9e5d9fc1
+          certification_baseline: 2acb1700a8e89f3f9747cb1a7c152eb3dcdbfff8   # merged main
+          certification_branch: cert/stage-6-m30-platform
+          ci_implementation: passed   # reviewed head 98c4331: Smoke + DB (PostgreSQL 16) both success
+          smoke_certification: passed_locally         # 35 suites, 6016 assertions, 0 failures (m30 41, conformance 3227)
+          postgresql_certification: passed_locally     # 73 db specs, 2281 assertions, 0 failures (PostgreSQL 15.2 throwaway; m30-platform 32 + m30-services 23 + all prior green)
+          lint: passed                                 # 0 errors (68 pre-existing baseline warnings; m30 adds none)
+          certification_status: certified_on_branch    # cert PR pending merge
+          certification_head: pending                  # docs-only cert commit
+          certification_merge_sha: pending
+          gap5_verdict: PASS   # feature flags never implemented; m04-admin orchestration-only (0 feature tables, unmodified); m30 canonical owner; m04 consumes by contract; no duplicate engine (ADR-115)
+          gap2_verdict: PASS   # platform.* namespace, 9 codes all 3-segment, 6 privileged, platform.control.administer control-plane, no platform.admin/wildcard, default deny (ADR-115)
+          secret_seam_verdict: PASS   # 0 secret-value columns (opaque secret_ref pointers + secret_bearing flag only); secretref: shape CHECK; fail-closed SecretResolver double; real key mgmt = m41 (ADR-116)
+          reference_table_reconciliation: {registry_baseline: 26, implemented_governed_core: 10, documented: true}
+          local_reverification: {tables: 10, tables_force_rls: 10, tenant_isolation_policies: 10, composite_fks: 3, unsafe_tenant_fks: 0,
+                                 delete_grants: 0, append_only_update_grants: 0, append_only_ledgers: 4, gov_check_constraints: 25,
+                                 version_columns: 6, float_columns: 0, secret_value_columns: 0, permissions: 9, privileged_permissions: 6,
+                                 audit_codes: 11, audit_registry_total: 768, event_families_new: 1, event_types: 8, outboxes: 1, http_routes: 0,
+                                 migrations: 58, smoke_suites: 35, smoke_assertions: 6016, conformance_assertions: 3227, db_specs: 73,
+                                 db_assertions: 2281, postgres_version: "15.2", clean_checkout: true}
+          verdicts: {gap5_feature_ownership: PASS, gap2_permissions: PASS, secret_seam_zero_values: PASS, metadata_governance: PASS,
+                     configuration_governance: PASS, feature_governance: PASS, feature_not_authz_substitute: PASS, absolute_control_override: PASS,
+                     m04_boundary: PASS, m02_m03_m06_boundaries: PASS, event_ownership: PASS, audit: PASS, no_rest_api: PASS,
+                     idempotency_concurrency: PASS, tenancy_platform_authority: PASS, privacy: PASS, contamination: CLEAN}
+          docs: [docs/build/stages/STAGE_6_M30_PLATFORM_CERTIFICATION.md]
+          stage_6: m30_platform_certified_on_branch   # FIRST Stage-6 module certified on branch; next per BUILD_SEQUENCE is m31-studio (6B) — NOT started
       - {module: m31-studio, capability: Workflow/BPM/Forms/Rules Studio (6B), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m32-analytics, capability: Reporting & analytics builder (6C), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m33-integration, capability: Integration foundation (6D-1), status: documented, mvp: false, testing_required: [smoke, db_spec]}
