@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 741 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 757 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -916,6 +916,26 @@ codes:
   - { code: AI_COPILOT_SENSITIVE_QUERY, module: m28-executive-ai, severity: elevated, reason_required: false }
   - { code: AI_COPILOT_EXPORT_REQUESTED, module: m28-executive-ai, severity: elevated, reason_required: false }
   - { code: AI_COPILOT_CONFIG_UPDATED, module: m28-executive-ai, severity: elevated, reason_required: false }
+  # M29 AI governance & release — shares the AI_ prefix (naming-map). 16 AI_GOVERNANCE_* codes; the enterprise AI
+  # oversight layer (governs use cases/policies + human-approved RELEASE of m24 assets). AI NEVER approves its own
+  # release (maker != checker, human approver, evaluation evidence). Payloads carry ids, status, subject kind, decision,
+  # decider id, reason codes, confidence/accuracy (bps) only — never prompts/outputs/restricted content/secrets.
+  - { code: AI_GOVERNANCE_POLICY_PUBLISHED, module: m29-ai-governance, severity: elevated, reason_required: false }
+  - { code: AI_GOVERNANCE_USE_CASE_REGISTERED, module: m29-ai-governance, severity: normal, reason_required: false }
+  - { code: AI_GOVERNANCE_RELEASE_PROPOSED, module: m29-ai-governance, severity: normal, reason_required: false }
+  - { code: AI_GOVERNANCE_EVALUATION_RECORDED, module: m29-ai-governance, severity: normal, reason_required: false }
+  - { code: AI_GOVERNANCE_APPROVAL_REQUESTED, module: m29-ai-governance, severity: normal, reason_required: false }
+  - { code: AI_GOVERNANCE_RELEASE_APPROVED, module: m29-ai-governance, severity: critical, reason_required: false }
+  - { code: AI_GOVERNANCE_RELEASE_REJECTED, module: m29-ai-governance, severity: elevated, reason_required: false }
+  - { code: AI_GOVERNANCE_RELEASE_RELEASED, module: m29-ai-governance, severity: critical, reason_required: false }
+  - { code: AI_GOVERNANCE_RELEASE_SUSPENDED, module: m29-ai-governance, severity: critical, reason_required: false }
+  - { code: AI_GOVERNANCE_RELEASE_WITHDRAWN, module: m29-ai-governance, severity: elevated, reason_required: false }
+  - { code: AI_GOVERNANCE_WAIVER_REQUESTED, module: m29-ai-governance, severity: elevated, reason_required: false }
+  - { code: AI_GOVERNANCE_WAIVER_APPROVED, module: m29-ai-governance, severity: critical, reason_required: false }
+  - { code: AI_GOVERNANCE_WAIVER_REJECTED, module: m29-ai-governance, severity: elevated, reason_required: false }
+  - { code: AI_GOVERNANCE_OVERRIDE_BLOCKED, module: m29-ai-governance, severity: critical, reason_required: false }
+  - { code: AI_GOVERNANCE_SENSITIVE_READ, module: m29-ai-governance, severity: elevated, reason_required: false }
+  - { code: AI_GOVERNANCE_EXPORT_REQUESTED, module: m29-ai-governance, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

@@ -1755,10 +1755,34 @@ stages:
           stage_5_ai: m28_executive_certified_on_branch   # next per BUILD_SEQUENCE: M29 AI governance (m29-ai-governance)
       - module: m29-ai-governance
         capability: AI governance & release
-        status: approved_for_build   # governance/approve-m29-ai-governance: documented -> approved_for_build. NEXT per BUILD_SEQUENCE (Stage 5: m24 -> m25 -> m26 -> m27 -> m28 -> m29 — LAST Stage-5 AI module). m24-m28 all implemented; m28-executive-ai certified (cert PR #69 merged; main b64181d), dep m24-ai-foundation certified. mvp:false, reference_tables 7. Naming (naming-map authoritative): api_prefixes [] (NO REST surface — internal governed library, like m25/m26/m27; unlike m28), permission_namespaces ['ai.*'] (SHARES m24's namespace; ai.governance.read/ai.governance.manage already registered), event_families [ai.governance_lifecycle] (already REGISTERED, event_family_registered:true; one of m24's 3 ai.* families — m29 EMITS governance/release lifecycle events into it via the ONE m06 outbox, owns NO 2nd outbox), audit AI_ (shared). Consumes m24 BY CONTRACT. REVIEWER NOTES / GAPS FOR IMPLEMENTER (none block governance approval): (a) NO dedicated module spec in docs/05-ai (unlike m28's EXECUTIVE_COPILOT.md) — author readiness/architecture from ENTERPRISE_AI_FOUNDATION + manifest/naming truth (precedent: m19/m23 built without a pre-existing module spec); (b) event_ownership of ai.governance_lifecycle is co-listed for m24 AND m29 (naming-map) — implementer must confirm the manifest event_ownership assignment so conformance stays green (family already registered, so NOT a blocker); (c) mvp:false (like m26) — governance/release oversight is POST-MVP; approving for build is allowed by precedent. AI governance & release oversees the AI lifecycle (governance controls/model-release/audit-of-AI); AI ASSISTS, a human decides (CLAUDE.md) — NO AI-executed controlled action, NO production provider, NO 2nd AI engine, NO 2nd outbox, NO new event family.
+        status: implemented   # Stage 5 M29 built (feature/stage-5-m29-ai-governance); governance/approve-m29-ai-governance (documented->approved_for_build) merged as gov PR #70 (main 667c7855e92bf129b950a964c7bc4594347d6e11), then implemented. LAST Stage-5 AI module. 7 owned ai_governance_* tables (3 mutable aggregates policy/use_case/release + 4 append-only: evaluation/decision/history/idempotency). THE LOAD-BEARING RULE: AI NEVER APPROVES ITS OWN RELEASE — enforced in 3 layers: pure gates (evaluateSodGate/evaluateReleaseGate/evaluateWaiverGate + isHumanActor: null/blank/system/ai/automation != human, proposer != approver) + service human-actor guards + DB CHECKs (ai_governance_release_human_ck approved=>approved_by NOT NULL; _sod_ck approved_by<>proposed_by; _evidence_ck non-waiver=>evaluation_passed; decision.decider NOT NULL). Policy can never disable human approval/evaluation nor blanket-allow restricted provider; use-case can never permit an AI-executed controlled action; ABSOLUTE controls never waivable (override blocked). 3 NEW privileged permissions ai.governance.approve/override/export (ai.governance.read/manage reused from m24); 16 AI_GOVERNANCE_* audit codes (shared AI_ prefix; count 741->757). NO REST API (api_prefixes []; internal governed library). EVENT OWNERSHIP RESOLVED (ADR-113): m24 OWNS the ai.governance_lifecycle family; m29 is an AUTHORIZED EMITTER reusing the existing GovernanceControlUpdated type via the ONE m06 outbox — NO new event family, NO schema fork, NO contracts/event-registry edit, NO 2nd outbox. Consumes M24 BY CONTRACT by OPAQUE id only (reads no m24/business table, calls no provider, stores no credential/secret, holds no prompt/output content). NO domain action, NO deployment/runtime control (records the governed decision + evidence and emits the event). Confidence/accuracy integer bps; no float; no secret column. Dep m24 (certified). PG16-compatible. ADR-113, ADR-114.
         mvp: false
         shared_services_consumed: [m24]
         testing_required: [smoke, db_spec]
+        implementation_5_m29:
+          module: m29-ai-governance
+          stage: "5"
+          governance_pr: 70
+          governance_merge_sha: 667c7855e92bf129b950a964c7bc4594347d6e11
+          branch: feature/stage-5-m29-ai-governance
+          parent_baseline: 667c7855e92bf129b950a964c7bc4594347d6e11
+          event_ownership: {family: ai.governance_lifecycle, owner: m24-ai-foundation, m29_role: authorized_emitter, reused_event_type: GovernanceControlUpdated, adr: ADR-113, new_family: false, schema_fork: false}
+          no_ai_self_approval: {adr: ADR-114, layers: [pure_gates, service_guards, db_checks], db_checks: [ai_governance_release_human_ck, ai_governance_release_sod_ck, ai_governance_release_evidence_ck, ai_governance_decision_decider_not_null]}
+          local_verification: {tables: 7, tables_force_rls: 7, tenant_isolation_policies: 7, composite_fks: 3, unsafe_tenant_fks: 0,
+                               delete_grants: 0, append_only_ledgers: 4, gov_check_constraints: 26, float_columns: 0, secret_columns: 0,
+                               confidence_bps_integer: true, version_columns: 3, new_permissions: 3, privileged_permissions: 3,
+                               audit_codes: 16, audit_registry_total: 757, event_families_new: 0, event_families_reused: 1, outboxes: 1,
+                               http_routes: 0, migrations: 56, smoke_suites: 34, smoke_assertions: 5932, conformance_assertions: 3186,
+                               db_specs: 71, db_assertions: 2226, postgres_version: "15.2"}
+          verdicts: {no_ai_self_approval: PASS, maker_checker_sod: PASS, evaluation_evidence_gate: PASS, policy_use_case_invariants: PASS,
+                     waiver_override: PASS, absolute_control_not_waivable: PASS, m24_boundary: PASS, event_ownership: PASS,
+                     idempotency_concurrency: PASS, tenancy: PASS, privacy: PASS, no_rest_api: PASS, no_runtime_deployment: PASS,
+                     permissions: PASS, audit: PASS, event_family_reuse: PASS, m24_unmodified: PASS, contamination: CLEAN}
+          docs: [docs/build/stages/STAGE_5_M29_AI_GOVERNANCE_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_5_M29_AI_GOVERNANCE_READINESS.md,
+                 docs/build/stages/STAGE_5_M29_AI_GOVERNANCE_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_5_M29_AI_GOVERNANCE_COMPLETION.md]
+          stage_5_ai: m29_ai_governance_implemented_on_branch   # Stage 5 AI (m24..m29) implementation COMPLETE on branch; next per BUILD_SEQUENCE is Stage 6 (enterprise platform) — NOT started
 
   - stage: 6
     name: Enterprise platform (6A-6I)
