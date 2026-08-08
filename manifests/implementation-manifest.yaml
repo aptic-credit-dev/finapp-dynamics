@@ -1687,11 +1687,36 @@ stages:
           stage_5_ai: m27_finance_certified_on_branch   # next: M28 Executive Copilot (m28-executive-ai) per BUILD_SEQUENCE
       - module: m28-executive-ai
         capability: Executive Copilot (read-only, cited)
-        status: approved_for_build   # governance/approve-m28-executive-ai: documented -> approved_for_build. NEXT per BUILD_SEQUENCE (Stage 5: m24 -> m25 -> m26 -> m27 -> m28 -> m29). m27-finance-ai certified (cert PR #66 merged; main 6888362); dep m24-ai-foundation certified. mvp:partial, reference_tables 7, spec docs/05-ai/EXECUTIVE_COPILOT.md. Naming (naming-map authoritative): api_prefixes [/api/v1/copilot] (m28 is the FIRST Stage-5 AI module WITH a REST surface — unlike m25/m26/m27 which had none), event_families [] (reuses m24 ai.*_lifecycle), audit AI_ (shared). HARD RULES [read_only, cited, rls_masking]: the copilot is READ-ONLY (never mutates any record, never posts/approves/executes a controlled action), every answer is CITED (evidence-backed, human-verifiable), and results are RLS-MASKED (a user sees only what their tenant + row-level entitlements permit — no cross-tenant/over-privileged inference); AI assists, a human decides (CLAUDE.md). Consumes m24 gateway BY CONTRACT. REVIEWER NOTES / BLOCKERS: (a) dep **m32-analytics is Stage 6, mvp:false, UNBUILT (documented)** — like m41 for m24 / m33 for m23, m28 must DEFER m32 behind a read-only analytics/reporting PORT and integrate m32 when built (do NOT build m32 here); (b) **GAP-4 (naming-map): the /copilot API has permission_namespaces [] — NO permission namespace is declared.** The implementer MUST resolve this before/at build: reuse the shared ai.* namespace with new copilot codes (e.g. ai.copilot.*) OR open a naming ADR to register a copilot.* namespace — every mutating/controlled route still needs a permission (CLAUDE.md); a read-only copilot still authorizes reads (default deny) + RLS masking. NO 2nd AI engine, NO 2nd outbox, NO new event family.
+        status: implemented   # Stage 5 M28 built (feature/stage-5-m28-executive-ai); governance/approve-m28-executive-ai (documented->approved_for_build) merged as gov PR #67 (main dceb5665b452b0bab10d24d5c109020ad3794b2c), then implemented. 7 owned copilot_* tables (4 mutable aggregates config/session/query/response + 3 append-only: citation/feedback/idempotency). GAP-4 RESOLVED (ADR-111): /api/v1/copilot reuses the SHARED ai.* namespace with 7 ai.copilot.* codes (4 privileged: export/sensitive/configure/platform); 9 AI_COPILOT_* audit codes (shared AI_ prefix; registered count 732->741). FIRST Stage-5 AI module WITH a REST surface (/api/v1/copilot); NO new event family, NO 2nd outbox (naming-map authoritative). Consumes the M24 governed pipeline BY CONTRACT via CopilotAiGatewayPort (M24CopilotGateway wraps m24 RequestService — routing/DLP/confidence/usage in m24, never duplicated/bypassed; opaque m24 request/output ids; NEVER auto-approves an m24 output). M32 UNBUILT -> DEFERRED behind read-only ExecutiveAnalyticsPort (deterministic fixture double + fail-closed UnavailableAnalyticsPort => review_required; m32 NOT built here); cross-domain reads via read-only ports with deterministic doubles (no network, no production provider). HARD RULES [read_only, cited, rls_masking] enforced in 5 layers: pure command/intent gate (evaluateReadOnlyGate) + prompt-injection screen (screenPromptInjection) + service authz (default deny) + API (no business-mutation route) + DB (copilot_query.read_only CHECK; copilot_config read_only/citations/export-review CHECKs always true; copilot_response_cited_ck completed=>cited; copilot_citation ref+granted CHECKs; app role has NO grant on any business table). RLS masking = tenant ∧ scope ∧ sensitivity ∧ required-entitlement intersection (evaluateEntitlement/maskEvidence); masked evidence dropped (no hidden-count leakage, no cross-tenant inference). Confidence integer bps; no float; no secret column; question/answer behind m09 refs. Deps m24 (certified). PG16-compatible. Spec docs/05-ai/EXECUTIVE_COPILOT.md; ADR-111, ADR-112.
         mvp: partial
         shared_services_consumed: [m24, m32]
         hard_rules: [read_only, cited, rls_masking]
         testing_required: [smoke, db_spec]
+        implementation_5_m28:
+          module: m28-executive-ai
+          stage: "5"
+          governance_pr: 67
+          governance_merge_sha: dceb5665b452b0bab10d24d5c109020ad3794b2c   # main after governance PR #67 (m28 approved_for_build)
+          branch: feature/stage-5-m28-executive-ai
+          parent_baseline: dceb5665b452b0bab10d24d5c109020ad3794b2c
+          gap4_resolution: {namespace: "ai.*", shared: true, adr: ADR-111, codes: [ai.copilot.read, ai.copilot.query, ai.copilot.feedback, ai.copilot.export, ai.copilot.sensitive, ai.copilot.configure, ai.copilot.platform], privileged: [ai.copilot.export, ai.copilot.sensitive, ai.copilot.configure, ai.copilot.platform]}
+          m32_deferral: {port: ExecutiveAnalyticsPort, adr: ADR-112, built: false, double: FixtureAnalyticsPort, fail_closed: UnavailableAnalyticsPort}
+          local_verification: {tables: 7, tables_force_rls: 7, tenant_isolation_policies: 7, composite_fks: 5, unsafe_tenant_fks: 0,
+                               delete_grants: 0, append_only_ledgers: 3, gov_check_constraints: 32, float_columns: 0, secret_columns: 0,
+                               confidence_bps_integer: true, version_columns: 4, ai_permissions: 7, privileged_permissions: 4,
+                               audit_codes: 9, audit_registry_total: 741, event_families_new: 0, event_families_reused: 3, outboxes: 1,
+                               http_routes: 14, mutating_routes: 6, business_mutation_routes: 0, migrations: 54,
+                               smoke_suites: 33, smoke_assertions: 5824, db_specs: 69, db_assertions: 2167, postgres_version: "15.2"}
+          verdicts: {read_only: PASS, m24_boundary: PASS, m32_deferred_port: PASS, cited: PASS, rls_masking: PASS,
+                     entitlement_intersection: PASS, prompt_injection: PASS, confidence: PASS, human_review: PASS,
+                     idempotency_concurrency: PASS, privacy: PASS, permissions: PASS, audit: PASS, event_family_reuse: PASS,
+                     no_business_mutation_route: PASS, m24_m32_unmodified: PASS, contamination: CLEAN}
+          docs: [docs/05-ai/EXECUTIVE_COPILOT.md,
+                 docs/build/stages/STAGE_5_M28_EXECUTIVE_AI_ARCHITECTURE.md,
+                 docs/build/stages/STAGE_5_M28_EXECUTIVE_AI_READINESS.md,
+                 docs/build/stages/STAGE_5_M28_EXECUTIVE_AI_IMPLEMENTATION_PLAN.md,
+                 docs/build/stages/STAGE_5_M28_EXECUTIVE_AI_COMPLETION.md]
+          stage_5_ai: m28_executive_implemented_on_branch   # next per BUILD_SEQUENCE: M29 AI governance (m29-ai-governance)
       - module: m29-ai-governance
         capability: AI governance & release
         status: documented
