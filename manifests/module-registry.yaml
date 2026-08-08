@@ -33,7 +33,7 @@ modules:
   - {code: m25-operational-ai, name: Operational AI, phase: 5, reference_tables: 9, mvp: partial, status: implemented}   # 9 owned ops_ai_* tables (governed suggestions over m12/m13 via m24 gateway BY CONTRACT; shares ai.*/AI_; no new API/event family)
   - {code: m26-legal-ai, name: Legal AI, phase: 5, reference_tables: 11, mvp: false, status: implemented}   # 11 owned legal_ai_* tables (governed, citation-backed legal suggestions over m14 via m24 gateway BY CONTRACT; privilege/ethical-wall; shares ai.*/AI_; no new API/event family)
   - {code: m27-finance-ai, name: Finance AI, phase: 5, reference_tables: 12, mvp: partial, status: implemented}   # 12 owned finance_ai_* tables (governed, explainable recon suggestions over m15/m20 via m24 gateway BY CONTRACT; NO auto-post/auto-match; shares ai.*/AI_; no new API/event family)
-  - {code: m28-executive-ai, name: Executive Copilot, phase: 5, reference_tables: 7, mvp: partial, status: documented}
+  - {code: m28-executive-ai, name: Executive Copilot, phase: 5, reference_tables: 7, mvp: partial, status: implemented}   # 7 owned copilot_* tables (READ-ONLY, CITED, RLS-MASKED executive assistant; consumes m24 gateway BY CONTRACT; m32 deferred behind read-only port; shares ai.*/AI_; GAP-4 resolved via ai.copilot.*; first Stage-5 AI module with a REST surface /api/v1/copilot; no new event family, no 2nd outbox)
   - {code: m29-ai-governance, name: AI governance & release, phase: 5, reference_tables: 7, mvp: false, status: documented}
   - {code: m30-platform, name: Enterprise Platform Foundation (6A), phase: 6, reference_tables: 26, mvp: false, status: documented}
   - {code: m31-studio, name: Workflow/BPM/Forms/Rules Studio (6B), phase: 6, reference_tables: 25, mvp: false, status: documented}

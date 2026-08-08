@@ -280,7 +280,9 @@ namespaces:
              "approvals.escalation.manage", "approvals.note.add", "approvals.analytics.read",
              "approvals.platform.administer"]}
   # Shared ai.* namespace: m24-ai-foundation registered the first 23 codes; m25-operational-ai (Stage 5) adds the
-  # 7 ai.operational.* / ai.suggestion.* codes (naming-map: m25 shares m24's namespace, adds no new one).
+  # 7 ai.operational.* / ai.suggestion.* codes; m26 adds 6 ai.legal.*/ai.privileged.read; m27 adds 5 ai.finance.*;
+  # m28-executive-ai (Stage 5) adds the 7 ai.copilot.* codes — GAP-4 resolution (naming-map: m28 shares m24's
+  # namespace, adds no new one; ADR-111). export/sensitive/configure/platform are privileged (permissions.privileged).
   - {namespace: "ai.*", module: m24-ai-foundation, mvp: partial, status: implemented, substage: "5",
      codes: ["ai.provider.read", "ai.provider.manage", "ai.provider.approve", "ai.model.read", "ai.model.manage",
              "ai.prompt.read", "ai.prompt.manage", "ai.prompt.publish", "ai.config.read", "ai.config.manage",
@@ -291,7 +293,9 @@ namespaces:
              "ai.suggestion.read", "ai.suggestion.create", "ai.suggestion.decide",
              "ai.legal.read", "ai.legal.analyze", "ai.legal.review", "ai.legal.configure", "ai.legal.export",
              "ai.privileged.read",
-             "ai.finance.read", "ai.finance.analyze", "ai.finance.review", "ai.finance.configure", "ai.finance.export"]}
+             "ai.finance.read", "ai.finance.analyze", "ai.finance.review", "ai.finance.configure", "ai.finance.export",
+             "ai.copilot.read", "ai.copilot.query", "ai.copilot.feedback", "ai.copilot.export", "ai.copilot.sensitive",
+             "ai.copilot.configure", "ai.copilot.platform"]}
   - {namespace: "reports.*", module: m10-report, mvp: true, status: documented}
   - {namespace: "analytics.*", module: m32-analytics, mvp: false, status: documented}
   - {namespace: "integration.*", module: m33-integration, mvp: false, status: documented}
