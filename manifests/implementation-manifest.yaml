@@ -1717,6 +1717,42 @@ stages:
                  docs/build/stages/STAGE_5_M28_EXECUTIVE_AI_IMPLEMENTATION_PLAN.md,
                  docs/build/stages/STAGE_5_M28_EXECUTIVE_AI_COMPLETION.md]
           stage_5_ai: m28_executive_implemented_on_branch   # next per BUILD_SEQUENCE: M29 AI governance (m29-ai-governance)
+        certification_5_m28:
+          module: m28-executive-ai
+          stage: "5"
+          governance_pr: 67
+          governance_merge_sha: dceb5665b452b0bab10d24d5c109020ad3794b2c
+          implementation_pr: 68
+          reviewed_implementation_head: 891fe66517c0326898bde585df72d2ee6fa0aa9d
+          implementation_merge_sha: 47c4b79fa50ffd570730d4a174ecaa917cfd0142   # squash onto main (single parent dceb566)
+          merge_status: merged
+          merged_at: "2026-08-08T10:25:17Z"
+          tree_identical_to_reviewed_head: true   # git diff 891fe66 47c4b79 EMPTY (byte-identical)
+          parent_baseline: dceb5665b452b0bab10d24d5c109020ad3794b2c
+          certification_baseline: 47c4b79fa50ffd570730d4a174ecaa917cfd0142   # merged main
+          certification_branch: cert/stage-5-m28-executive-ai
+          ci_implementation: passed   # reviewed head 891fe66: Smoke + DB (PostgreSQL 16) both success
+          smoke_certification: passed_locally         # 33 suites, 5824 assertions, 0 failures (m28 83, conformance 3147)
+          postgresql_certification: passed_locally     # 69 db specs, 2167 assertions, 0 failures (PostgreSQL 15.2 throwaway; m28-executive-ai 32 + m28-services 25 + api-copilot 24 + all api-* green)
+          lint: passed                                 # 0 errors (68 pre-existing baseline warnings; m28 adds none)
+          certification_status: certified_on_branch    # cert PR pending merge
+          certification_head: pending                  # docs-only cert commit
+          certification_merge_sha: pending
+          gap4_resolution: {namespace: "ai.*", shared: true, adr: ADR-111, codes_total: 7, privileged: 4}
+          m32_deferral: {port: ExecutiveAnalyticsPort, adr: ADR-112, built: false, fail_closed: UnavailableAnalyticsPort}
+          local_reverification: {tables: 7, tables_force_rls: 7, tenant_isolation_policies: 7, composite_fks: 5, unsafe_tenant_fks: 0,
+                                 delete_grants: 0, append_only_update_grants: 0, append_only_ledgers: 3, gov_check_constraints: 32,
+                                 float_columns: 0, secret_columns: 0, confidence_bps_integer: true, version_columns: 4,
+                                 ai_permissions: 7, privileged_permissions: 4, audit_codes: 9, audit_registry_total: 741,
+                                 event_families_new: 0, event_families_reused: 3, outboxes: 1, http_routes: 14, mutating_routes: 6,
+                                 business_mutation_routes: 0, migrations: 54, smoke_suites: 33, smoke_assertions: 5824,
+                                 conformance_assertions: 3147, db_specs: 69, db_assertions: 2167, postgres_version: "15.2", clean_checkout: true}
+          verdicts: {read_only: PASS, m24_boundary: PASS, m32_boundary: PASS, cited: PASS, rls_masking: PASS,
+                     entitlement_intersection: PASS, prompt_injection: PASS, confidence: PASS, human_review: PASS,
+                     idempotency_concurrency: PASS, privacy: PASS, permissions: PASS, audit: PASS, event_family_reuse: PASS,
+                     no_business_mutation_route: PASS, m24_m32_unmodified: PASS, contamination: CLEAN}
+          docs: [docs/build/stages/STAGE_5_M28_EXECUTIVE_AI_CERTIFICATION.md]
+          stage_5_ai: m28_executive_certified_on_branch   # next per BUILD_SEQUENCE: M29 AI governance (m29-ai-governance)
       - module: m29-ai-governance
         capability: AI governance & release
         status: documented
