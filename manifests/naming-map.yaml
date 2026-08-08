@@ -364,10 +364,11 @@ modules:
     stage: 5
     mvp: partial
     api_prefixes: [/api/v1/copilot]
-    permission_namespaces: [] # GAP-4: /copilot has no permission namespace
-    event_families: []
+    permission_namespaces: ['ai.*'] # GAP-4 resolved (Stage 5 M28): reuses m24's shared ai.* namespace with ai.copilot.* codes (ADR-111)
+    permission_namespace_shared: true # shares m24's ai.* (like m25/m26/m27); adds no new namespace
+    event_families: [] # reuses m24 ai.*_lifecycle; no new event family, no second outbox
     audit_prefixes: [AI_]
-    note: Read-only, cited, RLS-masked.
+    note: Read-only, cited, RLS-masked. GAP-4 closed by reusing ai.* (ai.copilot.read/query/feedback/export/sensitive/configure/platform).
 
   - module: m29-ai-governance
     stage: 5
@@ -557,10 +558,11 @@ gaps:
   - id: GAP-4
     severity: blocks_owning_stage
     issue: >
-      Route families with no permission namespace (/copilot, /connectors, /webhooks, /events) and a
-      required namespace with no registry entry (finance.*). Every controlled route needs a permission,
-      so these are un-shippable as specified.
-    affects: [m28-executive-ai, m34-marketplace, m36-events, m19-finance]
+      Route families with no permission namespace (/connectors, /webhooks, /events). Every controlled
+      route needs a permission, so these are un-shippable as specified. RESOLVED for /copilot (Stage 5
+      M28: reuses the shared ai.* namespace with ai.copilot.* codes, ADR-111) and earlier for finance.*
+      (Stage 3.1: finance.* seeded + registered).
+    affects: [m34-marketplace, m36-events]
   - id: GAP-5
     severity: blocks_stage_1
     issue: Feature-flag ownership claimed by both m04-admin (Stage 1) and m30-platform (Stage 6); absent from SHARED_SERVICE_OWNERSHIP.md.
