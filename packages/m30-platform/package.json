@@ -1,0 +1,33 @@
+{
+  "name": "@finapp/m30-platform",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M30 — Platform Foundation (Stage 6A, mvp:false): the horizontal platform foundation every domain reuses. It is the CANONICAL owner of governed platform METADATA, CONFIGURATION (typed definitions + values + history), FEATURE FLAGS (definitions + assignments + deterministic evaluation + history) and the SECRET-REFERENCE SEAM (opaque secretref: pointers only). THE HARD RULES: a feature flag is NEVER an authorization substitute — a flag can never grant a permission RBAC (m02) denies, and a platform-ABSOLUTE control can never be weakened by a tenant override; M30 stores ZERO secret VALUES (no password/key/token/credential column) — it owns the secret-reference seam only and defers real secret/key management to M41-security behind a fail-closed SecretResolver port (deterministic double only, no production adapter, no network). It CONSUMES the canonical platform services (m01 tenancy, m02 RBAC, m03 audit, m06 outbox) BY CONTRACT and owns NO second engine (no second RBAC/audit/workflow/outbox/secrets/feature-flag engine). m04-admin is the ADMIN CONSOLE that orchestrates over M30's public service contracts (GAP-5 resolved, ADR-115). It declares the platform.lifecycle event family (published through the ONE m06 outbox), the platform.* permission namespace (GAP-2 resolved), and the PLATFORM_ audit prefix. NO REST API (api_prefixes []; internal governed library — ADR-116). No float; no secret value; no production provider.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
