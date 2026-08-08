@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m29-ai-governance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M29 — AI Governance & Release (Stage 5, GOVERNED, mvp:false): the enterprise oversight layer for the AI lifecycle. It governs AI USE CASES, POLICIES and the RELEASE of M24 assets (model/prompt/provider/policy/use-case versions) with human-approved release gates, evaluation evidence, controlled exceptions/waivers, and suspension/withdrawal decisions. THE LOAD-BEARING RULE: AI NEVER APPROVES ITS OWN RELEASE — final release approval requires a HUMAN who is not the proposer (maker != checker / proposer != approver), a passing evaluation and a policy check, enforced in pure logic, the service layer and DB CHECKs. It records governed DECISIONS + EVIDENCE and EMITS the ai.governance_lifecycle event (owned/declared by M24) into the ONE m06 outbox as an authorized emitter — it does NOT declare a second family, own a second outbox, or duplicate the M24 provider/model/request/output foundation. It references M24 assets by OPAQUE id only (reads no m24/business table, calls no provider, stores no credential/secret, holds no prompt/output content). It performs NO domain action, NO deployment/runtime control and NO REST API (internal governed library, api_prefixes []). Confidence/accuracy are integer basis points; no float; no secret column. No production provider, no network, no HTTP client.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m24-ai-foundation": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
