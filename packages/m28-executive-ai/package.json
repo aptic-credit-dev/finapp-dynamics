@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m28-executive-ai",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M28 — Executive Copilot (Stage 5, GOVERNED, mvp:partial): a READ-ONLY executive assistant that answers questions and produces CITED cross-domain summaries (operations, finance, legal, feedback, cases, KPIs, trends, risk, exceptions, portfolio) for MD/CEO/COO/CFO. Every substantive answer is EVIDENCE-BACKED (citations, human-verifiable) and RLS-MASKED (a caller only ever receives data their tenant + row-level entitlements already permit — the copilot never expands the caller's authority, never infers across tenants and never leaks masked rows or counts). It NEVER mutates a business record, approves, posts, disburses, reconciles, closes a case, files a matter, sends a notification, changes roles/rules/workflow or executes any controlled action — AI assists, a human decides (CLAUDE.md). It consumes the M24 governed AI pipeline BY CONTRACT (no second AI engine, no provider/routing/DLP), defers the UNBUILT M32 analytics behind a read-only ExecutiveAnalyticsPort (deterministic doubles; fail closed when unavailable), reads cross-domain modules only through read-only ports, audits every action under the shared AI_ prefix (AI_COPILOT_*), shares the m24 ai.* permission namespace (ai.copilot.*), and owns NO second outbox and NO new event family. Confidence is integer basis points; large question/answer content lives behind M09 document references; no float, no secret column. No production provider, no network, no HTTP client.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m24-ai-foundation": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
