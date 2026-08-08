@@ -300,6 +300,13 @@ namespaces:
              "ai.copilot.read", "ai.copilot.query", "ai.copilot.feedback", "ai.copilot.export", "ai.copilot.sensitive",
              "ai.copilot.configure", "ai.copilot.platform",
              "ai.governance.approve", "ai.governance.override", "ai.governance.export"]}
+  # Stage 6A (m30-platform) — GAP-2 resolution (ADR-115): the platform.* namespace. Three-segment platform.<area>.<action>.
+  # platform.administer is the cross-tenant CONTROL-PLANE permission (a tenant admin never holds it by default);
+  # manage/secret codes are privileged. NO platform.admin / wildcard bypass. Registered + seeded (m30 migration 0001).
+  - {namespace: "platform.*", module: m30-platform, mvp: false, status: implemented, substage: "6A",
+     codes: ["platform.metadata.read", "platform.metadata.manage", "platform.config.read", "platform.config.manage",
+             "platform.feature.read", "platform.feature.manage", "platform.secret.read", "platform.secret.manage",
+             "platform.control.administer"]}
   - {namespace: "reports.*", module: m10-report, mvp: true, status: documented}
   - {namespace: "analytics.*", module: m32-analytics, mvp: false, status: documented}
   - {namespace: "integration.*", module: m33-integration, mvp: false, status: documented}

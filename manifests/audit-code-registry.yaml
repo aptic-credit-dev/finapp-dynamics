@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 757 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 768 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -936,6 +936,19 @@ codes:
   - { code: AI_GOVERNANCE_OVERRIDE_BLOCKED, module: m29-ai-governance, severity: critical, reason_required: false }
   - { code: AI_GOVERNANCE_SENSITIVE_READ, module: m29-ai-governance, severity: elevated, reason_required: false }
   - { code: AI_GOVERNANCE_EXPORT_REQUESTED, module: m29-ai-governance, severity: elevated, reason_required: false }
+  # M30 platform foundation (Stage 6A) — PLATFORM_ prefix. 11 PLATFORM_* codes; governed metadata/config/feature-flags +
+  # the secret-reference SEAM. Payloads carry ids/keys/scopes/states/reason codes only — never config or secret values.
+  - { code: PLATFORM_METADATA_UPDATED, module: m30-platform, severity: normal, reason_required: false }
+  - { code: PLATFORM_CONFIG_DEFINED, module: m30-platform, severity: normal, reason_required: false }
+  - { code: PLATFORM_CONFIG_PUBLISHED, module: m30-platform, severity: elevated, reason_required: false }
+  - { code: PLATFORM_CONFIG_VALUE_SET, module: m30-platform, severity: normal, reason_required: false }
+  - { code: PLATFORM_FEATURE_DEFINED, module: m30-platform, severity: normal, reason_required: false }
+  - { code: PLATFORM_FEATURE_ASSIGNED, module: m30-platform, severity: normal, reason_required: false }
+  - { code: PLATFORM_FEATURE_OVERRIDE_BLOCKED, module: m30-platform, severity: elevated, reason_required: false }
+  - { code: PLATFORM_SECRET_REFERENCE_REGISTERED, module: m30-platform, severity: elevated, reason_required: false }
+  - { code: PLATFORM_SECRET_REFERENCE_ROTATED, module: m30-platform, severity: elevated, reason_required: false }
+  - { code: PLATFORM_SECRET_REFERENCE_REVOKED, module: m30-platform, severity: elevated, reason_required: false }
+  - { code: PLATFORM_SECRET_REFERENCE_ACCESSED, module: m30-platform, severity: critical, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

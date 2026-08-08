@@ -264,3 +264,13 @@ export type {
   AiGovernanceLifecycleEventType,
   AiLifecyclePayload,
 } from './ai-events.ts';
+export {
+  PLATFORM_LIFECYCLE_FAMILY,
+  PLATFORM_LIFECYCLE_VERSION,
+  PLATFORM_LIFECYCLE_EVENT_TYPES,
+} from './platform-events.ts';
+export type {
+  PlatformLifecycleEvent,
+  PlatformLifecycleEventType,
+  PlatformLifecyclePayload,
+} from './platform-events.ts';

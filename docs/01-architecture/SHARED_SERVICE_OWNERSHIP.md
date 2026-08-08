@@ -18,7 +18,10 @@ Exactly one authoritative implementation of each shared service. Consume via DI 
 | Escalation | m08-notify | contract | triggers on SLA/status |
 | Documents | m09-docs | contract | classified, linked, versioned |
 | Idempotency | m06-workflow | idempotency store | high-risk actions |
-| Secrets | platform (m30) | secret references | no raw secrets stored |
+| Platform metadata | m30-platform | contract | governed platform-metadata catalog (Stage 6A) |
+| Platform configuration | m30-platform | contract | typed config definitions + values + history; secret-bearing settings hold a secret reference only |
+| Feature flags | m30-platform | contract | ONE feature-flag engine (definitions/assignments/evaluation); a flag never bypasses RBAC; m04-admin CONSUMES it (GAP-5, ADR-115) |
+| Secrets | platform (m30) | secret references | m30 owns the secret-reference SEAM only (opaque secretref:, no raw/encrypted secret VALUE); real secret/key management = m41-security (ADR-116) |
 | Entitlements / quotas | m39-saas | contract | plan → capability → flag order |
 | Usage metering / billing | m39-saas | contract | idempotent usage; immutable invoices |
 | Reporting / analytics | m10-report / m32-analytics | contract | semantic datasets, RLS, masking |

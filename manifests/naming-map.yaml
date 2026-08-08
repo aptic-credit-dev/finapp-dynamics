@@ -383,14 +383,18 @@ modules:
   - module: m30-platform
     stage: 6
     mvp: false
-    api_prefixes: []
-    permission_namespaces: [] # GAP-2
+    api_prefixes: [] # internal governed library — no REST surface (ADR-116); m04-admin orchestrates over m30's contracts
+    permission_namespaces: ['platform.*'] # GAP-2 resolved (Stage 6A M30): platform.* namespace registered (ADR-115)
+    permission_namespace_registered: true
     event_families: [platform.lifecycle]
     event_family_registered: true
     audit_prefixes: [PLATFORM_]
     note: >
-      ENTERPRISE_PLATFORM_PHASE_6.md:7 assigns feature flags + secrets seam here, but STAGE_1_PROMPT.md:16
-      assigns feature flags to m04-admin (Stage 1). Unresolved — duplicate-service hazard. See GAP-5.
+      GAP-2 closed (ADR-115): platform.* namespace (platform.metadata/config/feature/secret.* + platform.administer).
+      GAP-5 resolved (ADR-115): feature flags were never implemented — m04-admin is an ORCHESTRATION-ONLY console with
+      no flag engine; M30 is the CANONICAL owner of the feature-flag engine (+ platform metadata/config/secret-reference
+      seam) and m04-admin CONSUMES it by contract. No duplicate engine. M30 owns the secret-reference SEAM only (opaque
+      secretref:, zero secret values); real secret/key management = m41-security (ADR-116).
 
   - module: m31-studio
     stage: 6
@@ -550,7 +554,7 @@ gaps:
   - id: GAP-2
     severity: blocks_owning_stage
     issue: Modules with no registered API prefix and/or no permission namespace.
-    affects: [m07-rules, m16-litigation, m19-finance, m30-platform, m39-saas] # m18-legaldocs resolved in Stage 4.4
+    affects: [m07-rules, m16-litigation, m19-finance, m39-saas] # m18-legaldocs (Stage 4.4) + m30-platform (Stage 6A, ADR-115) resolved
   - id: GAP-3
     severity: blocks_stage_1
     issue: m05-hub and m10-report are mvp:true but appear in no manifest stage; m11-ai likewise absent.
@@ -565,8 +569,12 @@ gaps:
     affects: [m34-marketplace, m36-events]
   - id: GAP-5
     severity: blocks_stage_1
-    issue: Feature-flag ownership claimed by both m04-admin (Stage 1) and m30-platform (Stage 6); absent from SHARED_SERVICE_OWNERSHIP.md.
-    affects: [m04-admin, m30-platform]
+    issue: >
+      RESOLVED (Stage 6A M30, ADR-115): the "conflict" was documentation-only — feature flags were never implemented,
+      and m04-admin is an ORCHESTRATION-ONLY console with no flag engine. M30 is the CANONICAL owner of the one
+      feature-flag engine (+ platform metadata/config/secret-reference seam); m04-admin CONSUMES it by contract. Recorded
+      in SHARED_SERVICE_OWNERSHIP.md. No duplicate engine.
+    affects: []
   - id: GAP-6
     severity: blocks_stage_1
     issue: Subscription/entitlement tables owned by m01 (Stage 1) but the service is owned by m39-saas (Stage 6, deferred).
