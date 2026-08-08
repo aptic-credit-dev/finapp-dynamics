@@ -283,6 +283,9 @@ namespaces:
   # 7 ai.operational.* / ai.suggestion.* codes; m26 adds 6 ai.legal.*/ai.privileged.read; m27 adds 5 ai.finance.*;
   # m28-executive-ai (Stage 5) adds the 7 ai.copilot.* codes — GAP-4 resolution (naming-map: m28 shares m24's
   # namespace, adds no new one; ADR-111). export/sensitive/configure/platform are privileged (permissions.privileged).
+  # m29-ai-governance (Stage 5, LAST AI module) adds 3 privileged codes ai.governance.approve/override/export
+  # (ai.governance.read + ai.governance.manage were already registered by m24). The maker (manage) and the checker
+  # (approve) are distinct + a row-level SoD CHECK enforces proposer != approver (no AI self-approval; ADR-114).
   - {namespace: "ai.*", module: m24-ai-foundation, mvp: partial, status: implemented, substage: "5",
      codes: ["ai.provider.read", "ai.provider.manage", "ai.provider.approve", "ai.model.read", "ai.model.manage",
              "ai.prompt.read", "ai.prompt.manage", "ai.prompt.publish", "ai.config.read", "ai.config.manage",
@@ -295,7 +298,8 @@ namespaces:
              "ai.privileged.read",
              "ai.finance.read", "ai.finance.analyze", "ai.finance.review", "ai.finance.configure", "ai.finance.export",
              "ai.copilot.read", "ai.copilot.query", "ai.copilot.feedback", "ai.copilot.export", "ai.copilot.sensitive",
-             "ai.copilot.configure", "ai.copilot.platform"]}
+             "ai.copilot.configure", "ai.copilot.platform",
+             "ai.governance.approve", "ai.governance.override", "ai.governance.export"]}
   - {namespace: "reports.*", module: m10-report, mvp: true, status: documented}
   - {namespace: "analytics.*", module: m32-analytics, mvp: false, status: documented}
   - {namespace: "integration.*", module: m33-integration, mvp: false, status: documented}
