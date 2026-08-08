@@ -22,6 +22,8 @@ Exactly one authoritative implementation of each shared service. Consume via DI 
 | Platform configuration | m30-platform | contract | typed config definitions + values + history; secret-bearing settings hold a secret reference only |
 | Feature flags | m30-platform | contract | ONE feature-flag engine (definitions/assignments/evaluation); a flag never bypasses RBAC; m04-admin CONSUMES it (GAP-5, ADR-115) |
 | Secrets | platform (m30) | secret references | m30 owns the secret-reference SEAM only (opaque secretref:, no raw/encrypted secret VALUE); real secret/key management = m41-security (ADR-116) |
+| Design-time authoring (Workflow/BPM/Rules/Forms Studio) | m31-studio | contract | DESIGN-TIME only (author/validate/version/review/publish/bind); the runtime engines stay canonical — m31 compiles/binds designs to m06 workflow + m07 rules, never a second engine, no runtime execution (Stage 6B, ADR-117) |
+| Reusable forms / form schemas | m31-studio | contract | canonical owner of reusable DECLARATIVE form/schema DEFINITIONS (typed fields, versioned, published-immutable, no executable code); FORM DEFINITION ≠ BUSINESS RECORD — submitted records stay domain-owned, m12 questionnaires stay m12 (Stage 6B, ADR-117) |
 | Entitlements / quotas | m39-saas | contract | plan → capability → flag order |
 | Usage metering / billing | m39-saas | contract | idempotent usage; immutable invoices |
 | Reporting / analytics | m10-report / m32-analytics | contract | semantic datasets, RLS, masking |
