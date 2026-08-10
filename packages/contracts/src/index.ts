@@ -294,3 +294,13 @@ export type {
   AnalyticsLifecycleEventType,
   AnalyticsLifecyclePayload,
 } from './analytics-events.ts';
+export {
+  CONNECTOR_LIFECYCLE_FAMILY,
+  CONNECTOR_LIFECYCLE_VERSION,
+  CONNECTOR_LIFECYCLE_EVENT_TYPES,
+} from './connector-events.ts';
+export type {
+  ConnectorLifecycleEvent,
+  ConnectorLifecycleEventType,
+  ConnectorLifecyclePayload,
+} from './connector-events.ts';

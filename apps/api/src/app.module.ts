@@ -23,6 +23,7 @@ import { ApprovalsModule } from './approvals/approvals.module.ts';
 import { AdminModule } from './admin/admin.module.ts';
 import { CopilotModule } from './copilot/copilot.module.ts';
 import { AnalyticsModule } from './analytics/analytics.module.ts';
+import { IntegrationModule } from './integration/integration.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -90,6 +91,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     AdminModule,
     CopilotModule,
     AnalyticsModule,
+    IntegrationModule,
   ],
   controllers: [HealthController],
   providers: [],

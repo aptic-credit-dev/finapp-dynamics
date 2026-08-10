@@ -1,0 +1,35 @@
+{
+  "name": "@finapp/m33-integration",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M33 — Integration Foundation (Stage 6D-1, mvp:false): the GOVERNED platform integration foundation — a connector SDK/registry (registered, governed capabilities), tenant connection management, and a FRAMEWORK-ONLY connector runtime. IT IS NOT A PRODUCTION CONNECTOR RUNTIME: connectors ship Framework Only / Sandbox Ready until proven against real systems (CLAUDE.md) — the runtime is a FAIL-CLOSED abstraction with deterministic offline doubles, NO production network egress, NO real provider call. IT IS NOT A SECRETS MANAGER: a connection stores ONLY opaque secretref: pointers (the m30 secret-reference seam) — ZERO credential/secret VALUE columns; real credential resolution is deferred to m41-security behind a fail-closed SecretResolver port. NO ARBITRARY CODE: the connector SDK exposes REGISTERED, governed capabilities only (no eval/shell/dynamic code/direct DB access to other modules' tables/approval-SoD bypass). It uses the connector_* table prefix (the integration_* prefix is owned by m23-finance-integration) and owns connector.lifecycle ONLY (marketplace/devportal/webhook/eventstream/govrelease belong to m34-m37; webhooks/eventstream = m36, deferred). It IMPLEMENTS m31's IntegrationCapabilityCatalogPort (the studio deferred port resolves here). Connector PUBLICATION is a controlled action (maker-checker/SoD, human approver, published-immutable). Reuses m02 RBAC, m03 audit, m06 OUTBOX, m30 secret-reference seam BY CONTRACT — NO second engine (no 2nd outbox/RBAC/audit/secrets-manager/scheduler/workflow engine). It declares /api/v1/integration, the integration.* permission namespace, the connector.lifecycle event family (published through the ONE m06 outbox) and the INTEGRATION_ audit prefix. m41 real secrets deferred behind a fail-closed port. No secret value; no external network; no arbitrary code.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m30-platform": "*",
+    "@finapp/m31-studio": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
