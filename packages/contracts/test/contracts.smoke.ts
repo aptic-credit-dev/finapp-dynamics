@@ -74,6 +74,7 @@ import {
   AI_GOVERNANCE_LIFECYCLE_EVENT_TYPES,
   PLATFORM_LIFECYCLE_FAMILY,
   STUDIO_LIFECYCLE_FAMILY,
+  ANALYTICS_LIFECYCLE_FAMILY,
 } from '@finapp/contracts';
 
 /**
@@ -89,8 +90,8 @@ import {
 export default defineSuite('contracts', (t) => {
   t.equal(
     DOMAIN_EVENT_FAMILIES.length,
-    26,
-    'twenty-six event families (m30 adds platform.lifecycle, Stage 6A; m31 adds studio.lifecycle at the tail, Stage 6B)',
+    27,
+    'twenty-seven event families (m31 adds studio.lifecycle, Stage 6B; m32 adds analytics.lifecycle at the tail, Stage 6C)',
   );
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
@@ -327,10 +328,14 @@ export default defineSuite('contracts', (t) => {
     DOMAIN_EVENT_FAMILIES.includes(STUDIO_LIFECYCLE_FAMILY),
     'studio.lifecycle is declared (m31, Stage 6B)',
   );
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(ANALYTICS_LIFECYCLE_FAMILY),
+    'analytics.lifecycle is declared (m32, Stage 6C)',
+  );
   t.equal(
     DOMAIN_EVENT_FAMILIES[DOMAIN_EVENT_FAMILIES.length - 1],
-    STUDIO_LIFECYCLE_FAMILY,
-    'studio.lifecycle is the newest family — appended at the tail (Stage 6B)',
+    ANALYTICS_LIFECYCLE_FAMILY,
+    'analytics.lifecycle is the newest family — appended at the tail (Stage 6C)',
   );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');

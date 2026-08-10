@@ -39,6 +39,7 @@
     { "path": "./packages/m29-ai-governance" },
     { "path": "./packages/m30-platform" },
     { "path": "./packages/m31-studio" },
+    { "path": "./packages/m32-analytics" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

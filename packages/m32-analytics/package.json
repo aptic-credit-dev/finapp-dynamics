@@ -1,0 +1,35 @@
+{
+  "name": "@finapp/m32-analytics",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M32 — Reporting & Analytics Builder (Stage 6C, mvp:false): a GOVERNED, DERIVED/READ analytics layer — semantic datasets, metrics/KPIs, reports, dashboards, governed exports and scheduled-report metadata, with RLS + entitlement masking preserved across aggregation. IT IS NOT A SOURCE OF TRUTH: every operational/business record stays owned by its source module; m32 stores only DERIVED, read-only, rebuildable projections with mandatory LINEAGE, and performs NO business mutation (no posting/payment/reconciliation/approval/workflow execution). NO ARBITRARY SQL: a GOVERNED SEMANTIC query layer compiles predefined metrics + bounded dimensions + whitelisted operators + parameterized filters (no eval/shell/dynamic code/unrestricted passthrough); an unsupported/unsafe query FAILS CLOSED. RLS/ENTITLEMENT: every tenant table is FORCE-RLS; a caller must hold ALL required entitlements (intersection) at sufficient scope/sensitivity to see a metric — aggregation NEVER grants access, leaks hidden counts, or enables cross-tenant inference. It IMPLEMENTS the M28 ExecutiveAnalyticsPort (ADR-112) read-only/bounded/entitlement-filtered/citation-bearing; M28 is the downstream consumer. Money is bigint MINOR units / exact decimal / integer basis points with explicit currency (no float; no silent cross-currency aggregation). Metric/report PUBLICATION is a controlled action (maker-checker/SoD, human approver, published version immutable). Reuses the canonical services BY CONTRACT: m02 RBAC, m03 audit, m06 workflow/timers/OUTBOX, m08 notifications, m09 documents, m30 platform/config/feature-flags/secret-seam, m24 AI, m04 admin saved-views — NO second engine (no 2nd query/analytics/scheduler/notification/RBAC/audit/outbox/integration engine, no secrets manager). It declares /api/v1/analytics, the analytics.* permission namespace, the analytics.lifecycle event family (published through the ONE m06 outbox) and the ANALYTICS_ audit prefix. m33 integration + m41 security are UNBUILT and deferred behind fail-closed ports. No secret value; no external network.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m28-executive-ai": "*",
+    "@finapp/m30-platform": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
