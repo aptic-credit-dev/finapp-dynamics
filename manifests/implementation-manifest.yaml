@@ -2099,6 +2099,24 @@ stages:
           binds_to: [m30-platform, m31-studio]
           secrets: "connection_secret secretref-only (m30 seam); real key mgmt = m41 deferred"
           branch: feature/stage-6-m33-integration
+        certification_6_m33:
+          verdict: certified_on_branch
+          date: "2026-08-10"
+          governance_pr: 82
+          governance_merge_sha: ab01b7c123b07f8bd98355bf8b4397fdf6028307
+          implementation_pr: 83
+          reviewed_head: 4659c57
+          implementation_merge_sha: 8f506ca00b4e7785f389bf81c14ccfd92c4d4037
+          tree_equivalence: "git diff 4659c57 8f506ca == EMPTY (byte-identical squash, single parent)"
+          certification_baseline: 8f506ca00b4e7785f389bf81c14ccfd92c4d4037
+          certification_branch: cert/stage-6-m33-integration
+          implementation_ci: "Smoke success + DB PG16 success on 4659c57"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings); build clean; smoke 38/6452/0-fail (m33 80, conformance 3386); migrate 64; DB 79/2439/0-fail on fresh DB (m33-integration 31 + m33-services 19)"
+          metrics: "9 connector_* tables/9 FORCE-RLS/9 policies/6 composite FKs/0 unsafe/0 DELETE/4 append-only/27 CHECKs/5 version cols/0 float/0 secret-value/1 immutability trigger/9 perms(4 priv)/15 INTEGRATION_ codes(reg 814)/connector.lifecycle 6 types/1 outbox(m06)"
+          boundaries: "framework-only fail-closed runtime (no egress); connection_secret secretref-only (m30 seam, m41 deferred); connector_* prefix — m23 integration_* untouched (7 tables, no collision); implements m31 IntegrationCapabilityCatalogPort; m28/m30/m31/m32 source untouched"
+          contamination: clean
+          report: docs/build/stages/STAGE_6_M33_INTEGRATION_CERTIFICATION.md
       - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: documented, mvp: false, testing_required: [smoke, db_spec]}
