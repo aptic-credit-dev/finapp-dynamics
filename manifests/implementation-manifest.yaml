@@ -1960,7 +1960,40 @@ stages:
           metrics: "9 tables/9 FORCE-RLS/9 policies/7 composite FKs/0 unsafe/0 DELETE/6 append-only(0 UPDATE)/21 CHECKs/3 version cols/0 float/0 secret-value/0 submission tables/1 immutability trigger/9 perms(5 priv)/14 STUDIO_ codes(reg 782)/studio.lifecycle 6 types/1 outbox(m06)/0 routes"
           contamination: clean
           report: docs/build/stages/STAGE_6_M31_STUDIO_CERTIFICATION.md
-      - {module: m32-analytics, capability: Reporting & analytics builder (6C), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      # m32-analytics APPROVED FOR BUILD (Stage 6C governance, 2026-08-10). Enterprise reporting/analytics BUILDER:
+      # semantic datasets, metrics/KPIs, reports, dashboards, RLS + masking, exports. It is a DERIVED/READ layer over the
+      # operational modules — SOURCE OF TRUTH stays with each source module; analytics copies are derived/read-only/
+      # rebuildable, and NO operational mutation happens through m32. Canonical owners stay: m02 RBAC, m03 audit, m06
+      # workflow/timers/OUTBOX, m08 notifications, m09 documents, m30 platform/config/feature-flags/secret-seam, m24 AI,
+      # m04 admin saved-views. m32 declares /api/v1/analytics + analytics.* namespace + analytics.lifecycle (registered) +
+      # ANALYTICS_ audit. Only HARD dep = m30 (certified on main); source read-modules (m12/m13/m14/m16/m17/m19/m15/m20/
+      # m21/m22/m24/m28/m30/m31) all implemented+certified and consumed BY READ CONTRACT/PORT (deterministic doubles until
+      # each real adapter is wired, m28 precedent). No unbuilt HARD dep (m33+ NOT required).
+      # Reviewer gaps to resolve at build via ADR + SHARED_SERVICE_OWNERSHIP (non-blocking, m30/m31 precedent):
+      #   G-a HIGH-RISK QUERY ENGINE: NO arbitrary tenant SQL / eval / shell / unrestricted table access. Expose a GOVERNED
+      #       semantic layer only (predefined metrics, bounded dimensions, whitelisted operators, parameterized queries);
+      #       compile safely; fail closed. This is the load-bearing analytics control.
+      #   G-b RLS / ENTITLEMENT PRESERVATION: aggregation can leak hidden data. Every tenant table FORCE-RLS; derived
+      #       analytics MUST preserve source row entitlements + sensitivity masking + ethical walls; no hidden-count leak,
+      #       no cross-tenant aggregate inference; a user gains NO access merely because data is aggregated.
+      #   G-c REPORTING OWNERSHIP overlap: SHARED_SERVICE_OWNERSHIP co-lists m10-report (Stage 2, mvp:true, 0 tables, unbuilt)
+      #       + m32-analytics. Resolve canonical ownership via ADR (m32 = enterprise analytics/reporting builder; no 2nd engine).
+      #   G-d SAVED-VIEW/DASHBOARD overlap: m04 owns admin_saved_view (console). m32 dashboards/saved-analytics-views are
+      #       analytics-scoped — do NOT create a 2nd generic saved-view engine; clarify the boundary.
+      #   G-e M28 PORT: m32 is the real implementation of M28 ExecutiveAnalyticsPort (ADR-112) — read-only, bounded,
+      #       tenant-scoped, entitlement-filtered, citation/lineage-bearing. Preserve those semantics; M28 = downstream consumer.
+      #   G-f MATERIALIZATION + LINEAGE: if m32 materializes projections/aggregates, they are derived/read-only/rebuildable
+      #       with lineage (source module, opaque ref, metric/report version, extraction ts, window, filters, classification);
+      #       source module stays authoritative. No fabricated analytics source (M28 cites this evidence).
+      #   G-g SCHEDULER/NOTIFY reuse: scheduled reports reuse m06 timers + m08 notifications; NO 2nd scheduler/timer/notify
+      #       engine; m32 owns only schedule metadata. Publish via the ONE m06 outbox; no 2nd outbox.
+      #   G-h EXPORTS: explicit analytics.*.export permission; tenant/row filter BEFORE export; sensitive export privileged;
+      #       audit every export; bounded size; no cross-tenant/hidden-row export; no secrets.
+      #   G-i MONEY/NUMERIC: no float money; bigint minor units; exact decimal for ratios; integer bps; explicit currency;
+      #       no silent cross-currency aggregation (analytics must not reintroduce float finance deliberately avoided).
+      #   G-j 42 reference_tables -> governed core reconciliation (m30 26->10, m31 25->9 precedent); document honestly.
+      # Maker-checker: metric/report PUBLICATION that drives executive/M28 reporting is a controlled action (assess approver!=author).
+      - {module: m32-analytics, capability: Reporting & analytics builder (6C), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m33-integration, capability: Integration foundation (6D-1), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: documented, mvp: false, testing_required: [smoke, db_spec]}
