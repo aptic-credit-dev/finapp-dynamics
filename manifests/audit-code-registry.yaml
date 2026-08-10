@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 799 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 814 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -984,6 +984,24 @@ codes:
   - { code: ANALYTICS_PUBLISH_BLOCKED, module: m32-analytics, severity: elevated, reason_required: false }
   - { code: ANALYTICS_ACCESS_BLOCKED, module: m32-analytics, severity: elevated, reason_required: false }
   - { code: ANALYTICS_SOD_BLOCKED, module: m32-analytics, severity: elevated, reason_required: false }
+  # M33 Integration Foundation (Stage 6D-1) — INTEGRATION_ prefix. 15 INTEGRATION_* codes; connector SDK/registry,
+  # connections (secretref-only), framework-only runs. Payloads carry ids/keys/categories/statuses/row counts/reason codes
+  # only — never a connection config value, a secret value/reference content or an external payload.
+  - { code: INTEGRATION_CONNECTOR_DEFINED, module: m33-integration, severity: normal, reason_required: false }
+  - { code: INTEGRATION_CONNECTOR_VALIDATED, module: m33-integration, severity: normal, reason_required: false }
+  - { code: INTEGRATION_CONNECTOR_PUBLISHED, module: m33-integration, severity: elevated, reason_required: false }
+  - { code: INTEGRATION_CONNECTOR_DEPRECATED, module: m33-integration, severity: normal, reason_required: false }
+  - { code: INTEGRATION_CAPABILITY_REGISTERED, module: m33-integration, severity: normal, reason_required: false }
+  - { code: INTEGRATION_CONNECTION_CREATED, module: m33-integration, severity: normal, reason_required: false }
+  - { code: INTEGRATION_CONNECTION_UPDATED, module: m33-integration, severity: normal, reason_required: false }
+  - { code: INTEGRATION_CONNECTION_SECRET_SET, module: m33-integration, severity: elevated, reason_required: false }
+  - { code: INTEGRATION_RUN_STARTED, module: m33-integration, severity: normal, reason_required: false }
+  - { code: INTEGRATION_RUN_COMPLETED, module: m33-integration, severity: normal, reason_required: false }
+  - { code: INTEGRATION_RUN_BLOCKED, module: m33-integration, severity: elevated, reason_required: false }
+  - { code: INTEGRATION_REVIEW_REQUESTED, module: m33-integration, severity: normal, reason_required: false }
+  - { code: INTEGRATION_REVIEW_REJECTED, module: m33-integration, severity: elevated, reason_required: false }
+  - { code: INTEGRATION_PUBLISH_BLOCKED, module: m33-integration, severity: elevated, reason_required: false }
+  - { code: INTEGRATION_SOD_BLOCKED, module: m33-integration, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

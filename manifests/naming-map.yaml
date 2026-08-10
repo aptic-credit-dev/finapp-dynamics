@@ -436,9 +436,18 @@ modules:
     mvp: false
     api_prefixes: [/api/v1/integration]
     permission_namespaces: ['integration.*']
+    permission_namespace_registered: true # Stage 6D-1: integration.* (9 codes) registered + seeded
     event_families: [connector.lifecycle]
     event_family_registered: true
     audit_prefixes: [INTEGRATION_]
+    note: >
+      Stage 6D-1 governed Integration Foundation: connector SDK/registry, connection management, FRAMEWORK-ONLY connector
+      runtime. NOT a production runtime (fail-closed, deterministic doubles, no network egress) and NOT a secrets manager
+      (connections store opaque secretref: pointers via the m30 seam; zero secret value columns; real key mgmt = m41 behind
+      a fail-closed port). NO arbitrary code (registered capabilities only). Implements m31 IntegrationCapabilityCatalogPort.
+      Connector publication is a controlled action (maker-checker; published-immutable). Uses the connector_* table prefix
+      (integration_* is owned by m23-finance-integration). Owns connector.lifecycle only; reuses m02/m03/m06/m30 by contract;
+      one m06 outbox. reference_tables 38 reconciled to a governed core of 9.
 
   - module: m34-marketplace
     stage: 6
