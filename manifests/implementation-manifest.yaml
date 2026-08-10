@@ -2043,7 +2043,32 @@ stages:
           adapter_limitation: "M32ExecutiveAnalyticsAdapter exported but not swapped into copilot module (fixture retained; m28 boundary intact)"
           contamination: clean
           report: docs/build/stages/STAGE_6_M32_ANALYTICS_CERTIFICATION.md
-      - {module: m33-integration, capability: Integration foundation (6D-1), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      # m33-integration APPROVED FOR BUILD (Stage 6D-1 governance, 2026-08-10). Integration FOUNDATION: connector SDK/
+      # registry, connection management, connector runtime — the canonical integration seam the deferred ports in m31
+      # (IntegrationCapabilityCatalogPort) + m32 (MaterializationSourcePort) resolve to. Declares /api/v1/integration +
+      # integration.* namespace + connector.lifecycle (registered) + INTEGRATION_ audit. Only HARD dep = m30 (certified on
+      # main); MODULE_DEPENDENCY_MAP m33->m30. No unbuilt HARD dep (m34-m37 are DOWNSTREAM; m38-automation depends on m33).
+      # Reviewer gaps to resolve at build via ADR + SHARED_SERVICE_OWNERSHIP (non-blocking, m30/m31/m32 precedent):
+      #   G-a HIGH-RISK CONNECTOR RUNTIME / untested integrations: per CLAUDE.md connectors ship Framework Only / Sandbox
+      #       Ready / Production Ready Pending Credentials until proven — NO production network egress, deterministic offline
+      #       doubles + fail-closed, honest connector status; never claim untested integrations production-ready.
+      #   G-b HIGH-RISK "connection + SECRET MANAGER" — NO second secrets manager: connection configs store OPAQUE secretref:
+      #       pointers (m30 seam) ONLY; ZERO credential/secret VALUE columns (DB-proven); real credential resolution deferred
+      #       to m41-security behind a fail-closed SecretResolver port (ADR-116 precedent). m33 is NOT the secrets manager.
+      #   G-c TABLE-NAMESPACE COLLISION: the integration_* table prefix is ALREADY owned by m23-finance-integration (Stage 3,
+      #       finance-specific, implemented). m33 (platform foundation) MUST use a DISTINCT prefix (e.g. connector_*, aligned
+      #       with the connector.lifecycle family) to avoid collision. Resolve at build.
+      #   G-d CONNECTOR SDK = REGISTERED CAPABILITIES, no arbitrary code (Phase-6 guarantee): no arbitrary code / eval / shell
+      #       / direct DB access to other modules' tables / approval-SoD bypass; sandboxed; registered connectors only.
+      #   G-e DEFERRED-PORT OWNER: m33 is the canonical integration foundation m31/m32 (and later m38) resolve to; provide
+      #       adapters preserving their fail-closed/read-only semantics — do NOT rewire m28/m31/m32 beyond wiring adapters.
+      #   G-f EVENT/OUTBOX: m33 owns connector.lifecycle ONLY (marketplace/devportal/webhook/eventstream/govrelease belong to
+      #       m34-m37); publish via the ONE m06 outbox; NO second outbox/event-delivery path (webhooks/eventstream = m36, deferred).
+      #   G-g TENANCY: connection/connector-install tables tenant-scoped FORCE-RLS + composite tenant-safe FKs; no cross-tenant
+      #       connection access. Idempotency for connector runs / event ingestion (high-risk actions).
+      #   G-h 38 reference_tables -> governed core reconciliation (m30 26->10, m31 25->9, m32 42->11 precedent); document honestly.
+      # Maker-checker: connector installation/publication that grants external data access is a controlled action (assess approver!=author).
+      - {module: m33-integration, capability: Integration foundation (6D-1), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: documented, mvp: false, testing_required: [smoke, db_spec]}
