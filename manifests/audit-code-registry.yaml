@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 814 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 830 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -1002,6 +1002,24 @@ codes:
   - { code: INTEGRATION_REVIEW_REJECTED, module: m33-integration, severity: elevated, reason_required: false }
   - { code: INTEGRATION_PUBLISH_BLOCKED, module: m33-integration, severity: elevated, reason_required: false }
   - { code: INTEGRATION_SOD_BLOCKED, module: m33-integration, severity: elevated, reason_required: false }
+  # M34 Connector Marketplace (Stage 6D-2) — MARKETPLACE_ prefix. 16 MARKETPLACE_* codes; listings, installations, consent,
+  # upgrades. Payloads carry ids/keys/opaque connector refs/statuses/reason codes only — never a config/secret value or external payload.
+  - { code: MARKETPLACE_LISTING_DEFINED, module: m34-marketplace, severity: normal, reason_required: false }
+  - { code: MARKETPLACE_LISTING_VALIDATED, module: m34-marketplace, severity: normal, reason_required: false }
+  - { code: MARKETPLACE_LISTING_PUBLISHED, module: m34-marketplace, severity: elevated, reason_required: false }
+  - { code: MARKETPLACE_LISTING_DEPRECATED, module: m34-marketplace, severity: normal, reason_required: false }
+  - { code: MARKETPLACE_CAPABILITY_ADDED, module: m34-marketplace, severity: normal, reason_required: false }
+  - { code: MARKETPLACE_INSTALL_REQUESTED, module: m34-marketplace, severity: normal, reason_required: false }
+  - { code: MARKETPLACE_INSTALL_ACTIVATED, module: m34-marketplace, severity: elevated, reason_required: false }
+  - { code: MARKETPLACE_INSTALL_SUSPENDED, module: m34-marketplace, severity: elevated, reason_required: false }
+  - { code: MARKETPLACE_INSTALL_SECRET_SET, module: m34-marketplace, severity: elevated, reason_required: false }
+  - { code: MARKETPLACE_CONSENT_GRANTED, module: m34-marketplace, severity: elevated, reason_required: false }
+  - { code: MARKETPLACE_CONSENT_REVOKED, module: m34-marketplace, severity: elevated, reason_required: false }
+  - { code: MARKETPLACE_UPGRADE_APPLIED, module: m34-marketplace, severity: elevated, reason_required: false }
+  - { code: MARKETPLACE_REVIEW_REQUESTED, module: m34-marketplace, severity: normal, reason_required: false }
+  - { code: MARKETPLACE_REVIEW_REJECTED, module: m34-marketplace, severity: elevated, reason_required: false }
+  - { code: MARKETPLACE_PUBLISH_BLOCKED, module: m34-marketplace, severity: elevated, reason_required: false }
+  - { code: MARKETPLACE_SOD_BLOCKED, module: m34-marketplace, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

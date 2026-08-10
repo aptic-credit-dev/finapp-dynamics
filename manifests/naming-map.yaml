@@ -453,10 +453,19 @@ modules:
     stage: 6
     mvp: false
     api_prefixes: [/api/v1/connectors]
-    permission_namespaces: [] # GAP-4: /connectors has no permission namespace
+    permission_namespaces: ['marketplace.*'] # GAP-4 RESOLVED (Stage 6D-2, ADR-121): marketplace.* (8 codes) registered + seeded
+    permission_namespace_registered: true
     event_families: [marketplace.lifecycle]
     event_family_registered: true
     audit_prefixes: [MARKETPLACE_]
+    note: >
+      Stage 6D-2 governed connector marketplace over m33's connectors — catalog listings, tenant installations, consent and
+      upgrades. CONSUMES m33 by contract (opaque connector references validated via a fail-closed ConnectorRegistryPort; m34
+      never reads m33 tables and never executes a connector). NOT a secrets manager (install secrets are opaque secretref:
+      pointers via the m30 seam; zero secret value columns; m41 deferred). Consent + listing publication + upgrade are
+      human-governed controlled actions (maker-checker/SoD; AI never consents/approves; consent revocable; published-immutable).
+      Uses the marketplace_* prefix (integration_* is m23's, connector_* is m33's). Owns marketplace.lifecycle only; one m06
+      outbox. GAP-4 resolved (marketplace.* namespace). reference_tables 25 reconciled to a governed core of 9.
 
   - module: m35-devportal
     stage: 6
