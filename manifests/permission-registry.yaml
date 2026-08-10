@@ -316,7 +316,13 @@ namespaces:
              "studio.artifact.validate", "studio.artifact.publish", "studio.artifact.archive", "studio.binding.manage",
              "studio.control.administer"]}
   - {namespace: "reports.*", module: m10-report, mvp: true, status: documented}
-  - {namespace: "analytics.*", module: m32-analytics, mvp: false, status: documented}
+  # Stage 6C (m32-analytics): the analytics.* namespace. Three-segment analytics.<area>.<action>. analytics.control.administer
+  # is the cross-tenant CONTROL-PLANE permission (a tenant admin never holds it by default); metric/report PUBLISH + EXPORT
+  # + dataset/schedule manage are privileged (publication + export are controlled actions). NO analytics.admin / wildcard.
+  - {namespace: "analytics.*", module: m32-analytics, mvp: false, status: implemented, substage: "6C",
+     codes: ["analytics.dataset.read", "analytics.dataset.manage", "analytics.metric.read", "analytics.metric.author",
+             "analytics.metric.publish", "analytics.report.read", "analytics.report.author", "analytics.report.publish",
+             "analytics.query.run", "analytics.export.create", "analytics.schedule.manage", "analytics.control.administer"]}
   - {namespace: "integration.*", module: m33-integration, mvp: false, status: documented}
   - {namespace: "automation.*", module: m38-automation, mvp: false, status: documented}
   - {namespace: "extensions.*", module: m38-automation, mvp: false, status: documented}
