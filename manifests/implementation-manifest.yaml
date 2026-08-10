@@ -1943,6 +1943,23 @@ stages:
           binds_to: [m06-workflow, m07-rules]
           integration_boundary: "m33 deferred behind fail-closed IntegrationCapabilityCatalogPort"
           branch: feature/stage-6-m31-studio
+        certification_6_m31:
+          verdict: certified_on_branch
+          date: "2026-08-10"
+          governance_pr: 76
+          governance_merge_sha: e0acc872e6bef14f2cac06570e64cfb5428ec18e
+          implementation_pr: 77
+          reviewed_head: 542e4e8
+          implementation_merge_sha: ffdcbcad0bf94171aec66449e2dd7ae08b703931
+          tree_equivalence: "git diff 542e4e8 ffdcbca == EMPTY (byte-identical squash, single parent)"
+          certification_baseline: ffdcbcad0bf94171aec66449e2dd7ae08b703931
+          certification_branch: cert/stage-6-m31-studio
+          implementation_ci: "Smoke success + DB PG16 success on 542e4e8"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings); build clean; smoke 36/6157/0-fail (m31 92, conformance 3274); migrate 60; DB 75/2332/0-fail (m31-studio 32 + m31-services 19)"
+          metrics: "9 tables/9 FORCE-RLS/9 policies/7 composite FKs/0 unsafe/0 DELETE/6 append-only(0 UPDATE)/21 CHECKs/3 version cols/0 float/0 secret-value/0 submission tables/1 immutability trigger/9 perms(5 priv)/14 STUDIO_ codes(reg 782)/studio.lifecycle 6 types/1 outbox(m06)/0 routes"
+          contamination: clean
+          report: docs/build/stages/STAGE_6_M31_STUDIO_CERTIFICATION.md
       - {module: m32-analytics, capability: Reporting & analytics builder (6C), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m33-integration, capability: Integration foundation (6D-1), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: documented, mvp: false, testing_required: [smoke, db_spec]}
