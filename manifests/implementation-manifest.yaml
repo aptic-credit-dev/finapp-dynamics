@@ -2024,6 +2024,25 @@ stages:
           query_engine: "governed semantic (whitelisted dims/measures/operators, parameterized, no arbitrary SQL)"
           integration_boundary: "m33/m41 deferred behind fail-closed MaterializationSourcePort"
           branch: feature/stage-6-m32-analytics
+        certification_6_m32:
+          verdict: certified_on_branch
+          date: "2026-08-10"
+          governance_pr: 79
+          governance_merge_sha: a27be3a9ace6fdf3e12b6782b3b866676e2cdb83
+          implementation_pr: 80
+          reviewed_head: d8b0d08
+          implementation_merge_sha: 3680779f4c7e2a0537e2092cff57d0974a6ebccf
+          tree_equivalence: "git diff d8b0d08 3680779 == EMPTY (byte-identical squash, single parent)"
+          certification_baseline: 3680779f4c7e2a0537e2092cff57d0974a6ebccf
+          certification_branch: cert/stage-6-m32-analytics
+          implementation_ci: "Smoke success + DB PG16 success on d8b0d08"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings); build clean; smoke 37/6319/0-fail (m32 99, conformance 3335); migrate 62; DB 77/2389/0-fail (m32-analytics 34 + m32-services 23)"
+          metrics: "11 tables/11 FORCE-RLS/11 policies/7 composite FKs/0 unsafe/0 DELETE/5 append-only/43 CHECKs/6 version cols/0 float/0 secret-value/2 immutability triggers/12 perms(6 priv)/17 ANALYTICS_ codes(reg 799)/analytics.lifecycle 7 types/1 outbox(m06)"
+          boundaries: "M28 port implemented + m28 source untouched (downstream consumer); m10 subsumed; m04 saved-view clean; m06 timer + m08 notify reused (opaque refs); one m06 outbox"
+          adapter_limitation: "M32ExecutiveAnalyticsAdapter exported but not swapped into copilot module (fixture retained; m28 boundary intact)"
+          contamination: clean
+          report: docs/build/stages/STAGE_6_M32_ANALYTICS_CERTIFICATION.md
       - {module: m33-integration, capability: Integration foundation (6D-1), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: documented, mvp: false, testing_required: [smoke, db_spec]}
