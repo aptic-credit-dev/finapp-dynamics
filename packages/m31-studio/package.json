@@ -1,0 +1,36 @@
+{
+  "name": "@finapp/m31-studio",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M31 — Studio (Stage 6B, mvp:false): the DESIGN-TIME authoring layer (author/validate/version/review/publish/bind) for Workflow/BPM, Rules and reusable Forms. IT IS NOT A SECOND RUNTIME ENGINE. The runtime engines stay canonical: m06-workflow owns workflow_definition/_version + execution, m07-rules owns rule_set/_version + evaluation, m08 notifications, m30 config/feature-flags/secret-reference seam, m06 the ONE outbox, m02 RBAC, m03 audit. A validated+approved Studio workflow/rule design BINDS to the canonical m06/m07 authoring contracts (DefinitionService/RuleSetService) and m31 stores only the OPAQUE (definitionId/ruleSetId, versionId, versionNumber, code, contentHash) tuple — it NEVER creates a workflow_definition/rule_set table, never executes/transitions/schedules an instance, never reads m06/m07 private tables. M31 is the canonical owner of reusable DECLARATIVE form/schema DEFINITIONS (typed fields, versioned, published-immutable) — FORM DEFINITION != BUSINESS RECORD (no submitted form data is stored; domain records stay domain-owned, m12 questionnaires stay m12). NO arbitrary code: only declarative design metadata; conditions/expressions reuse the m06 sandboxed expression compiler + m07 structured conditions (no eval/Function/vm/SQL/shell), fail closed. Publishing is a CONTROLLED ACTION with maker-checker/SoD (author != approver, human approver, validation passed, current version, valid binding) enforced in gates + services + DB CHECKs; a published version is IMMUTABLE (DB trigger). M33 integration is UNBUILT and deferred behind a fail-closed IntegrationCapabilityCatalogPort (opaque references only, no network, no connector execution). Secret-bearing design values carry an opaque secretref: pointer only (m30 seam) — ZERO secret VALUE columns. It declares the studio.lifecycle event family (published through the ONE m06 outbox), the studio.* permission namespace (GAP resolved) and the STUDIO_ audit prefix. NO REST API (api_prefixes []; internal governed library). No float; no secret value; no second engine/outbox; no network.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m06-workflow": "*",
+    "@finapp/m07-rules": "*",
+    "@finapp/m30-platform": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

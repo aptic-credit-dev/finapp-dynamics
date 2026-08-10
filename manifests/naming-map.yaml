@@ -399,11 +399,19 @@ modules:
   - module: m31-studio
     stage: 6
     mvp: false
-    api_prefixes: []
-    permission_namespaces: []
+    api_prefixes: [] # internal governed library — no REST surface (ADR-118)
+    permission_namespaces: ['studio.*'] # GAP M31-3 resolved (Stage 6B, ADR-118): studio.* namespace registered + seeded
+    permission_namespace_registered: true
     event_families: [studio.lifecycle]
     event_family_registered: true
     audit_prefixes: [STUDIO_]
+    note: >
+      Stage 6B design-time authoring Studio (workflow/rule/form). NOT a second runtime engine — a validated+approved
+      design compiles/binds to the canonical m06 workflow + m07 rules contracts (opaque binding only, no duplicate
+      table/engine/outbox); studio.lifecycle carries design-time events through the ONE m06 outbox. Canonical owner of
+      reusable DECLARATIVE form definitions (FORM DEFINITION != BUSINESS RECORD). No arbitrary code (reuses m06 sandbox +
+      m07 conditions, fail closed); publish is a controlled action (maker-checker/SoD, human approver); published version
+      immutable; m33 integration deferred behind a fail-closed port; secret-bearing values are opaque secretref: only.
 
   - module: m32-analytics
     stage: 6

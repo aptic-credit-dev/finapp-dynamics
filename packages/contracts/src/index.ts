@@ -274,3 +274,13 @@ export type {
   PlatformLifecycleEventType,
   PlatformLifecyclePayload,
 } from './platform-events.ts';
+export {
+  STUDIO_LIFECYCLE_FAMILY,
+  STUDIO_LIFECYCLE_VERSION,
+  STUDIO_LIFECYCLE_EVENT_TYPES,
+} from './studio-events.ts';
+export type {
+  StudioLifecycleEvent,
+  StudioLifecycleEventType,
+  StudioLifecyclePayload,
+} from './studio-events.ts';

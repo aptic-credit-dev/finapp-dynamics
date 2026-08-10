@@ -307,6 +307,14 @@ namespaces:
      codes: ["platform.metadata.read", "platform.metadata.manage", "platform.config.read", "platform.config.manage",
              "platform.feature.read", "platform.feature.manage", "platform.secret.read", "platform.secret.manage",
              "platform.control.administer"]}
+  # Stage 6B (m31-studio) — GAP M31-3 resolution (ADR-118): the studio.* namespace. Three-segment studio.<area>.<action>.
+  # studio.control.administer is the cross-tenant CONTROL-PLANE permission (a tenant admin never holds it by default);
+  # publish/archive/binding/manage codes are privileged (publishing is a CONTROLLED action). NO studio.admin / wildcard
+  # bypass; a feature flag can never substitute a permission. Registered + seeded (m31 migration 0001).
+  - {namespace: "studio.*", module: m31-studio, mvp: false, status: implemented, substage: "6B",
+     codes: ["studio.project.read", "studio.project.manage", "studio.artifact.read", "studio.artifact.author",
+             "studio.artifact.validate", "studio.artifact.publish", "studio.artifact.archive", "studio.binding.manage",
+             "studio.control.administer"]}
   - {namespace: "reports.*", module: m10-report, mvp: true, status: documented}
   - {namespace: "analytics.*", module: m32-analytics, mvp: false, status: documented}
   - {namespace: "integration.*", module: m33-integration, mvp: false, status: documented}
