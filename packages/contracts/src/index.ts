@@ -284,3 +284,13 @@ export type {
   StudioLifecycleEventType,
   StudioLifecyclePayload,
 } from './studio-events.ts';
+export {
+  ANALYTICS_LIFECYCLE_FAMILY,
+  ANALYTICS_LIFECYCLE_VERSION,
+  ANALYTICS_LIFECYCLE_EVENT_TYPES,
+} from './analytics-events.ts';
+export type {
+  AnalyticsLifecycleEvent,
+  AnalyticsLifecycleEventType,
+  AnalyticsLifecyclePayload,
+} from './analytics-events.ts';

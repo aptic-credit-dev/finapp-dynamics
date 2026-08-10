@@ -1993,7 +1993,37 @@ stages:
       #       no silent cross-currency aggregation (analytics must not reintroduce float finance deliberately avoided).
       #   G-j 42 reference_tables -> governed core reconciliation (m30 26->10, m31 25->9 precedent); document honestly.
       # Maker-checker: metric/report PUBLICATION that drives executive/M28 reporting is a controlled action (assess approver!=author).
-      - {module: m32-analytics, capability: Reporting & analytics builder (6C), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
+      # IMPLEMENTED (Stage 6C, 2026-08-10). All reviewer gaps above resolved: G-a governed semantic query (compileMetricQuery,
+      # whitelisted dims/measures/operators, no arbitrary SQL, fail closed); G-b entitlement intersection on aggregates
+      # (evaluateEntitlement — aggregation grants no access); G-c m10-report ownership (ADR-119, m32 canonical); G-d m04
+      # admin_saved_view boundary (m32 owns analytics dashboards, no 2nd saved-view engine); G-e M28 ExecutiveAnalyticsPort
+      # implemented (M32ExecutiveAnalyticsAdapter); G-f materialization+lineage (append-only rebuildable, analytics_lineage
+      # mandatory); G-g scheduler/notify reuse (opaque m06 timer + m08 notify refs, no engine); G-h exports (privileged,
+      # filter-before-export, audited, bounded); G-i money (bigint minor/numeric decimal/bps, 0 float); G-j 42->11 core.
+      - module: m32-analytics
+        capability: Reporting & analytics builder (6C)
+        status: implemented
+        mvp: false
+        testing_required: [smoke, db_spec]
+        implementation_6_m32:
+          adrs: [ADR-119]
+          tables: 11
+          reconciliation: "reference_tables 42 (full reference baseline) -> 11 governed tables; derived/read analytics layer over source modules"
+          permission_namespace: "analytics.* (12 codes, 6 privileged, all 3-segment)"
+          audit_prefix: ANALYTICS_
+          audit_codes: 17
+          event_family: analytics.lifecycle
+          event_types: 7
+          outboxes: 0
+          api_prefixes: [/api/v1/analytics]
+          second_engine: none
+          secret_value_columns: 0
+          floats: 0
+          binds_to: [m28-executive-ai, m30-platform]
+          consumers: [m28-executive-ai]
+          query_engine: "governed semantic (whitelisted dims/measures/operators, parameterized, no arbitrary SQL)"
+          integration_boundary: "m33/m41 deferred behind fail-closed MaterializationSourcePort"
+          branch: feature/stage-6-m32-analytics
       - {module: m33-integration, capability: Integration foundation (6D-1), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: documented, mvp: false, testing_required: [smoke, db_spec]}

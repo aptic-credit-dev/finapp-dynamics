@@ -418,9 +418,18 @@ modules:
     mvp: false
     api_prefixes: [/api/v1/analytics]
     permission_namespaces: ['analytics.*']
+    permission_namespace_registered: true # Stage 6C: analytics.* (12 codes) registered + seeded
     event_families: [analytics.lifecycle]
     event_family_registered: true
     audit_prefixes: [ANALYTICS_]
+    note: >
+      Stage 6C governed DERIVED/READ analytics builder. NOT a source of truth — source modules stay authoritative; m32
+      stores derived, read-only, rebuildable projections with mandatory lineage; no business mutation. NO arbitrary SQL
+      (governed semantic query layer: whitelisted dims/measures/operators, parameterized, fail closed). Entitlement
+      intersection means aggregation grants no access. Implements the M28 ExecutiveAnalyticsPort (ADR-112). Money is bigint
+      minor / exact decimal / integer bps (no float). Metric/report publication is a controlled action (maker-checker;
+      published-immutable). Reuses m02/m03/m06/m08/m09/m24/m28/m30 by contract; one m06 outbox; m33/m41 deferred behind
+      fail-closed ports. reference_tables 42 reconciled to a governed core of 11.
 
   - module: m33-integration
     stage: 6

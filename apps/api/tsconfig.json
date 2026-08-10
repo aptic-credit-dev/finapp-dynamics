@@ -46,6 +46,7 @@
     { "path": "../../packages/m04-admin" },
     { "path": "../../packages/m24-ai-foundation" },
     { "path": "../../packages/m28-executive-ai" },
+    { "path": "../../packages/m32-analytics" },
     { "path": "../../tools/test-runner" }
   ]
 }

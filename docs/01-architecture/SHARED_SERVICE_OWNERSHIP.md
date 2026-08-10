@@ -26,7 +26,7 @@ Exactly one authoritative implementation of each shared service. Consume via DI 
 | Reusable forms / form schemas | m31-studio | contract | canonical owner of reusable DECLARATIVE form/schema DEFINITIONS (typed fields, versioned, published-immutable, no executable code); FORM DEFINITION ≠ BUSINESS RECORD — submitted records stay domain-owned, m12 questionnaires stay m12 (Stage 6B, ADR-117) |
 | Entitlements / quotas | m39-saas | contract | plan → capability → flag order |
 | Usage metering / billing | m39-saas | contract | idempotent usage; immutable invoices |
-| Reporting / analytics | m10-report / m32-analytics | contract | semantic datasets, RLS, masking |
+| Reporting / analytics | m32-analytics | contract | canonical enterprise reporting/analytics BUILDER (semantic datasets, metrics/KPIs, reports, dashboards, exports, schedules); DERIVED/READ layer — source of truth stays with each source module; governed semantic query (no arbitrary SQL); entitlement intersection (aggregation grants no access); implements the M28 ExecutiveAnalyticsPort; money is bigint minor/decimal/bps (no float). m10-report (Stage 2 placeholder, never built) is subsumed — no second reporting engine (Stage 6C, ADR-119) |
 | AI gateway | m24-ai-foundation | contract | provider abstraction, registries |
 | Security control plane | m41-security | contract | posture over RBAC; never replaces it |
 

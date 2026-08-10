@@ -52,6 +52,8 @@ import type { PlatformLifecycleEvent } from './platform-events.ts';
 import { PLATFORM_LIFECYCLE_FAMILY } from './platform-events.ts';
 import type { StudioLifecycleEvent } from './studio-events.ts';
 import { STUDIO_LIFECYCLE_FAMILY } from './studio-events.ts';
+import type { AnalyticsLifecycleEvent } from './analytics-events.ts';
+import { ANALYTICS_LIFECYCLE_FAMILY } from './analytics-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -92,7 +94,8 @@ export type DomainEvent =
   | AiOutputLifecycleEvent
   | AiGovernanceLifecycleEvent
   | PlatformLifecycleEvent
-  | StudioLifecycleEvent;
+  | StudioLifecycleEvent
+  | AnalyticsLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -122,6 +125,7 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   AI_GOVERNANCE_LIFECYCLE_FAMILY,
   PLATFORM_LIFECYCLE_FAMILY,
   STUDIO_LIFECYCLE_FAMILY,
+  ANALYTICS_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */
