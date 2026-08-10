@@ -48,6 +48,7 @@
     { "path": "../../packages/m28-executive-ai" },
     { "path": "../../packages/m32-analytics" },
     { "path": "../../packages/m33-integration" },
+    { "path": "../../packages/m34-marketplace" },
     { "path": "../../tools/test-runner" }
   ]
 }

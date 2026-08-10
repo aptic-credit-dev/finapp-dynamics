@@ -304,3 +304,13 @@ export type {
   ConnectorLifecycleEventType,
   ConnectorLifecyclePayload,
 } from './connector-events.ts';
+export {
+  MARKETPLACE_LIFECYCLE_FAMILY,
+  MARKETPLACE_LIFECYCLE_VERSION,
+  MARKETPLACE_LIFECYCLE_EVENT_TYPES,
+} from './marketplace-events.ts';
+export type {
+  MarketplaceLifecycleEvent,
+  MarketplaceLifecycleEventType,
+  MarketplaceLifecyclePayload,
+} from './marketplace-events.ts';
