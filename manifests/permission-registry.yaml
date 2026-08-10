@@ -323,7 +323,13 @@ namespaces:
      codes: ["analytics.dataset.read", "analytics.dataset.manage", "analytics.metric.read", "analytics.metric.author",
              "analytics.metric.publish", "analytics.report.read", "analytics.report.author", "analytics.report.publish",
              "analytics.query.run", "analytics.export.create", "analytics.schedule.manage", "analytics.control.administer"]}
-  - {namespace: "integration.*", module: m33-integration, mvp: false, status: documented}
+  # Stage 6D-1 (m33-integration): the integration.* namespace. Three-segment integration.<area>.<action>.
+  # integration.control.administer is the cross-tenant CONTROL-PLANE permission; connector publish + connection manage
+  # (secret references) + run execute (external access) are privileged (controlled actions). NO integration.admin / wildcard.
+  - {namespace: "integration.*", module: m33-integration, mvp: false, status: implemented, substage: "6D-1",
+     codes: ["integration.connector.read", "integration.connector.author", "integration.connector.publish",
+             "integration.capability.read", "integration.connection.read", "integration.connection.manage",
+             "integration.run.read", "integration.run.execute", "integration.control.administer"]}
   - {namespace: "automation.*", module: m38-automation, mvp: false, status: documented}
   - {namespace: "extensions.*", module: m38-automation, mvp: false, status: documented}
   - {namespace: "saas.*", module: m39-saas, mvp: false, status: deferred}

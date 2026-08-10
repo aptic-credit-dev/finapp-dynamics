@@ -2068,7 +2068,37 @@ stages:
       #       connection access. Idempotency for connector runs / event ingestion (high-risk actions).
       #   G-h 38 reference_tables -> governed core reconciliation (m30 26->10, m31 25->9, m32 42->11 precedent); document honestly.
       # Maker-checker: connector installation/publication that grants external data access is a controlled action (assess approver!=author).
-      - {module: m33-integration, capability: Integration foundation (6D-1), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
+      # IMPLEMENTED (Stage 6D-1, 2026-08-10). All reviewer gaps above resolved: G-a framework-only runtime (fail-closed
+      # ConnectorRuntimePort, deterministic doubles, no production egress); G-b no second secrets manager (connection_secret
+      # secretref-only, 0 credential-value cols, real key mgmt=m41 behind fail-closed resolver); G-c connector_* prefix (not
+      # m23's integration_*); G-d registered capabilities/no arbitrary code; G-e implements m31 IntegrationCapabilityCatalogPort
+      # (M33IntegrationCapabilityCatalog; m31 unchanged); G-f connector.lifecycle only + one m06 outbox; G-g FORCE-RLS +
+      # composite FKs + idempotency; G-h 38->9 core. Connector publish = maker-checker/SoD, published-immutable.
+      - module: m33-integration
+        capability: Integration foundation (6D-1)
+        status: implemented
+        mvp: false
+        testing_required: [smoke, db_spec]
+        implementation_6_m33:
+          adrs: [ADR-120]
+          tables: 9
+          table_prefix: connector_
+          reconciliation: "reference_tables 38 (full reference baseline) -> 9 governed connector_* tables; framework-only foundation"
+          permission_namespace: "integration.* (9 codes, 4 privileged, all 3-segment)"
+          audit_prefix: INTEGRATION_
+          audit_codes: 15
+          event_family: connector.lifecycle
+          event_types: 6
+          outboxes: 0
+          api_prefixes: [/api/v1/integration]
+          second_engine: none
+          secret_value_columns: 0
+          floats: 0
+          runtime: "framework-only, fail-closed ConnectorRuntimePort (no production egress)"
+          implements_port: "m31 IntegrationCapabilityCatalogPort"
+          binds_to: [m30-platform, m31-studio]
+          secrets: "connection_secret secretref-only (m30 seam); real key mgmt = m41 deferred"
+          branch: feature/stage-6-m33-integration
       - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: documented, mvp: false, testing_required: [smoke, db_spec]}
