@@ -2117,7 +2117,30 @@ stages:
           boundaries: "framework-only fail-closed runtime (no egress); connection_secret secretref-only (m30 seam, m41 deferred); connector_* prefix — m23 integration_* untouched (7 tables, no collision); implements m31 IntegrationCapabilityCatalogPort; m28/m30/m31/m32 source untouched"
           contamination: clean
           report: docs/build/stages/STAGE_6_M33_INTEGRATION_CERTIFICATION.md
-      - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      # m34-marketplace APPROVED FOR BUILD (Stage 6D-2 governance, 2026-08-10). Connector MARKETPLACE: catalog listings,
+      # tenant INSTALLATIONS, CONSENT and UPGRADES over the connectors m33 defines. It CONSUMES m33 (integration foundation,
+      # certified on main) BY CONTRACT — installations reference m33 connector definitions/capabilities by opaque id; m34
+      # must NOT duplicate m33's connector SDK/registry/runtime/connection/secret engine. Declares /api/v1/connectors +
+      # marketplace.lifecycle (registered) + MARKETPLACE_ audit. HARD deps = m33 + m30 (both certified/implemented on main);
+      # MODULE_DEPENDENCY_MAP 6D chain m33->m34->...; m35-m37 DOWNSTREAM; no unbuilt HARD dep.
+      # Reviewer gaps to resolve at build via ADR + registries (non-blocking, m30/m31 precedent):
+      #   G-a PERMISSION NAMESPACE MISSING (GAP-4, flagged in naming-map: permission_namespaces:[]) — declare a marketplace.*
+      #       namespace (3-segment, default-deny, no wildcard); register in permission-registry + seed. This is the primary gap.
+      #   G-b CONSENT + INSTALL/UPGRADE = CONTROLLED ACTION: a tenant consenting to a connector's data access (and an upgrade
+      #       that widens access) is a controlled action — maker-checker/human approval; consent auditable + revocable; AI never consents.
+      #   G-c CONSUMES m33 BY CONTRACT: reference m33 connector definitions/capabilities by opaque id; NO second connector SDK/
+      #       registry/runtime/connection/secret engine; reuse m33's IntegrationCapabilityCatalog / connector contracts.
+      #   G-d NO SECOND SECRETS MANAGER: any install-time secret-bearing config is an opaque m30 secretref: pointer only; ZERO
+      #       secret VALUE columns; real key mgmt = m41 behind a fail-closed port (ADR-116/120 precedent).
+      #   G-e TABLE PREFIX: use a DISTINCT marketplace_* prefix (integration_* is m23's, connector_* is m33's) — no collision.
+      #   G-f EVENT/OUTBOX: m34 owns marketplace.lifecycle ONLY (devportal/webhook/eventstream/govrelease belong to m35-m37);
+      #       publish via the ONE m06 outbox; NO second outbox/event-delivery path.
+      #   G-g TENANCY/IDEMPOTENCY: installations/consent tenant-scoped FORCE-RLS + composite tenant-safe FKs; no cross-tenant
+      #       install/consent access; idempotent install/upgrade (high-risk actions).
+      #   G-h 25 reference_tables -> governed core reconciliation (m30 26->10, m31 25->9, m32 42->11, m33 38->9 precedent); document honestly.
+      #   G-i (informational) /api/v1/connectors is the marketplace surface (browse/install/consent/upgrade), distinct from m33's
+      #       /api/v1/integration (SDK/registry/runtime) — no route-prefix collision; connectors are DEFINED by m33, INSTALLED via m34.
+      - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: documented, mvp: false, testing_required: [smoke, db_spec]}
