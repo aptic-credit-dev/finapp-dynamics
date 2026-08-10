@@ -41,6 +41,7 @@
     { "path": "./packages/m31-studio" },
     { "path": "./packages/m32-analytics" },
     { "path": "./packages/m33-integration" },
+    { "path": "./packages/m34-marketplace" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

@@ -76,6 +76,7 @@ import {
   STUDIO_LIFECYCLE_FAMILY,
   ANALYTICS_LIFECYCLE_FAMILY,
   CONNECTOR_LIFECYCLE_FAMILY,
+  MARKETPLACE_LIFECYCLE_FAMILY,
 } from '@finapp/contracts';
 
 /**
@@ -91,8 +92,8 @@ import {
 export default defineSuite('contracts', (t) => {
   t.equal(
     DOMAIN_EVENT_FAMILIES.length,
-    28,
-    'twenty-eight event families (m32 adds analytics.lifecycle, Stage 6C; m33 adds connector.lifecycle at the tail, Stage 6D-1)',
+    29,
+    'twenty-nine event families (m33 adds connector.lifecycle, Stage 6D-1; m34 adds marketplace.lifecycle at the tail, Stage 6D-2)',
   );
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
@@ -337,10 +338,14 @@ export default defineSuite('contracts', (t) => {
     DOMAIN_EVENT_FAMILIES.includes(CONNECTOR_LIFECYCLE_FAMILY),
     'connector.lifecycle is declared (m33, Stage 6D-1)',
   );
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(MARKETPLACE_LIFECYCLE_FAMILY),
+    'marketplace.lifecycle is declared (m34, Stage 6D-2)',
+  );
   t.equal(
     DOMAIN_EVENT_FAMILIES[DOMAIN_EVENT_FAMILIES.length - 1],
-    CONNECTOR_LIFECYCLE_FAMILY,
-    'connector.lifecycle is the newest family — appended at the tail (Stage 6D-1)',
+    MARKETPLACE_LIFECYCLE_FAMILY,
+    'marketplace.lifecycle is the newest family — appended at the tail (Stage 6D-2)',
   );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');

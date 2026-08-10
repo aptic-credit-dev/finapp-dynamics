@@ -1,0 +1,35 @@
+{
+  "name": "@finapp/m34-marketplace",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M34 — Connector Marketplace (Stage 6D-2, mvp:false): the governed marketplace over the connectors m33 defines — catalog LISTINGS, tenant INSTALLATIONS, CONSENT and UPGRADES. It CONSUMES m33 (integration foundation) BY CONTRACT: a listing/installation references an m33 connector by OPAQUE id and validates availability through a fail-closed ConnectorRegistryPort — m34 does NOT duplicate m33's connector SDK/registry/runtime/connection/secret engine and never executes a connector (that is m33's responsibility). IT IS NOT A SECRETS MANAGER: install-time secret-bearing config is stored ONLY as opaque secretref: pointers (the m30 seam); ZERO credential/secret VALUE columns; real key management is deferred to m41 behind a fail-closed port. CONSENT + INSTALL + UPGRADE are CONTROLLED actions: a tenant consenting to a connector's data access (and an upgrade that widens access) is human-governed (maker-checker/SoD, AI never consents/approves, consent is revocable, default deny). A published listing is IMMUTABLE (trigger). It uses the marketplace_* table prefix (integration_* is m23's, connector_* is m33's) and owns marketplace.lifecycle ONLY (devportal/webhook/eventstream/govrelease belong to m35-m37). Reuses m02 RBAC, m03 audit, m06 OUTBOX, m30 secret-reference seam and m33 connector contracts BY CONTRACT — NO second engine (no 2nd outbox/RBAC/audit/secrets-manager/connector-runtime engine). It declares /api/v1/connectors, the marketplace.* permission namespace (GAP-4 resolved), the marketplace.lifecycle event family (published through the ONE m06 outbox) and the MARKETPLACE_ audit prefix. No secret value; no external network/provider; no arbitrary code.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m30-platform": "*",
+    "@finapp/m33-integration": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

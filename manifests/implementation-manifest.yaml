@@ -2140,7 +2140,37 @@ stages:
       #   G-h 25 reference_tables -> governed core reconciliation (m30 26->10, m31 25->9, m32 42->11, m33 38->9 precedent); document honestly.
       #   G-i (informational) /api/v1/connectors is the marketplace surface (browse/install/consent/upgrade), distinct from m33's
       #       /api/v1/integration (SDK/registry/runtime) — no route-prefix collision; connectors are DEFINED by m33, INSTALLED via m34.
-      - {module: m34-marketplace, capability: Connector marketplace (6D-2), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
+      # IMPLEMENTED (Stage 6D-2, 2026-08-10). All reviewer gaps above resolved: G-a marketplace.* namespace (ADR-121, 8 codes,
+      # GAP-4 resolved); G-b consent+install/upgrade = controlled action (evaluateConsentGate human-only, marketplace_consent
+      # human_ck, upgrade maker-checker SoD, consent revocable-suspends-install); G-c consumes m33 by contract (opaque
+      # connector_ref + fail-closed ConnectorRegistryPort/M33ConnectorRegistryAdapter, no 2nd engine); G-d no 2nd secrets
+      # manager (marketplace_install_secret secretref-only, 0 value cols, config screened, m41 deferred); G-e marketplace_*
+      # prefix (not m23 integration_* nor m33 connector_*); G-f marketplace.lifecycle only + one m06 outbox; G-g FORCE-RLS +
+      # composite FKs + idempotency; G-h 25->9 core. Listing publish = maker-checker + connector-published check; published-immutable.
+      - module: m34-marketplace
+        capability: Connector marketplace (6D-2)
+        status: implemented
+        mvp: false
+        testing_required: [smoke, db_spec]
+        implementation_6_m34:
+          adrs: [ADR-121]
+          tables: 9
+          table_prefix: marketplace_
+          reconciliation: "reference_tables 25 (full reference baseline) -> 9 governed marketplace_* tables; marketplace over m33 connectors"
+          permission_namespace: "marketplace.* (8 codes, 5 privileged, all 3-segment) — GAP-4 resolved"
+          audit_prefix: MARKETPLACE_
+          audit_codes: 16
+          event_family: marketplace.lifecycle
+          event_types: 7
+          outboxes: 0
+          api_prefixes: [/api/v1/connectors]
+          second_engine: none
+          secret_value_columns: 0
+          floats: 0
+          consumes: [m33-integration]
+          binds_to: [m30-platform, m33-integration]
+          consent: "human-granted (evaluateConsentGate), revocable, DB human_ck; AI never consents"
+          branch: feature/stage-6-m34-marketplace
       - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: documented, mvp: false, testing_required: [smoke, db_spec]}

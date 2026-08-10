@@ -56,6 +56,8 @@ import type { AnalyticsLifecycleEvent } from './analytics-events.ts';
 import { ANALYTICS_LIFECYCLE_FAMILY } from './analytics-events.ts';
 import type { ConnectorLifecycleEvent } from './connector-events.ts';
 import { CONNECTOR_LIFECYCLE_FAMILY } from './connector-events.ts';
+import type { MarketplaceLifecycleEvent } from './marketplace-events.ts';
+import { MARKETPLACE_LIFECYCLE_FAMILY } from './marketplace-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -98,7 +100,8 @@ export type DomainEvent =
   | PlatformLifecycleEvent
   | StudioLifecycleEvent
   | AnalyticsLifecycleEvent
-  | ConnectorLifecycleEvent;
+  | ConnectorLifecycleEvent
+  | MarketplaceLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -130,6 +133,7 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   STUDIO_LIFECYCLE_FAMILY,
   ANALYTICS_LIFECYCLE_FAMILY,
   CONNECTOR_LIFECYCLE_FAMILY,
+  MARKETPLACE_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */

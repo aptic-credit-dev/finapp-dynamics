@@ -330,6 +330,13 @@ namespaces:
      codes: ["integration.connector.read", "integration.connector.author", "integration.connector.publish",
              "integration.capability.read", "integration.connection.read", "integration.connection.manage",
              "integration.run.read", "integration.run.execute", "integration.control.administer"]}
+  # Stage 6D-2 (m34-marketplace) — GAP-4 resolution: the marketplace.* namespace (naming-map had permission_namespaces:[]).
+  # Three-segment marketplace.<area>.<action>. marketplace.control.administer is the cross-tenant CONTROL-PLANE permission;
+  # listing publish + install manage + consent manage + upgrade apply are privileged (controlled actions). NO marketplace.admin.
+  - {namespace: "marketplace.*", module: m34-marketplace, mvp: false, status: implemented, substage: "6D-2",
+     codes: ["marketplace.listing.read", "marketplace.listing.author", "marketplace.listing.publish",
+             "marketplace.install.read", "marketplace.install.manage", "marketplace.consent.manage",
+             "marketplace.upgrade.apply", "marketplace.control.administer"]}
   - {namespace: "automation.*", module: m38-automation, mvp: false, status: documented}
   - {namespace: "extensions.*", module: m38-automation, mvp: false, status: documented}
   - {namespace: "saas.*", module: m39-saas, mvp: false, status: deferred}
