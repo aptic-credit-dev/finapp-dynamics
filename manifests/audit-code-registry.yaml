@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 830 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 848 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -1020,6 +1020,28 @@ codes:
   - { code: MARKETPLACE_REVIEW_REJECTED, module: m34-marketplace, severity: elevated, reason_required: false }
   - { code: MARKETPLACE_PUBLISH_BLOCKED, module: m34-marketplace, severity: elevated, reason_required: false }
   - { code: MARKETPLACE_SOD_BLOCKED, module: m34-marketplace, severity: elevated, reason_required: false }
+
+  # M35 Public APIs & Developer Portal (Stage 6D-3) — DEVPORTAL_ prefix. 18 DEVPORTAL_* codes; apps, API credentials,
+  # products, subscriptions. Payloads carry ids/keys/statuses/reason codes only — never a secret value/reference content,
+  # an API credential, a config value or an external payload.
+  - { code: DEVPORTAL_APP_REGISTERED, module: m35-devportal, severity: normal, reason_required: false }
+  - { code: DEVPORTAL_APP_SUSPENDED, module: m35-devportal, severity: elevated, reason_required: false }
+  - { code: DEVPORTAL_PRODUCT_DEFINED, module: m35-devportal, severity: normal, reason_required: false }
+  - { code: DEVPORTAL_PRODUCT_VALIDATED, module: m35-devportal, severity: normal, reason_required: false }
+  - { code: DEVPORTAL_PRODUCT_PUBLISHED, module: m35-devportal, severity: elevated, reason_required: false }
+  - { code: DEVPORTAL_PRODUCT_DEPRECATED, module: m35-devportal, severity: normal, reason_required: false }
+  - { code: DEVPORTAL_SCOPE_ADDED, module: m35-devportal, severity: normal, reason_required: false }
+  - { code: DEVPORTAL_REVIEW_REQUESTED, module: m35-devportal, severity: normal, reason_required: false }
+  - { code: DEVPORTAL_REVIEW_REJECTED, module: m35-devportal, severity: elevated, reason_required: false }
+  - { code: DEVPORTAL_CREDENTIAL_ISSUED, module: m35-devportal, severity: elevated, reason_required: false }
+  - { code: DEVPORTAL_CREDENTIAL_ROTATED, module: m35-devportal, severity: elevated, reason_required: false }
+  - { code: DEVPORTAL_CREDENTIAL_REVOKED, module: m35-devportal, severity: elevated, reason_required: false }
+  - { code: DEVPORTAL_SUBSCRIPTION_REQUESTED, module: m35-devportal, severity: normal, reason_required: false }
+  - { code: DEVPORTAL_SUBSCRIPTION_ACTIVATED, module: m35-devportal, severity: elevated, reason_required: false }
+  - { code: DEVPORTAL_SUBSCRIPTION_SUSPENDED, module: m35-devportal, severity: elevated, reason_required: false }
+  - { code: DEVPORTAL_PUBLISH_BLOCKED, module: m35-devportal, severity: elevated, reason_required: false }
+  - { code: DEVPORTAL_SOD_BLOCKED, module: m35-devportal, severity: elevated, reason_required: false }
+  - { code: DEVPORTAL_EXPOSURE_BLOCKED, module: m35-devportal, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

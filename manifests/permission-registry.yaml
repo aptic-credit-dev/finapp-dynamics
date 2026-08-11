@@ -337,6 +337,14 @@ namespaces:
      codes: ["marketplace.listing.read", "marketplace.listing.author", "marketplace.listing.publish",
              "marketplace.install.read", "marketplace.install.manage", "marketplace.consent.manage",
              "marketplace.upgrade.apply", "marketplace.control.administer"]}
+  # Stage 6D-3 (m35-devportal) — GAP-4 resolution: the devportal.* namespace (naming-map had permission_namespaces:[]).
+  # Three-segment devportal.<area>.<action>. devportal.control.administer is the cross-tenant CONTROL-PLANE permission that
+  # PUBLIC exposure of a product requires; product publish + credential manage + subscription manage are privileged
+  # (controlled actions). NO devportal.admin. The developer portal is a governed FACADE — never a second authorization path.
+  - {namespace: "devportal.*", module: m35-devportal, mvp: false, status: implemented, substage: "6D-3",
+     codes: ["devportal.app.read", "devportal.app.manage", "devportal.product.read", "devportal.product.author",
+             "devportal.product.publish", "devportal.credential.manage", "devportal.subscription.manage",
+             "devportal.control.administer"]}
   - {namespace: "automation.*", module: m38-automation, mvp: false, status: documented}
   - {namespace: "extensions.*", module: m38-automation, mvp: false, status: documented}
   - {namespace: "saas.*", module: m39-saas, mvp: false, status: deferred}

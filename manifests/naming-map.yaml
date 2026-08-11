@@ -470,11 +470,24 @@ modules:
   - module: m35-devportal
     stage: 6
     mvp: false
-    api_prefixes: []
-    permission_namespaces: []
+    api_prefixes: [/api/v1/developer]
+    permission_namespaces: ['devportal.*'] # GAP-4 RESOLVED (Stage 6D-3, ADR-122): devportal.* (8 codes) registered + seeded
+    permission_namespace_registered: true
     event_families: [devportal.lifecycle]
     event_family_registered: true
     audit_prefixes: [DEVPORTAL_]
+    note: >
+      Stage 6D-3 governed developer portal + API-gateway FACADE over the platform — developer applications, API credentials,
+      published API products and app subscriptions (public exposure). It is a GOVERNED FACADE: a product exposes only
+      ALLOW-LISTED operations, each carrying the m02 permission it requires — public exposure never bypasses m02 RBAC or m01
+      tenancy. NOT a secrets manager: an API credential persists a one-way sha256: hash XOR an opaque secretref: pointer (the
+      m30 seam); zero plaintext credential columns; m41 deferred. Credential issuance/rotation/revocation are human-governed
+      (AI never issues); product publication + subscription approval are maker-checker/SoD controlled actions (AI never
+      approves; published-immutable). CONSUMES m34/m33 by contract (opaque source references validated via a fail-closed
+      CatalogSourcePort; m35 reads no m33/m34 table) and m39-saas by contract for public quotas (fail-closed UsageQuotaPort;
+      m39 unbuilt -> deny). Uses the devportal_* prefix (integration_* is m23's, connector_* is m33's, marketplace_* is
+      m34's). Owns devportal.lifecycle only; one m06 outbox. GAP-4 resolved (devportal.* namespace). reference_tables 18
+      reconciled to a governed core of 9.
 
   - module: m36-events
     stage: 6

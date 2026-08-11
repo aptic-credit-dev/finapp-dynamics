@@ -1,0 +1,36 @@
+{
+  "name": "@finapp/m35-devportal",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M35 — Public APIs & Developer Portal (Stage 6D-3, mvp:false): the governed developer portal + API-gateway FACADE over the platform — developer APPLICATIONS, API CREDENTIALS, published API PRODUCTS and app SUBSCRIPTIONS (public exposure). It is a GOVERNED FACADE: a product exposes only ALLOW-LISTED operations, each carrying the m02 permission it requires — public exposure NEVER bypasses m02 RBAC or m01 tenancy (that stays authoritative). It is NOT a secrets manager: an API credential persists ONLY a one-way secret_hash (sha256:) OR an opaque secretref: pointer (the m30 seam) — ZERO plaintext credential VALUE columns; real key management is deferred to m41 behind a fail-closed port. CREDENTIAL issuance/rotation/revocation are HUMAN-governed (AI/system/automation never issue); PRODUCT publication and SUBSCRIPTION approval are CONTROLLED actions (maker-checker/SoD, AI never approves, default deny); a published product is IMMUTABLE (trigger). It CONSUMES m34 (marketplace) + m33 (integration) BY CONTRACT: a product surfaces a marketplace listing/connector by OPAQUE reference validated through a fail-closed CatalogSourcePort — m35 owns NO connector/marketplace engine and reads no m33/m34 table. QUOTAS/USAGE are m39-saas's: consumed behind a fail-closed UsageQuotaPort (m39 unbuilt -> deny public exposure) — NO second quota/metering engine. It uses the devportal_* table prefix (integration_* is m23's, connector_* is m33's, marketplace_* is m34's) and owns devportal.lifecycle ONLY. Declares /api/v1/developer, the devportal.* permission namespace (GAP-4 resolved), the devportal.lifecycle event family (published through the ONE m06 outbox) and the DEVPORTAL_ audit prefix. No secret value; no external network/provider; no arbitrary code.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m30-platform": "*",
+    "@finapp/m33-integration": "*",
+    "@finapp/m34-marketplace": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
