@@ -2262,6 +2262,24 @@ stages:
           credentials: "one-way sha256: hash XOR opaque secretref: (m30 seam); 0 plaintext columns; human-governed (AI never issues); m41 deferred"
           quotas: "m39-saas by contract via fail-closed UsageQuotaPort (m39 unbuilt -> public exposure denied); no 2nd quota/metering engine"
           branch: feature/stage-6-m35-devportal
+        certification_6_m35:
+          verdict: certified_on_branch
+          date: "2026-08-11"
+          governance_pr: 88
+          governance_merge_sha: e9b3b1f
+          implementation_pr: 89
+          reviewed_head: 5156e07
+          implementation_merge_sha: 6a77000407ec9a17a285072f4c4a84685b6f676d
+          tree_equivalence: "git diff 5156e07 6a77000 == EMPTY (byte-identical squash, single parent)"
+          certification_baseline: 6a77000407ec9a17a285072f4c4a84685b6f676d
+          certification_branch: cert/stage-6-m35-devportal
+          implementation_ci: "Smoke success + DB PG16 success on 5156e07 (and on merge commit 6a77000)"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings); build clean; smoke 40/6747/0-fail (m35 99, conformance 3493); migrate 68 (m35=2); DB 83/2553/0-fail on fresh DB (m35-devportal 36 + m35-services 27)"
+          metrics: "9 devportal_* tables/9 FORCE-RLS/9 policies/5 composite FKs/0 unsafe/0 DELETE/5 append-only/4 mutable/26 CHECKs/4 version cols/0 float/0 plaintext-secret/1 immutability trigger/8 perms(4 priv)/18 DEVPORTAL_ codes(reg 848)/devportal.lifecycle 7 types/1 outbox(m06)"
+          boundaries: "governed facade — product exposes only allow-listed ops each carrying required m02 permission (product_scope.required_permission NOT NULL/3-seg), never bypasses m02 RBAC/m01 tenancy; credentials = one-way sha256: hash XOR opaque secretref: (m30 seam), 0 plaintext cols, human-governed (AI never issues), m41 deferred; product publish + subscription approve = maker-checker/SoD (AI never approves), published-immutable; consumes m34/m33 by contract via fail-closed CatalogSourcePort (opaque source_ref, reads no m33/m34 table) + m39 quotas via fail-closed UsageQuotaPort (m39 unbuilt -> deny); devportal_* prefix; m23/m28/m30/m31/m32/m33/m34 source untouched"
+          contamination: clean
+          report: docs/build/stages/STAGE_6_M35_DEVPORTAL_CERTIFICATION.md
       - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: documented, mvp: false, testing_required: [smoke, db_spec]}
