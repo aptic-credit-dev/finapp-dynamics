@@ -2171,6 +2171,24 @@ stages:
           binds_to: [m30-platform, m33-integration]
           consent: "human-granted (evaluateConsentGate), revocable, DB human_ck; AI never consents"
           branch: feature/stage-6-m34-marketplace
+        certification_6_m34:
+          verdict: certified_on_branch
+          date: "2026-08-11"
+          governance_pr: 85
+          governance_merge_sha: fa7f1ce
+          implementation_pr: 86
+          reviewed_head: e7e578d
+          implementation_merge_sha: 597ca2ee6719fca898a1009391b4e9b560074c63
+          tree_equivalence: "git diff e7e578d 597ca2ee == EMPTY (byte-identical squash, single parent)"
+          certification_baseline: 597ca2ee6719fca898a1009391b4e9b560074c63
+          certification_branch: cert/stage-6-m34-marketplace
+          implementation_ci: "Smoke success + DB PG16 success on e7e578d (and on merge commit 597ca2e)"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings); build clean; smoke 39/6590/0-fail (m34 85, conformance 3437); migrate 66 (m34=2); DB 81/2490/0-fail on fresh DB (m34-marketplace 32 + m34-services 19)"
+          metrics: "9 marketplace_* tables/9 FORCE-RLS/9 policies/5 composite FKs/0 unsafe/0 DELETE/5 append-only/4 mutable/24 CHECKs/4 version cols/0 float/0 secret-value/1 immutability trigger/8 perms(5 priv)/16 MARKETPLACE_ codes(reg 830)/marketplace.lifecycle 7 types/1 outbox(m06)"
+          boundaries: "consumes m33 by contract via fail-closed ConnectorRegistryPort/M33ConnectorRegistryAdapter (opaque connector_ref, read-only; m34 reads no connector_* table, executes no connector, no 2nd engine); consent human-only (evaluateConsentGate + marketplace_consent_human_ck, AI never consents, revoke-suspends-install); listing publish + upgrade = maker-checker/SoD (AI never approves), published-immutable trigger; install secrets secretref-only (m30 seam, m41 deferred), 0 value cols, config screened; marketplace_* prefix — m23 integration_* + m33 connector_* untouched; m28/m30/m31/m32/m33 source untouched"
+          contamination: clean
+          report: docs/build/stages/STAGE_6_M34_MARKETPLACE_CERTIFICATION.md
       - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: documented, mvp: false, testing_required: [smoke, db_spec]}
