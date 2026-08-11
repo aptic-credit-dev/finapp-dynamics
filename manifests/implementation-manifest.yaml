@@ -2225,7 +2225,43 @@ stages:
       #       tenant-safe FKs; idempotent credential issuance/rotation (high-risk actions).
       #   G-j 18 reference_tables -> governed core reconciliation (m30 26->10, m31 25->9, m32 42->11, m33 38->9, m34 25->9
       #       precedent); document honestly, no empty tables.
-      - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
+      # IMPLEMENTED (Stage 6D-3, 2026-08-11). All reviewer gaps resolved: G-a devportal.* namespace (ADR-122, 8 codes,
+      # GAP-4 resolved); G-b API surface declared (/api/v1/developer; every mutating route @Endpoint + devportal.* permission);
+      # G-c governed FACADE (a product exposes only allow-listed operations, each carrying the m02 permission it requires —
+      # devportal_product_scope.required_permission NOT NULL/3-segment; public exposure never bypasses m02 RBAC/m01 tenancy);
+      # G-d no 2nd secrets manager (devportal_credential = one-way sha256: hash XOR opaque secretref:, 0 plaintext columns,
+      # m41 deferred); G-e quotas = m39 by contract via fail-closed UsageQuotaPort (m39 unbuilt -> public exposure denied);
+      # G-f consumes m34/m33 by contract (opaque source_ref + fail-closed CatalogSourcePort, no 2nd engine, reads no m33/m34
+      # table); G-g devportal_* prefix (not m23 integration_*/m33 connector_*/m34 marketplace_*); G-h devportal.lifecycle only
+      # + one m06 outbox; G-i credential issuance/rotation/revocation human-governed (AI never issues) + product publish +
+      # subscription approval maker-checker/SoD (AI never approves), FORCE-RLS + idempotency; G-j 18->9 core. Product publish
+      # = maker-checker + source-published check + public-exposure control-plane permission; published-immutable trigger.
+      - module: m35-devportal
+        capability: Public APIs + developer portal (6D-3)
+        status: implemented
+        mvp: false
+        testing_required: [smoke, db_spec]
+        implementation_6_m35:
+          adrs: [ADR-122]
+          tables: 9
+          table_prefix: devportal_
+          reconciliation: "reference_tables 18 (full reference baseline) -> 9 governed devportal_* tables; developer portal + API-gateway facade over the platform"
+          permission_namespace: "devportal.* (8 codes, 4 privileged, all 3-segment) — GAP-4 resolved"
+          audit_prefix: DEVPORTAL_
+          audit_codes: 18
+          event_family: devportal.lifecycle
+          event_types: 7
+          outboxes: 0
+          api_prefixes: [/api/v1/developer]
+          second_engine: none
+          secret_value_columns: 0
+          floats: 0
+          consumes: [m34-marketplace, m33-integration, m39-saas]
+          binds_to: [m30-platform, m33-integration, m34-marketplace]
+          facade: "product exposes only allow-listed operations, each carrying the m02 permission it requires (devportal_product_scope.required_permission NOT NULL, 3-segment); public exposure never bypasses m02 RBAC/m01 tenancy"
+          credentials: "one-way sha256: hash XOR opaque secretref: (m30 seam); 0 plaintext columns; human-governed (AI never issues); m41 deferred"
+          quotas: "m39-saas by contract via fail-closed UsageQuotaPort (m39 unbuilt -> public exposure denied); no 2nd quota/metering engine"
+          branch: feature/stage-6-m35-devportal
       - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: documented, mvp: false, testing_required: [smoke, db_spec]}
