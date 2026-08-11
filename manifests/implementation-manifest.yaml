@@ -2189,7 +2189,43 @@ stages:
           boundaries: "consumes m33 by contract via fail-closed ConnectorRegistryPort/M33ConnectorRegistryAdapter (opaque connector_ref, read-only; m34 reads no connector_* table, executes no connector, no 2nd engine); consent human-only (evaluateConsentGate + marketplace_consent_human_ck, AI never consents, revoke-suspends-install); listing publish + upgrade = maker-checker/SoD (AI never approves), published-immutable trigger; install secrets secretref-only (m30 seam, m41 deferred), 0 value cols, config screened; marketplace_* prefix — m23 integration_* + m33 connector_* untouched; m28/m30/m31/m32/m33 source untouched"
           contamination: clean
           report: docs/build/stages/STAGE_6_M34_MARKETPLACE_CERTIFICATION.md
-      - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      # m35-devportal APPROVED FOR BUILD (Stage 6D-3 governance, 2026-08-11). Public APIs + DEVELOPER PORTAL: the governed
+      # API-gateway facade + developer/app registration, API-credential (key/client-secret) lifecycle, and published API
+      # products over the platform. Next in the 6D chain per BUILD_SEQUENCE (m30->m31->m32->m33->m34->m35). It CONSUMES m33
+      # (integration foundation) + m34 (marketplace), both certified on main, BY CONTRACT — surfaces connectors/listings by
+      # opaque id; m35 must NOT duplicate m33's connector engine or m34's marketplace engine and must NOT read their tables.
+      # naming-map declares devportal.lifecycle (registered) + DEVPORTAL_ audit (reserved); api_prefixes:[] + permission_
+      # namespaces:[] (GAP-4). HARD deps = m34 + m33 + m30 (all certified on main) + spine; MODULE_DEPENDENCY_MAP 6D chain
+      # m33->m34->m35->m36->m37 -> m30; m36-m37 DOWNSTREAM; no unbuilt HARD dep. NO BLOCKER.
+      # Reviewer gaps to resolve at build via ADR + registries (non-blocking, m30/m33/m34 precedent):
+      #   G-a PERMISSION NAMESPACE MISSING (GAP-4, naming-map permission_namespaces:[]) — declare a devportal.* namespace
+      #       (3-segment, default-deny, no wildcard, no devportal.admin); register in permission-registry + seed. PRIMARY gap.
+      #   G-b API SURFACE UNDECLARED (naming-map api_prefixes:[]) though scope is "Public APIs" — declare the developer-portal
+      #       REST surface at build (e.g. /api/v1/developer or /api/v1/apps; no collision — /api/v1/connectors is m34's,
+      #       /api/v1/integration is m33's, /api/v1/webhooks+/api/v1/events are m36's) or justify internal-only. Every mutating
+      #       route is an @Endpoint with a devportal.* permission.
+      #   G-c PUBLIC-API GATEWAY = EXTERNAL-FACING HIGH RISK: the gateway is a GOVERNED FACADE that never bypasses m02 RBAC,
+      #       m01 tenancy or m03 audit — no second auth/authorization path; an external call still resolves to a tenant +
+      #       authenticated principal; registered/allow-listed API exposure only (no arbitrary endpoint exposure); fail closed.
+      #   G-d API CREDENTIALS = SECRETS, NO SECOND SECRETS MANAGER: developer/app API keys + client secrets are secrets —
+      #       persist as opaque m30 secretref: pointers OR one-way hashes ONLY; ZERO secret VALUE columns (DB-proven); real key
+      #       mgmt = m41 behind a fail-closed SecretResolver port (ADR-116/120 precedent). m35 is NOT a vault.
+      #   G-e QUOTAS/RATE-LIMITS/USAGE = m39-saas (entitlements/quotas + usage metering, SHARED_SERVICE_OWNERSHIP) — m39 is
+      #       UNBUILT/deferred; consume by contract behind a fail-closed port with a deterministic double (m28->m32 precedent);
+      #       NO second entitlements/quota/usage-metering engine.
+      #   G-f CONSUMES m33/m34 BY CONTRACT: surface connectors/marketplace by opaque reference; NO duplicate connector/
+      #       marketplace/registry/runtime engine; NO direct m33/m34 table access.
+      #   G-g TABLE PREFIX: use a DISTINCT devportal_* prefix (integration_* is m23's, connector_* is m33's, marketplace_* is
+      #       m34's) — no collision.
+      #   G-h EVENT/OUTBOX: m35 owns devportal.lifecycle ONLY (webhook/eventstream = m36, govrelease = m37); publish via the
+      #       ONE m06 outbox; NO second outbox/event-delivery path.
+      #   G-i CONTROLLED ACTIONS: issuing/rotating/revoking a PRODUCTION API credential and approving an app/API product for
+      #       public exposure are controlled actions — maker-checker/SoD (human approver != requester; AI never approves);
+      #       auditable + revocable. TENANCY/IDEMPOTENCY: developer/app/key tables tenant-scoped FORCE-RLS + composite
+      #       tenant-safe FKs; idempotent credential issuance/rotation (high-risk actions).
+      #   G-j 18 reference_tables -> governed core reconciliation (m30 26->10, m31 25->9, m32 42->11, m33 38->9, m34 25->9
+      #       precedent); document honestly, no empty tables.
+      - {module: m35-devportal, capability: Public APIs + developer portal (6D-3), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: documented, mvp: false, testing_required: [smoke, db_spec]}
