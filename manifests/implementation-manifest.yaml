@@ -2280,7 +2280,40 @@ stages:
           boundaries: "governed facade — product exposes only allow-listed ops each carrying required m02 permission (product_scope.required_permission NOT NULL/3-seg), never bypasses m02 RBAC/m01 tenancy; credentials = one-way sha256: hash XOR opaque secretref: (m30 seam), 0 plaintext cols, human-governed (AI never issues), m41 deferred; product publish + subscription approve = maker-checker/SoD (AI never approves), published-immutable; consumes m34/m33 by contract via fail-closed CatalogSourcePort (opaque source_ref, reads no m33/m34 table) + m39 quotas via fail-closed UsageQuotaPort (m39 unbuilt -> deny); devportal_* prefix; m23/m28/m30/m31/m32/m33/m34 source untouched"
           contamination: clean
           report: docs/build/stages/STAGE_6_M35_DEVPORTAL_CERTIFICATION.md
-      - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      # m36-events APPROVED FOR BUILD (Stage 6D-4 governance, 2026-08-11). Webhooks + EVENT STREAMING: outbound event delivery
+      # to external subscribers (webhook endpoints) + tenant event streams over the platform's domain events. Next in the 6D
+      # chain per BUILD_SEQUENCE (m30->m31->m32->m33->m34->m35->m36). It CONSUMES the platform's domain events (m33/m34/m35 and
+      # all earlier families) BY CONTRACT via the ONE m06 outbox; it must NOT read another module's tables or duplicate an
+      # engine. naming-map declares /api/v1/webhooks + /api/v1/events + webhook.lifecycle + eventstream.lifecycle (registered)
+      # + WEBHOOK_/EVENTSTREAM_ audit (reserved); permission_namespaces:[] (GAP-4). HARD deps = m35 + m34 + m33 + m30 + m06
+      # (outbox) (all certified on main) + spine; MODULE_DEPENDENCY_MAP 6D chain m33->m34->m35->m36->m37 -> m30; m37 DOWNSTREAM;
+      # no unbuilt HARD dep. NO BLOCKER.
+      # Reviewer gaps to resolve at build via ADR + registries (non-blocking, m30/m33/m34/m35 precedent):
+      #   G-a PERMISSION NAMESPACE MISSING (GAP-4, naming-map permission_namespaces:[]) — declare a namespace covering
+      #       /webhooks + /events (e.g. events.*, 3-segment, default-deny, no wildcard/admin); register + seed. PRIMARY gap.
+      #   G-b OUTBOX BOUNDARY (LOAD-BEARING): m06 owns THE ONE event-delivery path/outbox (SHARED_SERVICE_OWNERSHIP: "the only
+      #       event-delivery path"). m36 must NOT create a second outbox or a second INTERNAL event-delivery path — it is an
+      #       OUTBOUND RELAY that CONSUMES the m06 outbox and fans out to external subscribers; the internal transactional
+      #       guarantee stays m06's. m36 owns webhook.lifecycle + eventstream.lifecycle (subscription/delivery LIFECYCLE) only.
+      #   G-c WEBHOOK DELIVERY = EXTERNAL NETWORK EGRESS = HIGH RISK: per CLAUDE.md (never claim untested integrations
+      #       production-ready) + Phase-6 (no arbitrary network) — delivery is FRAMEWORK ONLY / fail-closed behind a delivery
+      #       port (deterministic offline doubles, NO production egress, honest status); allow-listed targets only; no arbitrary URL.
+      #   G-d ENDPOINT SECRETS (webhook signing/HMAC keys) = SECRETS, NO SECOND SECRETS MANAGER: opaque m30 secretref: pointers
+      #       (or one-way hashes) ONLY; ZERO secret VALUE columns; real key mgmt = m41 behind a fail-closed port (ADR-116/120/122).
+      #   G-e CONTROLLED ACTIONS: registering/activating an external webhook endpoint that egresses tenant data is a controlled
+      #       action — maker-checker/human approval (AI never approves); endpoint verification; auditable + revocable/suspendable.
+      #   G-f TABLE PREFIX: use a DISTINCT webhook_*/eventstream_* (or events_*) prefix (integration_* is m23's, connector_* is
+      #       m33's, marketplace_* is m34's, devportal_* is m35's) — no collision.
+      #   G-g CONSUMES m33/m34/m35 BY CONTRACT: a subscription references platform events/sources by OPAQUE id; reads no other
+      #       module's tables; NO duplicate connector/marketplace/devportal/outbox engine.
+      #   G-h EVENT FAMILIES: m36 owns webhook.lifecycle + eventstream.lifecycle ONLY (govrelease belongs to m37); both already
+      #       registered; publish via the ONE m06 outbox.
+      #   G-i TENANCY/RLS/PRIVACY/IDEMPOTENCY: subscription/delivery tables tenant-scoped FORCE-RLS + composite tenant-safe FKs;
+      #       a subscriber receives ONLY its tenant's events (never bypass RLS); delivery payloads are privacy-safe governed event
+      #       envelopes (no secret/credential/extra PII); idempotent delivery/retry (high-risk action).
+      #   G-j 34 reference_tables -> governed core reconciliation (m30 26->10, m31 25->9, m32 42->11, m33 38->9, m34 25->9,
+      #       m35 18->9 precedent); document honestly, no empty tables.
+      - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: deferred, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
