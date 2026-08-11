@@ -25,6 +25,7 @@ import { CopilotModule } from './copilot/copilot.module.ts';
 import { AnalyticsModule } from './analytics/analytics.module.ts';
 import { IntegrationModule } from './integration/integration.module.ts';
 import { MarketplaceModule } from './marketplace/marketplace.module.ts';
+import { DevportalModule } from './devportal/devportal.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -94,6 +95,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     AnalyticsModule,
     IntegrationModule,
     MarketplaceModule,
+    DevportalModule,
   ],
   controllers: [HealthController],
   providers: [],

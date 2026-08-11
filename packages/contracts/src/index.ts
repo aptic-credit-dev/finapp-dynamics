@@ -314,3 +314,13 @@ export type {
   MarketplaceLifecycleEventType,
   MarketplaceLifecyclePayload,
 } from './marketplace-events.ts';
+export {
+  DEVPORTAL_LIFECYCLE_FAMILY,
+  DEVPORTAL_LIFECYCLE_VERSION,
+  DEVPORTAL_LIFECYCLE_EVENT_TYPES,
+} from './devportal-events.ts';
+export type {
+  DevportalLifecycleEvent,
+  DevportalLifecycleEventType,
+  DevportalLifecyclePayload,
+} from './devportal-events.ts';
