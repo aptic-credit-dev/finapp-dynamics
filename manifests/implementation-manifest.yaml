@@ -2350,6 +2350,24 @@ stages:
           egress: "external webhook delivery is FRAMEWORK ONLY behind a fail-closed WebhookDeliveryPort (UnavailableWebhookDelivery default -> durable BLOCKED; deterministic doubles; no production network/provider); URL SSRF allow-list (https public only)"
           secrets: "endpoint signing secret = opaque m30 secretref: only (webhook_endpoint_secret_ref_ck); 0 secret-value cols; m41 deferred"
           branch: feature/stage-6-m36-events
+        certification_6_m36:
+          verdict: certified_on_branch
+          date: "2026-08-12"
+          governance_pr: 91
+          governance_merge_sha: 72a138e
+          implementation_pr: 92
+          reviewed_head: 0688a58
+          implementation_merge_sha: 1ad7d4d2005f2396302ba556b8949ff0511ec128
+          tree_equivalence: "git diff 0688a58 1ad7d4d == EMPTY (byte-identical squash, single parent 72a138e)"
+          certification_baseline: 1ad7d4d2005f2396302ba556b8949ff0511ec128
+          certification_branch: cert/stage-6-m36-events
+          implementation_ci: "Smoke success + DB PG16 success on 0688a58 (and on merge commit 1ad7d4d)"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings); build clean; smoke 41/6891/0-fail (m36 87, conformance 3546); migrate 70 (m36=2); DB 85/2607/0-fail on fresh DB (m36-events 32 + m36-services 22)"
+          metrics: "9 tables/9 FORCE-RLS/9 policies/4 composite FKs/0 unsafe/0 DELETE/5 append-only/4 mutable/20 CHECKs/4 version cols/0 float/0 secret-value/1 immutability trigger/8 events.* perms(3 priv)/17 WEBHOOK_+EVENTSTREAM_ codes(reg 865)/webhook.lifecycle 4 + eventstream.lifecycle 3 types/1 outbox(m06)"
+          boundaries: "OUTBOX BOUNDARY — m06 owns THE ONE outbox (DB-proven only workflow_event_outbox); m36 owns none, RelayService consumes events via fail-closed EventSourcePort (fed by m06 dispatcher, default EmptyEventSource) + records webhook_delivery, no 2nd outbox/delivery path, reads no m06/other-module table; webhook delivery = framework-only fail-closed WebhookDeliveryPort (UnavailableWebhookDelivery default -> durable BLOCKED, no network); URL SSRF allow-list (https public only, loopback/private/169.254.169.254 refused); endpoint signing secret = opaque m30 secretref only (0 value cols, m41 deferred); endpoint activation = maker-checker/SoD (AI never approves), approved url/key immutable (trigger); sub/stream only REGISTERED families; delivery idempotent; m23/m28/m30-m35 source untouched"
+          contamination: clean
+          report: docs/build/stages/STAGE_6_M36_EVENTS_CERTIFICATION.md
       - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: deferred, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
