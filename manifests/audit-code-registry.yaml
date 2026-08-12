@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 848 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 865 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -1042,6 +1042,27 @@ codes:
   - { code: DEVPORTAL_PUBLISH_BLOCKED, module: m35-devportal, severity: elevated, reason_required: false }
   - { code: DEVPORTAL_SOD_BLOCKED, module: m35-devportal, severity: elevated, reason_required: false }
   - { code: DEVPORTAL_EXPOSURE_BLOCKED, module: m35-devportal, severity: elevated, reason_required: false }
+
+  # M36 Webhooks & Event Streaming (Stage 6D-4) — WEBHOOK_ + EVENTSTREAM_ prefixes. 17 codes; endpoints, subscriptions,
+  # deliveries, streams, cursors. Payloads carry ids/families/types/statuses/reason codes only — never a signing secret, an
+  # event payload body, an endpoint credential or personal data.
+  - { code: WEBHOOK_ENDPOINT_REGISTERED, module: m36-events, severity: normal, reason_required: false }
+  - { code: WEBHOOK_ENDPOINT_REVIEW_REQUESTED, module: m36-events, severity: normal, reason_required: false }
+  - { code: WEBHOOK_ENDPOINT_APPROVED, module: m36-events, severity: elevated, reason_required: false }
+  - { code: WEBHOOK_ENDPOINT_REJECTED, module: m36-events, severity: elevated, reason_required: false }
+  - { code: WEBHOOK_ENDPOINT_SUSPENDED, module: m36-events, severity: elevated, reason_required: false }
+  - { code: WEBHOOK_SUBSCRIPTION_ADDED, module: m36-events, severity: normal, reason_required: false }
+  - { code: WEBHOOK_DELIVERY_ATTEMPTED, module: m36-events, severity: normal, reason_required: false }
+  - { code: WEBHOOK_DELIVERY_SUCCEEDED, module: m36-events, severity: normal, reason_required: false }
+  - { code: WEBHOOK_DELIVERY_FAILED, module: m36-events, severity: elevated, reason_required: false }
+  - { code: WEBHOOK_DELIVERY_BLOCKED, module: m36-events, severity: elevated, reason_required: false }
+  - { code: WEBHOOK_DELIVERY_REPLAYED, module: m36-events, severity: elevated, reason_required: false }
+  - { code: WEBHOOK_APPROVAL_BLOCKED, module: m36-events, severity: elevated, reason_required: false }
+  - { code: WEBHOOK_SOD_BLOCKED, module: m36-events, severity: elevated, reason_required: false }
+  - { code: EVENTSTREAM_STREAM_CREATED, module: m36-events, severity: normal, reason_required: false }
+  - { code: EVENTSTREAM_STREAM_PAUSED, module: m36-events, severity: normal, reason_required: false }
+  - { code: EVENTSTREAM_SUBSCRIPTION_ADDED, module: m36-events, severity: normal, reason_required: false }
+  - { code: EVENTSTREAM_CURSOR_ADVANCED, module: m36-events, severity: normal, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

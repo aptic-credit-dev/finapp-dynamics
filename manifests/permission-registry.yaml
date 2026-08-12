@@ -345,6 +345,13 @@ namespaces:
      codes: ["devportal.app.read", "devportal.app.manage", "devportal.product.read", "devportal.product.author",
              "devportal.product.publish", "devportal.credential.manage", "devportal.subscription.manage",
              "devportal.control.administer"]}
+  # Stage 6D-4 (m36-events) — GAP-4 resolution: the events.* namespace (naming-map had permission_namespaces:[]) covering
+  # BOTH /api/v1/webhooks and /api/v1/events. Three-segment events.<area>.<action>. events.control.administer is the
+  # cross-tenant CONTROL-PLANE permission; endpoint approval (activating an external egress endpoint) + delivery replay are
+  # privileged (controlled actions). NO events.admin. The webhook fan-out is an outbound relay over the ONE m06 outbox.
+  - {namespace: "events.*", module: m36-events, mvp: false, status: implemented, substage: "6D-4",
+     codes: ["events.webhook.read", "events.webhook.manage", "events.webhook.approve", "events.subscription.manage",
+             "events.stream.read", "events.stream.manage", "events.delivery.replay", "events.control.administer"]}
   - {namespace: "automation.*", module: m38-automation, mvp: false, status: documented}
   - {namespace: "extensions.*", module: m38-automation, mvp: false, status: documented}
   - {namespace: "saas.*", module: m39-saas, mvp: false, status: deferred}
