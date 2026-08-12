@@ -2313,7 +2313,43 @@ stages:
       #       envelopes (no secret/credential/extra PII); idempotent delivery/retry (high-risk action).
       #   G-j 34 reference_tables -> governed core reconciliation (m30 26->10, m31 25->9, m32 42->11, m33 38->9, m34 25->9,
       #       m35 18->9 precedent); document honestly, no empty tables.
-      - {module: m36-events, capability: Webhooks + event streaming (6D-4), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
+      # IMPLEMENTED (Stage 6D-4, 2026-08-11). All reviewer gaps resolved: G-a events.* namespace (ADR-123, 8 codes, GAP-4
+      # resolved) covering /webhooks + /events; G-b OUTBOX BOUNDARY — m06 owns the ONE outbox; m36 owns none (owns no outbox
+      # table; the RelayService CONSUMES events via a fail-closed EventSourcePort fed by the m06 dispatcher and records
+      # webhook_delivery — no 2nd outbox/delivery path); G-c webhook delivery = external egress = FRAMEWORK ONLY behind a
+      # fail-closed WebhookDeliveryPort (UnavailableWebhookDelivery default -> durable BLOCKED; deterministic doubles; no
+      # production network); URL SSRF allow-list (https public only); G-d endpoint signing secret = opaque m30 secretref: only
+      # (webhook_endpoint_secret_ref_ck), 0 secret-value cols, m41 deferred; G-e endpoint activation = maker-checker/SoD
+      # (webhook_review, AI never approves), approved url/key immutable (trigger); G-f webhook_/eventstream_/events_ prefixes;
+      # G-g consumes events by contract (opaque RelayEvent; a subscription/stream may only target a REGISTERED family; reads
+      # no other module's tables); G-h webhook.lifecycle + eventstream.lifecycle only + one m06 outbox; G-i FORCE-RLS + tenant
+      # isolation + privacy-safe payloads + idempotent delivery (one 'delivered' per endpoint per event); G-j 34->9 core.
+      - module: m36-events
+        capability: Webhooks + event streaming (6D-4)
+        status: implemented
+        mvp: false
+        testing_required: [smoke, db_spec]
+        implementation_6_m36:
+          adrs: [ADR-123]
+          tables: 9
+          table_prefixes: [webhook_, eventstream_, events_]
+          reconciliation: "reference_tables 34 (full reference baseline) -> 9 governed tables; outbound fan-out over the platform's domain events"
+          permission_namespace: "events.* (8 codes, 3 privileged, all 3-segment) — GAP-4 resolved"
+          audit_prefixes: [WEBHOOK_, EVENTSTREAM_]
+          audit_codes: 17
+          event_families: [webhook.lifecycle, eventstream.lifecycle]
+          event_types: 7
+          outboxes: 0
+          api_prefixes: [/api/v1/webhooks, /api/v1/events]
+          second_engine: none
+          secret_value_columns: 0
+          floats: 0
+          consumes: [m06-workflow]
+          binds_to: [m30-platform]
+          outbox_boundary: "m06 owns THE ONE outbox/event-delivery path; m36 owns none — RelayService consumes events via a fail-closed EventSourcePort fed by the m06 dispatcher and records webhook_delivery; no 2nd outbox/delivery path"
+          egress: "external webhook delivery is FRAMEWORK ONLY behind a fail-closed WebhookDeliveryPort (UnavailableWebhookDelivery default -> durable BLOCKED; deterministic doubles; no production network/provider); URL SSRF allow-list (https public only)"
+          secrets: "endpoint signing secret = opaque m30 secretref: only (webhook_endpoint_secret_ref_ck); 0 secret-value cols; m41 deferred"
+          branch: feature/stage-6-m36-events
       - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: deferred, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}

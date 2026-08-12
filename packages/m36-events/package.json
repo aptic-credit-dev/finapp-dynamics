@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m36-events",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M36 — Webhooks & Event Streaming (Stage 6D-4, mvp:false): the governed OUTBOUND fan-out layer over the platform's domain events — external webhook ENDPOINTS, event SUBSCRIPTIONS/filters, webhook DELIVERY evidence, and tenant event STREAMS with consumer CURSORS. THE LOAD-BEARING BOUNDARY: m06 owns THE ONE event-delivery path/outbox (ADR-004) — m36 is NOT a second outbox or a second internal delivery path; it CONSUMES domain events by contract (through a fail-closed EventSourcePort fed by the m06 outbox dispatcher) and fans them out to governed external subscribers, recording each delivery attempt. Webhook delivery is EXTERNAL EGRESS: it is FRAMEWORK ONLY behind a fail-closed WebhookDeliveryPort (deterministic offline doubles, NO production network/provider, allow-listed endpoint URLs only — an unavailable runtime yields a durable BLOCKED outcome). NOT a secrets manager: an endpoint's signing secret is an opaque secretref: pointer (the m30 seam); ZERO secret VALUE columns; real key mgmt = m41 behind a fail-closed port. Registering/activating an external endpoint (that egresses tenant data) is a CONTROLLED action (maker-checker/SoD, AI never approves, default deny). It uses the webhook_*/eventstream_*/events_* table prefixes (integration_* is m23's, connector_* is m33's, marketplace_* is m34's, devportal_* is m35's) and owns webhook.lifecycle + eventstream.lifecycle ONLY. Declares /api/v1/webhooks + /api/v1/events, the events.* permission namespace (GAP-4 resolved), the two event families (published through the ONE m06 outbox) and the WEBHOOK_/EVENTSTREAM_ audit prefixes. Delivery is idempotent; a subscriber receives only its own tenant's events (FORCE-RLS). No secret value; no external network/provider; no arbitrary code.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m30-platform": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

@@ -493,10 +493,24 @@ modules:
     stage: 6
     mvp: false
     api_prefixes: [/api/v1/webhooks, /api/v1/events]
-    permission_namespaces: [] # GAP-4: /webhooks + /events have no permission namespace
+    permission_namespaces: ['events.*'] # GAP-4 RESOLVED (Stage 6D-4, ADR-123): events.* (8 codes) registered + seeded
+    permission_namespace_registered: true
     event_families: [webhook.lifecycle, eventstream.lifecycle]
     event_family_registered: true
     audit_prefixes: [WEBHOOK_, EVENTSTREAM_]
+    note: >
+      Stage 6D-4 governed OUTBOUND fan-out over the platform's domain events — external webhook endpoints, event
+      subscriptions/filters, webhook delivery evidence, and tenant event streams with consumer cursors. LOAD-BEARING: m06
+      owns THE ONE outbox/event-delivery path (ADR-004) — m36 owns no outbox; it CONSUMES domain events by contract (a
+      fail-closed EventSourcePort fed by the m06 dispatcher) and fans them out to external subscribers, recording delivery.
+      Webhook delivery is EXTERNAL EGRESS: framework-only behind a fail-closed WebhookDeliveryPort (deterministic doubles, no
+      production network; an unavailable runtime yields a durable BLOCKED outcome; allow-listed https public URLs only — SSRF
+      guarded). NOT a secrets manager (an endpoint signing secret is an opaque secretref: pointer via the m30 seam; zero
+      secret value columns; m41 deferred). Activating an external endpoint is a human-governed controlled action
+      (maker-checker/SoD; AI never approves; approved url/key immutable). A subscription/stream may only target a REGISTERED
+      event family. Uses the webhook_, eventstream_ and events_ table prefixes (integration_* is m23's, connector_* is m33's,
+      marketplace_* is m34's, devportal_* is m35's). Owns webhook.lifecycle + eventstream.lifecycle only; one m06 outbox.
+      GAP-4 resolved (events.* namespace). reference_tables 34 reconciled to a governed core of 9.
 
   - module: m37-govrelease
     stage: 6
