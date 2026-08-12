@@ -324,3 +324,23 @@ export type {
   DevportalLifecycleEventType,
   DevportalLifecyclePayload,
 } from './devportal-events.ts';
+export {
+  WEBHOOK_LIFECYCLE_FAMILY,
+  WEBHOOK_LIFECYCLE_VERSION,
+  WEBHOOK_LIFECYCLE_EVENT_TYPES,
+} from './webhook-events.ts';
+export type {
+  WebhookLifecycleEvent,
+  WebhookLifecycleEventType,
+  WebhookLifecyclePayload,
+} from './webhook-events.ts';
+export {
+  EVENTSTREAM_LIFECYCLE_FAMILY,
+  EVENTSTREAM_LIFECYCLE_VERSION,
+  EVENTSTREAM_LIFECYCLE_EVENT_TYPES,
+} from './eventstream-events.ts';
+export type {
+  EventstreamLifecycleEvent,
+  EventstreamLifecycleEventType,
+  EventstreamLifecyclePayload,
+} from './eventstream-events.ts';

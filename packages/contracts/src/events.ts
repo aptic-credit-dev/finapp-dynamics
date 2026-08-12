@@ -60,6 +60,10 @@ import type { MarketplaceLifecycleEvent } from './marketplace-events.ts';
 import { MARKETPLACE_LIFECYCLE_FAMILY } from './marketplace-events.ts';
 import type { DevportalLifecycleEvent } from './devportal-events.ts';
 import { DEVPORTAL_LIFECYCLE_FAMILY } from './devportal-events.ts';
+import type { WebhookLifecycleEvent } from './webhook-events.ts';
+import { WEBHOOK_LIFECYCLE_FAMILY } from './webhook-events.ts';
+import type { EventstreamLifecycleEvent } from './eventstream-events.ts';
+import { EVENTSTREAM_LIFECYCLE_FAMILY } from './eventstream-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -104,7 +108,9 @@ export type DomainEvent =
   | AnalyticsLifecycleEvent
   | ConnectorLifecycleEvent
   | MarketplaceLifecycleEvent
-  | DevportalLifecycleEvent;
+  | DevportalLifecycleEvent
+  | WebhookLifecycleEvent
+  | EventstreamLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -138,6 +144,8 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   CONNECTOR_LIFECYCLE_FAMILY,
   MARKETPLACE_LIFECYCLE_FAMILY,
   DEVPORTAL_LIFECYCLE_FAMILY,
+  WEBHOOK_LIFECYCLE_FAMILY,
+  EVENTSTREAM_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */

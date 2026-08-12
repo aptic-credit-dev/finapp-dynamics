@@ -43,6 +43,7 @@
     { "path": "./packages/m33-integration" },
     { "path": "./packages/m34-marketplace" },
     { "path": "./packages/m35-devportal" },
+    { "path": "./packages/m36-events" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]
