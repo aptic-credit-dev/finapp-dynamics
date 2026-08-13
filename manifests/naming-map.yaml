@@ -515,11 +515,23 @@ modules:
   - module: m37-govrelease
     stage: 6
     mvp: false
-    api_prefixes: []
-    permission_namespaces: []
+    api_prefixes: [/api/v1/releases]
+    permission_namespaces: ['govrelease.*'] # GAP-4 RESOLVED (Stage 6D-5, ADR-124): govrelease.* (8 codes) registered + seeded
+    permission_namespace_registered: true
     event_families: [govrelease.lifecycle]
     event_family_registered: true
-    audit_prefixes: [INTEGRATION_]
+    audit_prefixes: [GOVRELEASE_] # G-b RESOLVED: distinct GOVRELEASE_ prefix (INTEGRATION_ is m33's; one prefix = one owner)
+    note: >
+      Stage 6D-5 governed integration governance / QA / release — the promotion of an integration ARTIFACT (an m33 connector,
+      an m34 marketplace listing, an m35 API product, an m36 webhook/stream) through QA GATES to a RELEASED state, per target
+      ENVIRONMENT. It RECORDS + GOVERNS the release decision + QA evidence; it EXECUTES no release (runtime stays with the
+      owning module). CONSUMES m33/m34/m35/m36 by contract (opaque artifact refs validated via a fail-closed
+      ArtifactRegistryPort; m37 reads no owning-module table). NOT a secrets manager (a release signature is an opaque
+      secretref: pointer via the m30 seam; zero secret value columns; m41 deferred). A release is a human-governed controlled
+      action (maker-checker/SoD over a passing QA evidence gate; AI never approves/releases; released-immutable). Uses the
+      govrelease_ table prefix (integration_* is m23's, connector_* is m33's, marketplace_* is m34's, devportal_* is m35's,
+      webhook_/eventstream_/events_ are m36's). Owns govrelease.lifecycle only; one m06 outbox. GAP-4 resolved (govrelease.*
+      namespace); G-b resolved (distinct GOVRELEASE_ audit prefix). reference_tables 12 reconciled to a governed core of 9.
 
   - module: m38-automation
     stage: 6

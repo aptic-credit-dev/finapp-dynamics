@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 865 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 881 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -100,6 +100,8 @@ prefixes:
   - { prefix: DEVPORTAL_, module: m35-devportal, mvp: false, prefix_provenance: derived }
   - { prefix: WEBHOOK_, module: m36-events, mvp: false, prefix_provenance: derived }
   - { prefix: EVENTSTREAM_, module: m36-events, mvp: false, prefix_provenance: derived }
+  # M37 uses a DISTINCT GOVRELEASE_ prefix (naming-map originally derived INTEGRATION_, which is m33's — one prefix = one owner).
+  - { prefix: GOVRELEASE_, module: m37-govrelease, mvp: false, prefix_provenance: declared }
   - { prefix: AUTOMATION_, module: m38-automation, mvp: false, prefix_provenance: derived }
   - { prefix: EXTENSION_, module: m38-automation, mvp: false, prefix_provenance: derived }
   - { prefix: SAAS_, module: m39-saas, mvp: false, prefix_provenance: derived }
@@ -1063,6 +1065,26 @@ codes:
   - { code: EVENTSTREAM_STREAM_PAUSED, module: m36-events, severity: normal, reason_required: false }
   - { code: EVENTSTREAM_SUBSCRIPTION_ADDED, module: m36-events, severity: normal, reason_required: false }
   - { code: EVENTSTREAM_CURSOR_ADVANCED, module: m36-events, severity: normal, reason_required: false }
+
+  # M37 Integration Governance/QA/Release (Stage 6D-5) — GOVRELEASE_ prefix (DISTINCT from m33's INTEGRATION_). 16 codes;
+  # artifacts, environments, releases, QA gates/checks, evidence. Payloads carry ids/kinds/keys/statuses/reason codes only —
+  # never a signature value/reference content, a QA report body or an external payload.
+  - { code: GOVRELEASE_ARTIFACT_REGISTERED, module: m37-govrelease, severity: normal, reason_required: false }
+  - { code: GOVRELEASE_ARTIFACT_RETIRED, module: m37-govrelease, severity: elevated, reason_required: false }
+  - { code: GOVRELEASE_ENVIRONMENT_DEFINED, module: m37-govrelease, severity: normal, reason_required: false }
+  - { code: GOVRELEASE_RELEASE_REQUESTED, module: m37-govrelease, severity: normal, reason_required: false }
+  - { code: GOVRELEASE_GATE_ADDED, module: m37-govrelease, severity: normal, reason_required: false }
+  - { code: GOVRELEASE_CHECK_RECORDED, module: m37-govrelease, severity: normal, reason_required: false }
+  - { code: GOVRELEASE_QA_PASSED, module: m37-govrelease, severity: normal, reason_required: false }
+  - { code: GOVRELEASE_QA_FAILED, module: m37-govrelease, severity: elevated, reason_required: false }
+  - { code: GOVRELEASE_REVIEW_REQUESTED, module: m37-govrelease, severity: normal, reason_required: false }
+  - { code: GOVRELEASE_RELEASE_APPROVED, module: m37-govrelease, severity: elevated, reason_required: false }
+  - { code: GOVRELEASE_RELEASE_REJECTED, module: m37-govrelease, severity: elevated, reason_required: false }
+  - { code: GOVRELEASE_RELEASE_ROLLED_BACK, module: m37-govrelease, severity: elevated, reason_required: false }
+  - { code: GOVRELEASE_EVIDENCE_ADDED, module: m37-govrelease, severity: normal, reason_required: false }
+  - { code: GOVRELEASE_SOD_BLOCKED, module: m37-govrelease, severity: elevated, reason_required: false }
+  - { code: GOVRELEASE_QA_BLOCKED, module: m37-govrelease, severity: elevated, reason_required: false }
+  - { code: GOVRELEASE_ARTIFACT_UNAVAILABLE, module: m37-govrelease, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

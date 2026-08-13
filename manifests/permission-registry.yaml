@@ -352,6 +352,13 @@ namespaces:
   - {namespace: "events.*", module: m36-events, mvp: false, status: implemented, substage: "6D-4",
      codes: ["events.webhook.read", "events.webhook.manage", "events.webhook.approve", "events.subscription.manage",
              "events.stream.read", "events.stream.manage", "events.delivery.replay", "events.control.administer"]}
+  # Stage 6D-5 (m37-govrelease) — GAP-4 resolution: the govrelease.* namespace (naming-map had permission_namespaces:[]).
+  # Three-segment govrelease.<area>.<action>. govrelease.control.administer is the cross-tenant CONTROL-PLANE permission;
+  # release approve (a maker-checker promotion to released) + release execute (rollback) are privileged (controlled actions).
+  # NO govrelease.admin. A release is human-governed — AI never approves or releases.
+  - {namespace: "govrelease.*", module: m37-govrelease, mvp: false, status: implemented, substage: "6D-5",
+     codes: ["govrelease.artifact.read", "govrelease.artifact.manage", "govrelease.release.read", "govrelease.release.author",
+             "govrelease.gate.manage", "govrelease.release.approve", "govrelease.release.execute", "govrelease.control.administer"]}
   - {namespace: "automation.*", module: m38-automation, mvp: false, status: documented}
   - {namespace: "extensions.*", module: m38-automation, mvp: false, status: documented}
   - {namespace: "saas.*", module: m39-saas, mvp: false, status: deferred}
