@@ -44,6 +44,7 @@
     { "path": "./packages/m34-marketplace" },
     { "path": "./packages/m35-devportal" },
     { "path": "./packages/m36-events" },
+    { "path": "./packages/m37-govrelease" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

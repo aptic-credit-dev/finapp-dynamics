@@ -344,3 +344,13 @@ export type {
   EventstreamLifecycleEventType,
   EventstreamLifecyclePayload,
 } from './eventstream-events.ts';
+export {
+  GOVRELEASE_LIFECYCLE_FAMILY,
+  GOVRELEASE_LIFECYCLE_VERSION,
+  GOVRELEASE_LIFECYCLE_EVENT_TYPES,
+} from './govrelease-events.ts';
+export type {
+  GovreleaseLifecycleEvent,
+  GovreleaseLifecycleEventType,
+  GovreleaseLifecyclePayload,
+} from './govrelease-events.ts';
