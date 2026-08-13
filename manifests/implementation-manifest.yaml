@@ -2368,7 +2368,42 @@ stages:
           boundaries: "OUTBOX BOUNDARY — m06 owns THE ONE outbox (DB-proven only workflow_event_outbox); m36 owns none, RelayService consumes events via fail-closed EventSourcePort (fed by m06 dispatcher, default EmptyEventSource) + records webhook_delivery, no 2nd outbox/delivery path, reads no m06/other-module table; webhook delivery = framework-only fail-closed WebhookDeliveryPort (UnavailableWebhookDelivery default -> durable BLOCKED, no network); URL SSRF allow-list (https public only, loopback/private/169.254.169.254 refused); endpoint signing secret = opaque m30 secretref only (0 value cols, m41 deferred); endpoint activation = maker-checker/SoD (AI never approves), approved url/key immutable (trigger); sub/stream only REGISTERED families; delivery idempotent; m23/m28/m30-m35 source untouched"
           contamination: clean
           report: docs/build/stages/STAGE_6_M36_EVENTS_CERTIFICATION.md
-      - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      # m37-govrelease APPROVED FOR BUILD (Stage 6D-5 governance, 2026-08-13). Integration GOVERNANCE / QA / RELEASE: the
+      # governed promotion of an integration artifact (an m33 connector, an m34 marketplace listing, an m35 API product, an
+      # m36 webhook/stream) through QA gates to a released state — records the governed release DECISION + QA evidence; it
+      # EXECUTES no release/deployment (runtime stays with the owning module). LAST in the 6D chain per BUILD_SEQUENCE
+      # (m30->..->m36->m37); a HARD dependency of m42-certification (6I). It CONSUMES m33/m34/m35/m36 BY CONTRACT (opaque
+      # artifact ids); it must NOT read another module's tables or duplicate an engine. naming-map declares
+      # govrelease.lifecycle (registered) + audit INTEGRATION_ (see G-b); api_prefixes:[] + permission_namespaces:[] (GAP-4).
+      # HARD deps = m36 + m35 + m34 + m33 + m30 (all certified on main) + spine; MODULE_DEPENDENCY_MAP 6D chain
+      # m33->m34->m35->m36->m37 -> m30; m38+ DOWNSTREAM; no unbuilt HARD dep. NO BLOCKER.
+      # Reviewer gaps to resolve at build via ADR + registries (non-blocking, m30/m33/m34/m35/m36 precedent):
+      #   G-a PERMISSION NAMESPACE MISSING (GAP-4, naming-map permission_namespaces:[]) — declare a namespace (e.g.
+      #       govrelease.*, 3-segment, default-deny, no wildcard/admin); register + seed. PRIMARY gap.
+      #   G-b AUDIT PREFIX OWNERSHIP: naming-map declares INTEGRATION_, but audit-code-registry RESERVES INTEGRATION_ to
+      #       m33-integration (one prefix = one owner). Resolve at build: declare a DISTINCT prefix (e.g. GOVRELEASE_,
+      #       recommended) + register it under module m37 — do NOT dual-own m33's INTEGRATION_ prefix.
+      #   G-c RELEASE PROMOTION = CONTROLLED ACTION: promoting an artifact through QA gates to released is maker-checker/SoD
+      #       (human approver != requester; AI never approves), over a passing QA/evidence gate; a released version is
+      #       immutable; default deny.
+      #   G-d CONSUMES m33/m34/m35/m36 BY CONTRACT: reference the governed artifact by OPAQUE id; reads no other module's
+      #       tables; NO duplicate connector/marketplace/devportal/events engine; the runtime release/execution stays with the
+      #       owning module (m33 runtime, m36 delivery) — m37 records the governed DECISION + evidence only.
+      #   G-e EVENT/OUTBOX: m37 owns govrelease.lifecycle ONLY (registered); publish via the ONE m06 outbox; NO second outbox/
+      #       event-delivery path.
+      #   G-f TABLE PREFIX: use a DISTINCT govrelease_*/release_* prefix (integration_* is m23's, connector_* is m33's,
+      #       marketplace_* is m34's, devportal_* is m35's, webhook_/eventstream_/events_ are m36's) — no collision.
+      #   G-g TENANCY/RLS/IDEMPOTENCY/CONCURRENCY: release/QA tables tenant-scoped FORCE-RLS + composite tenant-safe FKs;
+      #       idempotent release promotion (high-risk); optimistic concurrency (version CAS); privacy-safe event payloads.
+      #   G-h SECRETS: any QA/release config secret is an opaque m30 secretref: pointer only; ZERO secret VALUE columns; m41
+      #       deferred behind a fail-closed port; no second secrets manager.
+      #   G-i NO EXTERNAL EGRESS / NO ARBITRARY CODE: m37 is a governance/records layer — it executes no release/deployment and
+      #       calls no external system; no eval/shell/network; fail closed.
+      #   G-j 12 reference_tables -> governed core reconciliation (m30 26->10, m31 25->9, m32 42->11, m33 38->9, m34 25->9,
+      #       m35 18->9, m36 34->9 precedent); document honestly, no empty tables.
+      #   G-k (informational) api_prefixes:[] — m37 may ship as an internal governed library (no REST, like m29/m30) OR declare
+      #       a /api/v1/... surface at build; if it declares routes, every mutating route is an @Endpoint with a govrelease.* permission.
+      - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: deferred, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
       - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: documented, mvp: false, testing_required: [smoke, db_spec]}
