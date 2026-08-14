@@ -45,6 +45,7 @@
     { "path": "./packages/m35-devportal" },
     { "path": "./packages/m36-events" },
     { "path": "./packages/m37-govrelease" },
+    { "path": "./packages/m38-automation" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

@@ -537,10 +537,27 @@ modules:
     stage: 6
     mvp: false
     api_prefixes: [/api/v1/automation, /api/v1/extensions]
-    permission_namespaces: ['automation.*', 'extensions.*']
+    permission_namespaces: ['automation.*', 'extensions.*'] # both declared from the start — NO GAP-4 (9 codes registered + seeded)
+    permission_namespace_registered: true
     event_families: [automation.lifecycle, extension.lifecycle]
     event_family_registered: true
-    audit_prefixes: [AUTOMATION_, EXTENSION_]
+    audit_prefixes: [AUTOMATION_, EXTENSION_] # 20 codes registered (distinct from every other module's prefix)
+    note: >
+      Stage 6E governed scheduler / automation / extension framework. m06 owns THE durable one-shot timer + SLA + workflow
+      runtime + THE outbox; m38 owns NONE of those — it owns recurring-schedule + automation DEFINITIONS and execution EVIDENCE,
+      and COMPOSES an m06 timer per occurrence through a fail-closed TimerSchedulerPort, computing next_run_at with a GOVERNED
+      restricted recurrence parser (bounded vocabulary hourly/daily/weekly + every:<seconds>, a 60s frequency floor — NO OS cron,
+      no shell). Execution is FRAMEWORK-ONLY through a fail-closed CapabilityInvokerPort (default Unavailable -> a durable BLOCKED
+      run); a step references a REGISTERED capability (opaque ref) + carries a 3-segment m02 permission — never executable code
+      (no eval/Function/child_process/shell/arbitrary SQL/uploaded code). Automation ORCHESTRATES; owning modules ENFORCE — m38
+      never bypasses m02 RBAC / journal+approval / m33 connector / m34-m37 governance, never auto-posts/releases/consents, and
+      consumes an already-approved opaque reference (it cannot manufacture a human approval). Extensions = REGISTERED extension
+      points with trust tiers + isolation levels, published under maker-checker (published-immutable). Automation activation +
+      extension publish are human maker-checker/SoD controlled actions (AI/system/automation can never self-approve). Uses the
+      automation_/extension_ table prefixes (distinct from every prior module). NOT a secrets manager (a step config is an opaque
+      secretref: pointer via the m30 seam; zero secret value columns; m41 deferred). Owns automation.lifecycle + extension.lifecycle
+      only; one m06 outbox (no second timer/scheduler/notification/webhook/connector/RBAC/audit/secrets engine). NO GAP-4
+      (automation.*/extensions.* declared from the start). reference_tables 44 reconciled to a governed core of 10.
 
   - module: m39-saas
     stage: 6

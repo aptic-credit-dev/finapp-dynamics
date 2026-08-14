@@ -2511,7 +2511,35 @@ stages:
       #       document honestly, no empty tables.
       #   G-n (informational) NO GAP-4 — automation.*/extensions.* namespaces + AUTOMATION_/EXTENSION_ prefixes + both event
       #       families are already declared/reserved in naming-map/permission-registry/audit-registry/event-registry.
-      - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
+      - module: m38-automation
+        capability: Scheduler/automation/extensions (6E)
+        status: implemented
+        mvp: false
+        testing_required: [smoke, db_spec]
+        implementation_6_m38:
+          adrs: [ADR-125]
+          tables: 10
+          table_prefix: automation_/extension_
+          reconciliation: "reference_tables 44 (full reference baseline, LARGEST 6-series) -> 10 governed automation_/extension_ tables; governed scheduler/automation/extension framework composing m06 timers"
+          mutable_tables: 4     # automation_definition, automation_schedule, extension_definition, extension_installation
+          append_only_tables: 6 # automation_step, automation_run, automation_review, automation_history, automation_idempotency, extension_point
+          permission_namespaces: "automation.* (5 codes) + extensions.* (4 codes) — 9 total, 3 privileged, all 3-segment; NO GAP-4"
+          audit_prefixes: [AUTOMATION_, EXTENSION_]
+          audit_prefix_note: "distinct from every prior module's prefix; both reserved to m38"
+          audit_codes: 20
+          event_families: [automation.lifecycle, extension.lifecycle]
+          event_types: 8
+          outboxes: 0
+          api_prefixes: [/api/v1/automation, /api/v1/extensions]
+          second_engine: none   # G-a/G-e: NO 2nd timer/scheduler/workflow/outbox/notification/webhook/connector/RBAC/audit/secrets engine
+          secret_value_columns: 0
+          floats: 0
+          immutability_triggers: 2 # automation_definition_immutable_trg, extension_definition_immutable_trg
+          consumes: [m06-workflow, m33-integration, m30-platform, m02-rbac, m03-audit]
+          binds_to: [m06-workflow, m30-platform]
+          executes_arbitrary_code: false
+          controls: "G-a m06 owns THE timer + outbox; m38 owns recurring-schedule/automation DEFINITIONS + execution EVIDENCE and COMPOSES an m06 timer per occurrence via a fail-closed TimerSchedulerPort (no 2nd timer/scheduler engine). G-b steps/points reference REGISTERED capabilities (opaque refs) + carry a 3-segment m02 permission — no eval/Function/child_process/shell/arbitrary SQL/uploaded code; extensions = registered points with trust tiers + isolation, published-immutable. G-c/G-d automation ORCHESTRATES, owning modules ENFORCE — never bypasses m02/m21-m22/m33/m34/m35/m36/m37, never auto-posts/releases/consents, consumes an approved opaque reference (cannot fabricate a human approval); activation + publish = maker-checker/SoD (AI/system/automation never self-approve). G-f GOVERNED recurrence parser (bounded vocab + 60s frequency floor, NO cron/shell); concurrency + missed-run + bounded retry/timeout policy; version CAS; idempotency. G-g executions APPEND-ONLY (deterministic run_key, no duplicate invocation). G-h FORCE-RLS + composite tenant-safe FKs; platform scope requires automation.control.administer. G-i config = opaque m30 secretref only (0 value cols, m41 deferred). G-j automation.lifecycle + extension.lifecycle only via the ONE m06 outbox."
+          branch: feature/stage-6-m38-automation
       - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: deferred, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
       - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: documented, mvp: false, testing_required: [smoke, db_spec]}

@@ -354,3 +354,23 @@ export type {
   GovreleaseLifecycleEventType,
   GovreleaseLifecyclePayload,
 } from './govrelease-events.ts';
+export {
+  AUTOMATION_LIFECYCLE_FAMILY,
+  AUTOMATION_LIFECYCLE_VERSION,
+  AUTOMATION_LIFECYCLE_EVENT_TYPES,
+} from './automation-events.ts';
+export type {
+  AutomationLifecycleEvent,
+  AutomationLifecycleEventType,
+  AutomationLifecyclePayload,
+} from './automation-events.ts';
+export {
+  EXTENSION_LIFECYCLE_FAMILY,
+  EXTENSION_LIFECYCLE_VERSION,
+  EXTENSION_LIFECYCLE_EVENT_TYPES,
+} from './extension-events.ts';
+export type {
+  ExtensionLifecycleEvent,
+  ExtensionLifecycleEventType,
+  ExtensionLifecyclePayload,
+} from './extension-events.ts';
