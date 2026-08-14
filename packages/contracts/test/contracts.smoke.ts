@@ -83,6 +83,9 @@ import {
   GOVRELEASE_LIFECYCLE_FAMILY,
   AUTOMATION_LIFECYCLE_FAMILY,
   EXTENSION_LIFECYCLE_FAMILY,
+  SUBSCRIPTION_LIFECYCLE_FAMILY,
+  USAGE_LIFECYCLE_FAMILY,
+  BILLING_LIFECYCLE_FAMILY,
 } from '@finapp/contracts';
 
 /**
@@ -98,8 +101,8 @@ import {
 export default defineSuite('contracts', (t) => {
   t.equal(
     DOMAIN_EVENT_FAMILIES.length,
-    35,
-    'thirty-five event families (m37 adds govrelease.lifecycle, Stage 6D-5; m38 adds automation.lifecycle + extension.lifecycle at the tail, Stage 6E)',
+    38,
+    'thirty-eight event families (m38 adds automation.lifecycle + extension.lifecycle, Stage 6E; m39 adds subscription.lifecycle + usage.lifecycle + billing.lifecycle at the tail, Stage 6F)',
   );
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
@@ -372,10 +375,19 @@ export default defineSuite('contracts', (t) => {
     DOMAIN_EVENT_FAMILIES.includes(EXTENSION_LIFECYCLE_FAMILY),
     'extension.lifecycle is declared (m38, Stage 6E)',
   );
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(SUBSCRIPTION_LIFECYCLE_FAMILY),
+    'subscription.lifecycle is declared (m39, Stage 6F)',
+  );
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(USAGE_LIFECYCLE_FAMILY), 'usage.lifecycle is declared (m39, Stage 6F)');
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(BILLING_LIFECYCLE_FAMILY),
+    'billing.lifecycle is declared (m39, Stage 6F)',
+  );
   t.equal(
     DOMAIN_EVENT_FAMILIES[DOMAIN_EVENT_FAMILIES.length - 1],
-    EXTENSION_LIFECYCLE_FAMILY,
-    'extension.lifecycle is the newest family — appended at the tail (Stage 6E)',
+    BILLING_LIFECYCLE_FAMILY,
+    'billing.lifecycle is the newest family — appended at the tail (Stage 6F)',
   );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');

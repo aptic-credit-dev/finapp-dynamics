@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m39-saas",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M39 — Commercial SaaS (Stage 6F, mvp:false): the canonical owner of commercial plan/subscription/entitlement/quota/usage/billing state. Plans are VERSIONED and a PUBLISHED plan version is IMMUTABLE (trigger); a tenant subscription binds an explicit plan/version. THE LOAD-BEARING CONTROL STACK: access = m02 RBAC (WHO) AND m39 ENTITLEMENT (does the plan include the capability) AND m30 FEATURE/ABSOLUTE control (is it enabled) — any deny denies; an entitlement is NEVER an authorization substitute and can never override an m30 platform-absolute control (evaluateEffectiveAccess). QUOTA enforcement is RACE-SAFE: a hard limit is held on saas_quota_period with a CHECK (reserved <= limit) and an atomic conditional increment + version CAS, so concurrent consumers can never oversubscribe. USAGE metering is APPEND-ONLY + IDEMPOTENT (a source event/ref is counted once via a UNIQUE idempotency key). Plan publication + subscription lifecycle + commercial overrides are human maker-checker/SoD controlled actions (AI/system/automation never approve, never autonomously change commercial terms). MONEY is bigint minor units + explicit currency (NO float); m39 owns commercial pricing METADATA only — it does NOT post journals, mutate the GL, create payment transactions or become a finance ledger (finance is consumed by contract; the real billing PROVIDER is deferred behind a fail-closed port per OPEN_QUESTIONS #2). Uses the saas_ table prefix and owns subscription.lifecycle + usage.lifecycle + billing.lifecycle ONLY, publishing through the ONE m06 outbox. Declares /api/v1/saas, the saas.* permission namespace, and the SAAS_ audit prefix. Tenant FORCE-RLS + composite tenant-safe FKs + idempotency + optimistic concurrency. Implements the read-only quota-check that m35-devportal consumes (m35 stays downstream). No secret value; no external network/provider.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m30-platform": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

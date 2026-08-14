@@ -70,6 +70,12 @@ import type { AutomationLifecycleEvent } from './automation-events.ts';
 import { AUTOMATION_LIFECYCLE_FAMILY } from './automation-events.ts';
 import type { ExtensionLifecycleEvent } from './extension-events.ts';
 import { EXTENSION_LIFECYCLE_FAMILY } from './extension-events.ts';
+import type { SubscriptionLifecycleEvent } from './subscription-events.ts';
+import { SUBSCRIPTION_LIFECYCLE_FAMILY } from './subscription-events.ts';
+import type { UsageLifecycleEvent } from './usage-events.ts';
+import { USAGE_LIFECYCLE_FAMILY } from './usage-events.ts';
+import type { BillingLifecycleEvent } from './billing-events.ts';
+import { BILLING_LIFECYCLE_FAMILY } from './billing-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -119,7 +125,10 @@ export type DomainEvent =
   | EventstreamLifecycleEvent
   | GovreleaseLifecycleEvent
   | AutomationLifecycleEvent
-  | ExtensionLifecycleEvent;
+  | ExtensionLifecycleEvent
+  | SubscriptionLifecycleEvent
+  | UsageLifecycleEvent
+  | BillingLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -158,6 +167,9 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   GOVRELEASE_LIFECYCLE_FAMILY,
   AUTOMATION_LIFECYCLE_FAMILY,
   EXTENSION_LIFECYCLE_FAMILY,
+  SUBSCRIPTION_LIFECYCLE_FAMILY,
+  USAGE_LIFECYCLE_FAMILY,
+  BILLING_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */
