@@ -2403,7 +2403,43 @@ stages:
       #       m35 18->9, m36 34->9 precedent); document honestly, no empty tables.
       #   G-k (informational) api_prefixes:[] — m37 may ship as an internal governed library (no REST, like m29/m30) OR declare
       #       a /api/v1/... surface at build; if it declares routes, every mutating route is an @Endpoint with a govrelease.* permission.
-      - {module: m37-govrelease, capability: Integration governance/QA/release (6D-5), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
+      # IMPLEMENTED (Stage 6D-5, 2026-08-13). All reviewer gaps resolved: G-a govrelease.* namespace (ADR-124, 8 codes,
+      # GAP-4 resolved); G-b DISTINCT GOVRELEASE_ audit prefix (declared under m37 — NOT m33's INTEGRATION_); G-c release
+      # promotion = maker-checker/SoD over a passing QA evidence gate (evaluateApprovalGate + govrelease_review SoD; AI never
+      # approves; govrelease_release_evidence_ck: review/released => qa_passed); G-d consumes m33/m34/m35/m36 by contract
+      # (opaque artifact_kind+artifact_ref + fail-closed ArtifactRegistryPort/ArtifactRegistryAdapter over m33 getConnector +
+      # m34 getListing; reads no owning-module table; executes no release); G-e govrelease.lifecycle only + one m06 outbox;
+      # G-f govrelease_ prefix (not m23 integration_/m33 connector_/m34 marketplace_/m35 devportal_/m36 webhook_-eventstream_-
+      # events_); G-g FORCE-RLS + composite tenant-safe FKs + idempotency + version CAS; G-h release signature = opaque m30
+      # secretref only (govrelease_evidence_sig_shape_ck), 0 secret-value cols, m41 deferred; G-i no external egress/arbitrary
+      # code (records the decision, executes no release); G-j 12->9 core; G-k declares /api/v1/releases. Released is IMMUTABLE
+      # (trigger); one released per artifact/environment (prior superseded).
+      - module: m37-govrelease
+        capability: Integration governance/QA/release (6D-5)
+        status: implemented
+        mvp: false
+        testing_required: [smoke, db_spec]
+        implementation_6_m37:
+          adrs: [ADR-124]
+          tables: 9
+          table_prefix: govrelease_
+          reconciliation: "reference_tables 12 (full reference baseline) -> 9 governed govrelease_* tables; integration governance/QA/release layer over m33/m34/m35/m36"
+          permission_namespace: "govrelease.* (8 codes, 3 privileged, all 3-segment) — GAP-4 resolved"
+          audit_prefix: GOVRELEASE_
+          audit_prefix_note: "DISTINCT from m33's INTEGRATION_ (G-b resolved; one prefix = one owner)"
+          audit_codes: 16
+          event_family: govrelease.lifecycle
+          event_types: 6
+          outboxes: 0
+          api_prefixes: [/api/v1/releases]
+          second_engine: none
+          secret_value_columns: 0
+          floats: 0
+          consumes: [m33-integration, m34-marketplace, m35-devportal, m36-events]
+          binds_to: [m30-platform, m33-integration, m34-marketplace]
+          executes_release: false
+          controls: "release promotion = maker-checker/SoD over a passing QA evidence gate (AI never approves/releases); released-immutable trigger; one released per artifact/environment; signature = opaque m30 secretref only (0 value cols, m41 deferred); consumes m33/m34 by contract via fail-closed ArtifactRegistryPort (reads no owning-module table); executes no release"
+          branch: feature/stage-6-m37-govrelease
       - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: deferred, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
       - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: documented, mvp: false, testing_required: [smoke, db_spec]}

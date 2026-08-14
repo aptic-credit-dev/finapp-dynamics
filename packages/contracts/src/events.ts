@@ -64,6 +64,8 @@ import type { WebhookLifecycleEvent } from './webhook-events.ts';
 import { WEBHOOK_LIFECYCLE_FAMILY } from './webhook-events.ts';
 import type { EventstreamLifecycleEvent } from './eventstream-events.ts';
 import { EVENTSTREAM_LIFECYCLE_FAMILY } from './eventstream-events.ts';
+import type { GovreleaseLifecycleEvent } from './govrelease-events.ts';
+import { GOVRELEASE_LIFECYCLE_FAMILY } from './govrelease-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -110,7 +112,8 @@ export type DomainEvent =
   | MarketplaceLifecycleEvent
   | DevportalLifecycleEvent
   | WebhookLifecycleEvent
-  | EventstreamLifecycleEvent;
+  | EventstreamLifecycleEvent
+  | GovreleaseLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -146,6 +149,7 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   DEVPORTAL_LIFECYCLE_FAMILY,
   WEBHOOK_LIFECYCLE_FAMILY,
   EVENTSTREAM_LIFECYCLE_FAMILY,
+  GOVRELEASE_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */

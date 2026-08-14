@@ -1,0 +1,36 @@
+{
+  "name": "@finapp/m37-govrelease",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M37 — Integration Governance / QA / Release (Stage 6D-4/6D-5, mvp:false): the governed promotion of an integration ARTIFACT (an m33 connector, an m34 marketplace listing, an m35 API product, an m36 webhook/stream) through QA GATES to a RELEASED state, per target ENVIRONMENT. It RECORDS and GOVERNS the release DECISION + QA evidence — it EXECUTES no release/deployment (the runtime stays with the owning module). It CONSUMES m33/m34/m35/m36 BY CONTRACT: an artifact is referenced by an OPAQUE (kind, ref) and its releasability is checked through a fail-closed ArtifactRegistryPort — m37 never reads another module's table and duplicates no engine. A RELEASE is a CONTROLLED action: promotion requires all required QA gates PASSED (evidence gate) and maker-checker/SoD approval (a human approver who is NOT the requester; AI/system/automation never approve or release; default deny); a RELEASED record is IMMUTABLE (trigger). NOT a secrets manager: a release signature/attestation is an opaque secretref: pointer (the m30 seam); ZERO secret VALUE columns; real key mgmt = m41. It uses the govrelease_* table prefix (integration_* is m23's, connector_* is m33's, marketplace_* is m34's, devportal_* is m35's, webhook_/eventstream_/events_ are m36's) and owns govrelease.lifecycle ONLY, publishing through the ONE m06 outbox. Declares /api/v1/releases, the govrelease.* permission namespace (GAP-4 resolved), the govrelease.lifecycle event family and the GOVRELEASE_ audit prefix (distinct from m33's INTEGRATION_). Tenant FORCE-RLS + composite tenant-safe FKs + idempotency + optimistic concurrency. No secret value; no external network/provider; no arbitrary code.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m30-platform": "*",
+    "@finapp/m33-integration": "*",
+    "@finapp/m34-marketplace": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

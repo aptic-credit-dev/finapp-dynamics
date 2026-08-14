@@ -27,6 +27,7 @@ import { IntegrationModule } from './integration/integration.module.ts';
 import { MarketplaceModule } from './marketplace/marketplace.module.ts';
 import { DevportalModule } from './devportal/devportal.module.ts';
 import { EventsModule } from './events/events.module.ts';
+import { ReleasesModule } from './releases/releases.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -98,6 +99,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     MarketplaceModule,
     DevportalModule,
     EventsModule,
+    ReleasesModule,
   ],
   controllers: [HealthController],
   providers: [],
