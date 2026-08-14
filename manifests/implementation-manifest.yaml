@@ -2625,7 +2625,40 @@ stages:
       #       payloads/credentials/secrets.
       #   G-o 72 reference_tables -> governed core reconciliation (LARGEST 6-series baseline; m30 26->10 .. m38 44->10 precedent);
       #       document honestly, no empty tables.
-      - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: approved_for_build, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
+      - module: m39-saas
+        capability: Tenant admin/billing/white-label/commercial SaaS (6F)
+        status: implemented
+        mvp: false
+        requires_review: [billing_provider, plan_taxonomy] # resolved to OPEN_QUESTIONS #2/#3 confirmed defaults (internal billing model + minimal pilot plan; real provider + catalogue before external GA behind a fail-closed seam)
+        testing_required: [smoke, db_spec]
+        implementation_6_m39:
+          adrs: [ADR-126]
+          tables: 13
+          table_prefix: saas_
+          reconciliation: "reference_tables 72 (full reference baseline, LARGEST 6-series) -> 13 governed saas_ tables; the canonical commercial plan/subscription/entitlement/quota/usage/billing owner"
+          mutable_tables: 5     # saas_plan, saas_plan_version, saas_subscription, saas_quota_period, saas_billing_cycle
+          append_only_tables: 8 # saas_plan_entitlement, saas_quota_policy, saas_entitlement_assignment, saas_override, saas_usage_event, saas_review, saas_history, saas_idempotency
+          permission_namespace: "saas.* (12 codes, 4 privileged, all 3-segment) — no GAP-4"
+          audit_prefix: SAAS_
+          audit_codes: 22
+          event_families: [subscription.lifecycle, usage.lifecycle, billing.lifecycle]
+          event_types: 8
+          outboxes: 0
+          api_prefixes: [/api/v1/saas] # GAP-2 resolved
+          immutability_triggers: 1 # saas_plan_version published-immutable
+          secret_value_columns: 0
+          floats: 0
+          consumes: [m01-tenant, m02-rbac, m03-audit, m06-workflow, m30-platform]
+          binds_to: [m30-platform]
+          posts_journals: false
+          control_stack: "access = m02 RBAC AND m39 ENTITLEMENT AND m30 FEATURE/ABSOLUTE (evaluateEffectiveAccess) — any deny denies; an entitlement never grants what m02 denies and never overrides an m30 platform-absolute control"
+          quota_race_safe: "saas_quota_period reserved<=limit CHECK + atomic conditional increment (reserved + qty <= limit_hard in one UPDATE) + version CAS; a concurrent burst never oversubscribes (proven)"
+          usage_idempotent: "saas_usage_event UNIQUE idempotency key — a source ref counts once; an over-quota reservation rejects and records nothing (tx rolls back)"
+          money: "bigint minor units + explicit 3-letter currency; no float; pricing METADATA only — no journal/GL/payment (finance consumed by contract; billing provider deferred behind a fail-closed port, OPEN_QUESTIONS #2)"
+          maker_checker: "plan publish + subscription lifecycle + commercial override are human maker-checker/SoD (isHumanActor rejects null/system/ai/automation; approver != requester); published plan version immutable"
+          m35_quota_port: "m39 exposes the read-only quota check (EntitlementQuotaService.checkQuota) m35-devportal's UsageQuotaPort consumes; m35 stays downstream and untouched (adapter wiring deferred pending the appRef->capability mapping)"
+          gap_6: "resolved — m01 never built subscription/entitlement/usage tables (0 such migration); m39 is the sole owner"
+          branch: feature/stage-6-m39-saas
       - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: documented, mvp: false, testing_required: [smoke, db_spec]}

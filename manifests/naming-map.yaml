@@ -562,14 +562,26 @@ modules:
   - module: m39-saas
     stage: 6
     mvp: false
-    api_prefixes: [] # GAP-2
-    permission_namespaces: ['saas.*']
+    api_prefixes: [/api/v1/saas] # GAP-2 RESOLVED (Stage 6F, ADR-126): m39 exposes its commercial-SaaS API
+    permission_namespaces: ['saas.*'] # declared from the start — NO GAP-4 (12 codes registered + seeded)
+    permission_namespace_registered: true
     event_families: [subscription.lifecycle, usage.lifecycle, billing.lifecycle]
     event_family_registered: true
-    audit_prefixes: [SAAS_]
+    audit_prefixes: [SAAS_] # 22 codes registered
     note: >
-      Owns entitlements/quotas + usage metering per SHARED_SERVICE_OWNERSHIP.md:22-23, but manifest:46
-      gives subscription_plans/tenant_subscriptions/usage_meters to m01-tenant in Stage 1. See GAP-6.
+      Stage 6F governed COMMERCIAL SAAS — the canonical owner of commercial plan/subscription/entitlement/quota/usage/billing
+      state. THE CONTROL STACK: access = m02 RBAC (WHO) AND m39 ENTITLEMENT (does the plan include the capability) AND m30
+      FEATURE/ABSOLUTE control (enabled) — any deny denies; an entitlement is NEVER an authorization substitute (it cannot grant
+      what m02 denies) and can never override an m30 platform-absolute control (evaluateEffectiveAccess). QUOTA is RACE-SAFE (a
+      hard limit held on saas_quota_period with a reserved<=limit CHECK + an atomic conditional increment + version CAS — no
+      oversubscription). USAGE is APPEND-ONLY + IDEMPOTENT (a source ref counts once via a UNIQUE key). Plans are VERSIONED and a
+      PUBLISHED version is IMMUTABLE (trigger); plan publication + subscription lifecycle + override are human maker-checker/SoD
+      (AI/system/automation never approve). MONEY is bigint minor units + explicit currency (NO float); m39 owns pricing METADATA
+      only — it posts no journal / mutates no GL / creates no payment (finance consumed BY CONTRACT; the real billing PROVIDER is
+      deferred behind a fail-closed port, OPEN_QUESTIONS #2). Implements the read-only quota check m35-devportal consumes (m35
+      stays downstream). Owns subscription.lifecycle + usage.lifecycle + billing.lifecycle; one m06 outbox. GAP-2 resolved
+      (/api/v1/saas); GAP-6 resolved (m01 never built subscription/entitlement/usage tables — m39 is the sole owner, ADR-126).
+      Uses the saas_ table prefix (distinct from every prior module). reference_tables 72 reconciled to a governed core of 13.
 
   - module: m40-resilience
     stage: 6
@@ -645,7 +657,7 @@ gaps:
   - id: GAP-2
     severity: blocks_owning_stage
     issue: Modules with no registered API prefix and/or no permission namespace.
-    affects: [m07-rules, m16-litigation, m19-finance, m39-saas] # m18-legaldocs (Stage 4.4) + m30-platform (Stage 6A, ADR-115) resolved
+    affects: [m07-rules, m16-litigation, m19-finance] # m18-legaldocs (4.4) + m30-platform (6A, ADR-115) + m39-saas (6F, ADR-126: /api/v1/saas) resolved
   - id: GAP-3
     severity: blocks_stage_1
     issue: m05-hub and m10-report are mvp:true but appear in no manifest stage; m11-ai likewise absent.
@@ -668,5 +680,9 @@ gaps:
     affects: []
   - id: GAP-6
     severity: blocks_stage_1
-    issue: Subscription/entitlement tables owned by m01 (Stage 1) but the service is owned by m39-saas (Stage 6, deferred).
-    affects: [m01-tenant, m39-saas]
+    issue: >
+      RESOLVED (Stage 6F M39, ADR-126): the "conflict" was documentation-only — m01 NEVER implemented any subscription/
+      entitlement/usage table (0 such migration exists). m39-saas is the CANONICAL owner of commercial plan/subscription/
+      entitlement/quota/usage/billing (saas_ prefix); m01 keeps tenant identity/lifecycle only. No m01 table was touched.
+      Recorded in SHARED_SERVICE_OWNERSHIP.md. No duplicate subscription engine.
+    affects: []
