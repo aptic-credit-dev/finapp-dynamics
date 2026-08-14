@@ -2565,7 +2565,67 @@ stages:
           contamination: clean
           limitations: "mvp:false; execution FRAMEWORK-ONLY (CapabilityInvokerPort/TimerSchedulerPort fail-closed defaults — real invokers + m06 scheduler drop in behind ports); M41 real secrets deferred behind a fail-closed port; m39+ deferred"
           report: docs/build/stages/STAGE_6_M38_AUTOMATION_CERTIFICATION.md
-      - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: deferred, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
+      # m39-saas APPROVED FOR BUILD (Stage 6F governance, 2026-08-14). Commercial SaaS: tenant plans + plan VERSIONS +
+      # feature/ENTITLEMENT catalogue + tenant SUBSCRIPTIONS + entitlement assignments + QUOTA policies + idempotent USAGE
+      # metering/evidence + commercial billing-cycle metadata. FIRST Stage-6F module (after certified 6E m38). Transition
+      # deferred -> approved_for_build (precedent m17-recovery). requires_review [billing_provider, plan_taxonomy] RESOLVED to their
+      # OPEN_QUESTIONS confirmed defaults (docs/OPEN_QUESTIONS.md #2/#3): build the GOVERNED DATA MODEL with an internal billing
+      # model + a minimal internal pilot plan; a real payment/invoicing PROVIDER and the concrete commercial catalogue are deferred
+      # to before external GA behind a fail-closed provider seam (framework-only, m33/m35/m41 precedent) — NOT blockers.
+      # HARD deps = m01 + m02 + m30 (MODULE_DEPENDENCY_MAP m39 -> m01,m02,m30) + the m03/m06 spine, ALL certified/implemented on
+      # main; m40-m42 DOWNSTREAM (m41 -> m39, m42 -> m39); no unbuilt HARD dep. Genuinely unbuilt (README placeholder only; 0
+      # saas_ tables, 0 saas.* seeded, 0 SAAS_ codes, 0 subscription/usage/billing.lifecycle in contracts). NO BLOCKER.
+      # Reviewer gaps to resolve at build via ADR + SHARED_SERVICE_OWNERSHIP (non-blocking; precedent m30 GAP-2/GAP-5, m38 G-a):
+      #   G-a (LOAD-BEARING) ENTITLEMENT vs RBAC vs FEATURE-FLAG: the canonical control stack is m02 RBAC (WHO may act) AND m39
+      #       ENTITLEMENT (does the tenant's PLAN include the capability) AND m30 FEATURE-FLAG/control (is it ENABLED) — SHARED_
+      #       SERVICE_OWNERSHIP "plan -> capability -> flag order". ANY deny denies. m39 entitlement is NEVER an authorization
+      #       substitute: it can NOT grant a permission m02 denies, and can NOT override an m30 platform-ABSOLUTE control (proven
+      #       at build by a layered gate, m30 RBAC-DENY+FEATURE-ENABLED=DENY precedent). No entitlement-as-RBAC.
+      #   G-b (LOAD-BEARING) RACE-SAFE QUOTA: quota enforcement must be race-safe (no check-then-race overrun) — a reservation
+      #       ledger and/or atomic increment + version CAS + a unique idempotency key + a DB constraint; concurrent consumers can
+      #       never exceed a hard limit. Hard implementation requirement.
+      #   G-c GAP-6 OWNERSHIP (doc-only, like GAP-5): naming-map/manifest note once assigned subscription_plans/tenant_
+      #       subscriptions/usage_meters to m01 (Stage 1), but m01 NEVER built them (0 such migration). m39 is the CANONICAL owner
+      #       of entitlements/quotas/usage-metering/billing (SHARED_SERVICE_OWNERSHIP:27-28); resolve via ADR + ownership doc +
+      #       update the m01 note. No m01 table is touched (none exists).
+      #   G-d M35 QUOTA-PORT: m35-devportal consumes m39 through a fail-closed UsageQuotaPort.checkSubscriptionQuota(ctx,
+      #       {appRef, productRef, visibility}) -> {allowed, reasonCode} (default UnavailableUsageQuota => DENY). m39 IMPLEMENTS
+      #       this read-only quota-check contract at build; m35 stays a DOWNSTREAM consumer (m35 source untouched during governance).
+      #   G-e USAGE-METERING OWNERSHIP + IDEMPOTENCY: m39 owns canonical usage metering (controlled meter units/ids: count/
+      #       storage/requests/seats/executions/api-calls/documents/transactions per spec — no arbitrary metric engine overlapping
+      #       m32); usage recording is APPEND-ONLY + IDEMPOTENT (same event/ref counted once, deterministic period key). m32 may
+      #       report aggregate usage BY CONTRACT later; m39 stays authoritative for commercial quota/entitlement evidence.
+      #   G-f MONEY/BILLING BOUNDARY: m39 owns commercial plan/pricing METADATA + amount/currency references + subscription
+      #       billing STATE/reference; it does NOT duplicate m19 accounting / m21 journals / payments / AR-AP / ledger posting —
+      #       real financial posting is consumed from finance BY CONTRACT. Money = bigint minor units / exact decimal, explicit
+      #       currency, NO float, no silent currency conversion. No fake finance/payment events.
+      #   G-g PLAN/VERSION IMMUTABILITY: a PUBLISHED plan version is immutable (edit rejected; a new version is allowed); a tenant
+      #       subscription binds an explicit plan/version; no silent retroactive pricing/entitlement mutation.
+      #   G-h SUBSCRIPTION LIFECYCLE + MAKER-CHECKER: govern activation/plan-change/upgrade/downgrade/cancellation/suspension/
+      #       renewal over a repository-authoritative state set (draft/trial/active/grace/suspended/cancelled/expired per spec);
+      #       plan PUBLICATION + platform-scope commercial overrides + high-risk commercial changes are maker-checker/SoD controlled
+      #       actions (AI/system/automation never autonomously change commercial terms).
+      #   G-i TENANT-OVERRIDE GOVERNANCE: a platform override of entitlement/quota requires an explicit PRIVILEGED permission +
+      #       bounded reason code + start/end + scope + immutable history + maker-checker where high-risk; no silent indefinite
+      #       override; a tenant admin can NEVER grant itself entitlements beyond its plan (control-plane permission required).
+      #   G-j GAP-2 API ROOT: naming-map api_prefixes:[] (same shape as m30/m19 GAP-2). Declare the m39 API root(s) at build
+      #       (e.g. /api/v1/... for plans/subscriptions/entitlements/quotas/usage) via ADR; every mutating route @Endpoint-guarded.
+      #   G-k PERMISSIONS: saas.* already declared (naming-map) — NO GAP-4. Register 3-segment saas.<area>.<action> at build
+      #       (plan/subscription/entitlement/quota read+manage, usage read, override administer; a control-plane administer a tenant
+      #       admin never holds); NO saas.admin/wildcard; default deny.
+      #   G-l EVENTS/OUTBOX: m39 owns subscription.lifecycle + usage.lifecycle + billing.lifecycle (naming/event-registry reserved);
+      #       register at build via the ONE m06 outbox; privacy-safe payloads (ids/versions/units/bounded amounts/reason codes); NO
+      #       2nd outbox, no fake downstream domain event.
+      #   G-m AUDIT: SAAS_ prefix reserved to m39; register real SAAS_ codes at build (unregistered codes fail CI); audit controlled
+      #       actions (plan publish/subscription change/entitlement change/quota override/suspension/reactivation/privileged reads)
+      #       with ids/versions/units/bounded amounts/reason codes only — no secret/credential/customer-payload.
+      #   G-n TENANCY/RLS + PRIVACY: FORCE-RLS + composite tenant-safe FKs on tenant subscription/usage/override tables; platform
+      #       catalogue (plan/version) explicitly governed; tenant A cannot see tenant B subscription/usage (no cross-tenant
+      #       entitlement leakage); usage evidence minimal (tenant/meter/quantity/window/source-ref/idempotency key) — no raw
+      #       payloads/credentials/secrets.
+      #   G-o 72 reference_tables -> governed core reconciliation (LARGEST 6-series baseline; m30 26->10 .. m38 44->10 precedent);
+      #       document honestly, no empty tables.
+      - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: approved_for_build, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
       - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: documented, mvp: false, testing_required: [smoke, db_spec]}
