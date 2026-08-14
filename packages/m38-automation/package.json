@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m38-automation",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M38 — Scheduler / Automation / Extension Framework (Stage 6E, mvp:false): a governed ORCHESTRATION layer — automation DEFINITIONS whose steps reference REGISTERED CAPABILITIES (opaque refs, each carrying the m02 permission it requires), recurring SCHEDULES, append-only execution EVIDENCE, and a governed EXTENSION framework (registered extension points, trust tiers, isolation). THE LOAD-BEARING BOUNDARY: m06 owns THE durable one-shot timer + SLA timers + the workflow runtime + THE outbox — m38 owns NO second timer/scheduler/workflow engine; it owns the recurring-schedule/automation definitions + execution evidence and COMPOSES m06's timer per occurrence through a fail-closed port, computing next_run_at via a GOVERNED recurrence parser (NEVER OS cron/shell). Execution is FRAMEWORK ONLY: a registered capability is invoked through the owning module's public contract via a fail-closed CapabilityInvokerPort (deterministic doubles; the default is UnavailableCapabilityInvoker -> durable BLOCKED; no arbitrary code/eval/shell/network). Automation ORCHESTRATES only — it never bypasses m02 RBAC, m21/m22 journal+approval, m33 connector governance, m34 consent, m35 API policy, m36 event controls or m37 release governance, never auto-posts/auto-releases/auto-consents, and never fabricates a human approval (it consumes an approved opaque reference). NOT a secrets manager (opaque m30 secretref: pointers only; zero secret VALUE columns; m41 deferred). Uses the automation_ and extension_ table prefixes and owns automation.lifecycle + extension.lifecycle ONLY, publishing through the ONE m06 outbox. Declares /api/v1/automation + /api/v1/extensions, the automation.* + extensions.* permission namespaces, and the AUTOMATION_ + EXTENSION_ audit prefixes. Tenant FORCE-RLS + composite tenant-safe FKs + idempotency + optimistic concurrency. No secret value; no external network/provider; no arbitrary code.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m30-platform": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

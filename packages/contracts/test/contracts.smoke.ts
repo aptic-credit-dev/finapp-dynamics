@@ -81,6 +81,8 @@ import {
   WEBHOOK_LIFECYCLE_FAMILY,
   EVENTSTREAM_LIFECYCLE_FAMILY,
   GOVRELEASE_LIFECYCLE_FAMILY,
+  AUTOMATION_LIFECYCLE_FAMILY,
+  EXTENSION_LIFECYCLE_FAMILY,
 } from '@finapp/contracts';
 
 /**
@@ -96,8 +98,8 @@ import {
 export default defineSuite('contracts', (t) => {
   t.equal(
     DOMAIN_EVENT_FAMILIES.length,
-    33,
-    'thirty-three event families (m36 adds webhook.lifecycle + eventstream.lifecycle, Stage 6D-4; m37 adds govrelease.lifecycle at the tail, Stage 6D-5)',
+    35,
+    'thirty-five event families (m37 adds govrelease.lifecycle, Stage 6D-5; m38 adds automation.lifecycle + extension.lifecycle at the tail, Stage 6E)',
   );
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
@@ -362,10 +364,18 @@ export default defineSuite('contracts', (t) => {
     DOMAIN_EVENT_FAMILIES.includes(GOVRELEASE_LIFECYCLE_FAMILY),
     'govrelease.lifecycle is declared (m37, Stage 6D-5)',
   );
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(AUTOMATION_LIFECYCLE_FAMILY),
+    'automation.lifecycle is declared (m38, Stage 6E)',
+  );
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(EXTENSION_LIFECYCLE_FAMILY),
+    'extension.lifecycle is declared (m38, Stage 6E)',
+  );
   t.equal(
     DOMAIN_EVENT_FAMILIES[DOMAIN_EVENT_FAMILIES.length - 1],
-    GOVRELEASE_LIFECYCLE_FAMILY,
-    'govrelease.lifecycle is the newest family — appended at the tail (Stage 6D-5)',
+    EXTENSION_LIFECYCLE_FAMILY,
+    'extension.lifecycle is the newest family — appended at the tail (Stage 6E)',
   );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');
