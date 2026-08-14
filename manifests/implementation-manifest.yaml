@@ -2440,6 +2440,24 @@ stages:
           executes_release: false
           controls: "release promotion = maker-checker/SoD over a passing QA evidence gate (AI never approves/releases); released-immutable trigger; one released per artifact/environment; signature = opaque m30 secretref only (0 value cols, m41 deferred); consumes m33/m34 by contract via fail-closed ArtifactRegistryPort (reads no owning-module table); executes no release"
           branch: feature/stage-6-m37-govrelease
+        certification_6_m37:
+          verdict: certified_on_branch
+          date: "2026-08-14"
+          governance_pr: 94
+          governance_merge_sha: 6d28384
+          implementation_pr: 95
+          reviewed_head: d3d68ca
+          implementation_merge_sha: 54e10620a2bede13c327cee30218594572f9303e
+          tree_equivalence: "git diff d3d68ca 54e1062 == EMPTY (byte-identical squash, single parent 6d28384)"
+          certification_baseline: 54e10620a2bede13c327cee30218594572f9303e
+          certification_branch: cert/stage-6-m37-govrelease
+          implementation_ci: "Smoke success + DB PG16 success on d3d68ca (and on merge commit 54e1062)"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings); build clean; smoke 42/7026/0-fail (m37 82, conformance 3597); migrate 72 (m37=2, checksums 24d015d78e39/8730570011eb); DB 87/2655/0-fail on fresh DB (m37-govrelease 31 + m37-services 17)"
+          metrics: "9 govrelease_* tables/9 FORCE-RLS/9 policies/5 composite FKs/0 unsafe/0 DELETE/5 append-only/4 mutable/22 CHECKs/4 version cols/0 float/0 secret-value/1 released-immutability trigger/8 govrelease.* perms(3 priv)/16 GOVRELEASE_ codes(reg 881; src<->registry parity 16/16; 0 m37 codes on m33 INTEGRATION_)/govrelease.lifecycle 6 types/1 outbox(m06)"
+          boundaries: "GOVERNS release promotion, EXECUTES no release (no deployment/runtime in source); consumes m33/m34/m35/m36 by contract via fail-closed ArtifactRegistryPort (opaque artifact kind+ref, reads no owning-module table, no dup engine; m35/m36 readers unwired -> fail closed); QA evidence gate (evaluateQaGate + govrelease_release_evidence_ck) + maker-checker/SoD (AI/system/automation never approve/release; requester cannot self-approve); released-immutable trigger + one released per artifact/environment (prior superseded); signature = opaque m30 secretref only; DISTINCT GOVRELEASE_ audit prefix (m33 keeps INTEGRATION_); /api/v1/releases 13 @Endpoint-guarded routes; m23/m28/m30-m36 source untouched; HARD dep of m42-certification (6I)"
+          contamination: clean
+          report: docs/build/stages/STAGE_6_M37_GOVRELEASE_CERTIFICATION.md
       - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: deferred, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
       - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: documented, mvp: false, testing_required: [smoke, db_spec]}
