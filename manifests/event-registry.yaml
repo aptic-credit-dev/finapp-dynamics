@@ -187,7 +187,7 @@ family_groups:
   - {group: platform, families: [platform.lifecycle, studio.lifecycle, analytics.lifecycle], mvp: false, status: documented}
   - {group: integration, families: [connector.lifecycle, marketplace.lifecycle, devportal.lifecycle, webhook.lifecycle, eventstream.lifecycle, govrelease.lifecycle], mvp: false, status: documented}
   - {group: automation, families: [automation.lifecycle, extension.lifecycle], mvp: false, status: documented}
-  - {group: commercial_saas, families: [subscription.lifecycle, usage.lifecycle, billing.lifecycle], mvp: false, status: deferred}
+  - {group: commercial_saas, families: [subscription.lifecycle, usage.lifecycle, billing.lifecycle], mvp: false, status: implemented, owner: m39-saas, substage: "6F"} # 4+2+2 = 8 event types; one m06 outbox
   - {group: resilience, families: [mobile.lifecycle, backup.lifecycle, dr.lifecycle], mvp: false, status: documented}
   - {group: security, families: [security.identity_lifecycle, security.privileged_lifecycle, security.dlp_lifecycle, security.crypto_lifecycle, security.grc_lifecycle, security.privacy_lifecycle, security.soc_lifecycle], mvp: false, status: documented}
   - {group: certification, families: [certification.programme_lifecycle, certification.migration_lifecycle, certification.uat_lifecycle, certification.pilot_lifecycle, certification.release_lifecycle], mvp: false, status: documented}

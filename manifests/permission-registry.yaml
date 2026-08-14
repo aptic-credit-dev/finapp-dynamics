@@ -369,7 +369,14 @@ namespaces:
   - {namespace: "extensions.*", module: m38-automation, mvp: false, status: implemented, substage: "6E",
      codes: ["extensions.registry.read", "extensions.registry.manage", "extensions.registry.publish",
              "extensions.install.manage"]}
-  - {namespace: "saas.*", module: m39-saas, mvp: false, status: deferred}
+  # Stage 6F (m39-saas) — the saas.* namespace (declared in naming-map; no GAP-4). Three-segment. saas.control.administer is
+  # the cross-tenant CONTROL-PLANE permission a tenant admin never holds by default; saas.plan.publish (maker-checker publish),
+  # saas.subscription.manage (lifecycle), saas.override.administer (commercial override) are the privileged CONTROLLED actions.
+  # NO saas.admin. An ENTITLEMENT is never an authorization substitute — it cannot grant what m02 denies.
+  - {namespace: "saas.*", module: m39-saas, mvp: false, status: implemented, substage: "6F",
+     codes: ["saas.plan.read", "saas.plan.manage", "saas.plan.publish", "saas.subscription.read", "saas.subscription.manage",
+             "saas.entitlement.read", "saas.quota.read", "saas.quota.manage", "saas.usage.read", "saas.usage.record",
+             "saas.override.administer", "saas.control.administer"]}
   - {namespace: "security.*", module: m41-security, mvp: false, status: documented}
   - {namespace: "grc.*", module: m41-security, mvp: false, status: documented}
   - {namespace: "privacy.*", module: m41-security, mvp: false, status: documented}

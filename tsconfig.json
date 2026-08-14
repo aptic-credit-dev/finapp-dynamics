@@ -46,6 +46,7 @@
     { "path": "./packages/m36-events" },
     { "path": "./packages/m37-govrelease" },
     { "path": "./packages/m38-automation" },
+    { "path": "./packages/m39-saas" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

@@ -29,6 +29,7 @@ import { DevportalModule } from './devportal/devportal.module.ts';
 import { EventsModule } from './events/events.module.ts';
 import { ReleasesModule } from './releases/releases.module.ts';
 import { AutomationModule } from './automation/automation.module.ts';
+import { SaasModule } from './saas/saas.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -102,6 +103,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     EventsModule,
     ReleasesModule,
     AutomationModule,
+    SaasModule,
   ],
   controllers: [HealthController],
   providers: [],
