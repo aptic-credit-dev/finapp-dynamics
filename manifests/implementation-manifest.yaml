@@ -2458,7 +2458,60 @@ stages:
           boundaries: "GOVERNS release promotion, EXECUTES no release (no deployment/runtime in source); consumes m33/m34/m35/m36 by contract via fail-closed ArtifactRegistryPort (opaque artifact kind+ref, reads no owning-module table, no dup engine; m35/m36 readers unwired -> fail closed); QA evidence gate (evaluateQaGate + govrelease_release_evidence_ck) + maker-checker/SoD (AI/system/automation never approve/release; requester cannot self-approve); released-immutable trigger + one released per artifact/environment (prior superseded); signature = opaque m30 secretref only; DISTINCT GOVRELEASE_ audit prefix (m33 keeps INTEGRATION_); /api/v1/releases 13 @Endpoint-guarded routes; m23/m28/m30-m36 source untouched; HARD dep of m42-certification (6I)"
           contamination: clean
           report: docs/build/stages/STAGE_6_M37_GOVRELEASE_CERTIFICATION.md
-      - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      # m38-automation APPROVED FOR BUILD (Stage 6E governance, 2026-08-14). Scheduler + AUTOMATION + EXTENSION FRAMEWORK
+      # (trust tiers, isolation): recurring SCHEDULE/job definitions, governed automation orchestration, execution evidence,
+      # and registered extension points over the platform. FIRST Stage-6E module (after the certified 6D chain m33..m37).
+      # naming-map ALREADY declares /api/v1/automation + /api/v1/extensions + automation.*/extensions.* namespaces + AUTOMATION_/
+      # EXTENSION_ audit + automation.lifecycle/extension.lifecycle (all registered) — so there is NO GAP-4 (namespaces present).
+      # HARD deps = m06 (workflow/timers/outbox) + m33 (integration) + m30 (platform) (all certified on main) + m02/m03 spine;
+      # MODULE_DEPENDENCY_MAP m38 -> m06, m33, m30; m39+ DOWNSTREAM; no unbuilt HARD dep. NO BLOCKER.
+      # Reviewer gaps to resolve at build via ADR + SHARED_SERVICE_OWNERSHIP (non-blocking, m31/m33/m37 precedent):
+      #   G-a (LOAD-BEARING) TIMER/SCHEDULER OWNERSHIP: m06 owns THE durable one-shot timer (workflow_timer, dedupe fire-once)
+      #       + SLA timers + the workflow runtime + THE outbox. m38 must NOT build a second timer/scheduler runtime engine — it
+      #       owns HIGHER-LEVEL recurring SCHEDULE/automation DEFINITIONS + recurrence metadata + execution EVIDENCE, and
+      #       COMPOSES m06's one-shot timer per occurrence by contract (m31-studio precedent: compiles/binds to m06/m07, never
+      #       a second engine, no runtime execution). PRIMARY gap; resolve via ADR + ownership doc. NO 2nd workflow/timer engine.
+      #   G-b NO ARBITRARY CODE (Phase-6 guarantee): automation steps + extension points reference REGISTERED CAPABILITIES only
+      #       (opaque capability refs); NO eval/Function/vm/shell/child_process/arbitrary SQL/arbitrary-URL/user-uploaded
+      #       executables; no raw executable code in DB definitions. Extensions = registered extension points with TRUST TIERS +
+      #       ISOLATION (framework-only, no production egress, fail-closed; honest status per CLAUDE.md).
+      #   G-c CONTROLLED-ACTION / DOWNSTREAM-CONTROL PRESERVATION: automation ORCHESTRATES only actions exposed through governed
+      #       public contracts; owning modules ENFORCE. m38 must NOT bypass m02 RBAC / m21-m22 journal+approval / m33 connector
+      #       governance / m34 consent / m35 public-API policy / m36 event controls / m37 release governance. It cannot
+      #       auto-post journals, auto-release integrations, auto-consent, or FABRICATE a human approval — where a downstream
+      #       action requires human approval/maker-checker, m38 CONSUMES the approved reference, never manufactures one (no
+      #       approval/SoD bypass, Phase-6).
+      #   G-d MAKER-CHECKER for controlled automations: activating an automation, changing its target-capability, granting
+      #       platform scope, or a privileged schedule is a controlled action — maker-checker/SoD (author != approver, human;
+      #       AI/system/automation never self-approve a privileged automation).
+      #   G-e NO SECOND ENGINE: consume by contract — m06 workflow/timers/outbox, m08 notifications, m36 event relay (webhooks/
+      #       streaming), m33 integration/connectors, m02 RBAC, m03 audit. NO 2nd outbox/workflow/timer/notification/event-relay/
+      #       connector/RBAC/audit engine.
+      #   G-f RECURRING-SCHEDULE GOVERNANCE: a recurrence expression is validated by a GOVERNED parser (never shell cron);
+      #       timezone; start/end bounds; enabled/disabled; MAX FREQUENCY (no high-frequency job storm); explicit concurrency
+      #       policy (allow/forbid/replace); missed-run + retry + timeout policy; idempotency key + duplicate-run prevention;
+      #       version CAS; suspension/archival.
+      #   G-g EXECUTION EVIDENCE / IDEMPOTENCY: executions are APPEND-ONLY evidence — deterministic run id, dedupe/idempotency,
+      #       retry count, scheduled + actual start/end, result state, bounded failure reason, OPAQUE downstream execution
+      #       reference; no duplicate invocation per logical run.
+      #   G-h TENANCY/RLS/PLATFORM SCOPE: automation/schedule/execution tables tenant-scoped FORCE-RLS + composite tenant-safe
+      #       FKs; a tenant schedule cannot invoke another tenant's capability (no cross-tenant binding); a tenant user cannot
+      #       create platform automation — platform/global automation requires the control-plane permission (automation.control.
+      #       administer); request headers/params cannot elevate authority.
+      #   G-i SECRETS: any secret-bearing automation/extension config is an opaque m30 secretref: pointer ONLY; ZERO secret VALUE
+      #       columns; m41 deferred behind a fail-closed port; NO 2nd secrets manager.
+      #   G-j EVENT/OUTBOX: m38 owns automation.lifecycle + extension.lifecycle ONLY (registered); events describe automation
+      #       DESIGN/EXECUTION evidence (NOT fake downstream domain events); publish via the ONE m06 outbox; NO 2nd outbox.
+      #   G-k TABLE PREFIX: distinct automation_*/extension_* prefixes (not m06 workflow_, m33 connector_, m34 marketplace_,
+      #       m35 devportal_, m36 webhook_/eventstream_/events_, m37 govrelease_) — no collision. AUTOMATION_/EXTENSION_ audit
+      #       prefixes already reserved to m38; register real codes at build (unregistered codes fail CI).
+      #   G-l PRIVACY/OBSERVABILITY: bounded execution evidence; no secret/credential/raw-payload/downstream-response leakage in
+      #       audit/events/logs/API errors; m38 is NOT a raw central log store; retention bounded.
+      #   G-m 44 reference_tables -> governed core reconciliation (LARGEST 6-series baseline; m30 26->10 .. m37 12->9 precedent);
+      #       document honestly, no empty tables.
+      #   G-n (informational) NO GAP-4 — automation.*/extensions.* namespaces + AUTOMATION_/EXTENSION_ prefixes + both event
+      #       families are already declared/reserved in naming-map/permission-registry/audit-registry/event-registry.
+      - {module: m38-automation, capability: Scheduler/automation/extensions (6E), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: deferred, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
       - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: documented, mvp: false, testing_required: [smoke, db_spec]}
