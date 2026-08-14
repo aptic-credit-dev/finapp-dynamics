@@ -2659,6 +2659,32 @@ stages:
           m35_quota_port: "m39 exposes the read-only quota check (EntitlementQuotaService.checkQuota) m35-devportal's UsageQuotaPort consumes; m35 stays downstream and untouched (adapter wiring deferred pending the appRef->capability mapping)"
           gap_6: "resolved — m01 never built subscription/entitlement/usage tables (0 such migration); m39 is the sole owner"
           branch: feature/stage-6-m39-saas
+        certification_6_m39:
+          verdict: certified_on_branch
+          date: "2026-08-14"
+          governance_pr: 100
+          governance_merge_sha: 238071d
+          implementation_pr: 101
+          reviewed_head: 103ff2d
+          implementation_merge_sha: f8b3233621476527199fc1db4264e423c9434d76
+          tree_equivalence: "git diff 103ff2d f8b3233 == EMPTY (byte-identical squash, single parent 238071d)"
+          certification_baseline: f8b3233621476527199fc1db4264e423c9434d76
+          certification_branch: cert/stage-6-m39-saas
+          certification_pr: pending
+          implementation_ci: "Smoke success + DB PG16 success on reviewed head 103ff2d and on merge commit f8b3233"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings); build clean; smoke 44/7378/0-fail (m39-saas 110, conformance 3729); migrate 76 (m39=2, checksums 0001 bfe91ffd37a4 / 0002 536be282cfe4); DB 91/2775/0-fail on fresh DB (m39-saas 33 + m39-services 27)"
+          metrics: "13 saas_ tables/13 FORCE-RLS/13 policies/6 composite FKs/0 unsafe/0 DELETE/8 append-only(0 UPDATE)/5 mutable/37 CHECKs/5 version cols/0 float/0 secret-value/1 immutability trigger(saas_plan_version_immutable_trg)/12 perms(4 priv)/22 codes(reg 923; src<->registry parity 22/22)/3 event families(subscription/usage/billing.lifecycle, 8 types)/1 outbox(m06; 0 m39 outbox)/17 guarded routes"
+          access_stack_verdict: "PROVEN — RBAC ∧ entitlement ∧ feature/absolute (evaluateEffectiveAccess): RBAC-deny/entitlement-deny/feature-deny/absolute-block each => DENY, all-allow => ALLOW; entitlement never grants what RBAC denies nor overrides an m30 absolute; m30 feature leg fails closed (FeatureControlPort default => deny)"
+          quota_race_safety: "PROVEN — reserved<=limit CHECK + atomic conditional increment (reserved+qty<=limit_hard) + version CAS; concurrent burst limit=3 / 5×1 admits exactly 3 (no oversubscription); rejected reservation records no usage (tx rollback)"
+          usage_idempotency: "PROVEN — saas_usage_event UNIQUE (tenant_id, idempotency_key); duplicate counted once; over-quota event creates no evidence; ledger append-only; quantity>0 CHECK"
+          m35_quota_port: "m39 exposes EntitlementQuotaService.checkQuota (tenant-scoped, deterministic reason codes); m35 source untouched + fail-closed default; composition-root adapter deferred pending appRef->capability mapping (intentional fail-closed boundary, not a defect)"
+          money_finance_boundary: "money bigint minor units + explicit currency, 0 float, no negative money; m39 imports no m19/m21/m22 finance and executes no journal/GL/payment/AR-AP (pricing metadata only; finance by contract); billing provider fail-closed (collects nothing); no billing network/provider"
+          maker_checker_verdict: "publish + subscription lifecycle + override are human maker-checker/SoD (isHumanActor rejects null/system/ai/automation; approver != requester); published plan version immutable; self/AI approval refused (proven)"
+          reconciliation: "reference_tables 72 -> 13 governed core (largest 6-series baseline)"
+          contamination: clean
+          limitations: "mvp:false; m30 feature leg + billing provider are fail-closed ports (real backends drop in later); M35 composition-root adapter deferred (m35 fail-closed); requires_review resolved to OPEN_QUESTIONS #2/#3 defaults; m40-m42 deferred"
+          report: docs/build/stages/STAGE_6_M39_SAAS_CERTIFICATION.md
       - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: documented, mvp: false, testing_required: [smoke, db_spec]}
