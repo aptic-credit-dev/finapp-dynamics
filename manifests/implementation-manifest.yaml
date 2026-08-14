@@ -2540,6 +2540,31 @@ stages:
           executes_arbitrary_code: false
           controls: "G-a m06 owns THE timer + outbox; m38 owns recurring-schedule/automation DEFINITIONS + execution EVIDENCE and COMPOSES an m06 timer per occurrence via a fail-closed TimerSchedulerPort (no 2nd timer/scheduler engine). G-b steps/points reference REGISTERED capabilities (opaque refs) + carry a 3-segment m02 permission — no eval/Function/child_process/shell/arbitrary SQL/uploaded code; extensions = registered points with trust tiers + isolation, published-immutable. G-c/G-d automation ORCHESTRATES, owning modules ENFORCE — never bypasses m02/m21-m22/m33/m34/m35/m36/m37, never auto-posts/releases/consents, consumes an approved opaque reference (cannot fabricate a human approval); activation + publish = maker-checker/SoD (AI/system/automation never self-approve). G-f GOVERNED recurrence parser (bounded vocab + 60s frequency floor, NO cron/shell); concurrency + missed-run + bounded retry/timeout policy; version CAS; idempotency. G-g executions APPEND-ONLY (deterministic run_key, no duplicate invocation). G-h FORCE-RLS + composite tenant-safe FKs; platform scope requires automation.control.administer. G-i config = opaque m30 secretref only (0 value cols, m41 deferred). G-j automation.lifecycle + extension.lifecycle only via the ONE m06 outbox."
           branch: feature/stage-6-m38-automation
+        certification_6_m38:
+          verdict: certified_on_branch
+          date: "2026-08-14"
+          governance_pr: 97
+          governance_merge_sha: b3375ed
+          implementation_pr: 98
+          reviewed_head: f525cc3
+          implementation_merge_sha: 925171044a63d499984f92c9b804ee793c376c87
+          tree_equivalence: "git diff f525cc3 9251710 == EMPTY (byte-identical squash, single parent b3375ed)"
+          certification_baseline: 925171044a63d499984f92c9b804ee793c376c87
+          certification_branch: cert/stage-6-m38-automation
+          certification_pr: pending
+          implementation_ci: "Smoke success + DB PG16 success on reviewed head f525cc3"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings); build clean; smoke 43/7191/0-fail (m38-automation 100, conformance 3658); migrate 74 (m38=2, checksums 0001 b402ddbe2cb3 / 0002 60c9329e62cd); DB 89/2715/0-fail on fresh DB (m38-automation 37 + m38-services 23)"
+          metrics: "10 automation_/extension_ tables/10 FORCE-RLS/10 policies/5 composite FKs/0 unsafe/0 DELETE/6 append-only/4 mutable/31 CHECKs/4 version cols/0 float/0 secret-value/1 secretref pointer/2 immutability triggers/9 perms(3 priv)/20 codes(reg 901; src<->registry parity 20/20)/2 event families(automation.lifecycle+extension.lifecycle, 8 types)/1 outbox(m06; 0 m38 outbox)/14 guarded routes"
+          timer_boundary: "m06 owns THE durable one-shot timer (workflow_timer) + SLA + workflow runtime + THE outbox; m38 owns 0 generic timer/dispatcher/outbox table and composes an m06 timer per occurrence via a fail-closed TimerSchedulerPort (EmptyTimerScheduler default); no 2nd timer/scheduler/workflow/outbox engine; unavailable timer adapter fails closed"
+          arbitrary_code_verdict: "NONE — zero eval/Function/vm/child_process/shell/arbitrary-SQL/dynamic-import/plugin-load in source; execution framework-only via CapabilityInvokerPort (UnavailableCapabilityInvoker default => durable BLOCKED run); steps/points reference registered capabilities (opaque ref) + a 3-segment m02 permission; no network egress"
+          downstream_control_verdict: "PRESERVED — m38 imports/executes no m21/m22 posting/approval, no m37 release, no consent service; cannot auto-post/release/consent or fabricate an approval; consumes an approved opaque reference; owning module authoritative"
+          maker_checker_verdict: "human maker-checker/SoD for activation + extension publish (requester != approver, human); isHumanActor rejects null/blank/system/ai/automation; DB SoD CHECKs + immutability triggers; version CAS rejects stale writes"
+          extension_verdict: "governed metadata + registered points with trust tiers (untrusted/verified/certified) + isolation (none/sandboxed/isolated); publish maker-checker; published-immutable trigger; no uploaded executable/dynamic code loading/production plugin runtime"
+          reconciliation: "reference_tables 44 -> 10 governed core (largest 6-series baseline)"
+          contamination: clean
+          limitations: "mvp:false; execution FRAMEWORK-ONLY (CapabilityInvokerPort/TimerSchedulerPort fail-closed defaults — real invokers + m06 scheduler drop in behind ports); M41 real secrets deferred behind a fail-closed port; m39+ deferred"
+          report: docs/build/stages/STAGE_6_M38_AUTOMATION_CERTIFICATION.md
       - {module: m39-saas, capability: Tenant admin/billing/white-label/commercial SaaS (6F), status: deferred, mvp: false, requires_review: [billing_provider, plan_taxonomy], testing_required: [smoke, db_spec]}
       - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: documented, mvp: false, testing_required: [smoke, db_spec]}
