@@ -359,8 +359,16 @@ namespaces:
   - {namespace: "govrelease.*", module: m37-govrelease, mvp: false, status: implemented, substage: "6D-5",
      codes: ["govrelease.artifact.read", "govrelease.artifact.manage", "govrelease.release.read", "govrelease.release.author",
              "govrelease.gate.manage", "govrelease.release.approve", "govrelease.release.execute", "govrelease.control.administer"]}
-  - {namespace: "automation.*", module: m38-automation, mvp: false, status: documented}
-  - {namespace: "extensions.*", module: m38-automation, mvp: false, status: documented}
+  # Stage 6E (m38-automation) — the automation.* + extensions.* namespaces (both declared in naming-map; no GAP-4).
+  # Three-segment. automation.control.administer is the cross-tenant CONTROL-PLANE permission a tenant admin never holds by
+  # default; automation.job.activate (maker-checker activation) + extensions.registry.publish (maker-checker publish) are the
+  # privileged CONTROLLED actions. NO automation.admin/extensions.admin. Automation ORCHESTRATES — it never bypasses these.
+  - {namespace: "automation.*", module: m38-automation, mvp: false, status: implemented, substage: "6E",
+     codes: ["automation.job.read", "automation.job.manage", "automation.job.activate", "automation.execution.read",
+             "automation.control.administer"]}
+  - {namespace: "extensions.*", module: m38-automation, mvp: false, status: implemented, substage: "6E",
+     codes: ["extensions.registry.read", "extensions.registry.manage", "extensions.registry.publish",
+             "extensions.install.manage"]}
   - {namespace: "saas.*", module: m39-saas, mvp: false, status: deferred}
   - {namespace: "security.*", module: m41-security, mvp: false, status: documented}
   - {namespace: "grc.*", module: m41-security, mvp: false, status: documented}
