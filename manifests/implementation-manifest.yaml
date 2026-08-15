@@ -2685,7 +2685,56 @@ stages:
           contamination: clean
           limitations: "mvp:false; m30 feature leg + billing provider are fail-closed ports (real backends drop in later); M35 composition-root adapter deferred (m35 fail-closed); requires_review resolved to OPEN_QUESTIONS #2/#3 defaults; m40-m42 deferred"
           report: docs/build/stages/STAGE_6_M39_SAAS_CERTIFICATION.md
-      - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      # m40-resilience APPROVED FOR BUILD (Stage 6G governance, 2026-08-15). Mobile / offline / observability / backup /
+      # business continuity. FIRST Stage-6G module (after certified 6F m39). Transition documented -> approved_for_build.
+      # HARD dep = m30 (MODULE_DEPENDENCY_MAP m40 -> m30) + the m01/m02/m03/m06 spine, ALL certified/implemented on main; m08
+      # notifications + m38 automation are OPTIONAL/downstream (consumed by contract behind fail-closed ports); m41/m42
+      # DOWNSTREAM; no unbuilt HARD dep. Genuinely unbuilt (README placeholder only; 0 resilience_/mobile_/backup_ tables, 0
+      # resilience.* seeded, 0 RESILIENCE_ codes, mobile/backup/dr.lifecycle NOT in contracts). No requires_review / open
+      # question. NO BLOCKER.
+      # Reviewer gaps to resolve at build via ADR + SHARED_SERVICE_OWNERSHIP (non-blocking; precedent m30 GAP-2/GAP-5,
+      # m38 G-a, m39 G-a):
+      #   G-a (LOAD-BEARING) OFFLINE HIGH-RISK BLOCK: an offline/mobile client may DRAFT/QUEUE but can NEVER FINALIZE a
+      #       controlled action offline (post a journal, approve, release, consent, change commercial terms). Finalization
+      #       requires ONLINE re-validation through the AUTHORITATIVE owner (m02 RBAC + m21/m22 journal+approval + maker-checker/
+      #       SoD + m37 release + m39 commercial). m40 ORCHESTRATES sync; owning modules ENFORCE. m40 must NOT manufacture an
+      #       approval/consent/release, bypass RBAC, or auto-finalize on reconnect — an ambiguous sync FAILS CLOSED (deny
+      #       finalization). Phase-6 guarantee "mobile/offline that blocks offline finalisation of high-risk actions".
+      #   G-b OBSERVABILITY OWNERSHIP: m40 owns OPERATIONAL observability (system health / telemetry / SLO / incident signals)
+      #       ONLY — it does NOT duplicate m32-analytics (business reporting/metrics/KPIs, the DERIVED read layer) nor m03-audit
+      #       (THE authoritative audit spine — no second audit/log store). Telemetry is BOUNDED (no raw payloads/PII/secrets/full
+      #       business records). m32 may report on operational aggregates by contract; m03 remains the audit authority.
+      #   G-c BACKUP/DR EXECUTION = FRAMEWORK-ONLY: m40 owns backup/DR/BC DEFINITIONS + schedules + append-only EVIDENCE
+      #       metadata; actual backup/restore/failover EXECUTION is DEFERRED behind a fail-closed port (deterministic double ->
+      #       durable BLOCKED; NO arbitrary shell/dump/restore command, NO backup-command injection, NO production infra egress).
+      #       A restore/failover is a CONTROLLED action (maker-checker/SoD where high-risk; AI/system/automation never approve).
+      #   G-d NO SECOND SCHEDULER/ENGINE: backup/DR schedules COMPOSE m06 timers / m38 automation BY CONTRACT — NO second timer/
+      #       scheduler engine. Consume m01/m02/m03/m06/m08/m30/m38 by contract; NO second tenancy/RBAC/audit/outbox/notification/
+      #       scheduler/analytics engine, NO 2nd outbox.
+      #   G-e GAP-4 PERMISSION NAMESPACE: naming-map permission_namespaces:[] (same shape as m30 GAP-2). Declare resilience.*
+      #       (3-seg resilience.<area>.<action>; default deny; a control-plane resilience.control.administer a tenant admin never
+      #       holds; NO resilience.admin/wildcard) at build via ADR + seed. GAP-4.
+      #   G-f GAP-2 API ROOT: naming-map api_prefixes:[] (same shape as m30/m19 GAP-2). Declare the m40 API root at build (e.g.
+      #       /api/v1/resilience) via ADR, OR ship as an internal governed library (m30 precedent, no REST) — decide at build.
+      #   G-g AUDIT: RESILIENCE_ prefix reserved to m40; register real codes at build (unregistered codes fail CI); audit
+      #       controlled ops (device enrol/revoke, offline-sync finalize/deny, backup/restore/failover request+decision) with
+      #       bounded ids/states/reason codes only — no secret/credential/raw payload.
+      #   G-h EVENTS/OUTBOX: m40 owns mobile.lifecycle + backup.lifecycle + dr.lifecycle (naming/event-registry reserved);
+      #       register at build via the ONE m06 outbox; bounded metadata; NO 2nd outbox, no fake downstream domain event.
+      #   G-i TENANCY/RLS + PRIVACY: mobile-device / offline-queue / observability / backup-evidence tables tenant-scoped
+      #       FORCE-RLS + composite tenant-safe FKs; platform-scope backup/DR catalog requires the control-plane permission; a
+      #       tenant cannot see another tenant's devices/queue/telemetry/backups; a request header/param grants no authority.
+      #   G-j SECRETS: any backup/DR/telemetry/device credential is an opaque m30 secretref: pointer ONLY; ZERO secret VALUE
+      #       columns; m41 deferred behind a fail-closed port; NO 2nd secrets manager.
+      #   G-k IDEMPOTENCY/CONCURRENCY: offline sync is IDEMPOTENT (a queued op applies once — dedupe/idempotency key); backup/DR
+      #       evidence append-only; version CAS on mutable aggregates; one-active where designed (e.g. one active DR plan).
+      #   G-l ARBITRARY EXECUTION / EGRESS: NO eval/Function/child_process/shell/arbitrary SQL/arbitrary URL/uploaded executable;
+      #       backup/restore/failover + telemetry export are registered-capability / fail-closed-port only; no production egress.
+      #   G-m MONEY: resilience has no money; if any numeric limits/quotas appear they are integer (no float); m40 owns no
+      #       accounting/posting/payment (finance is m19/m21).
+      #   G-n 20 reference_tables -> governed core reconciliation (m30 26->10 .. m39 72->13 precedent); document honestly, no
+      #       empty tables.
+      - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: documented, mvp: false, testing_required: [smoke, db_spec]}
 
