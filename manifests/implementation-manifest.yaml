@@ -2924,7 +2924,39 @@ stages:
           known_limitations: "mvp:false (79->13 governed core; IGA/PAM/risk-register/DPIA-DSR/SOC-detection documented not built); FRAMEWORK-ONLY secret backend (real KMS/HSM/Vault drops in behind SecretProviderPort); deferred-port composition-root adapters (m30 SecretResolver / m24 DlpPolicyEvaluator) not yet wired (consumer source untouched; adapters drop in later); m42 deferred"
           doc_discrepancies: "DOCUMENTATION-ONLY (no code/CI/security impact; to correct in a follow-up doc PR — not fixable under evidence-only certification): implementation_6_m41 says event_types 12 but repository truth is 14 (7 families 1+2+2+4+2+2+1; same '12 types' prose in ADR-128/naming-map/event-registry — the machine-validated 7-family figure is correct); implementation_6_m41 says guarded_routes 15 but repository truth is 12 @Endpoint-guarded mutating routes (the '15' counted 3 JSDoc 'Reads carry no @Endpoint' lines; route<->guard parity is exact 12/12)"
           report: docs/build/stages/STAGE_6_M41_SECURITY_CERTIFICATION.md
-      - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      # m42-certification APPROVED FOR BUILD (Stage 6I governance, 2026-08-15). Enterprise integration, certification & production
+      # release — the FINAL Stage-6 module and the Stage-6 CLOSURE GATE (BUILD_SEQUENCE: ...m40->m41->m42). Transition documented
+      # -> approved_for_build. reference_tables 43. HARD deps = m02 + m03 + m06 + m30 + m37 + m39 + m41 (MODULE_DEPENDENCY_MAP
+      # m42 -> m02,m03,m06,m30,m37,m39,m41; "assesses all" M30-M41), ALL implemented + certified on main (m30 certified_on_branch;
+      # m31-m41 certified_on_branch; m41 cert merged PR #108 -> main c7be0d4). NO unbuilt HARD dep, NO uncertified Stage-6 module.
+      # Genuinely unbuilt (README placeholder only; 0 certification_* tables, 0 platform_certification.* seeded, 0 CERT_ codes, 0 of
+      # the 5 certification.* families in contracts). NO GAP-2 (/api/v1/platform-certification declared), NO GAP-4
+      # (platform_certification.* declared); CERT_ audit prefix + 5 certification.* families declared in naming-map/event-registry.
+      # NATURE: BOTH a governance runtime AND an evidence/closure layer — it RECORDS certification programmes, domain assessments
+      # (12 domains x 8 aspects), findings, exceptions/waivers, evidence refs, migration validation, UAT sign-off, pilot + release
+      # decisions, and runs a deny-by-default GO/CONDITIONAL-GO/NO-GO engine (ADR-012). It ASSESSES M30-M41; it must NOT duplicate
+      # the systems it certifies.
+      # Reviewer gaps to resolve AT BUILD via ADR + SHARED_SERVICE_OWNERSHIP (non-blocking; precedent m37/m39/m40/m41):
+      #   G-a CLOSURE AUTHORITY + INDEPENDENCE (ADR-012, LOAD-BEARING): a GO/CONDITIONAL-GO/NO-GO closure is a CONTROLLED action —
+      #       a GO needs all role sign-offs, NO self-sign-off of one's own assessed domain (independent certifier; maker-checker/SoD;
+      #       requester != certifier; AI/system/automation NEVER self-certify a stage), and an ISSUED decision is IMMUTABLE.
+      #   G-b NO DUPLICATION: assesses/consumes M30-M41 + m37 release trail + m39 commercial BY CONTRACT (opaque refs; reads no
+      #       owning-module private table); NO 2nd audit(m03)/workflow(m06)/approval(m06/m21-m22/m37)/security(m41)/analytics(m32)/
+      #       outbox(m06)/scheduler(m06/m38)/secrets(m30-seam/m41) engine.
+      #   G-c EVIDENCE ONLY / NO EXECUTION: records certification evidence + closure decisions; m37 owns release promotion, owning
+      #       modules own runtime — m42 EXECUTES no release/deployment/migration; migration validation is evidence, not a runner.
+      #   G-d EVENTS/AUDIT/OUTBOX: register the 5 certification.* families (programme/migration/uat/pilot/release _lifecycle) in
+      #       contracts + event-registry, CERT_ audit codes, platform_certification.* (3-segment; no platform_certification.admin/
+      #       wildcard) at build; publish through the ONE m06 outbox; payloads carry ids/verdicts/reason codes only (no secret/PII/
+      #       full report body).
+      #   G-e TENANCY/SCOPE: certification programmes are largely PLATFORM-scope (control-plane permission a tenant admin never holds);
+      #       any tenant-scoped table is FORCE-RLS + composite tenant-safe FKs; append-only evidence/immutable decisions; version/CAS.
+      #   G-f 43 reference_tables -> governed-core reconciliation (documented honestly, no empty/placeholder tables).
+      #   G-g (informational) Stage-7 hardening (pen test / DR drill / load+chaos / real data migration) is CONDITIONAL — m42
+      #       produces CONDITIONAL-GO pending live-infra hardening (reference outcome GO conditional); NOT a blocker to building the
+      #       evidence/closure engine. OPEN_QUESTIONS #3/#12 (certification pass + pilot scope) are informational context.
+      # NO BLOCKER.
+      - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
 
   - stage: 7
     name: Hardening (CONDITIONAL-GO conditions)
