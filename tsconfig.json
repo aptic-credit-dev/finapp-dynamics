@@ -48,6 +48,7 @@
     { "path": "./packages/m38-automation" },
     { "path": "./packages/m39-saas" },
     { "path": "./packages/m40-resilience" },
+    { "path": "./packages/m41-security" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

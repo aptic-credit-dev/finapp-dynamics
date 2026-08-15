@@ -386,7 +386,15 @@ namespaces:
      codes: ["resilience.device.read", "resilience.device.manage", "resilience.offline.read", "resilience.offline.sync",
              "resilience.observability.read", "resilience.backup.read", "resilience.backup.manage", "resilience.restore.request",
              "resilience.restore.approve", "resilience.dr.read", "resilience.dr.manage", "resilience.control.administer"]}
-  - {namespace: "security.*", module: m41-security, mvp: false, status: documented}
-  - {namespace: "grc.*", module: m41-security, mvp: false, status: documented}
-  - {namespace: "privacy.*", module: m41-security, mvp: false, status: documented}
+  # Stage 6H (m41-security) — the security.* / grc.* / privacy.* namespaces (all pre-declared in naming-map; no GAP). Three-segment
+  # security.<area>.<action>. security.control.administer is the cross-tenant CONTROL-PLANE permission a tenant admin never holds by
+  # default (platform-scope keys/policies). secret rotate/reveal/destroy are the privileged CONTROLLED actions (maker-checker/SoD).
+  # NO security.admin/grc.admin/privacy.admin. POSTURE OVER RBAC (ADR-009): a security.* permission AUGMENTS m02 RBAC, never grants it.
+  - {namespace: "security.*", module: m41-security, mvp: false, status: implemented, substage: "6H",
+     codes: ["security.secret.read", "security.secret.manage", "security.secret.rotate", "security.secret.reveal",
+             "security.secret.destroy", "security.dlp.read", "security.dlp.manage", "security.control.administer"]}
+  - {namespace: "grc.*", module: m41-security, mvp: false, status: implemented, substage: "6H",
+     codes: ["grc.control.read", "grc.control.manage", "grc.assessment.record"]}
+  - {namespace: "privacy.*", module: m41-security, mvp: false, status: implemented, substage: "6H",
+     codes: ["privacy.policy.read", "privacy.policy.manage", "privacy.record.manage"]}
   - {namespace: "platform_certification.*", module: m42-certification, mvp: false, status: documented}

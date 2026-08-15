@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m41-security",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M41 — Enterprise Security / Privacy / Compliance / GRC (Stage 6H, mvp:false). The real secret/key-management BOUNDARY + DLP + crypto-key lifecycle + security posture + GRC + privacy controls. THE LOAD-BEARING BOUNDARY: m30 owns the secret-reference SEAM (opaque secretref:, ZERO secret VALUE columns); m41 owns the real secret/key management — but there is NO approved KMS/HSM/Vault provider (OPEN_QUESTIONS #10/#16), so m41 is FRAMEWORK-ONLY: it owns governed secret/key/DLP/GRC/privacy METADATA + lifecycle + a fail-closed REAL resolver that backs m30's SecretResolver port, and it DEFERS actual secret-VALUE storage + crypto + provider integration behind a fail-closed provider port. There are ZERO plaintext/ciphertext/secret-value/token/private-key/password columns — the platform-wide zero-secret-value invariant holds. NO home-grown cryptography (approved algorithm identifiers + opaque provider/key references + versioned metadata + lifecycle state only). Secret/key create/activate/rotate/retire/revoke/destroy + a plaintext REVEAL are CONTROLLED actions: maker-checker/SoD (requester != approver, a human; AI/system/automation never approve), privileged, immutable evidence, terminal-protected; a secret VALUE NEVER appears in audit/events/logs/API errors. Rotation is RACE-SAFE (one active version per secret/key, version CAS, one-winner activation). DLP is the canonical implementation of m24's DlpPolicyEvaluator port — it FAILS CLOSED (restricted data never flows to an unapproved provider) and m24 remains the AI orchestration owner. POSTURE OVER RBAC (ADR-009): m41 augments m02 RBAC + m30 controls, it NEVER replaces or grants authority (RBAC allow AND security allow AND owning-module allow; any deny denies). GRC (control catalogue/assessments) does not duplicate m03 audit or m42 certification; privacy (classification/records) does not duplicate business records. Tenant FORCE-RLS + composite tenant-safe FKs; a tenant can NEVER resolve another tenant's secret. Uses the security_/grc_/privacy_ table prefixes and owns the security.* event families through the ONE m06 outbox. Declares /api/v1/security + /api/v1/grc + /api/v1/privacy, the security.*/grc.*/privacy.* permission namespaces, and the SEC_/GRC_/PRIV_ audit prefixes. No secret value; no arbitrary execution; no production security provider.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m30-platform": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

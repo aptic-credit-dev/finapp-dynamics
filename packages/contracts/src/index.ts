@@ -422,3 +422,43 @@ export type {
 } from './backup-events.ts';
 export { DR_LIFECYCLE_FAMILY, DR_LIFECYCLE_VERSION, DR_LIFECYCLE_EVENT_TYPES } from './dr-events.ts';
 export type { DrLifecycleEvent, DrLifecycleEventType, DrLifecyclePayload } from './dr-events.ts';
+export {
+  SECURITY_IDENTITY_LIFECYCLE_FAMILY,
+  SECURITY_IDENTITY_LIFECYCLE_VERSION,
+  SECURITY_IDENTITY_LIFECYCLE_EVENT_TYPES,
+  SECURITY_PRIVILEGED_LIFECYCLE_FAMILY,
+  SECURITY_PRIVILEGED_LIFECYCLE_VERSION,
+  SECURITY_PRIVILEGED_LIFECYCLE_EVENT_TYPES,
+  SECURITY_DLP_LIFECYCLE_FAMILY,
+  SECURITY_DLP_LIFECYCLE_VERSION,
+  SECURITY_DLP_LIFECYCLE_EVENT_TYPES,
+  SECURITY_CRYPTO_LIFECYCLE_FAMILY,
+  SECURITY_CRYPTO_LIFECYCLE_VERSION,
+  SECURITY_CRYPTO_LIFECYCLE_EVENT_TYPES,
+  SECURITY_GRC_LIFECYCLE_FAMILY,
+  SECURITY_GRC_LIFECYCLE_VERSION,
+  SECURITY_GRC_LIFECYCLE_EVENT_TYPES,
+  SECURITY_PRIVACY_LIFECYCLE_FAMILY,
+  SECURITY_PRIVACY_LIFECYCLE_VERSION,
+  SECURITY_PRIVACY_LIFECYCLE_EVENT_TYPES,
+  SECURITY_SOC_LIFECYCLE_FAMILY,
+  SECURITY_SOC_LIFECYCLE_VERSION,
+  SECURITY_SOC_LIFECYCLE_EVENT_TYPES,
+} from './security-events.ts';
+export type {
+  SecurityLifecyclePayload,
+  SecurityIdentityLifecycleEvent,
+  SecurityIdentityLifecycleEventType,
+  SecurityPrivilegedLifecycleEvent,
+  SecurityPrivilegedLifecycleEventType,
+  SecurityDlpLifecycleEvent,
+  SecurityDlpLifecycleEventType,
+  SecurityCryptoLifecycleEvent,
+  SecurityCryptoLifecycleEventType,
+  SecurityGrcLifecycleEvent,
+  SecurityGrcLifecycleEventType,
+  SecurityPrivacyLifecycleEvent,
+  SecurityPrivacyLifecycleEventType,
+  SecuritySocLifecycleEvent,
+  SecuritySocLifecycleEventType,
+} from './security-events.ts';

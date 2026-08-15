@@ -611,8 +611,9 @@ modules:
   - module: m41-security
     stage: 6
     mvp: false
-    api_prefixes: [/api/v1/security, /api/v1/grc, /api/v1/privacy]
-    permission_namespaces: ['security.*', 'grc.*', 'privacy.*']
+    api_prefixes: [/api/v1/security, /api/v1/grc, /api/v1/privacy] # all pre-declared; no GAP
+    permission_namespaces: ['security.*', 'grc.*', 'privacy.*'] # 14 codes registered + seeded (Stage 6H)
+    permission_namespace_registered: true
     event_families:
       [
         security.identity_lifecycle,
@@ -624,8 +625,26 @@ modules:
         security.soc_lifecycle,
       ]
     event_family_registered: true
-    audit_prefixes: [SEC_, GRC_, PRIV_]
-    note: Posture over RBAC — never replaces the authoritative control (ADR-009).
+    audit_prefixes: [SEC_, GRC_, PRIV_] # 18 codes registered
+    note: >
+      Stage 6H governed SECURITY / PRIVACY / COMPLIANCE / GRC — the governed secret/key/DLP/GRC/privacy METADATA + lifecycle.
+      THE LOAD-BEARING SECRET BOUNDARY (ADR-128): m30 owns the OPAQUE secretref: seam (zero secret-value columns); m41 owns the
+      real secret/key backend — but there is NO approved KMS/HSM/Vault provider (OPEN_QUESTIONS #10/#16), so m41 ships
+      FRAMEWORK-ONLY. ZERO secret-value / ciphertext / token / private-key / password / material columns anywhere; a secret is an
+      opaque secret_ref + an approved algorithm id only. Raw secret-VALUE storage + crypto + provider are DEFERRED behind a
+      fail-closed SecretProviderPort (default UnavailableSecretProvider -> every operation unavailable; no material is ever
+      produced/stored/leaked). SecretService.resolveSecretMetadata is the REAL resolver backing m30's SecretResolver (availability
+      metadata only; fails closed for a revoked/retired/destroyed/missing secret; NEVER a value). DlpService.evaluate is the
+      canonical implementation behind m24's DlpPolicyEvaluator and FAILS CLOSED (restricted data that looks secret, matches a block
+      policy, or is ungoverned is BLOCKED — restricted data never flows to an unapproved provider); m24 stays the AI owner.
+      POSTURE OVER RBAC (ADR-009): a security.* permission AUGMENTS m02 RBAC and can only DENY — it never grants what RBAC denies
+      (RBAC allow AND security allow; any deny denies). Secret create/activate/rotate/reveal/revoke/destroy + a plaintext reveal
+      are maker-checker/SoD CONTROLLED actions (a human approver != the requester; AI/system/automation refused; privileged);
+      ROTATION is RACE-SAFE (a one-active partial unique index + aggregate version CAS = exactly one winner). NO home-grown crypto
+      (an approved-algorithm allowlist + opaque refs only). GRC evidence does not duplicate m03 audit or m42 certification; privacy
+      records are bounded evidence over an OPAQUE subject reference (no personal data). A secret VALUE is never in audit/events/logs.
+      Owns 7 security.* event families; one m06 outbox (m41 owns none). Uses the security_/grc_/privacy_ table prefixes.
+      reference_tables 79 reconciled to a governed core of 13.
 
   - module: m42-certification
     stage: 6

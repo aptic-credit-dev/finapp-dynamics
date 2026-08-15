@@ -2853,7 +2853,47 @@ stages:
       #       #7 compliance (Kenya DPA first) / #8 IdP (platform-native for pilot) / #10 approved AI providers (no restricted data
       #       to any external provider until approved) / #16 hosting+KMS (undecided) all have CONFIRMED fail-closed/defer defaults —
       #       NOT blockers; the production security/KMS/DLP provider is deferred framework-only.
-      - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
+      - module: m41-security
+        capability: Enterprise security/privacy/compliance/GRC (6H)
+        status: implemented
+        mvp: false
+        testing_required: [smoke, db_spec]
+        implementation_6_m41:
+          adrs: [ADR-128, ADR-116, ADR-009]
+          tables: 13
+          table_prefixes: [security_, grc_, privacy_]
+          reconciliation: "reference_tables 79 (largest 6-series baseline) -> 13 governed security_/grc_/privacy_ tables; the governed secret/key/DLP/GRC/privacy METADATA + lifecycle"
+          mutable_tables: 5     # security_secret, security_secret_version, security_dlp_policy, grc_control, privacy_classification
+          append_only_tables: 8 # security_reveal, security_dlp_finding, security_incident, security_review, security_history, security_idempotency, grc_assessment, privacy_record
+          permission_namespaces: "security.* (8) + grc.* (3) + privacy.* (3) = 14 codes, 4 privileged (secret.rotate/reveal/destroy + control.administer), all 3-segment; no security.admin/grc.admin/privacy.admin/wildcard — no GAP"
+          audit_prefixes: [SEC_, GRC_, PRIV_]
+          audit_codes: 18       # SEC_ x13, GRC_ x3, PRIV_ x2; registered count 943 -> 961
+          event_families: [security.identity_lifecycle, security.privileged_lifecycle, security.dlp_lifecycle, security.crypto_lifecycle, security.grc_lifecycle, security.privacy_lifecycle, security.soc_lifecycle]
+          event_types: 12
+          outboxes: 0           # publishes over the ONE m06 outbox
+          api_prefixes: [/api/v1/security, /api/v1/grc, /api/v1/privacy] # all pre-declared — no GAP
+          guarded_routes: 15
+          immutability_triggers: 1 # security_secret_version (a non-pending version is immutable)
+          one_active_version_index: 1 # partial unique WHERE state='active' — rotation race-safe
+          secret_value_columns: 0
+          secretref_pointer_columns: 2 # secret_ref + provider_ref (opaque)
+          floats: 0
+          consumes: [m01-tenant, m02-rbac, m03-audit, m06-workflow, m30-platform]
+          backs_ports: "SecretService.resolveSecretMetadata backs m30's SecretResolver (metadata only, fail-closed, never a value); DlpService.evaluate is the canonical fail-closed impl behind m24's DlpPolicyEvaluator (m24 stays AI owner)"
+          secret_boundary: "THE LOAD-BEARING SECRET BOUNDARY (ADR-116/128): m30 owns the opaque secretref: seam; m41 owns the REAL backend but ships FRAMEWORK-ONLY (no approved KMS/HSM/Vault provider, OPEN_QUESTIONS #10/#16) — ZERO secret-value/ciphertext/plaintext/token/private-key/password/material columns anywhere (DB-proven); raw-value storage + crypto + provider DEFERRED behind a fail-closed SecretProviderPort (default UnavailableSecretProvider -> no material ever produced/stored/leaked); a secret is an opaque secret_ref (secretref: shape CHECK) + an approved algorithm id + an opaque provider_ref only. Persisting a raw secret value without an approved provider = BLOCKER, EXCLUDED"
+          posture_over_rbac: "ADR-009: effective access = m02 RBAC AND m41 security posture (evaluateSecurityPosture); any deny denies; posture can ONLY DENY, never grants what RBAC denies; no duplicate RBAC engine"
+          maker_checker: "secret create/activate/rotate/reveal/revoke/destroy + a plaintext REVEAL are maker-checker/SoD (evaluateSodGate + isHumanActor: null/blank/system/ai/automation != human; DB SoD CHECKs on security_reveal/security_review; approved_by/decided_by <> requested_by); rotate/reveal/destroy privileged; a REVEAL returns NO material (provider unavailable)"
+          rotation_safety: "RACE-SAFE — a one-active partial unique index (WHERE state='active') + aggregate version CAS = exactly one winner (concurrent-rotation DB test); a non-pending version is IMMUTABLE (trigger)"
+          crypto: "NO home-grown crypto — an approved-algorithm allowlist (aes-256-gcm/rsa-4096/ecdsa-p256/chacha20-poly1305/ed25519) + opaque refs only; no eval/Function/vm/child_process/shell/arbitrary crypto anywhere"
+          dlp: "FAILS CLOSED — restricted data that looks secret, matches a block policy, or is ungoverned (no active policy for restricted) is BLOCKED; a bounded finding (classification/action/reason/count) is recorded, never the restricted content"
+          grc_privacy: "GRC does not duplicate m03 audit or m42 certification (m42 may consume m41 evidence by contract); privacy records are bounded evidence over an OPAQUE subject ref, never raw personal data; all evidence append-only"
+          money: "no money; retention_days is integer (no float)"
+          branch: feature/stage-6-m41-security
+          gates: "format clean; lint 0-err (68 baseline warnings; m41 contributes 0); build clean; smoke 46/7736/0-fail (m41-security 106, conformance 3864, migrate 26); migrate 80 (m41=2, checksums 0001 6c9d35231c88 / 0002 5e995d431671); DB 95/2878/0-fail on fresh DB (m41-security 31 + m41-services 23)"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          metrics: "13 security_/grc_/privacy_ tables/13 FORCE-RLS/13 policies/3 composite FKs/38 CHECKs/5 version cols/0 float/0 secret-value-token/2 opaque secretref pointers(secret_ref,provider_ref)/1 immutability trigger(security_secret_version)/1 one-active partial unique index/0 DELETE/8 append-only(0 UPDATE)/5 mutable/14 perms(4 priv)/18 codes(SEC_ 13/GRC_ 3/PRIV_ 2; reg 961; src<->registry parity 18/18)/7 event families(12 types)/1 outbox(m06; 0 m41 outbox)/15 guarded routes"
+          reference: docs/03-platform/SECURITY_AND_GRC.md
+      # m41-security implemented on feature/stage-6-m41-security; post-merge certification pending (impl PR to be merged by the owner).
       - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: documented, mvp: false, testing_required: [smoke, db_spec]}
 
   - stage: 7
