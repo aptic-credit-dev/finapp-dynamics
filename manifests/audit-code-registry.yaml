@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 923 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 943 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -1135,6 +1135,30 @@ codes:
   - { code: SAAS_REVIEW_REQUESTED, module: m39-saas, severity: normal, reason_required: false }
   - { code: SAAS_SOD_BLOCKED, module: m39-saas, severity: elevated, reason_required: false }
   - { code: SAAS_ACCESS_BLOCKED, module: m39-saas, severity: elevated, reason_required: false }
+
+  # M40 Resilience (Stage 6G) — RESILIENCE_ prefix. 20 codes; an offline finalize-block, a blocked backup/restore executor,
+  # a restore approval/rejection and every SoD refusal are elevated. No code carries a secret, a token, raw backup data, a
+  # full offline payload or an unbounded log — bounded resilience metadata + reason codes only.
+  - { code: RESILIENCE_DEVICE_REGISTERED, module: m40-resilience, severity: normal, reason_required: false }
+  - { code: RESILIENCE_DEVICE_REVOKED, module: m40-resilience, severity: elevated, reason_required: false }
+  - { code: RESILIENCE_OFFLINE_QUEUED, module: m40-resilience, severity: normal, reason_required: false }
+  - { code: RESILIENCE_OFFLINE_APPLIED, module: m40-resilience, severity: normal, reason_required: false }
+  - { code: RESILIENCE_OFFLINE_REJECTED, module: m40-resilience, severity: elevated, reason_required: false }
+  - { code: RESILIENCE_OFFLINE_FINALIZE_BLOCKED, module: m40-resilience, severity: elevated, reason_required: false }
+  - { code: RESILIENCE_HEALTH_RECORDED, module: m40-resilience, severity: normal, reason_required: false }
+  - { code: RESILIENCE_CHECK_DEFINED, module: m40-resilience, severity: normal, reason_required: false }
+  - { code: RESILIENCE_BACKUP_POLICY_SET, module: m40-resilience, severity: normal, reason_required: false }
+  - { code: RESILIENCE_BACKUP_POLICY_RETIRED, module: m40-resilience, severity: elevated, reason_required: false }
+  - { code: RESILIENCE_BACKUP_RUN_RECORDED, module: m40-resilience, severity: normal, reason_required: false }
+  - { code: RESILIENCE_BACKUP_RUN_BLOCKED, module: m40-resilience, severity: elevated, reason_required: false }
+  - { code: RESILIENCE_RESTORE_REQUESTED, module: m40-resilience, severity: normal, reason_required: false }
+  - { code: RESILIENCE_RESTORE_APPROVED, module: m40-resilience, severity: elevated, reason_required: false }
+  - { code: RESILIENCE_RESTORE_REJECTED, module: m40-resilience, severity: elevated, reason_required: false }
+  - { code: RESILIENCE_RESTORE_EXECUTED, module: m40-resilience, severity: elevated, reason_required: false }
+  - { code: RESILIENCE_RESTORE_BLOCKED, module: m40-resilience, severity: elevated, reason_required: false }
+  - { code: RESILIENCE_DR_PLAN_SET, module: m40-resilience, severity: normal, reason_required: false }
+  - { code: RESILIENCE_DR_TEST_RECORDED, module: m40-resilience, severity: normal, reason_required: false }
+  - { code: RESILIENCE_SOD_BLOCKED, module: m40-resilience, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:

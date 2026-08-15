@@ -2734,7 +2734,37 @@ stages:
       #       accounting/posting/payment (finance is m19/m21).
       #   G-n 20 reference_tables -> governed core reconciliation (m30 26->10 .. m39 72->13 precedent); document honestly, no
       #       empty tables.
-      - {module: m40-resilience, capability: Mobile/offline/observability/backup/BC (6G), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
+      - module: m40-resilience
+        capability: Mobile/offline/observability/backup/BC (6G)
+        status: implemented
+        mvp: false
+        testing_required: [smoke, db_spec]
+        implementation_6_m40:
+          adrs: [ADR-127]
+          tables: 13
+          table_prefix: resilience_
+          reconciliation: "reference_tables 20 (full reference baseline) -> 13 governed resilience_ tables; mobile/offline/observability/backup/DR"
+          mutable_tables: 6     # resilience_device, resilience_offline_request, resilience_check, resilience_backup_policy, resilience_restore_request, resilience_dr_plan
+          append_only_tables: 7 # resilience_offline_evidence, resilience_health_signal, resilience_backup_run, resilience_dr_test, resilience_review, resilience_history, resilience_idempotency
+          permission_namespace: "resilience.* (12 codes, 2 privileged, all 3-segment) — GAP-4 resolved"
+          audit_prefix: RESILIENCE_
+          audit_codes: 20
+          event_families: [mobile.lifecycle, backup.lifecycle, dr.lifecycle]
+          event_types: 8
+          outboxes: 0
+          api_prefixes: [/api/v1/resilience] # GAP-2 resolved
+          immutability_triggers: 1 # resilience_restore_request terminal-immutable
+          secret_value_columns: 0
+          floats: 0
+          consumes: [m01-tenant, m02-rbac, m03-audit, m06-workflow, m30-platform]
+          binds_to: [m30-platform]
+          offline_block: "THE LOAD-BEARING RULE: a controlled offline request reaches sync_state 'applied' ONLY when validated_online (resilience_offline_request_finalize_ck) — no offline finalization of a controlled action; finalization requires online re-validation (current actor holds the required permission + an authoritative downstream ref the owning module produced, which m40 never manufactures) + not expired; a stale/ambiguous sync FAILS CLOSED; m40 never auto-finalizes on reconnect"
+          observability_boundary: "operational only (health/latency/dependency/backup-freshness/sync-health signals) — NOT a 2nd m32 analytics engine nor the m03 audit spine; bounded telemetry (no raw log/payload/PII/secret)"
+          backup_dr_execution: "FRAMEWORK-ONLY behind a fail-closed BackupExecutorPort (default Unavailable -> durable BLOCKED; no shell/pg_dump/restore-command injection, no infra egress); restore/failover is maker-checker/SoD (approver != requester, human; AI/system/automation refused) + a terminal decision is immutable (trigger); backup/DR schedules are opaque refs composing m06/m38 (no 2nd scheduler)"
+          money: "no money; RTO/RPO/retention/latency/size are integer/bigint (no float)"
+          secrets: "config credentials are opaque m30 secretref: pointers only (shape CHECK); 0 secret-value columns; m41 deferred"
+          gaps_resolved: "GAP-2 (/api/v1/resilience) + GAP-4 (resilience.* namespace)"
+          branch: feature/stage-6-m40-resilience
       - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: documented, mvp: false, testing_required: [smoke, db_spec]}
 
