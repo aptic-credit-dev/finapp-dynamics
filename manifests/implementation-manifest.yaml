@@ -2893,7 +2893,37 @@ stages:
           local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
           metrics: "13 security_/grc_/privacy_ tables/13 FORCE-RLS/13 policies/3 composite FKs/38 CHECKs/5 version cols/0 float/0 secret-value-token/2 opaque secretref pointers(secret_ref,provider_ref)/1 immutability trigger(security_secret_version)/1 one-active partial unique index/0 DELETE/8 append-only(0 UPDATE)/5 mutable/14 perms(4 priv)/18 codes(SEC_ 13/GRC_ 3/PRIV_ 2; reg 961; src<->registry parity 18/18)/7 event families(12 types)/1 outbox(m06; 0 m41 outbox)/15 guarded routes"
           reference: docs/03-platform/SECURITY_AND_GRC.md
-      # m41-security implemented on feature/stage-6-m41-security; post-merge certification pending (impl PR to be merged by the owner).
+        certification_6_m41:
+          verdict: certified_on_branch
+          date: "2026-08-15"
+          governance_pr: 106
+          governance_merge_sha: b508129
+          implementation_pr: 107
+          reviewed_head: 273ca1b
+          implementation_merge_sha: a35f5bf3c7c89865424fca4d1bf5393c288c0327
+          tree_equivalence: "git diff 273ca1b a35f5bf == EMPTY (byte-identical squash, single parent b508129)"
+          certification_baseline: a35f5bf3c7c89865424fca4d1bf5393c288c0327
+          certification_branch: cert/stage-6-m41-security
+          certification_pr: pending
+          implementation_ci: "Smoke success + DB PG16 success on reviewed head 273ca1b"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings; m41 contributes 0); build clean; smoke 46/7736/0-fail (m41-security 106, conformance 3864, migrate 26); migrate 80 (m41=2, checksums 0001 6c9d35231c88 / 0002 5e995d431671); DB 95/2878/0-fail on fresh DB (m41-security 31 + m41-services 23)"
+          metrics: "13 security_/grc_/privacy_ tables/13 FORCE-RLS/13 policies/13 composite PKs/3 composite FKs/0 unsafe tenant FK/38 CHECKs/5 version cols/0 float/0 secret-value-token-credential/2 opaque secretref pointers(secret_ref,provider_ref)/1 immutability trigger(security_secret_version)/1 one-active partial unique index/0 DELETE/8 append-only(0 UPDATE)/5 mutable/14 perms(4 priv)/18 codes(SEC_ 13/GRC_ 3/PRIV_ 2; reg 961; src<->registry parity 18/18)/7 event families(14 event types)/1 outbox(m06; 0 m41 outbox)/12 guarded mutating routes(+1 in-service-guarded read)"
+          secret_value_boundary_verdict: "PROVEN — a live information_schema scan across all 13 tables finds 0 secret-value/ciphertext/plaintext/private-key/password/token/material/key_material/credential columns; a secret is an opaque secret_ref (secretref: shape CHECK) + an approved algorithm id + an opaque provider_ref; raw-value storage + crypto + provider deferred behind a fail-closed SecretProviderPort (default UnavailableSecretProvider => no material; a reveal returns secret_provider_unavailable with no material)"
+          m30_seam_verdict: "PROVEN — m30-platform NOT in the m41 diff; M30 keeps the opaque secretref: seam (zero value columns); SecretService.resolveSecretMetadata backs M30's SecretResolver {available,reasonCode}: active=>available(secret_reference_resolvable), revoked/missing/provider-down=>unavailable, never a value"
+          m24_dlp_verdict: "PROVEN — m24-ai-foundation NOT in the m41 diff; DlpService.evaluate is the canonical fail-closed impl behind M24's DlpPolicyEvaluator {action,reasonCode,findingCount}: restricted+looks-secret=>block, restricted+no-active-policy=>block(fail closed), clean=>allow; a bounded finding is recorded, never the content; M24 stays the AI owner"
+          framework_only_verdict: "PROVEN — no approved KMS/HSM/Vault provider (OPEN_QUESTIONS #10/#16); actual secret storage/crypto/provider deferred behind SecretProviderPort (default UnavailableSecretProvider); no production provider, no network egress, no crypto performed; honest status per CLAUDE.md"
+          posture_over_rbac_verdict: "PROVEN — evaluateSecurityPosture: rbac-deny+security-allow=>deny(rbac_denied), rbac-allow+security-deny=>deny(security_policy_denied), rbac-allow+security-allow=>allow; posture can only DENY, never grants; no duplicate RBAC engine"
+          maker_checker_verdict: "PROVEN — secret create/activate/rotate/reveal/revoke/destroy are maker-checker/SoD (evaluateSodGate + isHumanActor: null/blank/system/ai/automation != human; DB SoD CHECKs security_reveal.approved_by<>requested_by + security_review.decided_by<>requested_by); self-approval refused, ai approver refused, independent human approves; rotate/reveal/destroy privileged"
+          rotation_one_winner_verdict: "PROVEN — a one-active partial unique index (security_secret_version WHERE state='active') + aggregate version CAS: a 2nd active version insert is rejected, two concurrent rotateSecret at the same version admit exactly ONE winner leaving exactly one active version; a non-pending version is immutable (trigger)"
+          crypto_verdict: "PROVEN — approved-algorithm allowlist (aes-256-gcm/rsa-4096/ecdsa-p256/chacha20-poly1305/ed25519); a home-grown/arbitrary algorithm is rejected; 0 eval/Function/child_process/createCipher/createHash/crypto. in m41 source (only a comment noting the fixture does no crypto)"
+          arbitrary_execution_verdict: "NONE — 0 eval/Function/vm/child_process/spawn/shell/fetch/http(s).request/net./axios in m41 source or the security API; provider operations deferred fail-closed; no production network/provider egress"
+          privacy_grc_verdict: "PROVEN — privacy_record is bounded evidence over an OPAQUE subject_ref (no PII column); privacy_classification holds level + integer retention; GRC control/assessment append-only, no duplication of m03 audit or m42 certification; all FORCE-RLS; cross-tenant read invisible"
+          contamination: clean
+          contamination_note: "m01-m40 source untouched (m30-platform + m24-ai-foundation NOT in diff — M30 stays secretref-seam owner, M24 stays DLP owner; m41 backs their deferred ports by contract); only authorized wiring changed (contracts security-events union + re-export, app.module.ts DI, tsconfig refs, 2 smoke family-count assertions, registries/manifests/docs, package-lock); m41 owns no outbox; no prefix collision (security_/grc_/privacy_)"
+          known_limitations: "mvp:false (79->13 governed core; IGA/PAM/risk-register/DPIA-DSR/SOC-detection documented not built); FRAMEWORK-ONLY secret backend (real KMS/HSM/Vault drops in behind SecretProviderPort); deferred-port composition-root adapters (m30 SecretResolver / m24 DlpPolicyEvaluator) not yet wired (consumer source untouched; adapters drop in later); m42 deferred"
+          doc_discrepancies: "DOCUMENTATION-ONLY (no code/CI/security impact; to correct in a follow-up doc PR — not fixable under evidence-only certification): implementation_6_m41 says event_types 12 but repository truth is 14 (7 families 1+2+2+4+2+2+1; same '12 types' prose in ADR-128/naming-map/event-registry — the machine-validated 7-family figure is correct); implementation_6_m41 says guarded_routes 15 but repository truth is 12 @Endpoint-guarded mutating routes (the '15' counted 3 JSDoc 'Reads carry no @Endpoint' lines; route<->guard parity is exact 12/12)"
+          report: docs/build/stages/STAGE_6_M41_SECURITY_CERTIFICATION.md
       - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: documented, mvp: false, testing_required: [smoke, db_spec]}
 
   - stage: 7
