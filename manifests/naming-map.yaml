@@ -586,11 +586,27 @@ modules:
   - module: m40-resilience
     stage: 6
     mvp: false
-    api_prefixes: []
-    permission_namespaces: []
+    api_prefixes: [/api/v1/resilience] # GAP-2 RESOLVED (Stage 6G, ADR-127)
+    permission_namespaces: ['resilience.*'] # GAP-4 RESOLVED (Stage 6G, ADR-127): resilience.* (12 codes) registered + seeded
+    permission_namespace_registered: true
     event_families: [mobile.lifecycle, backup.lifecycle, dr.lifecycle]
     event_family_registered: true
-    audit_prefixes: [RESILIENCE_]
+    audit_prefixes: [RESILIENCE_] # 20 codes registered
+    note: >
+      Stage 6G governed RESILIENCE — mobile devices, the OFFLINE queue + sync evidence, OPERATIONAL observability, backup
+      POLICIES + evidence, restore/failover requests + evidence, and DR/BC plans + drill evidence. THE LOAD-BEARING RULE: a
+      CONTROLLED offline request reaches sync_state 'applied' ONLY when validated_online is true (resilience_offline_request_
+      finalize_ck) — an offline/mobile client may draft/queue but can NEVER FINALIZE a controlled action offline; finalization
+      requires ONLINE re-validation through the AUTHORITATIVE owner (m02 RBAC + m21/m22 approval + maker-checker/SoD + m37/m39);
+      m40 orchestrates sync and never manufactures an approval nor auto-finalizes on reconnect; a stale/expired sync FAILS
+      CLOSED. OBSERVABILITY is OPERATIONAL only (bounded health/latency signals) — NOT a second m32 analytics engine nor the m03
+      audit spine. BACKUP/RESTORE/FAILOVER EXECUTION is FRAMEWORK-ONLY behind a fail-closed BackupExecutorPort (default Unavailable
+      -> durable BLOCKED; no shell/pg_dump/restore-command injection, no infra egress); restore/failover is maker-checker/SoD
+      (approver != requester, human; AI/system/automation refused) + a terminal decision is immutable (trigger). Backup/DR
+      SCHEDULES are OPAQUE references composing m06/m38 — m40 runs no scheduler. RTO/RPO are integer seconds (NO float). NOT a
+      secrets manager (config credentials are opaque m30 secretref: pointers only; zero secret value columns; m41 deferred).
+      Owns mobile.lifecycle + backup.lifecycle + dr.lifecycle; one m06 outbox. GAP-2 resolved (/api/v1/resilience); GAP-4
+      resolved (resilience.* namespace). Uses the resilience_ table prefix. reference_tables 20 reconciled to a governed core of 13.
 
   - module: m41-security
     stage: 6
@@ -657,7 +673,7 @@ gaps:
   - id: GAP-2
     severity: blocks_owning_stage
     issue: Modules with no registered API prefix and/or no permission namespace.
-    affects: [m07-rules, m16-litigation, m19-finance] # m18-legaldocs (4.4) + m30-platform (6A, ADR-115) + m39-saas (6F, ADR-126: /api/v1/saas) resolved
+    affects: [m07-rules, m16-litigation, m19-finance] # m18-legaldocs (4.4) + m30-platform (6A, ADR-115) + m39-saas (6F, ADR-126) + m40-resilience (6G, ADR-127: /api/v1/resilience + resilience.*) resolved
   - id: GAP-3
     severity: blocks_stage_1
     issue: m05-hub and m10-report are mvp:true but appear in no manifest stage; m11-ai likewise absent.

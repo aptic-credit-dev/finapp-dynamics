@@ -30,6 +30,7 @@ import { EventsModule } from './events/events.module.ts';
 import { ReleasesModule } from './releases/releases.module.ts';
 import { AutomationModule } from './automation/automation.module.ts';
 import { SaasModule } from './saas/saas.module.ts';
+import { ResilienceModule } from './resilience/resilience.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -104,6 +105,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     ReleasesModule,
     AutomationModule,
     SaasModule,
+    ResilienceModule,
   ],
   controllers: [HealthController],
   providers: [],

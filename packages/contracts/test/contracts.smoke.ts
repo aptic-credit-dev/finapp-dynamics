@@ -86,6 +86,9 @@ import {
   SUBSCRIPTION_LIFECYCLE_FAMILY,
   USAGE_LIFECYCLE_FAMILY,
   BILLING_LIFECYCLE_FAMILY,
+  MOBILE_LIFECYCLE_FAMILY,
+  BACKUP_LIFECYCLE_FAMILY,
+  DR_LIFECYCLE_FAMILY,
 } from '@finapp/contracts';
 
 /**
@@ -101,8 +104,8 @@ import {
 export default defineSuite('contracts', (t) => {
   t.equal(
     DOMAIN_EVENT_FAMILIES.length,
-    38,
-    'thirty-eight event families (m38 adds automation.lifecycle + extension.lifecycle, Stage 6E; m39 adds subscription.lifecycle + usage.lifecycle + billing.lifecycle at the tail, Stage 6F)',
+    41,
+    'forty-one event families (m39 adds subscription.lifecycle + usage.lifecycle + billing.lifecycle, Stage 6F; m40 adds mobile.lifecycle + backup.lifecycle + dr.lifecycle at the tail, Stage 6G)',
   );
   t.ok(DOMAIN_EVENT_FAMILIES.includes(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle is declared');
   t.ok(DOMAIN_EVENT_FAMILIES.includes(IDENTITY_LIFECYCLE_FAMILY), 'identity.lifecycle is declared');
@@ -384,10 +387,19 @@ export default defineSuite('contracts', (t) => {
     DOMAIN_EVENT_FAMILIES.includes(BILLING_LIFECYCLE_FAMILY),
     'billing.lifecycle is declared (m39, Stage 6F)',
   );
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(MOBILE_LIFECYCLE_FAMILY),
+    'mobile.lifecycle is declared (m40, Stage 6G)',
+  );
+  t.ok(
+    DOMAIN_EVENT_FAMILIES.includes(BACKUP_LIFECYCLE_FAMILY),
+    'backup.lifecycle is declared (m40, Stage 6G)',
+  );
+  t.ok(DOMAIN_EVENT_FAMILIES.includes(DR_LIFECYCLE_FAMILY), 'dr.lifecycle is declared (m40, Stage 6G)');
   t.equal(
     DOMAIN_EVENT_FAMILIES[DOMAIN_EVENT_FAMILIES.length - 1],
-    BILLING_LIFECYCLE_FAMILY,
-    'billing.lifecycle is the newest family — appended at the tail (Stage 6F)',
+    DR_LIFECYCLE_FAMILY,
+    'dr.lifecycle is the newest family — appended at the tail (Stage 6G)',
   );
   t.ok(isValidEventFamily(TENANT_LIFECYCLE_FAMILY), 'tenant.lifecycle satisfies the family pattern');
   t.equal(new Set(DOMAIN_EVENT_FAMILIES).size, DOMAIN_EVENT_FAMILIES.length, 'no family is declared twice');

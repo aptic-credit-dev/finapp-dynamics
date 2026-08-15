@@ -377,6 +377,15 @@ namespaces:
      codes: ["saas.plan.read", "saas.plan.manage", "saas.plan.publish", "saas.subscription.read", "saas.subscription.manage",
              "saas.entitlement.read", "saas.quota.read", "saas.quota.manage", "saas.usage.read", "saas.usage.record",
              "saas.override.administer", "saas.control.administer"]}
+  # Stage 6G (m40-resilience) — GAP-4 resolution (ADR-127): the resilience.* namespace (naming-map had permission_namespaces:[]).
+  # Three-segment resilience.<area>.<action>. resilience.control.administer is the cross-tenant CONTROL-PLANE permission a tenant
+  # admin never holds by default (platform-scope backup/DR policies); resilience.restore.approve is the privileged CONTROLLED
+  # action (recovery execution). NO resilience.admin. A stale offline authorization is never sufficient — RBAC (m02) is
+  # authoritative, re-validated ONLINE.
+  - {namespace: "resilience.*", module: m40-resilience, mvp: false, status: implemented, substage: "6G",
+     codes: ["resilience.device.read", "resilience.device.manage", "resilience.offline.read", "resilience.offline.sync",
+             "resilience.observability.read", "resilience.backup.read", "resilience.backup.manage", "resilience.restore.request",
+             "resilience.restore.approve", "resilience.dr.read", "resilience.dr.manage", "resilience.control.administer"]}
   - {namespace: "security.*", module: m41-security, mvp: false, status: documented}
   - {namespace: "grc.*", module: m41-security, mvp: false, status: documented}
   - {namespace: "privacy.*", module: m41-security, mvp: false, status: documented}
