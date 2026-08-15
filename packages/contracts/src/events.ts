@@ -82,6 +82,24 @@ import type { BackupLifecycleEvent } from './backup-events.ts';
 import { BACKUP_LIFECYCLE_FAMILY } from './backup-events.ts';
 import type { DrLifecycleEvent } from './dr-events.ts';
 import { DR_LIFECYCLE_FAMILY } from './dr-events.ts';
+import type {
+  SecurityIdentityLifecycleEvent,
+  SecurityPrivilegedLifecycleEvent,
+  SecurityDlpLifecycleEvent,
+  SecurityCryptoLifecycleEvent,
+  SecurityGrcLifecycleEvent,
+  SecurityPrivacyLifecycleEvent,
+  SecuritySocLifecycleEvent,
+} from './security-events.ts';
+import {
+  SECURITY_IDENTITY_LIFECYCLE_FAMILY,
+  SECURITY_PRIVILEGED_LIFECYCLE_FAMILY,
+  SECURITY_DLP_LIFECYCLE_FAMILY,
+  SECURITY_CRYPTO_LIFECYCLE_FAMILY,
+  SECURITY_GRC_LIFECYCLE_FAMILY,
+  SECURITY_PRIVACY_LIFECYCLE_FAMILY,
+  SECURITY_SOC_LIFECYCLE_FAMILY,
+} from './security-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -137,7 +155,14 @@ export type DomainEvent =
   | BillingLifecycleEvent
   | MobileLifecycleEvent
   | BackupLifecycleEvent
-  | DrLifecycleEvent;
+  | DrLifecycleEvent
+  | SecurityIdentityLifecycleEvent
+  | SecurityPrivilegedLifecycleEvent
+  | SecurityDlpLifecycleEvent
+  | SecurityCryptoLifecycleEvent
+  | SecurityGrcLifecycleEvent
+  | SecurityPrivacyLifecycleEvent
+  | SecuritySocLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -182,6 +207,13 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   MOBILE_LIFECYCLE_FAMILY,
   BACKUP_LIFECYCLE_FAMILY,
   DR_LIFECYCLE_FAMILY,
+  SECURITY_IDENTITY_LIFECYCLE_FAMILY,
+  SECURITY_PRIVILEGED_LIFECYCLE_FAMILY,
+  SECURITY_DLP_LIFECYCLE_FAMILY,
+  SECURITY_CRYPTO_LIFECYCLE_FAMILY,
+  SECURITY_GRC_LIFECYCLE_FAMILY,
+  SECURITY_PRIVACY_LIFECYCLE_FAMILY,
+  SECURITY_SOC_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */

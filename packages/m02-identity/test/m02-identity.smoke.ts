@@ -271,8 +271,8 @@ export default defineSuite('m02-identity', (t) => {
   );
   t.equal(
     DOMAIN_EVENT_FAMILIES.length,
-    41,
-    'forty-one families declared (m39 subscription/usage/billing.lifecycle, Stage 6F + m40 mobile/backup/dr.lifecycle, Stage 6G)',
+    48,
+    'forty-eight families declared (m40 mobile/backup/dr.lifecycle, Stage 6G + m41 seven security.* families, Stage 6H)',
   );
   const eventRegistry = readYaml('manifests/event-registry.yaml') as {
     family_groups?: { families: string[] }[];
