@@ -2791,7 +2791,69 @@ stages:
           contamination: clean
           limitations: "mvp:false; backup/restore/failover execution is a fail-closed port (real executors + human approval drop in later); m30 real secret backend (m41) deferred; device trust registered on enrolment (richer attestation later); m41/m42 deferred"
           report: docs/build/stages/STAGE_6_M40_RESILIENCE_CERTIFICATION.md
-      - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: documented, mvp: false, testing_required: [smoke, db_spec]}
+      # m41-security APPROVED FOR BUILD (Stage 6H governance, 2026-08-15). Enterprise SECURITY / PRIVACY / COMPLIANCE / GRC —
+      # the real secret/key management backend + DLP + crypto-key lifecycle + security posture + GRC + privacy controls. FIRST
+      # Stage-6H module (after certified 6G m40). Transition documented -> approved_for_build. reference_tables 79 (LARGEST
+      # 6-series baseline). HARD deps = m02 + m06 + m08 + m30 + m39 (MODULE_DEPENDENCY_MAP m41 -> m02,m06,m08,m30,m39) + the
+      # m01/m03 spine, ALL certified/implemented on main; m42 DOWNSTREAM (assesses all); no unbuilt HARD dep. Genuinely unbuilt
+      # (README placeholder only; 0 sec_/grc_/priv_ tables, 0 security.*/grc.*/privacy.* seeded, 0 SEC_/GRC_/PRIV_ codes, 0 of
+      # the 7 security.* families in contracts). NO GAP-2 (api_prefixes /api/v1/security + /grc + /privacy declared), NO GAP-4
+      # (security.*/grc.*/privacy.* declared). NO BLOCKER.
+      # Reviewer gaps to resolve at build via ADR + SHARED_SERVICE_OWNERSHIP (non-blocking; precedent m30 GAP-2/GAP-5, m39/m40 G-a):
+      #   G-a (LOAD-BEARING) SECRET-VALUE STORAGE BOUNDARY: m30 owns the secret-reference SEAM (opaque secretref:, ZERO secret
+      #       VALUE columns); m41 owns REAL secret/key management (SHARED_SERVICE_OWNERSHIP:24, ADR-009/116). NO approved KMS/HSM/
+      #       Vault/secrets-manager provider exists (OPEN_QUESTIONS #10/#16 default fail-closed / defer), so m41 ships FRAMEWORK-
+      #       ONLY: governed secret/key/DLP/GRC/privacy METADATA + governance + a fail-closed REAL resolver binding m30's
+      #       SecretResolver port; ACTUAL secret-VALUE storage + crypto + provider integration is DEFERRED behind a fail-closed
+      #       provider port until a provider is approved. NO plaintext/ciphertext/secret-value/token columns — the platform-wide
+      #       ZERO-secret-value invariant holds (DB-provable). Raw secret-VALUE persistence WITHOUT an approved encryption/provider
+      #       strategy is a BLOCKER and is therefore EXCLUDED at this stage (framework-only only).
+      #   G-b DLP OWNERSHIP: m41 is the canonical implementation of m24's deferred DlpPolicyEvaluator port. DLP FAILS CLOSED
+      #       (unavailable evaluator -> DENY/BLOCK; restricted data NEVER flows to an unapproved provider). m24 remains the AI
+      #       orchestration/governance owner — m41 supplies the policy DECISION + evidence, NOT a duplicate AI policy engine.
+      #   G-c POSTURE OVER RBAC (ADR-009): m41 is a security POSTURE / control-plane layer that governs/observes/records — it
+      #       NEVER replaces m02 RBAC (authoritative), m03 audit (the authoritative spine), m30 config/feature-flags/secretref
+      #       seam, or m24 AI governance. NO duplicate RBAC / audit / secret-seam / feature-flag / AI engine.
+      #   G-d KEY/SECRET LIFECYCLE + MAKER-CHECKER: key/secret create/activate/rotate/retire/destroy/emergency-revoke + a secret
+      #       REVEAL are CONTROLLED actions — maker-checker/SoD (requester != approver, human; AI/system/automation never approve),
+      #       privileged permission, immutable history, terminal states protected; NO automatic destructive action without governance.
+      #   G-e SECRET REVEAL/ACCESS POLICY: prefer service-to-service resolution via controlled runtime ports. A human PLAINTEXT
+      #       reveal (only if repository truth requires it) needs a dedicated privileged permission + explicit purpose/reason +
+      #       bounded access lifetime + audit + no caching in application state + NO event/audit payload exposure. A secret VALUE
+      #       NEVER appears in audit/events/logs/API errors.
+      #   G-f ROTATION SEMANTICS + RACE SAFETY: secret/key VERSIONS (pending/active/retired/revoked) + activation time + grace
+      #       overlap + revocation; rotation is RACE-SAFE (one active version, version CAS, duplicate-rotation protection, one-winner
+      #       activation/retirement); consumers keep a STABLE secretref and resolve the current valid version (rotation never
+      #       silently invalidates dependents without evidence).
+      #   G-g CRYPTO BOUNDARY: NO home-grown cryptography, NO plaintext master keys, NO tenant-chosen arbitrary algorithm, NO
+      #       client-supplied keys without governance; approved algorithms + versioned key metadata + opaque key refs + fail-closed
+      #       resolution. The real HSM/KMS/Vault is DEFERRED behind a fail-closed port (no vendor invented, OPEN_QUESTIONS #16).
+      #   G-h SECURE DELETION / RETENTION: retired/revoked/destroyed secret material = cryptographic destruction while metadata +
+      #       audit remain APPEND-ONLY; no casual DELETE (status transitions + append-only ledgers, ADR-010).
+      #   G-i TENANCY / PLATFORM SCOPE: security/key/secret/DLP/privacy state FORCE-RLS + composite tenant-safe FKs; platform-scope
+      #       keys/policies require the control-plane permission a tenant admin never holds; a tenant can NEVER resolve another
+      #       tenant's secret — cross-tenant secret access is a HARD FAIL.
+      #   G-j PERMISSIONS: security.* + grc.* + privacy.* already declared (NO GAP-4). Register 3-segment codes at build (reveal/
+      #       rotate/destroy/control-administer privileged; NO security.admin/grc.admin/privacy.admin/wildcard; default deny).
+      #   G-k API: /api/v1/security + /api/v1/grc + /api/v1/privacy already declared (NO GAP-2). Every mutating route @Endpoint-
+      #       guarded; NO direct secret-MATERIAL API (no plaintext over HTTP except an explicitly-governed reveal endpoint under G-e).
+      #   G-l AUDIT: SEC_/GRC_/PRIV_ prefixes reserved to m41 (documented provenance); register real codes at build (unregistered
+      #       codes fail CI); audit key/secret lifecycle + reveal + DLP decision + GRC/privacy actions with ids/states/reason codes
+      #       ONLY — an audit payload NEVER contains secret/key material.
+      #   G-m EVENTS/OUTBOX: m41 owns 7 security.* families (identity/privileged/dlp/crypto/grc/privacy/soc _lifecycle) via the ONE
+      #       m06 outbox; payloads NEVER contain plaintext secret/key material; NO 2nd outbox; no fake downstream business events.
+      #   G-n DOWNSTREAM CONSUMER PORTS: m41 implements/backs the deferred ports (m30 SecretResolver, m24 DlpPolicyEvaluator) and is
+      #       consumed by m33/m34/m35/m36/m37/m38/m39/m40 secret handling BY CONTRACT (opaque secretref); downstream source is
+      #       UNTOUCHED at governance; adapters wire in later without modifying consumer domain logic.
+      #   G-o NO ARBITRARY EXECUTION / EGRESS: no shell/eval/arbitrary crypto command/unrestricted provider URL/plugin/uploaded
+      #       script; provider integrations deferred fail-closed; no production network/provider egress.
+      #   G-p 79 reference_tables -> governed core reconciliation (LARGEST 6-series baseline; m30 26->10 .. m40 20->13 precedent);
+      #       document honestly, no empty tables.
+      #   G-q (informational) requires_review: OPEN_QUESTIONS #6 residency (Kenya region, no cross-border restricted transfer) /
+      #       #7 compliance (Kenya DPA first) / #8 IdP (platform-native for pilot) / #10 approved AI providers (no restricted data
+      #       to any external provider until approved) / #16 hosting+KMS (undecided) all have CONFIRMED fail-closed/defer defaults —
+      #       NOT blockers; the production security/KMS/DLP provider is deferred framework-only.
+      - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: documented, mvp: false, testing_required: [smoke, db_spec]}
 
   - stage: 7
