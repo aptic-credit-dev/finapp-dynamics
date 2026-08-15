@@ -47,6 +47,7 @@
     { "path": "./packages/m37-govrelease" },
     { "path": "./packages/m38-automation" },
     { "path": "./packages/m39-saas" },
+    { "path": "./packages/m40-resilience" },
     { "path": "./apps/api" },
     { "path": "./apps/web" }
   ]

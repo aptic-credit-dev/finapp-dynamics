@@ -1,0 +1,34 @@
+{
+  "name": "@finapp/m40-resilience",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M40 — Resilience: Mobile / Offline / Observability / Backup / Business Continuity (Stage 6G, mvp:false). Owns mobile-device registrations, the governed OFFLINE queue + sync evidence, OPERATIONAL observability signals, backup POLICIES + evidence, restore/failover requests + evidence, and DR/BC plans + drill evidence. THE LOAD-BEARING RULE: an offline/mobile client may DRAFT/QUEUE but can NEVER FINALIZE a controlled action offline — finalization requires ONLINE re-validation through the AUTHORITATIVE owner (m02 RBAC + m21/m22 approval + maker-checker/SoD + m37/m39); a controlled offline request reaches 'applied' only when validated_online is true (DB CHECK), m40 orchestrates sync and NEVER manufactures an approval/consent/release or auto-finalizes on reconnect, and an ambiguous/stale sync FAILS CLOSED. OBSERVABILITY is OPERATIONAL only (health/latency/dependency/backup-freshness/sync-health signals) — NOT a second m32 analytics engine nor the m03 audit spine; telemetry is bounded (no raw payloads/PII/secrets). BACKUP/RESTORE/FAILOVER EXECUTION is FRAMEWORK-ONLY behind a fail-closed BackupExecutorPort (default Unavailable -> durable BLOCKED; no shell/pg_dump/restore-command injection, no infra egress); a restore/failover is a controlled action (maker-checker/SoD, AI/system/automation never approve). Backup/DR SCHEDULES compose m06 timers / m38 automation BY CONTRACT (opaque schedule refs) — NO second timer/scheduler engine. NOT a secrets manager (opaque m30 secretref: pointers only; zero secret VALUE columns; m41 deferred). Recovery objectives (RTO/RPO) are integer seconds (no float). Uses the resilience_ table prefix and owns mobile.lifecycle + backup.lifecycle + dr.lifecycle ONLY, publishing through the ONE m06 outbox. Declares /api/v1/resilience, the resilience.* permission namespace, and the RESILIENCE_ audit prefix. Tenant FORCE-RLS + composite tenant-safe FKs + idempotency + optimistic concurrency. No secret value; no arbitrary execution; no production infrastructure/network executor.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*",
+    "@finapp/m30-platform": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}

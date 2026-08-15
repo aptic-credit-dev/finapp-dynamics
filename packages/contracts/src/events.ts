@@ -76,6 +76,12 @@ import type { UsageLifecycleEvent } from './usage-events.ts';
 import { USAGE_LIFECYCLE_FAMILY } from './usage-events.ts';
 import type { BillingLifecycleEvent } from './billing-events.ts';
 import { BILLING_LIFECYCLE_FAMILY } from './billing-events.ts';
+import type { MobileLifecycleEvent } from './mobile-events.ts';
+import { MOBILE_LIFECYCLE_FAMILY } from './mobile-events.ts';
+import type { BackupLifecycleEvent } from './backup-events.ts';
+import { BACKUP_LIFECYCLE_FAMILY } from './backup-events.ts';
+import type { DrLifecycleEvent } from './dr-events.ts';
+import { DR_LIFECYCLE_FAMILY } from './dr-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -128,7 +134,10 @@ export type DomainEvent =
   | ExtensionLifecycleEvent
   | SubscriptionLifecycleEvent
   | UsageLifecycleEvent
-  | BillingLifecycleEvent;
+  | BillingLifecycleEvent
+  | MobileLifecycleEvent
+  | BackupLifecycleEvent
+  | DrLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -170,6 +179,9 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   SUBSCRIPTION_LIFECYCLE_FAMILY,
   USAGE_LIFECYCLE_FAMILY,
   BILLING_LIFECYCLE_FAMILY,
+  MOBILE_LIFECYCLE_FAMILY,
+  BACKUP_LIFECYCLE_FAMILY,
+  DR_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */
