@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 943 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 961 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -1159,6 +1159,27 @@ codes:
   - { code: RESILIENCE_DR_PLAN_SET, module: m40-resilience, severity: normal, reason_required: false }
   - { code: RESILIENCE_DR_TEST_RECORDED, module: m40-resilience, severity: normal, reason_required: false }
   - { code: RESILIENCE_SOD_BLOCKED, module: m40-resilience, severity: elevated, reason_required: false }
+  # Stage 6H (m41-security) — SEC_/GRC_/PRIV_. Controlled secret/key lifecycle + reveal + DLP + GRC + privacy + incidents. A payload
+  # never carries a secret value / ciphertext / token / credential / raw restricted content — safe ids, states, classifications,
+  # approved algorithm ids and reason codes only. Reveal + destroy + rotate are elevated (privileged, maker-checker/SoD).
+  - { code: SEC_SECRET_DEFINED, module: m41-security, severity: normal, reason_required: false }
+  - { code: SEC_SECRET_VERSION_ADDED, module: m41-security, severity: normal, reason_required: false }
+  - { code: SEC_SECRET_ACTIVATED, module: m41-security, severity: normal, reason_required: false }
+  - { code: SEC_SECRET_ROTATED, module: m41-security, severity: elevated, reason_required: false }
+  - { code: SEC_SECRET_REVOKED, module: m41-security, severity: elevated, reason_required: false }
+  - { code: SEC_SECRET_DESTROYED, module: m41-security, severity: elevated, reason_required: false }
+  - { code: SEC_REVEAL_REQUESTED, module: m41-security, severity: elevated, reason_required: false }
+  - { code: SEC_REVEAL_GRANTED, module: m41-security, severity: elevated, reason_required: false }
+  - { code: SEC_DLP_POLICY_SET, module: m41-security, severity: normal, reason_required: false }
+  - { code: SEC_DLP_DECISION, module: m41-security, severity: normal, reason_required: false }
+  - { code: SEC_INCIDENT_RECORDED, module: m41-security, severity: elevated, reason_required: false }
+  - { code: SEC_SOD_BLOCKED, module: m41-security, severity: elevated, reason_required: false }
+  - { code: SEC_ACCESS_BLOCKED, module: m41-security, severity: elevated, reason_required: false }
+  - { code: GRC_CONTROL_DEFINED, module: m41-security, severity: normal, reason_required: false }
+  - { code: GRC_CONTROL_RETIRED, module: m41-security, severity: elevated, reason_required: false }
+  - { code: GRC_ASSESSMENT_RECORDED, module: m41-security, severity: normal, reason_required: false }
+  - { code: PRIV_CLASSIFICATION_SET, module: m41-security, severity: normal, reason_required: false }
+  - { code: PRIV_RECORD_ADDED, module: m41-security, severity: normal, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
