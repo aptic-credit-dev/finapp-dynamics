@@ -2765,6 +2765,32 @@ stages:
           secrets: "config credentials are opaque m30 secretref: pointers only (shape CHECK); 0 secret-value columns; m41 deferred"
           gaps_resolved: "GAP-2 (/api/v1/resilience) + GAP-4 (resilience.* namespace)"
           branch: feature/stage-6-m40-resilience
+        certification_6_m40:
+          verdict: certified_on_branch
+          date: "2026-08-15"
+          governance_pr: 103
+          governance_merge_sha: 251a934
+          implementation_pr: 104
+          reviewed_head: 1a462bf
+          implementation_merge_sha: 57943b0dad288e9c6e5ea5b96e00340ed7026e10
+          tree_equivalence: "git diff 1a462bf 57943b0 == EMPTY (byte-identical squash, single parent 251a934)"
+          certification_baseline: 57943b0dad288e9c6e5ea5b96e00340ed7026e10
+          certification_branch: cert/stage-6-m40-resilience
+          certification_pr: pending
+          implementation_ci: "Smoke success + DB PG16 success on reviewed head 1a462bf"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings); build clean; smoke 45/7553/0-fail (m40-resilience 102, conformance 3796); migrate 78 (m40=2, checksums 0001 63bcbc8251cb / 0002 8e3321a0b221); DB 93/2824/0-fail on fresh DB (m40-resilience 32 + m40-services 17)"
+          metrics: "13 resilience_ tables/13 FORCE-RLS/13 policies/4 composite FKs/0 unsafe/0 DELETE/7 append-only(0 UPDATE)/6 mutable/43 CHECKs/6 version cols/0 float/0 secret-value-token/2 opaque secretref pointers/1 immutability trigger(resilience_restore_immutable_trg)/12 perms(2 priv)/20 codes(reg 943; src<->registry parity 20/20)/3 event families(mobile/backup/dr.lifecycle, 8 types)/1 outbox(m06; 0 m40 outbox)/14 guarded routes"
+          offline_safety_verdict: "PROVEN — a controlled offline request reaches 'applied' ONLY when validated_online (DB finalize_ck); the service requires the current online actor to hold the required permission (fresh RBAC re-validation, not cached) + an authoritative downstream ref the owning module produced (m40 never manufactures) + no expiry; no-revalidation => rejected(offline_finalization_blocked), missing permission => rejected(offline_rbac_revalidation_failed), re-validated+permission => applied, non-controlled => applied; no auto-finalize on reconnect; cross-tenant invisible; idempotent (request_key UNIQUE + CAS)"
+          restore_failover_verdict: "PROVEN — privileged (resilience.restore.approve) + maker-checker/SoD (approved_by <> requested_by CHECK + isHumanActor; self + AI refused, independent human approves); execution framework-only (fixture => executed, unavailable => durable BLOCKED); a terminal executed/rejected decision is IMMUTABLE (trigger)"
+          observability_boundary: "operational only (bounded health/latency signals + opaque evidence ref) — NOT a 2nd m32 analytics engine nor the m03 audit spine; no m32 import; no raw log/payload/PII/secret"
+          scheduler_boundary: "m40 stores opaque schedule refs only — NO cron/scheduler/timer engine, no timer dispatcher, no generic scheduler table; backup/DR schedules compose m06/m38 by contract; one m06 outbox"
+          secret_boundary: "2 opaque config_secret_ref pointers (secretref: shape CHECK); 0 secret-value/token columns; no password/api-key/refresh-token/private-key; m41 deferred; no 2nd secrets manager"
+          arbitrary_execution_verdict: "NONE — zero eval/child_process/shell/pg_dump/pg_restore/arbitrary-SQL/filesystem/network execution in source (only documentation prose); backup/restore/failover behind a fail-closed BackupExecutorPort (default => durable BLOCKED)"
+          reconciliation: "reference_tables 20 -> 13 governed core"
+          contamination: clean
+          limitations: "mvp:false; backup/restore/failover execution is a fail-closed port (real executors + human approval drop in later); m30 real secret backend (m41) deferred; device trust registered on enrolment (richer attestation later); m41/m42 deferred"
+          report: docs/build/stages/STAGE_6_M40_RESILIENCE_CERTIFICATION.md
       - {module: m41-security, capability: Enterprise security/privacy/compliance/GRC (6H), status: documented, mvp: false, testing_required: [smoke, db_spec]}
       - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: documented, mvp: false, testing_required: [smoke, db_spec]}
 
