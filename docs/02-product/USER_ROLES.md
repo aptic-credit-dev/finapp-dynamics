@@ -19,6 +19,12 @@ Roles are tenant-scoped; permissions are enforced server-side. Frontend hiding i
 | External Advocate | Assigned legal matters only | Restricted, matter-scoped |
 | Auditor | Read-only across audit/evidence | No mutation |
 | Read-only Executive Viewer | Dashboards + reports | Read-only |
+| CTO / Technology Lead | Platform engineering leadership; Stage-7 technical execution (DR drill, load/chaos, migration) + remediation | Platform/governance scope (not tenant business); executes but never independently certifies its own hardening condition (SoD); see `docs/03-platform/STAGE_7_HARDENING_GOVERNANCE.md` |
+| Head of Risk & Compliance | Risk/compliance assurance; Stage-7 condition accountability (penetration test) + independent assurance | Platform/governance scope (not tenant business); independent of technical execution; not a business approver; see the Stage-7 hardening governance charter |
+
+> The two rows above are **programme-governance (organizational accountability) roles**, ratified per ADR-130 for
+> the Stage-7 hardening programme. They are platform/governance scope (like Super Admin), not tenant-scoped business
+> approvers, and carry no application RBAC permission grant by virtue of this catalogue entry.
 
 ## Rules
 Every privileged/controlled action is enforced server-side and audited. Segregation of duties prevents any

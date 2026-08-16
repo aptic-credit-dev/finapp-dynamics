@@ -60,7 +60,22 @@ export default defineSuite('conformance', (t) => {
 
   // Statuses must come from the legend. A typo'd status silently drops an item out of every filter that
   // reads this file.
-  const LEGEND = ['documented', 'approved_for_build', 'implemented', 'deferred', 'requires_review'];
+  // Module (software) build statuses, plus the operational-programme lifecycle (ADR-130) for stages whose
+  // deliverables are external assurance/operational exercises rather than software modules (e.g. Stage 7
+  // Hardening). `approved_for_build` is module-only and is never reused for an operational programme.
+  const LEGEND = [
+    'documented',
+    'approved_for_build',
+    'implemented',
+    'deferred',
+    'requires_review',
+    // operational-programme lifecycle (ADR-130)
+    'approved_for_execution',
+    'in_execution',
+    'evidence_complete',
+    'conditionally_closed',
+    'closed',
+  ];
   for (const stage of stages) {
     if (stage.status !== undefined) {
       t.ok(LEGEND.includes(stage.status), `stage ${stage.stage} status "${stage.status}" is in the legend`);
