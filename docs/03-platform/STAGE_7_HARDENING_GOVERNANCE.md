@@ -110,6 +110,9 @@ governs how each condition's evidence is accepted into the certification program
 ### 5.1 Penetration test
 Agreed scope · environment · methodology · independent test report · vulnerability classification · remediation
 evidence · retest evidence · residual-risk acceptance · final security sign-off.
+The pentest workstream readiness package (environment decision, provider criteria, scope + exclusions, appointments,
+entry checklist) is `docs/03-platform/STAGE_7_PENTEST_READINESS.md`; `penetration_test` stays `requires_review`
+until every entry-checklist item there is TRUE.
 
 ### 5.2 DR / failover / failback
 Approved drill plan · backup verification · restore evidence · failover timestamps · measured RTO/RPO · failback
