@@ -100,6 +100,20 @@ import {
   SECURITY_PRIVACY_LIFECYCLE_FAMILY,
   SECURITY_SOC_LIFECYCLE_FAMILY,
 } from './security-events.ts';
+import type {
+  CertificationProgrammeLifecycleEvent,
+  CertificationMigrationLifecycleEvent,
+  CertificationUatLifecycleEvent,
+  CertificationPilotLifecycleEvent,
+  CertificationReleaseLifecycleEvent,
+} from './certification-events.ts';
+import {
+  CERTIFICATION_PROGRAMME_LIFECYCLE_FAMILY,
+  CERTIFICATION_MIGRATION_LIFECYCLE_FAMILY,
+  CERTIFICATION_UAT_LIFECYCLE_FAMILY,
+  CERTIFICATION_PILOT_LIFECYCLE_FAMILY,
+  CERTIFICATION_RELEASE_LIFECYCLE_FAMILY,
+} from './certification-events.ts';
 
 /**
  * THE typed domain-event union.
@@ -162,7 +176,12 @@ export type DomainEvent =
   | SecurityCryptoLifecycleEvent
   | SecurityGrcLifecycleEvent
   | SecurityPrivacyLifecycleEvent
-  | SecuritySocLifecycleEvent;
+  | SecuritySocLifecycleEvent
+  | CertificationProgrammeLifecycleEvent
+  | CertificationMigrationLifecycleEvent
+  | CertificationUatLifecycleEvent
+  | CertificationPilotLifecycleEvent
+  | CertificationReleaseLifecycleEvent;
 
 /** Every family currently declared. Kept in step with the union; asserted by the contracts smoke suite. */
 export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
@@ -214,6 +233,11 @@ export const DOMAIN_EVENT_FAMILIES: readonly string[] = [
   SECURITY_GRC_LIFECYCLE_FAMILY,
   SECURITY_PRIVACY_LIFECYCLE_FAMILY,
   SECURITY_SOC_LIFECYCLE_FAMILY,
+  CERTIFICATION_PROGRAMME_LIFECYCLE_FAMILY,
+  CERTIFICATION_MIGRATION_LIFECYCLE_FAMILY,
+  CERTIFICATION_UAT_LIFECYCLE_FAMILY,
+  CERTIFICATION_PILOT_LIFECYCLE_FAMILY,
+  CERTIFICATION_RELEASE_LIFECYCLE_FAMILY,
 ];
 
 /** Narrowing helper — stays accurate as families are appended. */

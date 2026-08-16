@@ -1,0 +1,33 @@
+{
+  "name": "@finapp/m42-certification",
+  "version": "0.0.0",
+  "private": true,
+  "description": "M42 — Enterprise Integration / Certification / Production Release (Stage 6I, mvp:false). The FINAL Stage-6 module and the Stage-6 CLOSURE GATE. A GOVERNANCE RUNTIME + EVIDENCE/CLOSURE layer: it RECORDS certification programmes, domain assessments (the 12 Stage-6 modules M30-M41 x 8 aspects), findings, exceptions/waivers, evidence references, migration-readiness/UAT/pilot/release-readiness records, role sign-offs, and issues a deny-by-default GO/CONDITIONAL_GO/NO_GO decision (ADR-012) plus a Stage-6 closure artifact. It ASSESSES M30-M41 BY CONTRACT (opaque refs; reads no owning-module private table) and MUST NOT duplicate the systems it certifies (no 2nd audit/workflow/approval/security/analytics/outbox/scheduler/secrets engine). It RECORDS evidence + governance state and EXECUTES no release/deployment/migration/DR/journal/secret-rotation. A GO is DERIVED from governed evidence, never set by a caller. Independence (ADR-012): a GO needs all mandatory role sign-offs, NO self-sign-off of one's own assessed domain, requester != certifier, AI/system/automation NEVER self-certify a stage, and an ISSUED decision is IMMUTABLE (a correction is a new decision/version). Evidence is stored as OPAQUE references (m09/document/SHA), never a secret, credential, full log, raw report body or restricted payload. Uses the certification_ table prefix and owns the certification.* event families through the ONE m06 outbox. Declares /api/v1/platform-certification, the platform_certification.* permission namespace, and the CERT_ audit prefix. No runtime execution; no arbitrary code; no production network/provider.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@finapp/contracts": "*",
+    "@finapp/kernel": "*",
+    "@finapp/m01-tenant": "*"
+  },
+  "devDependencies": {
+    "@finapp/m02-rbac": "*",
+    "@finapp/test-runner": "*"
+  }
+}
