@@ -211,6 +211,26 @@ programme.
 **All STAGE-ENTRY blockers are resolved.** No STAGE-ENTRY blocker remains; the rest are WORKSTREAM-ENTRY,
 PRODUCTION-GO, BUILD-TIME, or INFORMATIONAL and must not globally block the Stage.
 
+## 8b. Automated execution model (ADR-131 — PROPOSED, pending human decision)
+
+A **proposed** amendment (**ADR-131**) would let engineering/AI agents **execute** the technical hardening
+activities in an approved non-production/staging environment under a strict two-tier model — **`AUTOMATED EXECUTION
+ALLOWED` but `INDEPENDENT HUMAN ACCEPTANCE REQUIRED`** — producing Tier-1 evidence + remediation while preserving
+every independence/acceptance control. It changes **no** workstream status and takes effect only if the governance
+authority accepts/merges it.
+
+| Condition | Tier-1 (agent, staging) — evidence only | Tier-2 (human/external) — required, unchanged |
+| --- | --- | --- |
+| pentest | internal automated security testing ⇒ pre-assessment | **independent external pentest** + Auditor assurance |
+| DR | automated staging drill (fail-closed adapter) ⇒ RTO/RPO/restore evidence | independent DR assurance + COO/Operations |
+| load/chaos | automated staging runs ⇒ metrics | operational acceptance (COO) + approved SLOs |
+| migration | automated **synthetic** rehearsal + rollback ⇒ evidence | **real-data** migration + CFO + Legal sign-off |
+
+Under ADR-131 an agent still may **never** certify its own work, issue GO/CONDITIONAL_GO, replace Auditor/Risk/
+Finance/Legal/MD acceptance, fabricate external independence, touch production, or bind an unapproved provider; a
+workstream reaches `conditionally_closed`/`closed` only on Tier-2 acceptance + the M42 governed decision. Until
+ADR-131 is accepted, ADR-127/128/129/130 stand and no automated hardening execution is authorised.
+
 ---
 
 ## 9. Position
