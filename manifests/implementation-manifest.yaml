@@ -3036,6 +3036,16 @@ stages:
       - {item: dr_failover_failback_drill, status: requires_review}
       - {item: load_and_chaos_at_scale, status: requires_review}
       - {item: real_data_migration_execution, status: requires_review, requires: [finance_signoff, legal_signoff]}
+    # Stage-7 governance setup (2026-08-16): accountability/RACI, evidence packages, dependency register and
+    # entry/exit gates recorded in the charter; OQ#9/#14 given PROPOSED role-based resolutions (pending ratification).
+    # status STAYS requires_review — the schema has NO operational-programme approval status; approved_for_build is
+    # module-only and must NOT be reused for an operational programme (GOVERNANCE-SCHEMA GAP, charter §8). No test,
+    # deployment, infra change or migration is authorised. Stage 7 remains NOT approved to commence.
+    governance:
+      charter: docs/03-platform/STAGE_7_HARDENING_GOVERNANCE.md
+      schema_gap: "no operational-programme approval status exists in the manifest vocabulary; requires a human governance decision (likely an ADR) — do not invent one"
+      proposed_owners_pending_ratification: "OQ#9/#14 proposed role owners in charter; CTO/Technology Lead + Head of Risk & Compliance are not yet in USER_ROLES.md"
+      outstanding_entry_prerequisites: [ratify_proposed_roles, migration_source_inventory_TBD_OQ14, hosting_infra_target_OQ16, kms_hsm_vault_strategy_OQ10, connector_prod_credentials_OQ4, test_environments, slo_targets_OQ13]
 
   - stage: 8
     name: Phase 7 — Vertical business solutions
