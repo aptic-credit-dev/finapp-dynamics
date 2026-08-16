@@ -25,6 +25,12 @@ has a suggested default so work is not blocked; the default should be confirmed,
 8. **Identity provider** — the production IdP / SSO / MFA provider. *(Default: platform-native auth for the
    pilot; federate before external GA.)*
 9. **Penetration-test & DR-drill owners** — who executes and signs off these CONDITIONAL-GO conditions.
+   *(Proposed resolution, pending ratification — `docs/03-platform/STAGE_7_HARDENING_GOVERNANCE.md` §1: pentest
+   accountable = Head of Risk & Compliance [proposed role], executed by an independent external provider, assured
+   by Auditor, accepted by the Stage-7 committee / MD-CEO; DR drill accountable = COO, executed by CTO/Technology
+   Lead [proposed role], assured by Auditor/Risk, accepted by COO + Operations. Independence preserved: no role
+   executes and certifies its own condition. "CTO/Technology Lead" and "Head of Risk & Compliance" are not yet in
+   `USER_ROLES.md` and require ratification.)*
 
 ## AI
 10. **Approved AI providers & routing** — which providers are approved for which data classifications (local vs
@@ -37,6 +43,13 @@ has a suggested default so work is not blocked; the default should be confirmed,
 13. **Support model & SLOs** — support hours, escalation routes, and the SLO targets for critical services.
 14. **Data migration sources** — the real source systems, owners, and record volumes for the first tenant's
     migration, plus who provides Finance and Legal migration sign-off.
+    *(Proposed governance resolution, pending ratification — `docs/03-platform/STAGE_7_HARDENING_GOVERNANCE.md` §2:
+    accountable = COO; migration technical owner = CTO/Technology Lead [proposed]; Finance sign-off = CFO
+    (maker-checker, cannot self-approve); Legal sign-off = Legal Officer; final acceptance = MD-CEO / Stage-7
+    authority. Candidate-source classification: connectors (ERPNext/ApticOne/Imarisha/AutoBonds/BimaPro/ApticPay/
+    M-Pesa/gateways) are integration-only sources; **no system is a confirmed migration source**. The real
+    first-tenant source systems + record volumes remain **TBD** and are a hard entry prerequisite for
+    `real_data_migration_execution`.)*
 
 ## Engineering
 15. **Rebuild vs. import** — start the GitHub repo from the reference implementation as a validated baseline, or
