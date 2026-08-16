@@ -649,8 +649,9 @@ modules:
   - module: m42-certification
     stage: 6
     mvp: false
-    api_prefixes: [/api/v1/platform-certification]
-    permission_namespaces: ['platform_certification.*']
+    api_prefixes: [/api/v1/platform-certification] # pre-declared; no GAP
+    permission_namespaces: ['platform_certification.*'] # 12 codes registered + seeded (Stage 6I)
+    permission_namespace_registered: true
     event_families:
       [
         certification.programme_lifecycle,
@@ -660,7 +661,24 @@ modules:
         certification.release_lifecycle,
       ]
     event_family_registered: true
-    audit_prefixes: [CERT_]
+    audit_prefixes: [CERT_] # 18 codes registered
+    note: >
+      Stage 6I governed INTEGRATION / CERTIFICATION / PRODUCTION RELEASE — the FINAL Stage-6 module and the Stage-6 CLOSURE
+      GATE. A governance runtime + evidence/closure layer: it RECORDS certification programmes, domain x aspect assessments (the
+      12 modules M30-M41 x 8 aspects), findings, exceptions/waivers, migration/UAT/pilot/release readiness, opaque evidence
+      references and role sign-offs, and issues a DENY-BY-DEFAULT GO/CONDITIONAL_GO/NO_GO decision (ADR-012) + an immutable
+      Stage-6 closure artifact. THE LOAD-BEARING RULE: a GO is DERIVED from governed evidence by evaluateCertificationDecision —
+      a caller can NEVER set GO; a missing/failed assessment, a critical OPEN finding, a missing/failed mandatory readiness or a
+      missing mandatory sign-off each BLOCKS a GO; bounded approved residual conditions yield CONDITIONAL_GO. INDEPENDENCE
+      (ADR-012): a GO needs all mandatory role sign-offs; NO self-sign-off of one's own assessed domain; requester != certifier;
+      AI/system/automation NEVER self-certify a stage; an ISSUED decision + closure are IMMUTABLE (a correction is a NEW
+      decision). It ASSESSES M30-M41 BY CONTRACT (opaque evidence refs; reads no owning-module private table) and DUPLICATES no
+      audit (m03) / workflow (m06) / approval (m22) / security (m41) / analytics (m32) / outbox (m06) / scheduler (m38) / secrets
+      (m30-m41) engine. It EXECUTES no release/deployment/migration/DR/journal/secret operation — migration/UAT/pilot/release
+      records are EVIDENCE, not runners. A waiver cannot override an ABSOLUTE control; an EXPIRED waiver stops satisfying the
+      gate. Evidence is opaque references only — never a secret, credential, full log, raw report body or restricted payload.
+      Owns the 5 certification.* event families (10 types) through the ONE m06 outbox (m42 owns none). Uses the certification_
+      table prefix. reference_tables 43 reconciled to a governed core of 13.
 
   - module: m11-ai
     stage: null # GAP-3: in registry (phase 2), in NO manifest stage

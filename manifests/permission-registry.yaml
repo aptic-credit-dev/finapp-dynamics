@@ -397,4 +397,12 @@ namespaces:
      codes: ["grc.control.read", "grc.control.manage", "grc.assessment.record"]}
   - {namespace: "privacy.*", module: m41-security, mvp: false, status: implemented, substage: "6H",
      codes: ["privacy.policy.read", "privacy.policy.manage", "privacy.record.manage"]}
-  - {namespace: "platform_certification.*", module: m42-certification, mvp: false, status: documented}
+  # Stage 6I (m42-certification) — the platform_certification.* namespace (pre-declared in naming-map; no GAP). Three-segment
+  # platform_certification.<area>.<action>. control.administer is the cross-tenant CONTROL-PLANE permission a tenant admin never
+  # holds by default (a platform-scope Stage-6 programme). waiver.approve / signoff.approve / decision.issue are the privileged
+  # CONTROLLED actions (maker-checker/SoD; independence per ADR-012). NO platform_certification.admin/wildcard; default deny.
+  - {namespace: "platform_certification.*", module: m42-certification, mvp: false, status: implemented, substage: "6I",
+     codes: ["platform_certification.programme.read", "platform_certification.programme.manage", "platform_certification.assessment.read",
+             "platform_certification.assessment.manage", "platform_certification.finding.read", "platform_certification.finding.manage",
+             "platform_certification.waiver.request", "platform_certification.waiver.approve", "platform_certification.signoff.approve",
+             "platform_certification.decision.issue", "platform_certification.evidence.read", "platform_certification.control.administer"]}
