@@ -2995,7 +2995,35 @@ stages:
           local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
           metrics: "13 certification_ tables/13 FORCE-RLS/13 policies/13 composite PKs/12 composite FKs/0 unsafe tenant FK/32 CHECKs/5 version cols/0 float/0 secret-value-token-credential/2 immutability triggers(certification_decision + certification_closure)/0 DELETE/8 append-only(0 UPDATE)/5 mutable/12 perms(4 priv)/18 codes(CERT_; reg 979; src<->registry parity 18/18)/5 event families(10 types)/1 outbox(m06; 0 m42 outbox)/11 guarded mutating routes(+3 in-service reads)"
           reference: docs/03-platform/ENTERPRISE_PLATFORM_PHASE_6.md
-      # m42-certification implemented on feature/stage-6-m42-certification; post-merge certification + Stage-6 closure verification pending.
+        certification_6_m42:
+          verdict: certified_on_branch
+          date: "2026-08-16"
+          governance_pr: 109
+          governance_merge_sha: 128faaa
+          implementation_pr: 110
+          reviewed_head: e09e011
+          implementation_merge_sha: 7ba280c5793d3904bad7cf5fd560749e5938d577
+          tree_equivalence: "git diff e09e011 7ba280c == EMPTY (byte-identical squash of reviewed head)"
+          certification_baseline: 7ba280c5793d3904bad7cf5fd560749e5938d577
+          certification_branch: cert/stage-6-m42-certification
+          certification_pr: pending
+          implementation_ci: "Smoke success + DB PG16 success on merge commit 7ba280c (and on reviewed head e09e011)"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          gates: "format clean; lint 0-err (68 baseline warnings; m42 contributes 0); build clean; smoke 47/7900/0-fail (m42-certification 94, conformance 3927, migrate 26); migrate 82 (m42=2, checksums 0001 07493118c29c / 0002 53f3d300053c); DB 97/2938/0-fail on fresh DB (m42-certification 35 + m42-services 25)"
+          metrics: "13 certification_ tables/13 FORCE-RLS/13 policies/13 composite PKs/12 composite FKs/0 unsafe tenant FK/32 CHECKs/5 version cols/0 float/0 secret-value-token-credential/2 immutability triggers(certification_decision + certification_closure)/0 DELETE/8 append-only(0 UPDATE)/5 mutable/12 perms(4 priv)/18 codes(CERT_; reg 979; src<->registry parity 18/18)/5 event families(10 event types)/1 outbox(m06; 0 m42 outbox)/11 guarded mutating routes(+3 in-service-guarded reads)"
+          decision_engine_verdict: "PROVEN — GO/CONDITIONAL_GO/NO_GO is DERIVED by evaluateCertificationDecision; issueDecision takes no decision arg (a caller can never set GO). Deny-by-default: incomplete/failed assessment, unresolved critical finding, missing/failed mandatory readiness (migration/UAT/pilot/release), or missing/rejected mandatory sign-off each BLOCKS a GO; an expired waiver does not satisfy the gate (re-checked at decision time); all mandatory controls satisfied => GO; bounded approved residual conditions => CONDITIONAL_GO"
+          independence_verdict: "PROVEN — evaluateSodGate + isHumanActor (null/blank/system/ai/automation != human) on waiver-approve/decision-issue/closure/sign-off; DB SoD CHECKs certification_decision_sod_ck + certification_review_sod_ck + certification_waiver_sod_ck; tests: requester cannot self-certify, AI can never certify/issue GO, waiver cannot be self-approved, a domain assessor cannot self-sign their assessed domain"
+          immutability_verdict: "PROVEN — an issued decision + closure are immutable (BEFORE UPDATE triggers; 0 UPDATE/DELETE grant); a correction is a NEW decision (higher decision_no); a CLOSED programme is terminal — issueDecision rejects p.state=='closed' (implementation fix) with a dedicated test proving no decision can reopen a closed programme"
+          waiver_verdict: "PROVEN — bounded scope + specific finding ref + reason + expiry + requester!=approver + human approver; an ABSOLUTE control is never waivable; an EXPIRED waiver stops satisfying the gate (isWaiverActive)"
+          waived_cell_limitation: "ACCEPTABLE DOCUMENTED LIMITATION -> bounded Stage-7 hardening CONDITION, NOT a blocker: an assessment cell set status='waived' satisfies the matrix without a per-cell active-waiver linkage (findings do re-verify waiverActive). Mitigations: 'waived' is a governed (assessment.manage), audited, event-emitting action; the GO stays deny-by-default and additionally requires resolved criticals + all mandatory readiness + all independent human sign-offs; no tenancy/immutability/privacy control weakened. Follow-up: require an active linked waiver for a 'waived' cell (mirror the finding path)"
+          no_execution_verdict: "PROVEN — M42 records evidence and EXECUTES nothing; source scan finds no child_process/execSync/spawn/eval/Function/dynamic require/fetch/http.request/net/pg.Pool/DDL/migration runner; readiness kinds + publishMigration only emit lifecycle events over the m06 outbox"
+          no_duplication_verdict: "PROVEN — 0 m42 outbox table (publishes over the injected m06 workflow_event_outbox port); audits via the m03 Audit port; assesses M30-M41 by contract (opaque evidence refs; reads no owning-module private table); no 2nd audit/workflow/approval/analytics/release/scheduler/security/secrets/notification engine"
+          tenancy_verdict: "PROVEN — 13/13 FORCE-RLS + tenant_isolation + composite (tenant_id,id) PKs + composite tenant-safe FKs (0 unsafe); cross-tenant reads invisible; a platform Stage-6 programme requires platform_certification.control.administer on open/issue/close (a tenant admin without it is rejected from opening a platform programme)"
+          evidence_privacy_verdict: "PROVEN — a live information_schema scan across all 13 tables finds 0 secret/credential/token/password/private-key/ciphertext/plaintext columns; evidence is opaque refs (evidence_ref/sha_ref/plan_ref/rollback_ref/impl_cert_refs/artifact_ref) + bounded summaries; audit payloads carry ids/states/domain-aspect/reason-codes/evidence-refs only"
+          contamination: "CLEAN — cert branch byte-identical to merged main 7ba280c; M01-M41 untouched; no historical migration edit; no Stage-7 implementation; no M43+ work; no production provider; no unapproved egress"
+          stage6_closure_verdict: "M42: CERTIFIED ON BRANCH. Stage 6: FUNCTIONALLY/ARCHITECTURALLY COMPLETE (M30-M41 implemented+certified_on_branch; M42 closure gate certified_on_branch). Production readiness: CONDITIONAL_GO pending Stage-7 live-infra hardening (pen test / DR drill / load+chaos / real-data migration) — explicit, bounded, owned residual conditions, NOT fabricated production readiness. Successful M42 technical certification does not by itself equal unconditional production GO."
+          report: docs/build/stages/STAGE_6_M42_CERTIFICATION.md
+      # m42-certification CERTIFIED ON BRANCH (cert/stage-6-m42-certification); certification PR pending merge. Stage-6 closure = CONDITIONAL_GO pending Stage-7 hardening.
 
   - stage: 7
     name: Hardening (CONDITIONAL-GO conditions)
