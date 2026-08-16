@@ -58,6 +58,13 @@ has a suggested default so work is not blocked; the default should be confirmed,
     re-generate module-by-module through the stage prompts? *(Default: import as a baseline, then validate and
     harden stage-by-stage; see HANDOVER_REPORT.md risks.)*
 16. **Hosting & infra target** — cloud provider, orchestration, and IaC toolchain for the environments.
+    *(Still open. Pentest-scoped decision record — `docs/03-platform/STAGE_7_PENTEST_READINESS.md` §1/§2: the first
+    Stage-7 workstream (penetration_test) needs only a **representative staging/test environment** with production
+    parity (RLS FORCE active, PG16 schema, synthetic data, connectors mocked/sandboxed, controlled/non-internet
+    access) — **not** production hosting. Cloud provider/orchestration/IaC choice remains **TBD** (not invented).
+    Environment owner/provisioner = CTO/Technology Lead; readiness approved by Head of Risk & Compliance + Auditor.
+    This unblocks the pentest workstream specifically; the broader production hosting/infra decision stays open and
+    also gates DR/load-chaos and production GO.)*
 17. **Frontend stack** — no document in `docs/` or `manifests/` names one, so Stage 0 did not invent one:
     `apps/web` is a framework-free TypeScript shell and no bundler is wired up. The choice (framework,
     bundler, component library, and how `SCREEN_CATALOGUE.md` maps onto it) shapes every later UI stage and
