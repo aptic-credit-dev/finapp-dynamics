@@ -3054,6 +3054,7 @@ stages:
       workstream_entry_blockers: [migration_source_inventory_TBD_OQ14, finance_legal_signoff_appointment, hosting_infra_target_OQ16, kms_hsm_vault_strategy_OQ10, connector_prod_credentials_OQ4, test_environments, slo_targets_OQ13]
       production_go_blockers: [all_four_condition_evidence_packages, m42_governed_acceptance]
       production_readiness: CONDITIONAL_GO
+      proposed_amendment: "ADR-131 (PROPOSED, pending human decision) — controlled automated execution of Stage-7 hardening by engineering/AI agents in approved non-production/staging (Tier-1 evidence) with independent human acceptance still required (Tier-2); changes NO workstream status; preserves no-self-cert/no-AI-GO/no-fabricated-independence/no-production-touch/no-unapproved-provider; until accepted, ADR-127/128/129/130 stand and no automated hardening execution is authorised"
 
   - stage: 8
     name: Phase 7 — Vertical business solutions
