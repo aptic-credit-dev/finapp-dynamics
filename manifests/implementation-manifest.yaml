@@ -3027,7 +3027,7 @@ stages:
 
   - stage: 7
     name: Hardening (CONDITIONAL-GO conditions)
-    status: requires_review
+    status: approved_for_execution
     priority: P0_for_GA
     mvp: false
     depends_on_stage: 6
@@ -3036,16 +3036,24 @@ stages:
       - {item: dr_failover_failback_drill, status: requires_review}
       - {item: load_and_chaos_at_scale, status: requires_review}
       - {item: real_data_migration_execution, status: requires_review, requires: [finance_signoff, legal_signoff]}
-    # Stage-7 governance setup (2026-08-16): accountability/RACI, evidence packages, dependency register and
-    # entry/exit gates recorded in the charter; OQ#9/#14 given PROPOSED role-based resolutions (pending ratification).
-    # status STAYS requires_review — the schema has NO operational-programme approval status; approved_for_build is
-    # module-only and must NOT be reused for an operational programme (GOVERNANCE-SCHEMA GAP, charter §8). No test,
-    # deployment, infra change or migration is authorised. Stage 7 remains NOT approved to commence.
+    # Stage-7 approval model (2026-08-16, ADR-130): Stage 7 is an OPERATIONAL PROGRAMME, not a module — it uses the
+    # operational-programme lifecycle requires_review -> approved_for_execution -> in_execution -> evidence_complete
+    # -> conditionally_closed -> closed (registered in the conformance LEGEND). approved_for_build is module-only and
+    # is NEVER reused here (prior schema gap RESOLVED by ADR-130). All 4 governance-readiness STAGE-ENTRY blockers are
+    # resolved (status model + ratified owners/RACI + independence + deny-by-default exit gate), so status moves
+    # requires_review -> approved_for_execution; the human governance authority's PR merge is the approval act.
+    # approved_for_execution AUTHORISES NO hardening activity — each workstream is gated by charter §7.2 and production
+    # GO stays deny-by-default via M42 (ADR-129/ADR-012). No pen test / DR drill / load-chaos / migration / provider
+    # binding / Stage-8 work is authorised. Items stay requires_review until their workstream-entry gate is met.
     governance:
       charter: docs/03-platform/STAGE_7_HARDENING_GOVERNANCE.md
-      schema_gap: "no operational-programme approval status exists in the manifest vocabulary; requires a human governance decision (likely an ADR) — do not invent one"
-      proposed_owners_pending_ratification: "OQ#9/#14 proposed role owners in charter; CTO/Technology Lead + Head of Risk & Compliance are not yet in USER_ROLES.md"
-      outstanding_entry_prerequisites: [ratify_proposed_roles, migration_source_inventory_TBD_OQ14, hosting_infra_target_OQ16, kms_hsm_vault_strategy_OQ10, connector_prod_credentials_OQ4, test_environments, slo_targets_OQ13]
+      approval_model: ADR-130
+      lifecycle: [requires_review, approved_for_execution, in_execution, evidence_complete, conditionally_closed, closed]
+      ratified_owners: "OQ#9/#14 authoritative RACI (charter §1/§2/§3); CTO/Technology Lead + Head of Risk & Compliance ratified in USER_ROLES.md (ADR-130)"
+      stage_entry_blockers_resolved: [operational_programme_status_model, ratified_owners_raci, independence_maker_checker, deny_by_default_exit_gate]
+      workstream_entry_blockers: [migration_source_inventory_TBD_OQ14, finance_legal_signoff_appointment, hosting_infra_target_OQ16, kms_hsm_vault_strategy_OQ10, connector_prod_credentials_OQ4, test_environments, slo_targets_OQ13]
+      production_go_blockers: [all_four_condition_evidence_packages, m42_governed_acceptance]
+      production_readiness: CONDITIONAL_GO
 
   - stage: 8
     name: Phase 7 — Vertical business solutions
