@@ -2956,7 +2956,46 @@ stages:
       #       produces CONDITIONAL-GO pending live-infra hardening (reference outcome GO conditional); NOT a blocker to building the
       #       evidence/closure engine. OPEN_QUESTIONS #3/#12 (certification pass + pilot scope) are informational context.
       # NO BLOCKER.
-      - {module: m42-certification, capability: Enterprise integration/certification/release (6I), status: approved_for_build, mvp: false, testing_required: [smoke, db_spec]}
+      - module: m42-certification
+        capability: Enterprise integration/certification/release (6I)
+        status: implemented
+        mvp: false
+        testing_required: [smoke, db_spec]
+        implementation_6_m42:
+          adrs: [ADR-129, ADR-012]
+          tables: 13
+          table_prefix: certification_
+          reconciliation: "reference_tables 43 -> 13 governed certification_ tables; the Stage-6 CLOSURE GATE (programme/assessment/finding/waiver/readiness aggregates + signoff/decision/condition/evidence/review/history/closure/idempotency ledgers)"
+          mutable_tables: 5     # certification_programme, certification_assessment, certification_finding, certification_waiver, certification_readiness
+          append_only_tables: 8 # certification_signoff, certification_decision, certification_condition, certification_evidence, certification_review, certification_history, certification_closure, certification_idempotency
+          permission_namespace: "platform_certification.* (12 codes, 4 privileged: waiver.approve/signoff.approve/decision.issue/control.administer, all 3-segment) — no GAP"
+          audit_prefix: CERT_
+          audit_codes: 18       # registered count 961 -> 979
+          event_families: [certification.programme_lifecycle, certification.migration_lifecycle, certification.uat_lifecycle, certification.pilot_lifecycle, certification.release_lifecycle]
+          event_types: 10
+          outboxes: 0           # publishes over the ONE m06 outbox
+          api_prefixes: [/api/v1/platform-certification] # pre-declared — no GAP
+          guarded_routes: 11    # @Endpoint-guarded mutating routes (+3 in-service-guarded reads)
+          immutability_triggers: 2 # certification_decision + certification_closure (an issued decision/closure is immutable)
+          secret_value_columns: 0
+          floats: 0
+          consumes: [m01-tenant, m02-rbac, m03-audit, m06-workflow]
+          assesses: [m30, m31, m32, m33, m34, m35, m36, m37, m38, m39, m40, m41]
+          nature: "governance runtime + evidence/closure layer — RECORDS certification state + EVIDENCE, EXECUTES nothing (no release/deployment/migration/DR/journal/secret operation)"
+          decision_engine: "DENY-BY-DEFAULT GO/CONDITIONAL_GO/NO_GO (ADR-012): a GO is DERIVED from governed evidence by evaluateCertificationDecision — a caller can NEVER set GO; a missing/failed assessment, a critical OPEN finding, a missing/failed mandatory readiness or a missing/rejected mandatory sign-off BLOCKS a GO; bounded approved residual conditions => CONDITIONAL_GO"
+          independence: "ADR-012 — a GO needs all mandatory role sign-offs; NO self-sign-off of one's own assessed domain; requester != certifier; AI/system/automation NEVER self-certify (evaluateSodGate + isHumanActor); DB SoD CHECKs on decision/waiver/review; an issued decision + closure are IMMUTABLE (triggers); a correction is a NEW decision"
+          matrix: "12 domains (M30-M41) x 8 aspects (architecture/security/tenancy_rls/sod_maker_checker/events_outbox/shared_service_boundaries/tests_ci/data_migration)"
+          no_duplication: "no 2nd audit(m03)/workflow(m06)/approval(m22)/security(m41)/analytics(m32)/outbox(m06)/scheduler(m38)/secrets(m30-m41) engine; assesses M30-M41 by contract (opaque evidence refs; reads no owning-module private table)"
+          waivers: "bounded scope + specific finding + reason + expiry + maker-checker/SoD; an ABSOLUTE control can never be waived; an EXPIRED waiver stops satisfying the gate (isWaiverActive)"
+          evidence_privacy: "opaque references only (m30-m41 cert report / CI / SHA / m09 doc) — never a secret, credential, full log, raw report body or restricted payload"
+          tenancy: "FORCE-RLS + composite tenant-safe FKs (0 unsafe); a platform Stage-6 programme requires platform_certification.control.administer (a tenant admin cannot issue platform certification); cross-tenant read invisible"
+          conditional_go: "Stage-7 live-infra hardening (pen test / DR drill / load+chaos / real data migration) is CONDITIONAL — m42 issues CONDITIONAL_GO with explicit, bounded, owned, time-bound conditions; it never fabricates full production readiness"
+          branch: feature/stage-6-m42-certification
+          gates: "format clean; lint clean (0 errors); build clean; smoke 47/7900/0-fail (m42-certification 94, conformance 3927, migrate 26); migrate 82 (m42=2, checksums 0001 07493118c29c / 0002 53f3d300053c); DB fresh-DB lane 97/2938/0-fail (m42-certification 35, m42-services 25) on a throwaway PG15.2 (authoritative CI = PG16)"
+          local_postgres: "15.2 throwaway (authoritative CI = PG16; no PG16 claimed locally)"
+          metrics: "13 certification_ tables/13 FORCE-RLS/13 policies/13 composite PKs/12 composite FKs/0 unsafe tenant FK/32 CHECKs/5 version cols/0 float/0 secret-value-token-credential/2 immutability triggers(certification_decision + certification_closure)/0 DELETE/8 append-only(0 UPDATE)/5 mutable/12 perms(4 priv)/18 codes(CERT_; reg 979; src<->registry parity 18/18)/5 event families(10 types)/1 outbox(m06; 0 m42 outbox)/11 guarded mutating routes(+3 in-service reads)"
+          reference: docs/03-platform/ENTERPRISE_PLATFORM_PHASE_6.md
+      # m42-certification implemented on feature/stage-6-m42-certification; post-merge certification + Stage-6 closure verification pending.
 
   - stage: 7
     name: Hardening (CONDITIONAL-GO conditions)

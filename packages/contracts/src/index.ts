@@ -462,3 +462,33 @@ export type {
   SecuritySocLifecycleEvent,
   SecuritySocLifecycleEventType,
 } from './security-events.ts';
+export {
+  CERTIFICATION_PROGRAMME_LIFECYCLE_FAMILY,
+  CERTIFICATION_PROGRAMME_LIFECYCLE_VERSION,
+  CERTIFICATION_PROGRAMME_LIFECYCLE_EVENT_TYPES,
+  CERTIFICATION_MIGRATION_LIFECYCLE_FAMILY,
+  CERTIFICATION_MIGRATION_LIFECYCLE_VERSION,
+  CERTIFICATION_MIGRATION_LIFECYCLE_EVENT_TYPES,
+  CERTIFICATION_UAT_LIFECYCLE_FAMILY,
+  CERTIFICATION_UAT_LIFECYCLE_VERSION,
+  CERTIFICATION_UAT_LIFECYCLE_EVENT_TYPES,
+  CERTIFICATION_PILOT_LIFECYCLE_FAMILY,
+  CERTIFICATION_PILOT_LIFECYCLE_VERSION,
+  CERTIFICATION_PILOT_LIFECYCLE_EVENT_TYPES,
+  CERTIFICATION_RELEASE_LIFECYCLE_FAMILY,
+  CERTIFICATION_RELEASE_LIFECYCLE_VERSION,
+  CERTIFICATION_RELEASE_LIFECYCLE_EVENT_TYPES,
+} from './certification-events.ts';
+export type {
+  CertificationLifecyclePayload,
+  CertificationProgrammeLifecycleEvent,
+  CertificationProgrammeLifecycleEventType,
+  CertificationMigrationLifecycleEvent,
+  CertificationMigrationLifecycleEventType,
+  CertificationUatLifecycleEvent,
+  CertificationUatLifecycleEventType,
+  CertificationPilotLifecycleEvent,
+  CertificationPilotLifecycleEventType,
+  CertificationReleaseLifecycleEvent,
+  CertificationReleaseLifecycleEventType,
+} from './certification-events.ts';

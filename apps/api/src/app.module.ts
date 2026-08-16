@@ -32,6 +32,7 @@ import { AutomationModule } from './automation/automation.module.ts';
 import { SaasModule } from './saas/saas.module.ts';
 import { ResilienceModule } from './resilience/resilience.module.ts';
 import { SecurityModule } from './security/security.module.ts';
+import { CertificationModule } from './certification/certification.module.ts';
 import { AuthModule } from './auth/auth.module.ts';
 import { CsrfMiddleware } from './auth/csrf.middleware.ts';
 
@@ -108,6 +109,7 @@ import { CsrfMiddleware } from './auth/csrf.middleware.ts';
     SaasModule,
     ResilienceModule,
     SecurityModule,
+    CertificationModule,
   ],
   controllers: [HealthController],
   providers: [],

@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 961 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 979 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -1180,6 +1180,28 @@ codes:
   - { code: GRC_ASSESSMENT_RECORDED, module: m41-security, severity: normal, reason_required: false }
   - { code: PRIV_CLASSIFICATION_SET, module: m41-security, severity: normal, reason_required: false }
   - { code: PRIV_RECORD_ADDED, module: m41-security, severity: normal, reason_required: false }
+  # Stage 6I (m42-certification) — CERT_. The Stage-6 closure gate: programme lifecycle, assessments, findings, waiver decisions,
+  # sign-offs, migration/UAT/pilot/release readiness, the DERIVED GO/CONDITIONAL_GO/NO_GO decision + closure. A payload carries
+  # ids/states/domain/aspect/verdict/reason codes + OPAQUE evidence refs only — never a secret, credential, full log or raw body.
+  # Waiver approval, sign-off, decision issuance + closure are elevated (privileged; maker-checker/SoD; independence per ADR-012).
+  - { code: CERT_PROGRAMME_OPENED, module: m42-certification, severity: normal, reason_required: false }
+  - { code: CERT_PROGRAMME_UPDATED, module: m42-certification, severity: normal, reason_required: false }
+  - { code: CERT_ASSESSMENT_RECORDED, module: m42-certification, severity: normal, reason_required: false }
+  - { code: CERT_FINDING_RAISED, module: m42-certification, severity: normal, reason_required: false }
+  - { code: CERT_FINDING_RESOLVED, module: m42-certification, severity: normal, reason_required: false }
+  - { code: CERT_WAIVER_REQUESTED, module: m42-certification, severity: normal, reason_required: false }
+  - { code: CERT_WAIVER_APPROVED, module: m42-certification, severity: elevated, reason_required: false }
+  - { code: CERT_WAIVER_REJECTED, module: m42-certification, severity: elevated, reason_required: false }
+  - { code: CERT_SIGNOFF_RECORDED, module: m42-certification, severity: elevated, reason_required: false }
+  - { code: CERT_MIGRATION_RECORDED, module: m42-certification, severity: normal, reason_required: false }
+  - { code: CERT_UAT_RECORDED, module: m42-certification, severity: normal, reason_required: false }
+  - { code: CERT_PILOT_RECORDED, module: m42-certification, severity: normal, reason_required: false }
+  - { code: CERT_RELEASE_RECORDED, module: m42-certification, severity: normal, reason_required: false }
+  - { code: CERT_EVIDENCE_ADDED, module: m42-certification, severity: normal, reason_required: false }
+  - { code: CERT_DECISION_ISSUED, module: m42-certification, severity: elevated, reason_required: false }
+  - { code: CERT_CLOSURE_ISSUED, module: m42-certification, severity: elevated, reason_required: false }
+  - { code: CERT_SOD_BLOCKED, module: m42-certification, severity: elevated, reason_required: false }
+  - { code: CERT_DECISION_BLOCKED, module: m42-certification, severity: elevated, reason_required: false }
 
 # Enforced by tools/conformance in the CI smoke lane:
 conformance_checks:
