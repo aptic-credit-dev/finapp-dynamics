@@ -1,0 +1,50 @@
+# Stage-7 provider-neutral NON-PRODUCTION staging stack: PostgreSQL 16 + the Node API only.
+# No cloud/provider, no Redis/object-store, no host network, no privileged containers.
+name: finapp-stage7-staging
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # DB port is bound to loopback ONLY (not 0.0.0.0) — not unnecessarily public.
+    ports:
+      - '127.0.0.1:5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: 'no'
+
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/staging/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: staging
+      API_PORT: ${API_PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_OWNER_ROLE: ${DATABASE_OWNER_ROLE}
+      DATABASE_APP_ROLE: ${DATABASE_APP_ROLE}
+      FINAPP_ALLOWED_ORIGINS: ${FINAPP_ALLOWED_ORIGINS}
+      FINAPP_COOKIE_SECURE: ${FINAPP_COOKIE_SECURE}
+      FINAPP_COOKIE_SAMESITE: ${FINAPP_COOKIE_SAMESITE}
+    # API bound to loopback only.
+    ports:
+      - '127.0.0.1:3000:3000'
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://localhost:3000/api/v1/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: 'no'
