@@ -7,6 +7,16 @@
 Its purpose is to convert the remaining Tier-2 blockers into exact, owner-assignable decisions/actions so Stage-7
 closure can proceed. Tier-1 technical work is consolidated (`STAGE_7_TIER1_COMPLETION_VERIFICATION.md`).
 
+> **UPDATE — Management decisions recorded 2026-08-17** (see `docs/OPEN_QUESTIONS.md` #4/#13/#16 + manifest
+> `stage: 7` `tier2_management_decisions_2026_08_17`): **OQ#13 SLO/RTO/RPO APPROVED** (avail ≥99.9%, p95 ≤200 ms,
+> p99 ≤500 ms, err ≤0.5%, RTO ≤15 min, RPO ≤5 min). **OQ#16 hosting APPROVED = CONTABO** (portable/containerized;
+> separate staging+prod; PG16; NOBYPASSRLS + FORCE RLS; hardened access; backups+DR). **Secrets = self-hosted
+> Vault-compatible behind M41 `SecretProviderPort`** (approved in principle; ADR-128). **OQ#4 internal-first pilot**
+> (external connectors not pilot-blocking). **OQ#14 controlled single-tenant migration approved** (tenant+source
+> TBD). External pentest authorized once Contabo staging is up + validated. Execution runbook:
+> `STAGE_7_CONTABO_DEPLOYMENT_RUNBOOK.md`. The proposed values in §3–§7 below are now management-approved where
+> stated; no workstream is transitioned and no Tier-2 acceptance/GO is claimed.
+
 ---
 
 ## 1. Docker / PG16 staging execution — status & requirement
