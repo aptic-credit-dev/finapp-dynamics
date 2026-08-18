@@ -97,8 +97,9 @@ export async function runLoad(cfg) {
   return summarize(latencies, statusCounts, Date.now() - start);
 }
 
-// --- CLI ---
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('load-harness.mjs')) {
+// --- CLI --- (path-anchored so importing this module never triggers the CLI, e.g. from auth-load-harness.mjs)
+const entry = process.argv[1] ?? '';
+if (entry.endsWith('/load-harness.mjs') || entry.endsWith('\\load-harness.mjs')) {
   const url = process.env.LOAD_TARGET_URL ?? 'http://127.0.0.1:3010';
   const scenarios = [
     { name: 'baseline', concurrency: 2, durationMs: 2000 },
