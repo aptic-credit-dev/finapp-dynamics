@@ -5,26 +5,31 @@ set -eu
 
 STANZA="${PGBACKREST_STANZA:-aptic}"
 PGDATA="${PGDATA:?export PGDATA (standby data dir)}"
-PRIMARY_HOST="${PRIMARY_HOST:?export PRIMARY_HOST (primary's private address)}"
+PRIMARY_HOST="${PRIMARY_HOST:?export PRIMARY_HOST (primary private address)}"
 SLOT="${REPLICATION_SLOT:-standby1}"
-: "${B2_S3_ENDPOINT:?}" ; : "${B2_BUCKET:?}" ; : "${B2_KEY_ID:?}" ; : "${B2_APP_KEY:?}" ; : "${PGBACKREST_CIPHER_PASS:?}"
+: "${B2_S3_ENDPOINT:?}"
+: "${B2_BUCKET:?}"
+: "${B2_KEY_ID:?}"
+: "${B2_APP_KEY:?}"
+: "${PGBACKREST_CIPHER_PASS:?}"
 
 if [ -s "$PGDATA/PG_VERSION" ]; then
   echo "[dr] refusing: $PGDATA is not empty. Move it aside first (safety)." >&2
   exit 1
 fi
 
-echo "[dr] restoring base backup from the repo into $PGDATA…"
+echo "[dr] restoring base backup from the repo into $PGDATA"
 pgbackrest --stanza="$STANZA" --delta --type=standby restore
 
-echo "[dr] writing standby signal + primary_conninfo (password via ~/.pgpass, NOT here)…"
+echo "[dr] writing standby signal + primary_conninfo (password via pgpass, NOT here)"
 touch "$PGDATA/standby.signal"
-cat >> "$PGDATA/postgresql.auto.conf" <<EOF
-primary_conninfo = 'host=$PRIMARY_HOST port=5432 user=replicator application_name=$SLOT'
-primary_slot_name = '$SLOT'
-restore_command = 'pgbackrest --stanza=$STANZA archive-get %f "%p"'
-hot_standby = on
-EOF
+CONNINFO="host=$PRIMARY_HOST port=5432 user=replicator application_name=$SLOT"
+{
+  echo "primary_conninfo = '$CONNINFO'"
+  echo "primary_slot_name = '$SLOT'"
+  echo "restore_command = 'pgbackrest --stanza=$STANZA archive-get %f %p'"
+  echo "hot_standby = on"
+} >> "$PGDATA/postgresql.auto.conf"
 
 echo "[dr] start PostgreSQL on the standby, then verify with dr-healthcheck.sh (expect replay + low lag)."
-echo "[dr] reminder: create the slot on the PRIMARY first: SELECT pg_create_physical_replication_slot('$SLOT');"
+echo "[dr] reminder: on the PRIMARY create the physical replication slot named $SLOT before starting the standby."

@@ -292,9 +292,10 @@ export function loadOpenBaoConfigFromEnv(
 // --- Node HTTPS transport (real network; used only when a real instance is configured) --------------
 
 /**
- * Node HTTPS transport with CA verification and a hard timeout. It sends/returns JSON only; it NEVER logs the token,
+ * Node HTTP(S) transport with CA verification and a hard timeout. It sends/returns JSON only; it NEVER logs the token,
  * the request body, or the response body (any of which can carry material). Kept lazy-loaded so a pure smoke test
- * that injects a mock transport never imports `node:https`.
+ * that injects a mock transport never imports `node:https`. HTTPS is the norm (TLS opts apply); plain HTTP is used
+ * only when the configured address is `http://` (local testing behind FINAPP_OPENBAO_ALLOW_HTTP) — no TLS options.
  */
 export class NodeOpenBaoTransport implements OpenBaoTransport {
   private readonly cfg: OpenBaoConfig;
@@ -307,8 +308,9 @@ export class NodeOpenBaoTransport implements OpenBaoTransport {
     token?: string;
     body?: unknown;
   }): Promise<{ status: number; body: unknown }> {
-    const https = await import('node:https');
     const url = new URL(this.cfg.address.replace(/\/+$/, '') + input.path);
+    const isHttps = url.protocol === 'https:';
+    const mod = isHttps ? await import('node:https') : await import('node:http');
     const payload = input.body === undefined ? undefined : Buffer.from(JSON.stringify(input.body));
     const headers: Record<string, string> = { accept: 'application/json' };
     if (input.token !== undefined) headers['x-vault-token'] = input.token;
@@ -318,7 +320,7 @@ export class NodeOpenBaoTransport implements OpenBaoTransport {
       headers['content-length'] = String(payload.length);
     }
     return await new Promise((resolve, reject) => {
-      const req = https.request(
+      const req = mod.request(
         {
           protocol: url.protocol,
           hostname: url.hostname,
@@ -326,8 +328,13 @@ export class NodeOpenBaoTransport implements OpenBaoTransport {
           path: url.pathname + url.search,
           method: input.method,
           headers,
-          rejectUnauthorized: !this.cfg.tlsSkipVerify,
-          ...(this.cfg.caCertPem !== undefined ? { ca: this.cfg.caCertPem } : {}),
+          // TLS verification options apply to HTTPS only (node:http rejects them).
+          ...(isHttps
+            ? {
+                rejectUnauthorized: !this.cfg.tlsSkipVerify,
+                ...(this.cfg.caCertPem !== undefined ? { ca: this.cfg.caCertPem } : {}),
+              }
+            : {}),
           timeout: this.cfg.requestTimeoutMs,
         },
         (res) => {
