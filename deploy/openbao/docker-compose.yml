@@ -1,0 +1,33 @@
+# OpenBao — self-hosted secrets backend for Aptic Dynamics (Stage-7; ADR-132).
+# NON-PRODUCTION staging shape by default (single node). Production uses a 3-node Raft cluster (see README).
+# No token, unseal key, or secret value is committed here. TLS material + policies are provided out-of-band.
+#
+#   cp env.openbao.example .env.openbao   # then set host-local paths (NEVER commit real files)
+#   docker compose --env-file .env.openbao up -d
+#   ./init-checklist.sh                    # guided init: operator initialises + unseals (keys shown ONCE, off-host)
+services:
+  openbao:
+    image: ${OPENBAO_IMAGE:-openbao/openbao:latest}
+    container_name: aptic-openbao
+    command: ['server', '-config=/openbao/config/openbao.hcl']
+    cap_add:
+      - IPC_LOCK # mlock: keep secrets out of swap
+    ports:
+      # Private network only. Bind to the internal interface / 127.0.0.1; NEVER 0.0.0.0 in production.
+      - '127.0.0.1:8200:8200'
+    volumes:
+      - ${OPENBAO_CONFIG_DIR:-./config}:/openbao/config:ro
+      - openbao-raft:/openbao/data # Integrated Raft storage (persistent)
+      - ${OPENBAO_TLS_DIR:-./tls}:/openbao/tls:ro # server cert + key + CA (out-of-band; not committed)
+      - ${OPENBAO_AUDIT_DIR:-./audit}:/openbao/audit # audit device sink
+    environment:
+      BAO_ADDR: https://127.0.0.1:8200
+    healthcheck:
+      # 200 = unsealed+active; 429 = standby; 501 = not initialised; 503 = sealed. Treat 200/429 as healthy.
+      test: ['CMD', 'bao', 'status', '-address=https://127.0.0.1:8200']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+volumes:
+  openbao-raft:

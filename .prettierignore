@@ -8,6 +8,11 @@ package-lock.json
 deploy/staging/Dockerfile
 deploy/staging/env.staging.example
 
+# Non-parseable deployment assets (shell scripts, HCL config, env/conf templates — no prettier parser).
+*.sh
+*.hcl
+*.example
+
 # The handover docs and the manifests are authoritative deliverables with deliberate hand-authored
 # layout — aligned tables, wrapped prose, flow-mapped registry rows. Prettier reflows all of it and the
 # churn buries real changes in review. They are maintained by hand; CI checks their content, not their

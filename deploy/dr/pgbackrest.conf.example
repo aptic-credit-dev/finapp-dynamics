@@ -1,0 +1,30 @@
+# pgBackRest config for Stage-7 DR — base backups + WAL archive to an immutable S3-compatible off-provider store
+# (Backblaze B2; ADR-132 / STAGE_7_OFFSERVER_DR_ARCHITECTURE_DECISION.md). Copy to /etc/pgbackrest/pgbackrest.conf.
+# NO real endpoint/bucket/key/passphrase here — ALL come from the host env (opaque) or a root-only file. Placeholders only.
+
+[global]
+repo1-type=s3
+# --- Backblaze B2 (S3-compatible). Real values are provided out-of-band; do NOT commit them. ---
+repo1-s3-endpoint=${B2_S3_ENDPOINT}            # e.g. s3.<region>.backblazeb2.com  (region = Legal/DPA-approved)
+repo1-s3-region=${B2_S3_REGION}
+repo1-s3-bucket=${B2_BUCKET}                    # a dedicated backup bucket with Object Lock (WORM) enabled
+repo1-s3-key=${B2_KEY_ID}                       # WRITE-ONLY / append-only application key (no delete, no cross-bucket list)
+repo1-s3-key-secret=${B2_APP_KEY}              # injected from env / root-only file; never committed
+repo1-path=/aptic
+
+# --- Encryption at rest: pgBackRest client-side encryption BEFORE upload (store never holds plaintext) ---
+repo1-cipher-type=aes-256-cbc
+repo1-cipher-pass=${PGBACKREST_CIPHER_PASS}     # passphrase from env / root-only file; NEVER committed (custody tied to OpenBao)
+
+# --- Retention (Object Lock enforces immutability for >= this window at the bucket level) ---
+repo1-retention-full=4                          # keep 4 full backups
+repo1-retention-diff=14                         # keep differentials
+start-fast=y
+compress-type=zst
+process-max=4
+log-level-console=info
+log-level-file=detail
+
+[aptic]
+pg1-path=${PGDATA:-/var/lib/postgresql/16/main}
+pg1-port=5432
