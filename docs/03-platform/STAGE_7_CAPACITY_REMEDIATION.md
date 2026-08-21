@@ -114,29 +114,33 @@ role stays `finapp_app` (NOBYPASSRLS); no security control is toggled. If raisin
 or locks (median stays high, DB shows many `active` but few `waiting`), that is the evidence to escalate to
 horizontal API scaling / DB tuning — a **capacity-planning** input for the COO/Ops acceptance, still not a GO.
 
-## 5. Before / after (TEMPLATE — UNFILLED; fill from the staging re-run above)
+## 5. Before / after — RESULT: retest executed; pool hypothesis NOT confirmed
 
-> These rows are intentionally empty except the measured baseline. **Do not fill the "after" rows with anything
-> other than real staging measurements.**
+> **UPDATE (2026-08-21, retest on Contabo staging against merged `main` `00909cb`).** The re-run in §4 was
+> **executed**. Full data + DB instrumentation: **`STAGE_7_CAPACITY_RETEST_EVIDENCE.md`**. The pool-acquisition
+> hypothesis of §2 is **superseded by measured evidence** and recorded honestly below.
 
-| Pool `max` (M) | burst p50 | burst p95 | burst p99 | rps | errors | DB active / idle-in-txn / waiting | ungranted locks | host CPU |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 10 (baseline, measured) | 397.4 | 508.0 | 529.7 | 73.7 | 0 | _not captured in original run_ | _n/a_ | _n/a_ |
-| 24 | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
-| 32 | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
-| 48 | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ | _TBD_ |
+The `DATABASE_POOL_MAX` matrix {10, 16, 20, 24} at 32-concurrency showed **no monotonic pool dependence** and
+**run-to-run variance (≈4×) larger than any pool effect** (M=10 p95 ranged 508→1057→861→919→604 ms across sessions;
+in one probe M=10 at p95 604 ms *beat* M=24 at p95 2113 ms). **Errors stayed 0 everywhere.** DB instrumentation
+(`pg_stat_activity` + `pg_locks`) found the writers **blocked on a transaction advisory lock** —
+`SELECT pg_advisory_xact_lock(hashtext($1)::bigint)` in **`packages/m03-audit/src/repository.ts:112`**
+(`nextChainLink`, the **tamper-evident audit hash-chain**) — not queued on the pool and not CPU-bound (api/db
+≈ 1–1.5 of 12 cores).
 
-**Interpretation guide (to apply once filled):** if p95 for the burst drops below 200 ms at some `M ≤ 100` with
-errors 0 and DB showing no lock storm, the bottleneck was pool-acquisition queueing and the safe fix is a sized
-pool (record the chosen value). If p95 stays high while DB `active` saturates and host CPU pins, the bottleneck is
-compute — the remediation is capacity (API replicas / DB sizing), a capacity-planning decision for COO/Ops, not a
-knob in this repo.
+**Corrected conclusion:** the 32-conc write-burst breach is dominated by **audit hash-chain advisory-lock
+serialization** (a correctness control, **not** a defect, **not** weakened), **not** connection-pool sizing.
+`DATABASE_POOL_MAX` is therefore **not** the remediation (kept as a safe, reversible knob; default unchanged; and
+setting it to 32 is explicitly **not** justified). The real levers are capacity/audit-design decisions — audit
+`scope_key` granularity review (ADR-track, m03 owner), DB tuning, horizontal scale, and **re-measurement on a quiet
+dedicated production host** (VPS variance made these numbers non-acceptance-grade). See the retest doc §4–§5.
 
 ## 6. What this establishes / does not establish
 
-- **Establishes:** an evidence-based root-cause hypothesis (pool-acquisition queueing at 32 > pool 10), a **safe,
-  reversible, control-neutral** tuning lever (`DATABASE_POOL_MAX`, default unchanged), and an exact,
-  DB-instrumented re-run procedure + template.
-- **Does NOT establish:** the actual remediated numbers (require the staging re-run — not runnable here), the
-  production write-concurrency profile (pilot-derived, OQ#14), or operational acceptance of the load/chaos
-  workstream (COO/Ops, Tier-2). `load_and_chaos_at_scale` stays `requires_review`. No GO.
+- **Establishes:** a **safe, reversible, control-neutral** knob (`DATABASE_POOL_MAX`, default unchanged) **and** —
+  via the executed retest — the **real, DB-instrumented root cause** (audit-chain advisory-lock contention), which
+  **disproves** the earlier pool-queueing hypothesis.
+- **Does NOT establish:** an accepted remediation (the fix is a capacity/audit-design decision, not a knob),
+  acceptance-grade numbers (shared-VPS variance — re-measure on the dedicated prod host), the production
+  write-concurrency profile (pilot-derived, OQ#14), or operational acceptance of the load/chaos workstream
+  (COO/Ops, Tier-2). `load_and_chaos_at_scale` stays `requires_review`. No GO.
