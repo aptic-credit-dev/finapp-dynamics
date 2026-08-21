@@ -70,6 +70,19 @@ export { M41Emitter } from './emit.ts';
 export { UnavailableSecretProvider, FixtureSecretProvider } from './ports.ts';
 export type { SecretProviderPort, ProviderOutcome, ProviderMetadata } from './ports.ts';
 
+export {
+  OpenBaoSecretProvider,
+  NodeOpenBaoTransport,
+  loadOpenBaoConfigFromEnv,
+} from './providers/openbao.ts';
+export type {
+  OpenBaoConfig,
+  OpenBaoAuth,
+  OpenBaoAuthApprole,
+  OpenBaoAuthToken,
+  OpenBaoTransport,
+} from './providers/openbao.ts';
+
 export { SecurityRepository } from './repository.ts';
 export type {
   SecretRow,

@@ -61,6 +61,14 @@ an injected, pre-authenticated OpenBao client (base URL, CA, AppRole/JWT auth ha
 - **Transition proof:** with the adapter bound in **staging**, prove `UnavailableSecretProvider` → available
   transition and a full provision → resolve → rotate → destroy lifecycle against the live staging OpenBao.
 
+> **UPDATE (2026-08-21): the adapter is now IMPLEMENTED + unit-tested** — `packages/m41-security/src/providers/openbao.ts`
+> (`OpenBaoSecretProvider`) with the transit mapping, machine-identity AppRole auth, TLS CA verification, token
+> caching, redacted errors, and **fail-closed on every error path**; PURE smoke suite `m41-openbao` (21 assertions)
+> exercises it against an **in-process mock** Vault API (no real network/instance). It is bound in
+> `security.module.ts` via `loadOpenBaoConfigFromEnv()` — **default stays `UnavailableSecretProvider` (fail-closed)
+> unless `FINAPP_OPENBAO_*` is configured.** §2–§4 above describe that implementation. What remains (below) is the
+> **live staging binding**, which needs a real instance.
+
 ## 5. Governance status & the STOP decision
 
 - **Authorised now:** ADR-131 permits a **staging** adapter (non-production, fail-closed default); ADR-132 selects

@@ -9,6 +9,8 @@ import {
   DlpService,
   GovernanceService,
   UnavailableSecretProvider,
+  OpenBaoSecretProvider,
+  loadOpenBaoConfigFromEnv,
   type SecretProviderPort,
 } from '@finapp/m41-security';
 import { ActorModule } from '../actor/actor.module.ts';
@@ -37,8 +39,16 @@ export const M41_SECRET_PROVIDER = Symbol.for('finapp.m41.secret-provider');
       inject: [AUDIT, OUTBOX],
       useFactory: (audit: Audit, outbox: Outbox<DomainEvent>) => new M41Emitter(audit, outbox),
     },
-    // The real crypto/secret provider (KMS/HSM/Vault) is deferred: fail-closed until a provider is approved.
-    { provide: M41_SECRET_PROVIDER, useFactory: () => new UnavailableSecretProvider() },
+    // The real crypto/secret provider. OpenBao is the approved TARGET (ADR-132): when a live instance is configured
+    // via FINAPP_OPENBAO_* env, bind the fail-closed OpenBao adapter; otherwise (default) keep the fail-closed
+    // `UnavailableSecretProvider`. No env → no provider bound → no network opened → every op unavailable.
+    {
+      provide: M41_SECRET_PROVIDER,
+      useFactory: (): SecretProviderPort => {
+        const cfg = loadOpenBaoConfigFromEnv();
+        return cfg === null ? new UnavailableSecretProvider() : new OpenBaoSecretProvider(cfg);
+      },
+    },
     {
       provide: SecretService,
       inject: [DB, AUTHZ, M41Emitter, M41_SECRET_PROVIDER, SecurityRepository],

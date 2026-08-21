@@ -1,0 +1,28 @@
+# PostgreSQL 16 primary — replication + WAL archiving settings for Stage-7 DR (RPO <= 5 min).
+# Append/merge into the primary's postgresql.conf (or a conf.d drop-in). Values are the DR-relevant ones only.
+# No secrets here. The pgBackRest repo credentials live in pgbackrest.conf (env-injected, opaque).
+
+# --- Write-Ahead Log / durability ---
+wal_level = replica                 # enough for streaming replication + physical PITR
+fsync = on
+synchronous_commit = on             # do NOT weaken for throughput (audit/finance durability); see audit-chain analysis
+full_page_writes = on
+
+# --- Continuous archiving (PITR) — bounds RPO to <= archive_timeout ---
+archive_mode = on
+archive_timeout = 60                # force a WAL segment at least every 60s => RPO <= ~1 min (target <= 5)
+# pgBackRest is the archiver (idempotent, checksummed):
+archive_command = 'pgbackrest --stanza=aptic archive-push %p'
+
+# --- Streaming replication to the warm standby ---
+max_wal_senders = 10
+wal_keep_size = 1024                # MB of WAL to retain for a lagging standby (tune to link/bandwidth)
+max_replication_slots = 10
+hot_standby = on                    # (on the standby) allow read queries
+
+# --- Recovery/restore source for standbys + PITR ---
+restore_command = 'pgbackrest --stanza=aptic archive-get %f "%p"'
+
+# NOTE: keep a physical replication SLOT per standby so the primary never recycles WAL the standby still needs:
+#   SELECT pg_create_physical_replication_slot('standby1');
+# (a slot prevents RPO gaps but can bloat pg_wal if a standby is down for long — monitor with dr-healthcheck.sh)
