@@ -48,7 +48,17 @@ import { WorkflowOutbox } from '@finapp/m06-workflow';
           // discovers it when a user does.
           throw new Error('DATABASE_URL is not set. The API cannot start without a database.');
         }
-        const pool = new pg.Pool({ connectionString });
+        // Pool size. node-postgres defaults to max:10; under a high write-concurrency burst more writers
+        // than that queue on pool.connect(), which is a latency source (measured on Stage-7 staging). Make
+        // it env-tunable WITHOUT changing the default: unset/invalid keeps pg's 10. Operators must keep it
+        // at or below PostgreSQL `max_connections` (postgres:16 default 100). This is a concurrency knob
+        // only — it changes no RBAC/CSRF/audit/outbox/RLS behaviour.
+        const poolMaxRaw = process.env['DATABASE_POOL_MAX'];
+        const poolMax = poolMaxRaw === undefined || poolMaxRaw === '' ? undefined : Number(poolMaxRaw);
+        const pool = new pg.Pool({
+          connectionString,
+          ...(poolMax !== undefined && Number.isInteger(poolMax) && poolMax > 0 ? { max: poolMax } : {}),
+        });
         const appRole = process.env['DATABASE_APP_ROLE'];
         // Binding the app role here is what stops the API inheriting the migration user's privileges.
         // Without it, a deployment that connects as the owner silently loses FORCE-RLS protection.

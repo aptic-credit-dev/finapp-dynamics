@@ -32,6 +32,8 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       DATABASE_OWNER_ROLE: ${DATABASE_OWNER_ROLE}
       DATABASE_APP_ROLE: ${DATABASE_APP_ROLE}
+      # Optional DB pool size (concurrency knob only). Blank/unset -> node-postgres default (10). Keep <= PG max_connections.
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-}
       FINAPP_ALLOWED_ORIGINS: ${FINAPP_ALLOWED_ORIGINS}
       FINAPP_COOKIE_SECURE: ${FINAPP_COOKIE_SECURE}
       FINAPP_COOKIE_SAMESITE: ${FINAPP_COOKIE_SAMESITE}

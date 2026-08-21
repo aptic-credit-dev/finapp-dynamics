@@ -185,13 +185,19 @@ if (entry.endsWith('/auth-load-harness.mjs') || entry.endsWith('\\auth-load-harn
   const unpriv = await login(url, unprivLogin, password);
   console.log(`[auth] logged in admin + unprivileged (session cookies acquired; password not shown)`);
 
+  // Optional overrides for focused capacity measurement (before/after tuning): AUTHLOAD_ONLY selects a
+  // single scenario by name; AUTHLOAD_BURST_CONC / AUTHLOAD_BURST_MS resize the write burst so it runs long
+  // enough to sample pg_stat_activity. Defaults are unchanged when the vars are unset.
+  const only = process.env.AUTHLOAD_ONLY;
+  const burstConc = process.env.AUTHLOAD_BURST_CONC ? Number(process.env.AUTHLOAD_BURST_CONC) : 32;
+  const burstMs = process.env.AUTHLOAD_BURST_MS ? Number(process.env.AUTHLOAD_BURST_MS) : 2000;
   const scenarios = [
     { name: 'auth_read', mode: 'read', concurrency: 12, durationMs: 4000 },
     { name: 'auth_write', mode: 'write', concurrency: 8, durationMs: 4000 },
     { name: 'auth_mixed', mode: 'mixed', concurrency: 12, durationMs: 4000 },
-    { name: 'auth_write_burst', mode: 'write', concurrency: 32, durationMs: 2000 },
+    { name: 'auth_write_burst', mode: 'write', concurrency: burstConc, durationMs: burstMs },
     { name: 'multi_tenant_read', mode: 'read', concurrency: 12, durationMs: 3000, tenants },
-  ];
+  ].filter((s) => !only || s.name === only);
   const out = {};
   for (const s of scenarios) {
     out[s.name] = await runAuthLoad({
