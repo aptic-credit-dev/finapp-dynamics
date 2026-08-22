@@ -38,16 +38,17 @@ try {
   )[0]?.code;
   if (!tt || !it) throw new Error('required catalogues (tenant_type / identity_type) are not seeded');
 
-  // 2 synthetic tenants (idempotent on the unique code).
-  for (const [code, name] of [
-    ['stg_tenant_1', 'Stage-7 Synthetic Tenant One'],
-    ['stg_tenant_2', 'Stage-7 Synthetic Tenant Two'],
-  ]) {
+  // Synthetic tenants (idempotent on the unique code). Count is env-tunable for multi-tenant load testing:
+  // STG_TENANT_COUNT (default 2) creates stg_tenant_1..N. Higher N spreads authenticated write load across N
+  // per-tenant audit hash-chains (see STAGE_7_AUDIT_CHAIN_CONTENTION_ANALYSIS.md) — synthetic, no PII.
+  const tenantCountRaw = Number(process.env.STG_TENANT_COUNT ?? '2');
+  const tenantCount = Number.isInteger(tenantCountRaw) && tenantCountRaw >= 2 ? tenantCountRaw : 2;
+  for (let n = 1; n <= tenantCount; n += 1) {
     await q(
       `INSERT INTO tenants (code, legal_name, tenant_type, status, activated_at)
        VALUES ($1, $2, $3, 'active', now())
        ON CONFLICT (code) DO NOTHING`,
-      [code, name, tt],
+      [`stg_tenant_${n}`, `Stage-7 Synthetic Tenant ${n}`, tt],
     );
   }
 

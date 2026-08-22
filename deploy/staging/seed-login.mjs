@@ -107,9 +107,10 @@ try {
   await ensureAccountAndCredential(ID1, ACC1, ADMIN_LOGIN);
   await ensureAccountAndCredential(ID2, ACC2, UNPRIV_LOGIN);
 
-  // Give the privileged identity a live membership in both synthetic tenants for multi-tenant auth load.
+  // Give the privileged identity a live membership in ALL synthetic tenants (platform_admin is platform-scoped,
+  // so one admin can write across every tenant it is a member of) — enables multi-tenant authenticated write load.
   const tenants = await q(
-    `SELECT id, code FROM tenants WHERE code IN ('stg_tenant_1','stg_tenant_2') ORDER BY code`,
+    `SELECT id, code FROM tenants WHERE code LIKE 'stg_tenant_%' ORDER BY (regexp_replace(code,'\\D','','g'))::int`,
   );
   let idx = 0;
   for (const t of tenants) {
