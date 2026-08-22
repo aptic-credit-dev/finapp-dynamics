@@ -33,5 +33,13 @@ listener "tcp" {
 api_addr     = "https://127.0.0.1:8200"
 cluster_addr = "https://127.0.0.1:8201"
 
-# A missing audit device makes OpenBao FAIL requests (fail-closed) — desired. Enable a file device post-init:
-#   bao audit enable file file_path=/openbao/audit/audit.log
+# Audit device — DECLARATIVE (config-based). This OpenBao build (>= 2.6) rejects runtime `bao audit enable`
+# ("use declarative, config-based audit device management instead"), so the device MUST be declared here.
+# A missing audit device makes OpenBao FAIL requests (fail-closed) — desired. Verified live on OpenBao 2.6.2.
+audit "file/" {
+  type = "file"
+  path = "file/"
+  options = {
+    file_path = "/openbao/audit/audit.log" # secret values are HMAC-masked, never plaintext
+  }
+}

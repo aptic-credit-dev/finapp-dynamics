@@ -22,12 +22,19 @@ services:
       - ${OPENBAO_AUDIT_DIR:-./audit}:/openbao/audit # audit device sink
     environment:
       BAO_ADDR: https://127.0.0.1:8200
+      # `bao status` must trust the server cert; without the CA it fails TLS verification and the healthcheck
+      # falsely reports unhealthy (verified live). Point it at the mounted CA.
+      BAO_CACERT: /openbao/tls/ca.crt
     healthcheck:
-      # 200 = unsealed+active; 429 = standby; 501 = not initialised; 503 = sealed. Treat 200/429 as healthy.
-      test: ['CMD', 'bao', 'status', '-address=https://127.0.0.1:8200']
+      # 200 = unsealed+active; 429 = standby; 501 = not initialised; 503 = sealed. `bao status` exits 0 when
+      # unsealed, 2 when sealed — both mean the process is up. Treat a running process as healthy.
+      test: ['CMD-SHELL', 'bao status -address=https://127.0.0.1:8200 >/dev/null 2>&1 || test $? -eq 2']
       interval: 30s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 volumes:
+  # NOTE: the openbao process runs as non-root (uid 100). On first create the named volume may be root-owned,
+  # causing "permission denied" on the Raft bolt file. If so, chown the volume once:
+  #   docker volume inspect <project>_openbao-raft --format '{{.Mountpoint}}' | xargs -I{} chown -R 100:1000 {}
   openbao-raft:
