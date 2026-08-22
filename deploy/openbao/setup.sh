@@ -1,14 +1,15 @@
 #!/usr/bin/env sh
 # Post-init OpenBao setup for Aptic Dynamics (ADR-132). Run ONCE, AFTER the operator has initialised + unsealed
 # and exported a privileged BAO_TOKEN in THIS shell (never committed, never printed by this script).
-# Enables transit, installs the least-privilege policy, enables AppRole, binds the app role, enables audit.
+# Enables transit, installs the least-privilege policy, enables AppRole, binds the app role, verifies audit.
 # It prints the RoleID (needed by engineering) but NEVER a SecretID/token/unseal key — SecretID is issued wrapped, separately.
+# NOTE: the audit device is DECLARATIVE (in config/openbao.hcl) on OpenBao 2.6+ — runtime `bao audit enable` is
+# rejected — so this script VERIFIES the device rather than enabling it.
 set -eu
 
 : "${BAO_ADDR:?export BAO_ADDR (e.g. https://127.0.0.1:8200)}"
 : "${BAO_TOKEN:?export a privileged BAO_TOKEN in this shell (not committed)}"
 POLICY_FILE="${POLICY_FILE:-./policies/finapp-app.hcl}"
-AUDIT_PATH="${AUDIT_PATH:-/openbao/audit/audit.log}"
 
 echo "[openbao] enabling transit engine (idempotent)…"
 bao secrets enable -path=transit transit 2>/dev/null || echo "  transit already enabled"
@@ -25,8 +26,12 @@ bao write auth/approle/role/finapp-app \
   token_ttl=20m token_max_ttl=1h \
   secret_id_ttl=24h secret_id_num_uses=0
 
-echo "[openbao] enabling file audit device (fail-closed on write failure)…"
-bao audit enable file file_path="$AUDIT_PATH" 2>/dev/null || echo "  audit device already enabled"
+echo "[openbao] verifying the DECLARATIVE audit device (config/openbao.hcl) is active…"
+if bao audit list 2>/dev/null | grep -q '^file'; then
+  echo "  audit device 'file/' active (secret values are HMAC-masked, never plaintext)"
+else
+  echo "  WARNING: no audit device active — declare it in config/openbao.hcl (audit \"file/\" { type=... }) and restart." >&2
+fi
 
 echo "[openbao] RoleID for engineering (store securely; NOT a secret by itself):"
 bao read -field=role_id auth/approle/role/finapp-app/role-id
