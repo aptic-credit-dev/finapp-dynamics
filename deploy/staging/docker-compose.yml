@@ -37,6 +37,18 @@ services:
       FINAPP_ALLOWED_ORIGINS: ${FINAPP_ALLOWED_ORIGINS}
       FINAPP_COOKIE_SECURE: ${FINAPP_COOKIE_SECURE}
       FINAPP_COOKIE_SAMESITE: ${FINAPP_COOKIE_SAMESITE}
+      # OpenBao secrets provider (ADR-132). ALL blank/unset by default -> M41 keeps the fail-closed
+      # UnavailableSecretProvider (no network opened). Set these (out-of-band) to bind the approved OpenBao
+      # instance once the dedicated host exists. FINAPP_OPENBAO_SECRET_ID is a secret -> supply via env/secret
+      # store, never commit. See deploy/openbao/ and STAGE_7_OPENBAO_LIVE_BINDING_EVIDENCE.md.
+      FINAPP_OPENBAO_ADDR: ${FINAPP_OPENBAO_ADDR:-}
+      FINAPP_OPENBAO_CA_CERT_PEM: ${FINAPP_OPENBAO_CA_CERT_PEM:-}
+      FINAPP_OPENBAO_AUTH_METHOD: ${FINAPP_OPENBAO_AUTH_METHOD:-}
+      FINAPP_OPENBAO_ROLE_ID: ${FINAPP_OPENBAO_ROLE_ID:-}
+      FINAPP_OPENBAO_SECRET_ID: ${FINAPP_OPENBAO_SECRET_ID:-}
+      FINAPP_OPENBAO_TRANSIT_MOUNT: ${FINAPP_OPENBAO_TRANSIT_MOUNT:-}
+      FINAPP_OPENBAO_TRANSIT_KEY_PREFIX: ${FINAPP_OPENBAO_TRANSIT_KEY_PREFIX:-}
+      FINAPP_OPENBAO_TIMEOUT_MS: ${FINAPP_OPENBAO_TIMEOUT_MS:-}
     # API bound to loopback only.
     ports:
       - '127.0.0.1:3000:3000'
