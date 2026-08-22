@@ -89,9 +89,13 @@ export async function runAuthLoad(cfg) {
     if (tenants.length) headers['x-tenant-id'] = tenants[n % tenants.length];
     return fetch(`${url}${readPath}`, { headers });
   }
-  async function doWrite() {
+  async function doWrite(n) {
     writeSeq += 1;
     const headers = { cookie, 'x-csrf-token': csrf, 'content-type': 'application/json' };
+    // When tenants are supplied, round-robin the write across them (x-tenant-id) so writes land in DIFFERENT
+    // per-tenant audit hash-chains — this measures whether spreading load across tenants relieves the
+    // per-tenant audit advisory-lock contention. Single-tenant (no tenants) keeps all writes in one chain.
+    if (tenants.length) headers['x-tenant-id'] = tenants[n % tenants.length];
     const body = JSON.stringify({
       identityType: writeType,
       displayName: `stg-load-${process.pid}-${writeSeq}`,
@@ -107,7 +111,7 @@ export async function runAuthLoad(cfg) {
       const to = setTimeout(() => ac.abort(), timeoutMs);
       const t0 = performance.now();
       try {
-        const r = write ? await doWrite() : await doRead(n);
+        const r = write ? await doWrite(n) : await doRead(n);
         bump(r.status);
       } catch {
         bump('error');
@@ -197,6 +201,9 @@ if (entry.endsWith('/auth-load-harness.mjs') || entry.endsWith('\\auth-load-harn
     { name: 'auth_mixed', mode: 'mixed', concurrency: 12, durationMs: 4000 },
     { name: 'auth_write_burst', mode: 'write', concurrency: burstConc, durationMs: burstMs },
     { name: 'multi_tenant_read', mode: 'read', concurrency: 12, durationMs: 3000, tenants },
+    // Same burst as auth_write_burst but writes are SPREAD across the tenants (per-tenant audit chains). Comparing
+    // the two isolates the per-tenant audit advisory-lock effect (single chain vs N chains under equal load).
+    { name: 'multi_tenant_write_burst', mode: 'write', concurrency: burstConc, durationMs: burstMs, tenants },
   ].filter((s) => !only || s.name === only);
   const out = {};
   for (const s of scenarios) {
