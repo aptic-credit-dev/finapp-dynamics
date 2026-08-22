@@ -18,7 +18,10 @@ governed GO**; the API keeps its fail-closed default until `FINAPP_OPENBAO_*` is
 ## Initialization checklist (operator)
 1. Provide TLS material into `OPENBAO_TLS_DIR` (`server.crt`, `server.key`, `ca.crt`) — **out-of-band, not committed**.
 2. `cp env.openbao.example .env.openbao` and set host paths.
-3. `docker compose --env-file .env.openbao up -d`.
+3. `docker compose --env-file .env.openbao up -d`. If the container crash-loops with `permission denied` on
+   `/openbao/data/vault.db`, the non-root process (uid 100) cannot write the named volume — chown it once (command
+   in `docker-compose.yml`), then `up -d` again. (Validated live on **OpenBao 2.6.2**: Raft + TLS + declarative
+   audit device + AppRole + transit + snapshot/restore — see `STAGE_7_OPENBAO_LIVE_BINDING_EVIDENCE.md`.)
 4. **Initialise (once):** `bao operator init` — this prints the **unseal keys + initial root token ONCE**. Record
    them **off-host** (Shamir custody ≥3 holders for prod, or transit auto-unseal). **This repo never captures them.**
 5. **Unseal** (Shamir) or confirm auto-unseal; `bao status` → unsealed.
