@@ -1319,6 +1319,310 @@ function RecoveryCases({ tenant }: { tenant: string | null }): JSX.Element {
   );
 }
 
+// ---------- Regulatory & Compliance (M45) — UI over the canonical m41 GRC control register; no duplicate engine ----------
+// Renders CONTROL/EVIDENCE state (an assessment), never a blanket "Aptic is compliant/certified" claim.
+const FRAMEWORK_LABEL: Record<string, string> = {
+  kenya_dpa: 'Data Protection (Kenya DPA / ODPC)',
+  iso27001: 'ISO 27001 (ICT / security)',
+  soc2: 'SOC 2',
+  gdpr: 'GDPR',
+  other: 'Other / internal policy',
+};
+function assessmentPill(status: string): JSX.Element {
+  const s = (status || '').toLowerCase();
+  if (s === 'compliant')
+    return (
+      <span className="pill ok">
+        <span className="glyph">✓</span> Assessed compliant
+      </span>
+    );
+  if (s === 'non_compliant')
+    return (
+      <span className="pill bad">
+        <span className="glyph">!</span> Non-compliant
+      </span>
+    );
+  if (s === 'partial')
+    return (
+      <span className="pill warn">
+        <span className="glyph">◐</span> Partial
+      </span>
+    );
+  return (
+    <span className="pill info">
+      <span className="glyph">•</span> Not assessed
+    </span>
+  );
+}
+function useControlsWithStatus(tenant: string | null): {
+  rows: (api.Row & { _latest: string })[];
+  loading: boolean;
+  error: string | null;
+} {
+  const controls = useRows(() => api.getGrcControls(tenant), [tenant]);
+  const [rows, setRows] = useState<(api.Row & { _latest: string })[] | null>(null);
+  const key = controls.rows.map((c) => pick(c, 'id')).join(',');
+  useEffect(() => {
+    let live = true;
+    setRows(null);
+    if (controls.loading) return;
+    void Promise.all(
+      controls.rows.map(async (c) => {
+        const a = api.asRows((await api.getGrcAssessments(pick(c, 'id'), tenant)).data);
+        return { ...c, _latest: a[0] ? pick(a[0], 'status') : 'not_assessed' };
+      }),
+    ).then((r) => {
+      if (live) setRows(r);
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant, controls.loading, key]);
+  return { rows: rows ?? [], loading: controls.loading || rows === null, error: controls.error };
+}
+
+function ComplianceDashboard({ tenant }: { tenant: string | null }): JSX.Element {
+  const { rows, loading } = useControlsWithStatus(tenant);
+  const count = (st: string): number => rows.filter((r) => r._latest === st).length;
+  const tiles = [
+    { k: 'Controls tracked', v: loading ? '—' : String(rows.length) },
+    { k: 'Assessed compliant', v: loading ? '—' : String(count('compliant')) },
+    { k: 'Partial', v: loading ? '—' : String(count('partial')) },
+    { k: 'Non-compliant', v: loading ? '—' : String(count('non_compliant')) },
+    { k: 'Not assessed', v: loading ? '—' : String(count('not_assessed')) },
+  ];
+  const frameworks = Array.from(new Set(rows.map((r) => pick(r, 'framework')))).filter(Boolean);
+  return (
+    <>
+      <h1 className="page-title">Regulatory &amp; Compliance</h1>
+      <p className="page-sub">
+        Control &amp; evidence posture over the canonical GRC register (m41) · synthetic staging data. Shows
+        control/evidence <strong>state</strong> — not a regulatory-compliance certification.
+      </p>
+      <div className="tiles">
+        {tiles.map((t) => (
+          <div className="tile" key={t.k}>
+            <div className="k">{t.k}</div>
+            <div className="v">{t.v}</div>
+          </div>
+        ))}
+      </div>
+      <div className="card">
+        <header>
+          <h3>Controls by framework</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        {loading ? (
+          <div className="loading">Loading controls…</div>
+        ) : rows.length === 0 ? (
+          <div className="empty">No controls yet. Seed synthetic controls to populate this view.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Framework</th>
+                <th className="num">Controls</th>
+                <th className="num">Compliant</th>
+                <th className="num">Attention</th>
+              </tr>
+            </thead>
+            <tbody>
+              {frameworks.map((f) => {
+                const fr = rows.filter((r) => pick(r, 'framework') === f);
+                return (
+                  <tr key={f}>
+                    <td>{FRAMEWORK_LABEL[f] || f}</td>
+                    <td className="num">{fr.length}</td>
+                    <td className="num">{fr.filter((r) => r._latest === 'compliant').length}</td>
+                    <td className="num">{fr.filter((r) => r._latest !== 'compliant').length}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
+
+function ControlDrawer({
+  control,
+  tenant,
+  onClose,
+}: {
+  control: api.Row;
+  tenant: string | null;
+  onClose: () => void;
+}): JSX.Element {
+  const id = pick(control, 'id');
+  const [assessments, setAssessments] = useState<api.Row[] | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const [status, setStatus] = useState('partial');
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    setAssessments(null);
+    void api.getGrcAssessments(id, tenant).then((r) => {
+      if (live) setAssessments(api.asRows(r.data));
+    });
+    return () => {
+      live = false;
+    };
+  }, [id, tenant, nonce]);
+  const record = async (): Promise<void> => {
+    setSaving(true);
+    setMsg(null);
+    const r = await api.recordGrcAssessment(
+      id,
+      { status, ...(reason.trim() ? { reasonCode: reason.trim() } : {}) },
+      tenant,
+    );
+    setSaving(false);
+    if (r.ok) {
+      setMsg({ ok: true, msg: 'Assessment recorded (append-only evidence, audited).' });
+      setReason('');
+      setNonce((x) => x + 1);
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not record assessment.' });
+    }
+  };
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Control">
+        <header className="drawer-head">
+          <h3>{pick(control, 'controlKey') || 'Control'}</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <h4 style={{ margin: '4px 0 12px' }}>{pick(control, 'title') || '—'}</h4>
+          <dl className="kv">
+            <dt>Framework</dt>
+            <dd>{FRAMEWORK_LABEL[pick(control, 'framework')] || pick(control, 'framework') || '—'}</dd>
+            <dt>Scope</dt>
+            <dd>{pick(control, 'scope') || '—'}</dd>
+            <dt>State</dt>
+            <dd>{pick(control, 'state') || '—'}</dd>
+          </dl>
+          <h4 className="drawer-sub">Record assessment</h4>
+          <div className="run-picker" style={{ padding: 0, border: 'none' }}>
+            <select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="compliant">Compliant</option>
+              <option value="partial">Partial</option>
+              <option value="non_compliant">Non-compliant</option>
+              <option value="not_assessed">Not assessed</option>
+            </select>
+          </div>
+          <div className="field">
+            <input
+              value={reason}
+              placeholder="Reason / evidence note (optional)"
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+          <button className="btn secondary" style={{ marginBottom: 8 }} disabled={saving} onClick={record}>
+            {saving ? 'Recording…' : 'Record assessment'}
+          </button>
+          <p className="muted" style={{ fontSize: 11, margin: '0 0 6px' }}>
+            Canonical m41 append-only evidence (permission-gated, tenant-scoped, audited). Records
+            control/evidence state — not a certification. Restricted users are denied server-side.
+          </p>
+          <h4 className="drawer-sub">Assessment history</h4>
+          {assessments === null ? (
+            <div className="loading">Loading…</div>
+          ) : assessments.length === 0 ? (
+            <div className="empty">No assessments recorded.</div>
+          ) : (
+            <ul className="timeline">
+              {assessments.map((a, i) => (
+                <li key={pick(a, 'id') || i}>
+                  {assessmentPill(pick(a, 'status'))}{' '}
+                  <span className="t-head">{pick(a, 'reasonCode') || pick(a, 'evidenceRef') || ''}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function ComplianceRegister({ tenant }: { tenant: string | null }): JSX.Element {
+  const { rows, loading, error } = useControlsWithStatus(tenant);
+  const [fw, setFw] = useState('');
+  const [open, setOpen] = useState<api.Row | null>(null);
+  const frameworks = Array.from(new Set(rows.map((r) => pick(r, 'framework')))).filter(Boolean);
+  const shown = rows.filter((r) => fw === '' || pick(r, 'framework') === fw);
+  return (
+    <>
+      <h1 className="page-title">Control register</h1>
+      <p className="page-sub">
+        Compliance controls + latest assessment evidence over the canonical GRC register (m41) · synthetic
+        staging data. RBAC + tenant isolation enforced server-side.
+      </p>
+      <div className="card">
+        <header>
+          <h3>Controls</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        <div className="run-picker">
+          <label>Framework</label>
+          <select value={fw} onChange={(e) => setFw(e.target.value)}>
+            <option value="">All frameworks</option>
+            {frameworks.map((f) => (
+              <option key={f} value={f}>
+                {FRAMEWORK_LABEL[f] || f}
+              </option>
+            ))}
+          </select>
+        </div>
+        {loading ? (
+          <div className="loading">Loading controls…</div>
+        ) : error ? (
+          <div className="empty">Could not load controls ({error}).</div>
+        ) : shown.length === 0 ? (
+          <div className="empty">No controls match this filter.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Control</th>
+                <th>Title</th>
+                <th>Framework</th>
+                <th>Latest assessment</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((c, i) => (
+                <tr key={pick(c, 'id') || i}>
+                  <td className="muted">{pick(c, 'controlKey') || '—'}</td>
+                  <td>{pick(c, 'title') || '—'}</td>
+                  <td className="muted">{FRAMEWORK_LABEL[pick(c, 'framework')] || pick(c, 'framework')}</td>
+                  <td>{assessmentPill(c._latest)}</td>
+                  <td>
+                    <button className="btn link" onClick={() => setOpen(c)}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {open && <ControlDrawer control={open} tenant={tenant} onClose={() => setOpen(null)} />}
+    </>
+  );
+}
+
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▚', group: 'Overview' },
   { id: 'reconciliation', label: 'Reconciliation', icon: '⇄', group: 'Treasury' },
@@ -1327,6 +1631,8 @@ const NAV = [
   { id: 'reports', label: 'Reports', icon: '▤', group: 'Treasury' },
   { id: 'recovery', label: 'Debt Recovery', icon: '⚖', group: 'Recovery' },
   { id: 'recovery-cases', label: 'Recovery cases', icon: '▤', group: 'Recovery' },
+  { id: 'compliance', label: 'Compliance', icon: '❖', group: 'Compliance' },
+  { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
 ];
 
 const TENANT_KEY = 'aptic.tenant';
@@ -1484,6 +1790,8 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'reports' && <Reports tenant={tenant} />}
         {route === 'recovery' && <RecoveryDashboard tenant={tenant} />}
         {route === 'recovery-cases' && <RecoveryCases tenant={tenant} />}
+        {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
+        {route === 'compliance-register' && <ComplianceRegister tenant={tenant} />}
       </main>
     </div>
   );

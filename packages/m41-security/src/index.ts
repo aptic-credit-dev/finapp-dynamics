@@ -89,6 +89,8 @@ export type {
   SecretVersionRow,
   DlpPolicyRow,
   GrcControlRow,
+  GrcControlListRow,
+  GrcAssessmentListRow,
   PrivacyClassificationRow,
 } from './repository.ts';
 

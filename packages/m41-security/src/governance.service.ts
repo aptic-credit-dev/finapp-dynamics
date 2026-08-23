@@ -9,7 +9,13 @@ import { M41_PERMISSIONS } from './permissions.ts';
 import { M41_AUDIT_CODES } from './audit-codes.ts';
 import { badRequest, notFound } from './errors.ts';
 import { isPlatformScope, GRC_FRAMEWORKS, CLASSIFICATIONS } from './domain.ts';
-import { SecurityRepository, type GrcControlRow, type PrivacyClassificationRow } from './repository.ts';
+import {
+  SecurityRepository,
+  type GrcControlRow,
+  type GrcControlListRow,
+  type GrcAssessmentListRow,
+  type PrivacyClassificationRow,
+} from './repository.ts';
 import type { M41Emitter } from './emit.ts';
 
 export class GovernanceService {
@@ -98,6 +104,20 @@ export class GovernanceService {
         payload: { recordId: row.id, recordType: 'grc_assessment', toState: input.status },
       });
       return { id: row.id };
+    });
+  }
+
+  // ---- GRC read surface (permission-gated, RLS-scoped, read-only/no audit) ----
+  async listControls(ctx: RequestContext): Promise<GrcControlListRow[]> {
+    await this.authz.require(ctx, M41_PERMISSIONS.grcControlRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listGrcControls(tx));
+  }
+  async listAssessments(ctx: RequestContext, controlId: string): Promise<GrcAssessmentListRow[]> {
+    await this.authz.require(ctx, M41_PERMISSIONS.grcControlRead);
+    return this.db.withTenant(ctx, async (tx) => {
+      const control = await this.repo.getGrcControl(tx, controlId);
+      if (!control) throw notFound('control not found.', ctx.correlationId);
+      return this.repo.listGrcAssessments(tx, controlId);
     });
   }
 
