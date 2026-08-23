@@ -43,46 +43,127 @@ const uid = (kind, n) => {
 // Persona matrix — EXPLICIT canonical permission codes only (no wildcards). Non-existent codes are skipped.
 const PERSONAS = [
   {
-    n: '1', login: 'stg_treasury_maker', name: 'Treasury Maker (synthetic)', code: 'treasury_maker', risk: 'elevated',
-    perms: ['journals.draft.create', 'journals.draft.submit', 'journals.draft.read', 'journals.line.manage',
-      'journals.validation.run', 'approvals.request.create', 'approvals.request.submit', 'approvals.request.read',
-      'approvals.note.add', 'gl_reconciliation.account.read', 'gl_reconciliation.run.read',
-      'gl_reconciliation.match.read', 'gl_reconciliation.exception.read'],
+    n: '1',
+    login: 'stg_treasury_maker',
+    name: 'Treasury Maker (synthetic)',
+    code: 'treasury_maker',
+    risk: 'elevated',
+    perms: [
+      'journals.draft.create',
+      'journals.draft.submit',
+      'journals.draft.read',
+      'journals.line.manage',
+      'journals.validation.run',
+      'approvals.request.create',
+      'approvals.request.submit',
+      'approvals.request.read',
+      'approvals.note.add',
+      'gl_reconciliation.account.read',
+      'gl_reconciliation.run.read',
+      'gl_reconciliation.match.read',
+      'gl_reconciliation.exception.read',
+    ],
   },
   {
-    n: '2', login: 'stg_treasury_approver', name: 'Treasury Approver (synthetic)', code: 'treasury_approver', risk: 'critical',
-    perms: ['approvals.request.read', 'approvals.request.create', 'approvals.request.submit',
-      'approvals.decision.approve', 'approvals.decision.reject', 'approvals.decision.return',
-      'approvals.decision.escalate', 'journals.draft.read', 'gl_reconciliation.run.read'],
+    n: '2',
+    login: 'stg_treasury_approver',
+    name: 'Treasury Approver (synthetic)',
+    code: 'treasury_approver',
+    risk: 'critical',
+    perms: [
+      'approvals.request.read',
+      'approvals.request.create',
+      'approvals.request.submit',
+      'approvals.decision.approve',
+      'approvals.decision.reject',
+      'approvals.decision.return',
+      'approvals.decision.escalate',
+      'journals.draft.read',
+      'gl_reconciliation.run.read',
+    ],
   },
   {
-    n: '3', login: 'stg_recovery_officer', name: 'Recovery Officer (synthetic)', code: 'recovery_officer', risk: 'elevated',
-    perms: ['recovery.case.read', 'recovery.case.create', 'recovery.case.update', 'recovery.case.assign',
-      'recovery.arrangement.read', 'recovery.arrangement.manage', 'recovery.demand.read', 'recovery.demand.manage',
-      'recovery.analytics.read'],
+    n: '3',
+    login: 'stg_recovery_officer',
+    name: 'Recovery Officer (synthetic)',
+    code: 'recovery_officer',
+    risk: 'elevated',
+    perms: [
+      'recovery.case.read',
+      'recovery.case.create',
+      'recovery.case.update',
+      'recovery.case.assign',
+      'recovery.arrangement.read',
+      'recovery.arrangement.manage',
+      'recovery.demand.read',
+      'recovery.demand.manage',
+      'recovery.analytics.read',
+    ],
   },
   {
-    n: '4', login: 'stg_recovery_manager', name: 'Recovery Manager (synthetic)', code: 'recovery_manager', risk: 'critical',
-    perms: ['recovery.case.read', 'recovery.arrangement.read', 'recovery.arrangement.approve',
-      'recovery.writeoff.read', 'recovery.writeoff.approve', 'recovery.analytics.read', 'approvals.request.read',
-      'approvals.decision.approve', 'approvals.decision.reject'],
+    n: '4',
+    login: 'stg_recovery_manager',
+    name: 'Recovery Manager (synthetic)',
+    code: 'recovery_manager',
+    risk: 'critical',
+    perms: [
+      'recovery.case.read',
+      'recovery.arrangement.read',
+      'recovery.arrangement.approve',
+      'recovery.writeoff.read',
+      'recovery.writeoff.approve',
+      'recovery.analytics.read',
+      'approvals.request.read',
+      'approvals.decision.approve',
+      'approvals.decision.reject',
+    ],
   },
   {
-    n: '5', login: 'stg_compliance_officer', name: 'Compliance Officer (synthetic)', code: 'compliance_officer', risk: 'elevated',
+    n: '5',
+    login: 'stg_compliance_officer',
+    name: 'Compliance Officer (synthetic)',
+    code: 'compliance_officer',
+    risk: 'elevated',
     perms: ['grc.control.read', 'grc.control.manage', 'grc.assessment.record'],
   },
   {
-    n: '6', login: 'stg_compliance_reviewer', name: 'Compliance Reviewer (synthetic)', code: 'compliance_reviewer', risk: 'critical',
-    perms: ['grc.control.read', 'approvals.request.read', 'approvals.decision.approve', 'approvals.decision.reject'],
+    n: '6',
+    login: 'stg_compliance_reviewer',
+    name: 'Compliance Reviewer (synthetic)',
+    code: 'compliance_reviewer',
+    risk: 'critical',
+    perms: [
+      'grc.control.read',
+      'approvals.request.read',
+      'approvals.decision.approve',
+      'approvals.decision.reject',
+    ],
   },
   {
-    n: '7', login: 'stg_auditor', name: 'Auditor read-only (synthetic)', code: 'auditor_readonly', risk: 'normal',
-    perms: ['identity.registry.view', 'rbac.role.view', 'rbac.assignment.view', 'gl_reconciliation.account.read',
-      'gl_reconciliation.run.read', 'gl_reconciliation.match.read', 'gl_reconciliation.exception.read',
-      'recovery.case.read', 'grc.control.read', 'approvals.request.read'],
+    n: '7',
+    login: 'stg_auditor',
+    name: 'Auditor read-only (synthetic)',
+    code: 'auditor_readonly',
+    risk: 'normal',
+    perms: [
+      'identity.registry.view',
+      'rbac.role.view',
+      'rbac.assignment.view',
+      'gl_reconciliation.account.read',
+      'gl_reconciliation.run.read',
+      'gl_reconciliation.match.read',
+      'gl_reconciliation.exception.read',
+      'recovery.case.read',
+      'grc.control.read',
+      'approvals.request.read',
+    ],
   },
   {
-    n: '8', login: 'stg_restricted', name: 'Restricted User (synthetic)', code: 'restricted_user', risk: 'normal',
+    n: '8',
+    login: 'stg_restricted',
+    name: 'Restricted User (synthetic)',
+    code: 'restricted_user',
+    risk: 'normal',
     perms: ['gl_reconciliation.account.read'],
   },
 ];
@@ -114,7 +195,10 @@ try {
   const out = [];
   await q(`SET app.tenant_id = '${T1}'`);
   for (const p of PERSONAS) {
-    const idId = uid('id', p.n), accId = uid('acc', p.n), roleId = uid('role', p.n), asgId = uid('asg', p.n);
+    const idId = uid('id', p.n),
+      accId = uid('acc', p.n),
+      roleId = uid('role', p.n),
+      asgId = uid('asg', p.n);
     const email = `${p.login}@staging.local`;
 
     // 1. identity (global)
@@ -128,15 +212,19 @@ try {
     // 2. account + credential
     await ensureCredential(accId, idId, p.login);
     // 3. membership in T1 (active)
-    const live = (await q(
-      `SELECT id FROM tenant_memberships WHERE tenant_id=$1 AND identity_id=$2 AND status<>'ended'`, [T1, idId],
-    ));
+    const live = await q(
+      `SELECT id FROM tenant_memberships WHERE tenant_id=$1 AND identity_id=$2 AND status<>'ended'`,
+      [T1, idId],
+    );
     let membershipId = live[0]?.id;
     if (!membershipId) {
-      membershipId = (await q(
-        `INSERT INTO tenant_memberships (tenant_id, identity_id, account_id, membership_type, status, is_primary)
-         VALUES ($1,$2,$3,'employee','active',false) RETURNING id`, [T1, idId, accId],
-      ))[0].id;
+      membershipId = (
+        await q(
+          `INSERT INTO tenant_memberships (tenant_id, identity_id, account_id, membership_type, status, is_primary)
+         VALUES ($1,$2,$3,'employee','active',false) RETURNING id`,
+          [T1, idId, accId],
+        )
+      )[0].id;
     }
     // 4. tenant-custom role (active)
     await q(
@@ -153,9 +241,7 @@ try {
       [roleId, T1, ADMIN, p.perms],
     );
     const heldNow = (await q(`SELECT count(*)::int c FROM role_permissions WHERE role_id=$1`, [roleId]))[0].c;
-    const missing = p.perms.filter(
-      (c) => !granted.find((g) => g.permission_code === c),
-    );
+    const missing = p.perms.filter((c) => !granted.find((g) => g.permission_code === c));
     // 6. assign role to membership (active)
     await q(
       `INSERT INTO role_assignments (tenant_id, id, membership_id, identity_id, role_id, scope_level, status, version, granted_by, granted_at)
@@ -166,7 +252,13 @@ try {
     out.push({ login: p.login, role: p.code, perms_held: heldNow, skipped_missing_codes: missing });
   }
   await q(`RESET app.tenant_id`);
-  console.log(JSON.stringify({ ok: true, tenant: T1, personas: out, note: 'password via LOGIN_PW; never printed' }, null, 2));
+  console.log(
+    JSON.stringify(
+      { ok: true, tenant: T1, personas: out, note: 'password via LOGIN_PW; never printed' },
+      null,
+      2,
+    ),
+  );
 } catch (e) {
   console.error('seed-personas failed:', e.message);
   process.exit(1);
