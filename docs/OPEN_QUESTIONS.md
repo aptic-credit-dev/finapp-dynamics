@@ -95,8 +95,9 @@ has a suggested default so work is not blocked; the default should be confirmed,
     Claude/engineering authorized under ADR-131 to deploy + validate the Contabo staging stack ONCE server access is
     provided; it must NOT self-certify Tier-2 acceptance or issue production GO. Deployment runbook:
     `docs/03-platform/STAGE_7_CONTABO_DEPLOYMENT_RUNBOOK.md`.)*
-17. **Frontend stack** — no document in `docs/` or `manifests/` names one, so Stage 0 did not invent one:
-    `apps/web` is a framework-free TypeScript shell and no bundler is wired up. The choice (framework,
-    bundler, component library, and how `SCREEN_CATALOGUE.md` maps onto it) shapes every later UI stage and
-    should be decided before Stage 2, when the first screens arrive. *(Default: none — this one genuinely
-    needs an owner's decision rather than a default, and it will need an ADR.)*
+17. **Frontend stack** — **RESOLVED (owner decision, 2026-08-23): React + Vite + TypeScript.** `apps/web` is now
+    a React/Vite/TS application (replacing the framework-free shell), API-driven, with M02 RBAC authoritative
+    server-side (no duplicated authorization in React) and its own toolchain (Vite build + `tsc --noEmit`),
+    decoupled from the backend's strict `tsc --build`/`eslint .` lanes. First screens: the Stage-8 Treasury &
+    Reconciliation vertical (ADR-133). *(Original context: no document named a stack, so Stage 0 did not invent
+    one; the choice needed an owner's decision — now made.)*

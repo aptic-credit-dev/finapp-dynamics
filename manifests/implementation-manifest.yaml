@@ -3071,16 +3071,29 @@ stages:
 
   - stage: 8
     name: Phase 7 — Vertical business solutions
-    status: deferred # stage build lifecycle: no Stage-8 module is approved_for_build yet. ADR-133 authorises parallel IMPLEMENTATION to commence (release gated) — see note; the first module still needs its documented->approved_for_build governance step.
+    status: deferred # stage-level: the vertical portfolio is not delivered. The FIRST reference vertical (m43) is approved_for_build under ADR-133 (release still gated). Per-module cadence governs each vertical.
     priority: P2
     mvp: false
     depends_on_stage: 7
     # ADR-133 REFINES (does not remove) the Phase-7 dependency into two gates: (a) implementation-commencement — MET
     # now under CONDITIONAL_GO, so vertical build MAY start in parallel with Stage-7 closure; (b) production-release —
     # UNCHANGED: no Stage-8 vertical may be RELEASED to production until the Stage-7 production-release gates are
-    # satisfied and the M42 governed GO is issued. Each Stage-8 module still follows the per-module governance cadence
-    # (documented -> approved_for_build); no specific module is approved for build by ADR-133; the frontend stack
-    # (OQ#17) is a product-owner decision. No module identity m43+ exists yet — building must not invent one.
+    # satisfied and the M42 governed GO is issued. The reference vertical m43 is approved_for_build (management
+    # decision 2026-08-23 = Treasury & Reconciliation; OQ#17 = React+Vite+TS). It REUSES shared services (no second
+    # engine) and enters m42 certification before any release. m43 status is approved_for_build (not 'implemented':
+    # the UI + reuse are real, but no dedicated m43 backend package/tables/tests exist yet — that is a later step).
     note: >-
       Implementation may commence in parallel under CONDITIONAL_GO (ADR-133); production release remains gated on the
       Phase-7 entry criteria (Stage-7 production-release gates + M42 GO). See docs/09-phase-7/VERTICAL_SOLUTIONS_FOUNDATION.md.
+    modules:
+      - module: m43-treasury-recon
+        capability: Treasury & Reconciliation vertical (Phase-7 reference vertical; ADR-133)
+        status: approved_for_build
+        mvp: false
+        reuses: [m15-recon, m19-finance, m20-glrecon, m21-journal, m02-rbac, m03-audit, m06-workflow]
+        surface: apps/web (React+Vite+TS UI over the existing /api/v1/gl-reconciliation API); no duplicate engine
+        note: >-
+          Reference vertical. UI-first: reuses the existing gl-reconciliation API + finance/journal primitives.
+          No new shared service, no bypass of M02 RBAC / M03 audit, no auto-post. A dedicated m43 backend package
+          (its own tables/entitlement registration/cert entry) is a follow-up; nothing is marked 'implemented'
+          without real, tested code. Release gated on Stage-7 production-release gates + M42 GO.

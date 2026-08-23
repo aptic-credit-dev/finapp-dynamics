@@ -2,11 +2,23 @@
   "name": "@finapp/web",
   "version": "0.0.0",
   "private": true,
-  "description": "Web shell. Framework-free pending the stack decision — see OPEN_QUESTIONS.md #17.",
+  "description": "Aptic Dynamics web UI — React + Vite + TypeScript (OQ#17 resolved 2026-08-23). API-driven; M02 RBAC is authoritative; no duplicated authorization logic.",
   "license": "UNLICENSED",
   "type": "module",
-  "main": "./dist/src/main.js",
   "scripts": {
-    "build": "tsc --build"
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
   }
 }

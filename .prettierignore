@@ -21,3 +21,7 @@ docs/
 manifests/
 *.md
 
+
+# Non-parseable staging web assets (no prettier parser).
+deploy/staging/web.Dockerfile
+deploy/staging/web-nginx.conf

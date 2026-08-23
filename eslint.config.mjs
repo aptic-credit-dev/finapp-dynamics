@@ -12,7 +12,10 @@ import globals from 'globals';
  */
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/*.tsbuildinfo'],
+    // apps/web is the React + Vite frontend (OQ#17): a separate toolchain (Vite build + its own tsc --noEmit),
+    // not part of the backend's strict type-aware project graph. It is excluded here and CI-typechecked by
+    // `npm --workspace @finapp/web run typecheck` / `build` instead of the root `tsc --build`/`eslint .` lanes.
+    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/*.tsbuildinfo', 'apps/web/**'],
   },
 
   js.configs.recommended,

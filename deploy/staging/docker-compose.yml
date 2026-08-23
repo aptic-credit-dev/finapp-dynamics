@@ -72,3 +72,19 @@ services:
     logging:
       driver: json-file
       options: { max-size: '10m', max-file: '5' } # bound container log growth
+
+  # Aptic Dynamics web UI (React/Vite; OQ#17). nginx serves the SPA and proxies /api to the api on the SAME
+  # origin. Bound to loopback only — management accesses it via an SSH tunnel (no new public exposure).
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/staging/web.Dockerfile
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:8080:8080'
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' }
