@@ -1623,6 +1623,846 @@ function ComplianceRegister({ tenant }: { tenant: string | null }): JSX.Element 
   );
 }
 
+// ---------- administration: users & access (M02 identity/RBAC — no second identity engine) ----------
+// Permission-aware UI: an action control is HIDDEN when the actor lacks the permission (fetched via
+// GET /auth/permissions), but the server stays authoritative — a hidden action still 403s if called directly.
+// There is NO hard delete: disposal is a governed transition (suspend / close / end / retire / revoke), and
+// sensitive transitions demand an in-app confirm + reason (never a native dialog — it would block automation).
+
+const statusPill = (s: string): JSX.Element => {
+  const v = s.toLowerCase();
+  const cls = /active|granted|published|compliant/.test(v)
+    ? 'ok'
+    : /suspend|reject|revok|closed|retired|ended|inactive|deactivat|non_compliant/.test(v)
+      ? 'bad'
+      : /draft|pending|review|partial/.test(v)
+        ? 'warn'
+        : 'info';
+  return <span className={`pill ${cls}`}>{s || '—'}</span>;
+};
+
+/** Permission-aware, inline-confirm action control. Renders nothing when `allowed` is false. */
+function ActionButton({
+  label,
+  allowed,
+  danger,
+  needsReason,
+  onRun,
+}: {
+  label: string;
+  allowed: boolean;
+  danger?: boolean;
+  needsReason?: boolean;
+  onRun: (reason: string | undefined) => Promise<void>;
+}): JSX.Element | null {
+  const [armed, setArmed] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!allowed) return null;
+  if (!armed)
+    return (
+      <button className={`btn ${danger ? 'danger' : 'secondary'} sm`} onClick={() => setArmed(true)}>
+        {label}
+      </button>
+    );
+  const go = async (): Promise<void> => {
+    if (needsReason && reason.trim() === '') return;
+    setBusy(true);
+    await onRun(needsReason ? reason.trim() : undefined);
+    setBusy(false);
+    setArmed(false);
+    setReason('');
+  };
+  return (
+    <span className="confirm-inline">
+      {needsReason && (
+        <input
+          className="confirm-reason"
+          value={reason}
+          placeholder="Reason (required)"
+          onChange={(e) => setReason(e.target.value)}
+        />
+      )}
+      <button className={`btn ${danger ? 'danger' : 'primary'} sm`} disabled={busy} onClick={go}>
+        {busy ? '…' : `Confirm ${label}`}
+      </button>
+      <button className="btn link sm" onClick={() => setArmed(false)}>
+        Cancel
+      </button>
+    </span>
+  );
+}
+
+function UserDrawer({
+  identity,
+  tenant,
+  perms,
+  onClose,
+  onChanged,
+}: {
+  identity: api.Row;
+  tenant: string | null;
+  perms: Set<string>;
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const id = pick(identity, 'id');
+  const version = Number(identity['version'] ?? 1);
+  const status = pick(identity, 'status');
+  const [accounts, setAccounts] = useState<api.Row[] | null>(null);
+  const [memberships, setMemberships] = useState<api.Row[] | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [login, setLogin] = useState('');
+  useEffect(() => {
+    let live = true;
+    setAccounts(null);
+    setMemberships(null);
+    void api.listLoginAccounts(id, tenant).then((r) => live && setAccounts(api.asRows(r.data)));
+    void api.listMemberships(tenant).then((r) => {
+      if (!live) return;
+      setMemberships(api.asRows(r.data).filter((m) => pick(m, 'identityId') === id));
+    });
+    return () => {
+      live = false;
+    };
+  }, [id, tenant, nonce]);
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  const report = (r: api.ApiResult<api.Row>, okMsg: string): void => {
+    setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+  const lifecycle: { action: api.IdentityAction; label: string; perm: string; danger?: boolean }[] = [
+    { action: 'activate', label: 'Activate', perm: 'identity.registry.activate' },
+    { action: 'suspend', label: 'Suspend', perm: 'identity.registry.suspend', danger: true },
+    { action: 'reactivate', label: 'Reactivate', perm: 'identity.registry.reactivate' },
+    { action: 'close', label: 'Close', perm: 'identity.registry.close', danger: true },
+  ];
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="User">
+        <header className="drawer-head">
+          <h3>{pick(identity, 'displayName') || 'User'}</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Type</dt>
+            <dd>{pick(identity, 'identityType') || '—'}</dd>
+            <dt>Email</dt>
+            <dd>{pick(identity, 'primaryEmail') || '—'}</dd>
+            <dt>Status</dt>
+            <dd>{statusPill(status)}</dd>
+          </dl>
+          <div className="admin-actions">
+            {lifecycle.map((l) => (
+              <ActionButton
+                key={l.action}
+                label={l.label}
+                allowed={can(l.perm)}
+                danger={l.danger}
+                needsReason={l.danger}
+                onRun={(reason) =>
+                  api
+                    .identityAction(id, l.action, version, tenant, reason)
+                    .then((r) => report(r, `Identity ${l.action} recorded (audited).`))
+                }
+              />
+            ))}
+          </div>
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+          <h4 className="drawer-sub">Login accounts</h4>
+          {accounts === null ? (
+            <div className="loading">Loading…</div>
+          ) : accounts.length === 0 ? (
+            <div className="empty">No login accounts.</div>
+          ) : (
+            <ul className="timeline">
+              {accounts.map((a, i) => (
+                <li key={pick(a, 'id') || i}>
+                  <span className="t-head">{pick(a, 'loginIdentifier')}</span> · {pick(a, 'accountType')}{' '}
+                  {statusPill(pick(a, 'status'))}
+                  <div className="admin-actions">
+                    <ActionButton
+                      label="Activate"
+                      allowed={can('identity.account.activate')}
+                      onRun={(reason) =>
+                        api
+                          .accountAction(pick(a, 'id'), 'activate', Number(a['version'] ?? 1), tenant, reason)
+                          .then((r) => report(r, 'Account activated (audited).'))
+                      }
+                    />
+                    <ActionButton
+                      label="Suspend"
+                      allowed={can('identity.account.suspend')}
+                      danger
+                      needsReason
+                      onRun={(reason) =>
+                        api
+                          .accountAction(pick(a, 'id'), 'suspend', Number(a['version'] ?? 1), tenant, reason)
+                          .then((r) => report(r, 'Account suspended (audited).'))
+                      }
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {can('identity.account.create') && (
+            <div className="inline-form">
+              <input
+                value={login}
+                placeholder="login identifier (e.g. jane.doe)"
+                onChange={(e) => setLogin(e.target.value)}
+              />
+              <button
+                className="btn secondary sm"
+                disabled={login.trim() === ''}
+                onClick={() =>
+                  void api
+                    .createLoginAccount(
+                      { identityId: id, accountType: 'human', loginIdentifier: login.trim() },
+                      tenant,
+                    )
+                    .then((r) => {
+                      report(r, 'Login account created (pending activation).');
+                      if (r.ok) setLogin('');
+                    })
+                }
+              >
+                + Add login account
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Tenant membership</h4>
+          {memberships === null ? (
+            <div className="loading">Loading…</div>
+          ) : memberships.length === 0 ? (
+            <>
+              <div className="empty">Not a member of this tenant.</div>
+              {can('identity.membership.create') && (
+                <button
+                  className="btn secondary sm"
+                  onClick={() =>
+                    void api
+                      .createMembership({ identityId: id, membershipType: 'employee' }, tenant)
+                      .then((r) => report(r, 'Membership created (pending). Activate it to grant access.'))
+                  }
+                >
+                  + Add to this tenant
+                </button>
+              )}
+            </>
+          ) : (
+            <ul className="timeline">
+              {memberships.map((m, i) => (
+                <li key={pick(m, 'id') || i}>
+                  <span className="t-head">{pick(m, 'membershipType')}</span> {statusPill(pick(m, 'status'))}
+                  <div className="admin-actions">
+                    <ActionButton
+                      label="Activate"
+                      allowed={can('identity.membership.activate')}
+                      onRun={(reason) =>
+                        api
+                          .membershipAction(
+                            pick(m, 'id'),
+                            'activate',
+                            Number(m['version'] ?? 1),
+                            tenant,
+                            reason,
+                          )
+                          .then((r) => report(r, 'Membership activated (audited).'))
+                      }
+                    />
+                    <ActionButton
+                      label="End"
+                      allowed={can('identity.membership.end')}
+                      danger
+                      needsReason
+                      onRun={(reason) =>
+                        api
+                          .membershipAction(pick(m, 'id'), 'end', Number(m['version'] ?? 1), tenant, reason)
+                          .then((r) => report(r, 'Membership ended (audited).'))
+                      }
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>
+            Canonical m02 identity/RBAC · tenant-scoped + audited server-side. No credential is ever shown. No
+            hard delete — disposal is a governed transition.
+          </p>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function UsersAdmin({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [rows, setRows] = useState<api.Row[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const [open, setOpen] = useState<api.Row | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ displayName: '', primaryEmail: '' });
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    setRows(null);
+    setErr(null);
+    void api.listIdentities(tenant).then((r) => {
+      if (!live) return;
+      if (r.ok) setRows(api.asRows(r.data));
+      else setErr(r.error);
+    });
+    return () => {
+      live = false;
+    };
+  }, [tenant, nonce]);
+  const create = async (): Promise<void> => {
+    setMsg(null);
+    const r = await api.createIdentity(
+      {
+        identityType: 'internal_person',
+        displayName: form.displayName.trim(),
+        ...(form.primaryEmail.trim() ? { primaryEmail: form.primaryEmail.trim() } : {}),
+      },
+      tenant,
+    );
+    if (r.ok) {
+      setMsg({ ok: true, msg: 'Identity created (draft). Add a login + tenant membership to grant access.' });
+      setForm({ displayName: '', primaryEmail: '' });
+      setCreating(false);
+      setNonce((x) => x + 1);
+    } else setMsg({ ok: false, msg: r.error ?? 'Could not create identity.' });
+  };
+  return (
+    <>
+      <h1 className="page-title">Users &amp; Access</h1>
+      <p className="page-sub">
+        People, their login accounts and tenant membership over the canonical m02 identity registry ·
+        synthetic staging data. RBAC + tenant isolation enforced server-side; actions you cannot perform are
+        hidden.
+      </p>
+      <div className="card">
+        <header>
+          <h3>Identities</h3>
+          {can('identity.registry.create') && (
+            <button className="btn primary sm" onClick={() => setCreating((v) => !v)}>
+              {creating ? 'Cancel' : '+ Add user'}
+            </button>
+          )}
+        </header>
+        {creating && (
+          <div className="inline-form">
+            <input
+              value={form.displayName}
+              placeholder="Display name"
+              onChange={(e) => setForm({ ...form, displayName: e.target.value })}
+            />
+            <input
+              value={form.primaryEmail}
+              placeholder="Email (optional)"
+              onChange={(e) => setForm({ ...form, primaryEmail: e.target.value })}
+            />
+            <button className="btn primary sm" disabled={form.displayName.trim() === ''} onClick={create}>
+              Create
+            </button>
+          </div>
+        )}
+        {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+        {rows === null ? (
+          <div className="loading">Loading identities…</div>
+        ) : err ? (
+          <div className="empty">Could not load identities ({err}).</div>
+        ) : rows.length === 0 ? (
+          <div className="empty">No identities visible.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((u, i) => (
+                <tr key={pick(u, 'id') || i}>
+                  <td>{pick(u, 'displayName') || '—'}</td>
+                  <td className="muted">{pick(u, 'identityType') || '—'}</td>
+                  <td className="muted">{pick(u, 'primaryEmail') || '—'}</td>
+                  <td>{statusPill(pick(u, 'status'))}</td>
+                  <td>
+                    <button className="btn link" onClick={() => setOpen(u)}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {open && (
+        <UserDrawer
+          identity={open}
+          tenant={tenant}
+          perms={perms}
+          onClose={() => setOpen(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
+function RoleDrawer({
+  role,
+  tenant,
+  perms,
+  catalogue,
+  onClose,
+  onChanged,
+}: {
+  role: api.Row;
+  tenant: string | null;
+  perms: Set<string>;
+  catalogue: api.Row[];
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const id = pick(role, 'id');
+  const version = Number(role['version'] ?? 1);
+  const immutable = role['isImmutable'] === true;
+  const [held, setHeld] = useState<string[] | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const [add, setAdd] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    setHeld(null);
+    void api.getRolePermissions(id, tenant).then((r) => {
+      if (live) setHeld(r.ok && r.data ? r.data.permissions : []);
+    });
+    return () => {
+      live = false;
+    };
+  }, [id, tenant, nonce]);
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  const grantable = catalogue
+    .filter((p) => p['tenantAssignable'] !== false && !(held ?? []).includes(pick(p, 'code')))
+    .map((p) => pick(p, 'code'))
+    .filter(Boolean);
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Role">
+        <header className="drawer-head">
+          <h3>{pick(role, 'name') || pick(role, 'code') || 'Role'}</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Code</dt>
+            <dd>{pick(role, 'code') || '—'}</dd>
+            <dt>Kind</dt>
+            <dd>{pick(role, 'kind') || '—'}</dd>
+            <dt>Status</dt>
+            <dd>{statusPill(pick(role, 'status'))}</dd>
+          </dl>
+          {immutable && (
+            <p className="muted" style={{ fontSize: 12 }}>
+              System role — immutable. Permissions and lifecycle cannot be changed.
+            </p>
+          )}
+          {!immutable && (
+            <div className="admin-actions">
+              <ActionButton
+                label="Activate"
+                allowed={can('rbac.role.activate')}
+                onRun={(r) =>
+                  api
+                    .roleAction(id, 'activate', version, tenant, r)
+                    .then((res) => setMsgAnd(setMsg, res, 'Role activated (audited).', refresh))
+                }
+              />
+              <ActionButton
+                label="Suspend"
+                allowed={can('rbac.role.suspend')}
+                danger
+                needsReason
+                onRun={(r) =>
+                  api
+                    .roleAction(id, 'suspend', version, tenant, r)
+                    .then((res) => setMsgAnd(setMsg, res, 'Role suspended (audited).', refresh))
+                }
+              />
+              <ActionButton
+                label="Retire"
+                allowed={can('rbac.role.retire')}
+                danger
+                needsReason
+                onRun={(r) =>
+                  api
+                    .roleAction(id, 'retire', version, tenant, r)
+                    .then((res) => setMsgAnd(setMsg, res, 'Role retired (audited).', refresh))
+                }
+              />
+            </div>
+          )}
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+          <h4 className="drawer-sub">Permissions</h4>
+          {held === null ? (
+            <div className="loading">Loading…</div>
+          ) : held.length === 0 ? (
+            <div className="empty">No permissions granted.</div>
+          ) : (
+            <ul className="perm-list">
+              {held.map((p) => (
+                <li key={p}>
+                  <code>{p}</code>
+                  {!immutable && can('rbac.role.edit') && (
+                    <ActionButton
+                      label="Remove"
+                      allowed
+                      danger
+                      onRun={() =>
+                        api
+                          .changeRolePermissions(id, { remove: [p] }, tenant)
+                          .then((res) => setMsgAnd(setMsg, res, 'Permission removed (audited).', refresh))
+                      }
+                    />
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {!immutable && can('rbac.role.edit') && (
+            <div className="inline-form">
+              <select value={add} onChange={(e) => setAdd(e.target.value)}>
+                <option value="">Grant a permission…</option>
+                {grantable.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="btn secondary sm"
+                disabled={add === ''}
+                onClick={() =>
+                  void api.changeRolePermissions(id, { add: [add] }, tenant).then((res) => {
+                    setMsgAnd(setMsg, res, 'Permission granted (audited).', refresh);
+                    if (res.ok) setAdd('');
+                  })
+                }
+              >
+                + Grant
+              </button>
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: 11, marginTop: 10 }}>
+            A grantor can only confer permissions it itself holds (anti-escalation, server-enforced).
+          </p>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function setMsgAnd(
+  setMsg: (m: { ok: boolean; msg: string }) => void,
+  res: api.ApiResult<api.Row>,
+  okMsg: string,
+  refresh: () => void,
+): void {
+  setMsg(res.ok ? { ok: true, msg: okMsg } : { ok: false, msg: res.error ?? 'Action failed.' });
+  if (res.ok) refresh();
+}
+
+function RolesAdmin({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [rows, setRows] = useState<api.Row[] | null>(null);
+  const [catalogue, setCatalogue] = useState<api.Row[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const [open, setOpen] = useState<api.Row | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ code: '', name: '', description: '' });
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    setRows(null);
+    setErr(null);
+    void api.listRoles(tenant).then((r) => {
+      if (!live) return;
+      if (r.ok) setRows(api.asRows(r.data));
+      else setErr(r.error);
+    });
+    void api.getPermissionCatalogue(tenant).then((r) => live && setCatalogue(api.asRows(r.data)));
+    return () => {
+      live = false;
+    };
+  }, [tenant, nonce]);
+  const create = async (): Promise<void> => {
+    setMsg(null);
+    const r = await api.createRole(
+      {
+        code: form.code.trim(),
+        name: form.name.trim(),
+        ...(form.description.trim() ? { description: form.description.trim() } : {}),
+      },
+      tenant,
+    );
+    if (r.ok) {
+      setMsg({ ok: true, msg: 'Role created (draft). Grant permissions, then activate it.' });
+      setForm({ code: '', name: '', description: '' });
+      setCreating(false);
+      setNonce((x) => x + 1);
+    } else setMsg({ ok: false, msg: r.error ?? 'Could not create role.' });
+  };
+  return (
+    <>
+      <h1 className="page-title">Roles &amp; Permissions</h1>
+      <p className="page-sub">
+        Tenant custom roles over the canonical m02 RBAC engine · synthetic staging data. System roles are
+        visible and immutable. A grantor can only confer permissions it itself holds.
+      </p>
+      <div className="card">
+        <header>
+          <h3>Roles</h3>
+          {can('rbac.role.create') && (
+            <button className="btn primary sm" onClick={() => setCreating((v) => !v)}>
+              {creating ? 'Cancel' : '+ Add role'}
+            </button>
+          )}
+        </header>
+        {creating && (
+          <div className="inline-form">
+            <input
+              value={form.code}
+              placeholder="code (e.g. treasury_officer)"
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
+            />
+            <input
+              value={form.name}
+              placeholder="Name"
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <button
+              className="btn primary sm"
+              disabled={form.code.trim() === '' || form.name.trim() === ''}
+              onClick={create}
+            >
+              Create
+            </button>
+          </div>
+        )}
+        {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+        {rows === null ? (
+          <div className="loading">Loading roles…</div>
+        ) : err ? (
+          <div className="empty">Could not load roles ({err}).</div>
+        ) : rows.length === 0 ? (
+          <div className="empty">No roles visible.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Role</th>
+                <th>Code</th>
+                <th>Kind</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={pick(r, 'id') || i}>
+                  <td>{pick(r, 'name') || '—'}</td>
+                  <td className="muted">{pick(r, 'code') || '—'}</td>
+                  <td className="muted">{pick(r, 'kind') || '—'}</td>
+                  <td>{statusPill(pick(r, 'status'))}</td>
+                  <td>
+                    <button className="btn link" onClick={() => setOpen(r)}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {open && (
+        <RoleDrawer
+          role={open}
+          tenant={tenant}
+          perms={perms}
+          catalogue={catalogue}
+          onClose={() => setOpen(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
+function AccessAdmin({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [assignments, setAssignments] = useState<api.Row[] | null>(null);
+  const [memberships, setMemberships] = useState<api.Row[]>([]);
+  const [roles, setRoles] = useState<api.Row[]>([]);
+  const [identities, setIdentities] = useState<Record<string, string>>({});
+  const [nonce, setNonce] = useState(0);
+  const [sel, setSel] = useState({ membershipId: '', roleId: '' });
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    setAssignments(null);
+    void api.listAssignments(tenant).then((r) => live && setAssignments(api.asRows(r.data)));
+    void api.listMemberships(tenant).then((r) => live && setMemberships(api.asRows(r.data)));
+    void api.listRoles(tenant).then((r) => live && setRoles(api.asRows(r.data)));
+    void api.listIdentities(tenant).then((r) => {
+      if (!live) return;
+      const map: Record<string, string> = {};
+      api.asRows(r.data).forEach((u) => (map[pick(u, 'id')] = pick(u, 'displayName')));
+      setIdentities(map);
+    });
+    return () => {
+      live = false;
+    };
+  }, [tenant, nonce]);
+  const refresh = (): void => setNonce((x) => x + 1);
+  const grant = async (): Promise<void> => {
+    setMsg(null);
+    const r = await api.grantAssignment({ membershipId: sel.membershipId, roleId: sel.roleId }, tenant);
+    setMsgAnd(setMsg, r, 'Role assigned (SoD-checked, audited).', refresh);
+    if (r.ok) setSel({ membershipId: '', roleId: '' });
+  };
+  const roleName = (rid: string): string =>
+    pick(roles.find((r) => pick(r, 'id') === rid) ?? {}, 'name') || rid;
+  const memberName = (mid: string): string => {
+    const m = memberships.find((x) => pick(x, 'id') === mid);
+    return m ? identities[pick(m, 'identityId')] || pick(m, 'identityId') : mid;
+  };
+  return (
+    <>
+      <h1 className="page-title">Access Assignments</h1>
+      <p className="page-sub">
+        Role grants to tenant memberships over the canonical m02 RBAC engine · synthetic staging data.
+        Separation-of-duties and grantor-bounded escalation are enforced server-side.
+      </p>
+      {can('rbac.assignment.grant') && (
+        <div className="card">
+          <header>
+            <h3>Grant a role</h3>
+          </header>
+          <div className="inline-form">
+            <select
+              value={sel.membershipId}
+              onChange={(e) => setSel({ ...sel, membershipId: e.target.value })}
+            >
+              <option value="">Member…</option>
+              {memberships.map((m) => (
+                <option key={pick(m, 'id')} value={pick(m, 'id')}>
+                  {identities[pick(m, 'identityId')] || pick(m, 'identityId')} · {pick(m, 'membershipType')}
+                </option>
+              ))}
+            </select>
+            <select value={sel.roleId} onChange={(e) => setSel({ ...sel, roleId: e.target.value })}>
+              <option value="">Role…</option>
+              {roles.map((r) => (
+                <option key={pick(r, 'id')} value={pick(r, 'id')}>
+                  {pick(r, 'name') || pick(r, 'code')}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn primary sm"
+              disabled={sel.membershipId === '' || sel.roleId === ''}
+              onClick={grant}
+            >
+              + Grant role
+            </button>
+          </div>
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+        </div>
+      )}
+      <div className="card">
+        <header>
+          <h3>Assignments</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        {assignments === null ? (
+          <div className="loading">Loading assignments…</div>
+        ) : assignments.length === 0 ? (
+          <div className="empty">No role assignments in this tenant.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Member</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {assignments.map((a, i) => (
+                <tr key={pick(a, 'id') || i}>
+                  <td>{memberName(pick(a, 'membershipId'))}</td>
+                  <td>{roleName(pick(a, 'roleId'))}</td>
+                  <td>{statusPill(pick(a, 'status'))}</td>
+                  <td>
+                    <ActionButton
+                      label="Revoke"
+                      allowed={can('rbac.assignment.revoke')}
+                      danger
+                      needsReason
+                      onRun={(reason) =>
+                        api
+                          .assignmentAction(
+                            pick(a, 'id'),
+                            'revoke',
+                            Number(a['version'] ?? 1),
+                            tenant,
+                            reason,
+                          )
+                          .then((r) => setMsgAnd(setMsg, r, 'Assignment revoked (audited).', refresh))
+                      }
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
+
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▚', group: 'Overview' },
   { id: 'reconciliation', label: 'Reconciliation', icon: '⇄', group: 'Treasury' },
@@ -1633,6 +2473,18 @@ const NAV = [
   { id: 'recovery-cases', label: 'Recovery cases', icon: '▤', group: 'Recovery' },
   { id: 'compliance', label: 'Compliance', icon: '❖', group: 'Compliance' },
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
+  { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
+  { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
+  { id: 'admin-assignments', label: 'Access Assignments', icon: '🔑', group: 'Administration' },
+];
+
+// The Administration group is NOT entitlement-gated (it is a platform capability, not a commercial vertical):
+// it is governed by M02 RBAC. A member sees it only if they hold at least one relevant read permission.
+const ADMIN_READ_PERMS = [
+  'identity.registry.view',
+  'identity.membership.view',
+  'rbac.role.view',
+  'rbac.assignment.view',
 ];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
@@ -1768,16 +2620,33 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
       live = false;
     };
   }, [tenant]);
+  // Effective permissions of the caller in the selected tenant (server-authoritative). Drives permission-aware
+  // Administration nav + action visibility; the server still 403s a hidden action if invoked directly.
+  const [perms, setPerms] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    let live = true;
+    setPerms(new Set());
+    if (!tenant) return;
+    void api.getMyPermissions(tenant).then((r) => {
+      if (!live) return;
+      setPerms(new Set(r.ok && r.data ? r.data.permissions : []));
+    });
+    return () => {
+      live = false;
+    };
+  }, [tenant]);
   const groupAvailable = (g: string): boolean => {
+    if (g === 'Administration') return ADMIN_READ_PERMS.some((p) => perms.has(p));
     const cap = GROUP_ENTITLEMENT[g];
     if (!cap) return true; // Overview always
     return entitled?.[cap] === true;
   };
-  // Fail closed: if the active route belongs to a vertical the tenant is not entitled to, drop to Dashboard.
+  // Fail closed: if the active route belongs to a group the caller may not access (unentitled vertical OR an
+  // Administration area they lack the RBAC read for), drop to Dashboard. Recomputes on tenant/permission change.
   useEffect(() => {
-    if (entitled && !groupAvailable(routeGroup(route)) && route !== 'dashboard') setRoute('dashboard');
+    if (!groupAvailable(routeGroup(route)) && route !== 'dashboard') setRoute('dashboard');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entitled, route]);
+  }, [entitled, perms, route]);
   const grouped = NAV.reduce<Record<string, typeof NAV>>((acc, n) => {
     (acc[n.group] ??= []).push(n);
     return acc;
@@ -1834,6 +2703,9 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'recovery-cases' && <RecoveryCases tenant={tenant} />}
         {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} />}
+        {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
+        {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}
+        {route === 'admin-assignments' && <AccessAdmin tenant={tenant} perms={perms} />}
       </main>
     </div>
   );
