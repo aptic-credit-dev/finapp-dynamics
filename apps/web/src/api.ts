@@ -158,6 +158,61 @@ export const getMatch = (id: string, t?: string | null): Promise<ApiResult<Row>>
 export const getMatchLines = (id: string, t?: string | null): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
   call(`${R}/matches/${encodeURIComponent(id)}/lines`, { tenantId: t });
 
+// M43 Treasury OPERATIONAL actions — canonical m20 lifecycle/review, reused (no duplicate engine). Every action
+// is permission-gated + audited server-side; all carry the mandatory `expectedVersion` (optimistic concurrency),
+// and privileged / reversing actions carry an audit `reason`. There is NO delete — a run reopens, a match
+// unmatches, an exception is waived; financial history is preserved.
+const rvPost = (path: string, expectedVersion: number, t?: string | null, reason?: string) =>
+  call<Row>(`${R}/${path}`, {
+    method: 'POST',
+    body: { expectedVersion, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
+export const executeRun = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  rvPost(`runs/${encodeURIComponent(id)}/execute`, ev, t);
+export const completeRun = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  rvPost(`runs/${encodeURIComponent(id)}/complete`, ev, t);
+export const reopenRun = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => rvPost(`runs/${encodeURIComponent(id)}/reopen`, ev, t, reason);
+export const confirmMatch = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  rvPost(`matches/${encodeURIComponent(id)}/confirm`, ev, t);
+export const rejectMatch = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => rvPost(`matches/${encodeURIComponent(id)}/reject`, ev, t, reason);
+export const unmatchMatch = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => rvPost(`matches/${encodeURIComponent(id)}/unmatch`, ev, t, reason);
+export const resolveException = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => rvPost(`exceptions/${encodeURIComponent(id)}/resolve`, ev, t, reason);
+export const waiveException = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => rvPost(`exceptions/${encodeURIComponent(id)}/waive`, ev, t, reason);
+export const acceptImport = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  rvPost(`gl-imports/${encodeURIComponent(id)}/accept`, ev, t);
+export const rejectImport = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => rvPost(`gl-imports/${encodeURIComponent(id)}/reject`, ev, t, reason);
+
 // --- journals (M21) — the reconciliation "Propose adjustment" flow reuses the CANONICAL maker-checker journal
 // path. No posting is exposed here: a proposal is created + submitted (PENDING APPROVAL); a separate approver
 // authorises posting server-side (M22 SoD). This client never calls a posting endpoint. ---
