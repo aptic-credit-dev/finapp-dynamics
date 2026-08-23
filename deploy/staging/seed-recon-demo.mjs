@@ -32,6 +32,24 @@ const GRANT_LIKE = 'gl_reconciliation.%';
 const EXCLUDE = ['gl_reconciliation.admin', 'gl_reconciliation.certification.override'];
 const PLATFORM_ADMIN_ROLE_ID = '00000000-0000-4000-8000-000000000001';
 
+// The MAKER-side journal permissions the reconciliation "Propose adjustment" flow needs — create a draft, edit
+// it, manage its lines, validate, and submit for approval. DELIBERATELY EXCLUDES every posting/authorize/config
+// permission (`journals.posting_request.*`, `journals.posting_result.*`, `journals.config.*`,
+// `journals.type.manage`, `journals.platform.administer`, `journals.reason_code.manage`): the proposer can
+// propose and submit, but CANNOT post — "no direct posting" is enforced by the permission set AND, at the
+// authorize step, by M22 maker-checker/SoD server-side (a separate approver is always required).
+const JOURNAL_MAKER_PERMS = [
+  'journals.draft.create',
+  'journals.draft.edit',
+  'journals.draft.read',
+  'journals.draft.submit',
+  'journals.draft.withdraw',
+  'journals.line.manage',
+  'journals.validation.run',
+  'journals.validation.read',
+  'journals.recommendation.read',
+];
+
 try {
   // Grant the (non-privileged) gl_reconciliation permissions to platform_admin (tenant_id NULL, canonical shape),
   // idempotently. `permissions` is the authoritative catalogue; we only grant codes that actually exist.
@@ -50,13 +68,33 @@ try {
       WHERE role_id = $1 AND tenant_id IS NULL AND permission_code LIKE $2`,
     [PLATFORM_ADMIN_ROLE_ID, GRANT_LIKE],
   );
+
+  // Grant the maker-side journal permissions (idempotent; only codes that exist in the catalogue). No posting.
+  const insertedJournal = await q(
+    `INSERT INTO role_permissions (role_id, tenant_id, permission_code)
+       SELECT $1, NULL, p.code FROM permissions p
+        WHERE p.code = ANY($2::text[])
+          AND NOT EXISTS (
+            SELECT 1 FROM role_permissions rp
+             WHERE rp.role_id = $1 AND rp.tenant_id IS NULL AND rp.permission_code = p.code)
+     RETURNING permission_code`,
+    [PLATFORM_ADMIN_ROLE_ID, JOURNAL_MAKER_PERMS],
+  );
+  const hasPosting = await q(
+    `SELECT count(*)::int c FROM role_permissions
+      WHERE role_id = $1 AND tenant_id IS NULL
+        AND permission_code LIKE 'journals.posting_request.%'`,
+    [PLATFORM_ADMIN_ROLE_ID],
+  );
   console.log(
     JSON.stringify({
       ok: true,
       newly_granted: inserted.length,
       platform_admin_gl_reconciliation_perms: total[0].c,
       excluded_privileged: EXCLUDE,
-      note: 'staging-only: closes the point-in-time role_permissions gap for platform_admin; SoD/maker-checker unchanged; no privileged override granted.',
+      journal_maker_newly_granted: insertedJournal.length,
+      journal_posting_perms_held: hasPosting[0].c, // MUST be 0 — proposer can never post
+      note: 'staging-only: closes the point-in-time role_permissions gap for platform_admin; grants MAKER-side journal perms only (no posting/authorize/config); SoD/maker-checker unchanged; no privileged override granted.',
     }),
   );
 } catch (e) {

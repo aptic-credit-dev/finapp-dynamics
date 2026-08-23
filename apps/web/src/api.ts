@@ -88,12 +88,35 @@ export type Row = Record<string, unknown>;
 const R = '/gl-reconciliation';
 export const getAccounts = (t?: string | null): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
   call(`${R}/accounts`, { tenantId: t });
-export const getBalances = (t?: string | null): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
-  call(`${R}/balances`, { tenantId: t });
-export const getGlImports = (t?: string | null): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
-  call(`${R}/gl-imports`, { tenantId: t });
+// GL imports and balances are PER-ACCOUNT on the API (they require a glAccountId query param, else 400) — so
+// tenant-wide callers must aggregate across accounts (see the Dashboard). Passing the id is mandatory.
+export const getGlImports = (
+  glAccountId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
+  call(`${R}/gl-imports?glAccountId=${encodeURIComponent(glAccountId)}`, { tenantId: t });
+export const getBalances = (
+  glAccountId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
+  call(`${R}/balances?glAccountId=${encodeURIComponent(glAccountId)}`, { tenantId: t });
 export const getRuns = (t?: string | null): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
   call(`${R}/runs`, { tenantId: t });
+export const getRunSummaries = (
+  runId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
+  call(`${R}/runs/${encodeURIComponent(runId)}/summaries`, { tenantId: t });
+export const getRunReconcilingItems = (
+  runId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
+  call(`${R}/runs/${encodeURIComponent(runId)}/reconciling-items`, { tenantId: t });
+export const getRunCertifications = (
+  runId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
+  call(`${R}/runs/${encodeURIComponent(runId)}/certifications`, { tenantId: t });
 export const getRunMatches = (
   runId: string,
   t?: string | null,
@@ -108,6 +131,74 @@ export const getMatch = (id: string, t?: string | null): Promise<ApiResult<Row>>
   call(`${R}/matches/${encodeURIComponent(id)}`, { tenantId: t });
 export const getMatchLines = (id: string, t?: string | null): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
   call(`${R}/matches/${encodeURIComponent(id)}/lines`, { tenantId: t });
+
+// --- journals (M21) — the reconciliation "Propose adjustment" flow reuses the CANONICAL maker-checker journal
+// path. No posting is exposed here: a proposal is created + submitted (PENDING APPROVAL); a separate approver
+// authorises posting server-side (M22 SoD). This client never calls a posting endpoint. ---
+const J = '/journals';
+export interface DraftLineInput {
+  direction: 'debit' | 'credit';
+  amountMinor: number;
+  accountRef?: string;
+  description?: string;
+}
+export const createJournalDraft = (body: unknown, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts`, { method: 'POST', body, tenantId: t });
+export const getJournalDraft = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(id)}`, { tenantId: t });
+export const getJournalDrafts = (t?: string | null): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
+  call(`${J}/drafts`, { tenantId: t });
+export const validateJournalDraft = (
+  id: string,
+  expectedVersion: number,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(id)}/validate`, {
+    method: 'POST',
+    body: { expectedVersion },
+    tenantId: t,
+  });
+export const submitJournalDraft = (
+  id: string,
+  expectedVersion: number,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(id)}/submit`, {
+    method: 'POST',
+    body: { expectedVersion },
+    tenantId: t,
+  });
+
+/**
+ * Propose a reconciliation adjustment through the canonical M21 flow: create a balanced draft → validate →
+ * submit (→ PENDING APPROVAL). Returns the final draft (or the first failing step's error). Never posts.
+ */
+export async function proposeAdjustment(
+  tenant: string | null,
+  input: { description: string; entityRef: string; lines: DraftLineInput[] },
+): Promise<ApiResult<Row>> {
+  const created = await createJournalDraft(
+    { sourceType: 'gl_reconciliation', journalDate: new Date().toISOString().slice(0, 10), ...input },
+    tenant,
+  );
+  if (!created.ok || !created.data) return created;
+  const id = String((created.data as Row)['id'] ?? '');
+  const v1 = Number((created.data as Row)['version'] ?? 1);
+  const validated = await validateJournalDraft(id, v1, tenant);
+  if (!validated.ok) return validated;
+  if (!((validated.data as Row | null)?.['validation'] as Row | undefined)?.['isValid']) {
+    return {
+      ok: false,
+      status: 422,
+      data: null,
+      error: 'Adjustment did not validate (unbalanced or incomplete).',
+    };
+  }
+  // Re-read the draft to get its current version (validate bumps it), then submit.
+  const fresh = await getJournalDraft(id, tenant);
+  const v2 = Number((fresh.data as Row | null)?.['version'] ?? v1 + 1);
+  return submitJournalDraft(id, v2, tenant);
+}
 
 /**
  * Normalise the various list envelopes to an array, defensively. The gl-reconciliation API returns
@@ -129,6 +220,7 @@ export function asRows(data: unknown): Row[] {
     'exceptions',
     'lines',
     'balances',
+    'drafts',
   ]) {
     if (Array.isArray(d[k])) return d[k] as Row[];
   }
