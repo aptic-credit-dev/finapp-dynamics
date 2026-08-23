@@ -4,10 +4,10 @@
 > vertical. Same Phase-7 pattern: a management-visible experience **on top of the existing horizontal platform**,
 > reusing shared services and adding **no** second engine.
 >
-> **Status: `documented` (PROPOSED 2026-08-23).** Per the per-module governance cadence (ADR-133), a governance
-> PR flips `documented → approved_for_build` before implementation; **Claude proposes, the human owner's merge is
-> the approval.** This document does not itself approve build. Release remains gated on the Stage-7
-> production-release gates + the M42 governed GO. Synthetic data only.
+> **Status: `approved_for_build` (2026-08-23).** Established at `documented` by PR #144, then flipped
+> `documented → approved_for_build` via the per-module governance cadence (ADR-133) — **Claude proposes, the human
+> owner's merge is the approval.** This authorises implementation only; it is **not** production GO. Release
+> remains gated on the Stage-7 production-release gates + the M42 governed GO. Synthetic data only.
 
 ---
 
