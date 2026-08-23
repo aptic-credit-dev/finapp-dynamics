@@ -9,6 +9,19 @@ let csrfToken: string | null = null;
 export function setCsrf(token: string | null): void {
   csrfToken = token;
 }
+// The server's CSRF guard is double-submit: the `x-csrf-token` header must equal the (non-HttpOnly) finapp_csrf
+// cookie. Login returns the token and we keep it in memory, but that is lost on a page reload — so fall back to
+// reading the cookie. Without this, the first state-changing request after any reload (including a fresh login
+// over a still-present session cookie) fails CSRF even though the cookie is present. Cookie-read only; the
+// HttpOnly session cookie is never exposed, so this is not a weakening of the control.
+function csrfCookie(): string | null {
+  try {
+    const m = document.cookie.match(/(?:^|;\s*)finapp_csrf=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface ApiResult<T> {
   ok: boolean;
@@ -24,7 +37,10 @@ async function call<T>(
   const method = opts.method ?? 'GET';
   const headers: Record<string, string> = { accept: 'application/json' };
   if (opts.body !== undefined) headers['content-type'] = 'application/json';
-  if (method !== 'GET' && csrfToken !== null) headers['x-csrf-token'] = csrfToken;
+  if (method !== 'GET') {
+    const token = csrfToken ?? csrfCookie();
+    if (token !== null) headers['x-csrf-token'] = token;
+  }
   if (opts.tenantId) headers['x-tenant-id'] = opts.tenantId;
   try {
     const res = await fetch(`${BASE}${path}`, {
