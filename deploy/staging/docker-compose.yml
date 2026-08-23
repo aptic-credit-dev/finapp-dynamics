@@ -17,7 +17,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
-    restart: 'no'
+    # Auto-restart so containers survive a host reboot/crash (production-candidate host). Hardened 2026-08-22
+    # (was 'no', which would not survive the reboot required after security updates).
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' } # bound container log growth
 
   api:
     build:
@@ -61,4 +66,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
-    restart: 'no'
+    # Auto-restart so containers survive a host reboot/crash (production-candidate host). Hardened 2026-08-22
+    # (was 'no', which would not survive the reboot required after security updates).
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' } # bound container log growth
