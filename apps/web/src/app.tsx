@@ -932,12 +932,331 @@ function Reports({ tenant }: { tenant: string | null }): JSX.Element {
 }
 
 // ---------- shell ----------
+// ---------- Debt Recovery (M44) — UI over the existing m17-recovery API; no duplicate engine ----------
+// The recovery lifecycle has 29 canonical statuses; group them into visible lifecycle bands for label+colour.
+function recoveryPill(status: string): JSX.Element {
+  const s = (status || '').toLowerCase();
+  const label = (status || '').replace(/_/g, ' ') || '—';
+  let cls = 'info';
+  let glyph = '•';
+  if (/recovered|settled|resolved|closed/.test(s)) {
+    cls = 'ok';
+    glyph = '✓';
+  } else if (/default|write_?off|written_off|uncollectible|withdrawn/.test(s)) {
+    cls = 'bad';
+    glyph = '!';
+  } else if (/enforcement|attachment|execution|auction|security_realization/.test(s)) {
+    cls = 'bad';
+    glyph = '§';
+  } else if (/arrangement_active|partial_recovery|agent_recovery/.test(s)) {
+    cls = 'ok';
+    glyph = '≈';
+  } else if (/demand|negotiation|awaiting|arrangement_pending/.test(s)) {
+    cls = 'warn';
+    glyph = '⏳';
+  }
+  return (
+    <span className={`pill ${cls}`}>
+      <span className="glyph">{glyph}</span> {label}
+    </span>
+  );
+}
+// Sum integer MINOR units (strings) exactly — no float; values are well within 2^53.
+const sumMinor = (rows: api.Row[], key: string): number =>
+  rows.reduce((s, r) => s + (Number.isInteger(Number(r[key])) ? Number(r[key]) : 0), 0);
+
+function RecoveryDashboard({ tenant }: { tenant: string | null }): JSX.Element {
+  const cases = useRows(() => api.getRecoveries(tenant), [tenant]);
+  const byStatus = useRows(() => api.getRecoveryAnalytics('status', tenant), [tenant]);
+  const has = (re: RegExp): number => cases.rows.filter((c) => re.test(pick(c, 'status'))).length;
+  const tiles = [
+    { k: 'Active recovery cases', v: cases.loading ? '—' : String(cases.rows.length) },
+    { k: 'Outstanding', v: cases.loading ? '—' : fmtMinor(sumMinor(cases.rows, 'outstandingAmountMinor')) },
+    {
+      k: 'Legal / enforcement',
+      v: cases.loading ? '—' : String(has(/enforcement|attachment|execution|auction/)),
+    },
+    { k: 'Recovered / closed', v: cases.loading ? '—' : String(has(/recovered|settled|resolved|closed/)) },
+  ];
+  return (
+    <>
+      <h1 className="page-title">Debt Recovery &amp; Enforcement</h1>
+      <p className="page-sub">
+        Collections → arrangement → enforcement → litigation → recovery, over the existing recovery API ·
+        synthetic staging data. Read-only; actions stay permission-controlled + audited server-side.
+      </p>
+      <div className="tiles">
+        {tiles.map((t) => (
+          <div className="tile" key={t.k}>
+            <div className="k">{t.k}</div>
+            <div className="v">{t.v}</div>
+          </div>
+        ))}
+      </div>
+      <div className="card">
+        <header>
+          <h3>Cases by lifecycle status</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        {byStatus.loading ? (
+          <div className="loading">Loading analytics…</div>
+        ) : byStatus.rows.length === 0 ? (
+          <div className="empty">No recovery cases yet. Seed synthetic data to populate this view.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th className="num">Cases</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byStatus.rows.map((b, i) => (
+                <tr key={pick(b, 'dim', 'value', 'key', 'status') || i}>
+                  <td>{recoveryPill(pick(b, 'dim', 'value', 'key', 'status', 'label'))}</td>
+                  <td className="num">{pick(b, 'count', 'total', 'n', 'cases') || '0'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
+
+// Case-detail drawer — recovery header + notes/arrangements/demands (canonical sub-resources).
+function RecoveryDrawer({
+  id,
+  tenant,
+  onClose,
+}: {
+  id: string;
+  tenant: string | null;
+  onClose: () => void;
+}): JSX.Element {
+  const [rec, setRec] = useState<api.Row | null>(null);
+  const [notes, setNotes] = useState<api.Row[]>([]);
+  const [arrs, setArrs] = useState<api.Row[]>([]);
+  const [demands, setDemands] = useState<api.Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let live = true;
+    setLoading(true);
+    void Promise.all([
+      api.getRecovery(id, tenant),
+      api.getRecoverySub(id, 'notes', tenant),
+      api.getRecoverySub(id, 'arrangements', tenant),
+      api.getRecoverySub(id, 'demands', tenant),
+    ]).then(([r, n, a, d]) => {
+      if (!live) return;
+      if (r.ok) setRec((r.data as api.Row | null) ?? null);
+      setNotes(api.asRows(n.data));
+      setArrs(api.asRows(a.data));
+      setDemands(api.asRows(d.data));
+      setLoading(false);
+    });
+    return () => {
+      live = false;
+    };
+  }, [id, tenant]);
+  const r = rec ?? {};
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Recovery case">
+        <header className="drawer-head">
+          <h3>{pick(r, 'recoveryNumber') || 'Recovery case'}</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        {loading ? (
+          <div className="loading">Loading case…</div>
+        ) : (
+          <div className="drawer-body">
+            <div className="drawer-status">{recoveryPill(pick(r, 'status'))}</div>
+            <h4 style={{ margin: '4px 0 12px' }}>{pick(r, 'title') || '—'}</h4>
+            <dl className="kv">
+              <dt>Type</dt>
+              <dd>{pick(r, 'recoveryTypeCode') || '—'}</dd>
+              <dt>Outstanding</dt>
+              <dd>{fmtMinor(r['outstandingAmountMinor'])}</dd>
+              <dt>Recoverable</dt>
+              <dd>{fmtMinor(r['recoverableAmountMinor'])}</dd>
+              <dt>Recovered</dt>
+              <dd>{fmtMinor(r['recoveredAmountMinor'])}</dd>
+              <dt>Enforcement stage</dt>
+              <dd>{pick(r, 'enforcementStage') || '—'}</dd>
+              <dt>Priority / risk</dt>
+              <dd>{(pick(r, 'priority') || '—') + ' / ' + (pick(r, 'recoveryRisk') || '—')}</dd>
+              <dt>Owner</dt>
+              <dd>{pick(r, 'legalOwner', 'recoveryTeam', 'businessOwner') || '—'}</dd>
+              <dt>Jurisdiction</dt>
+              <dd>{pick(r, 'jurisdiction') || '—'}</dd>
+            </dl>
+            <h4 className="drawer-sub">Payment arrangements</h4>
+            {arrs.length === 0 ? (
+              <div className="empty">No arrangements.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th className="num">Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {arrs.map((a, i) => (
+                    <tr key={pick(a, 'id') || i}>
+                      <td>{pick(a, 'arrangementType') || '—'}</td>
+                      <td className="num">{fmtMinor(a['totalAmountMinor'])}</td>
+                      <td>{recoveryPill(pick(a, 'status'))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <h4 className="drawer-sub">Demands</h4>
+            {demands.length === 0 ? (
+              <div className="empty">No demands issued.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Reference</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {demands.map((d, i) => (
+                    <tr key={pick(d, 'id') || i}>
+                      <td className="muted">{pick(d, 'demandNumber', 'reference', 'id') || '—'}</td>
+                      <td>{recoveryPill(pick(d, 'status'))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <h4 className="drawer-sub">Activity / notes</h4>
+            {notes.length === 0 ? (
+              <div className="empty">No activity recorded.</div>
+            ) : (
+              <ul className="timeline">
+                {notes.map((n, i) => (
+                  <li key={pick(n, 'id') || i}>
+                    <span className="t-type">{pick(n, 'noteType') || 'note'}</span>{' '}
+                    <span className="t-head">{pick(n, 'headline') || pick(n, 'content') || '—'}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </aside>
+    </div>
+  );
+}
+
+function RecoveryCases({ tenant }: { tenant: string | null }): JSX.Element {
+  const [statusFilter, setStatusFilter] = useState('');
+  const cases = useRows(
+    () => api.getRecoveries(tenant, statusFilter ? { status: statusFilter } : undefined),
+    [tenant, statusFilter],
+  );
+  const [openId, setOpenId] = useState<string | null>(null);
+  const STAGES = [
+    ['', 'All statuses'],
+    ['referred', 'Referred (early arrears)'],
+    ['negotiation', 'Negotiation (collections)'],
+    ['arrangement_active', 'Arrangement active (PTP)'],
+    ['arrangement_default', 'Arrangement default (broken PTP)'],
+    ['enforcement_pending', 'Legal referral'],
+    ['enforcement_active', 'Enforcement / litigation'],
+    ['recovered', 'Recovered'],
+    ['closed', 'Closed'],
+  ];
+  return (
+    <>
+      <h1 className="page-title">Recovery cases</h1>
+      <p className="page-sub">
+        Delinquent / recovery cases over the existing recovery API · synthetic staging data. RBAC + tenant
+        isolation enforced server-side.
+      </p>
+      <div className="card">
+        <header>
+          <h3>Cases</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        <div className="run-picker">
+          <label>Status</label>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            {STAGES.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </div>
+        {cases.loading ? (
+          <div className="loading">Loading cases…</div>
+        ) : cases.error ? (
+          <div className="empty">Could not load recovery cases ({cases.error}).</div>
+        ) : cases.rows.length === 0 ? (
+          <div className="empty">No recovery cases match this filter.</div>
+        ) : (
+          <div className="report-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Case</th>
+                  <th>Customer / matter</th>
+                  <th className="num">Outstanding</th>
+                  <th>Status</th>
+                  <th>Stage</th>
+                  <th>Owner</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {cases.rows.map((c, i) => {
+                  const id = pick(c, 'id');
+                  return (
+                    <tr key={id || i}>
+                      <td className="muted">{pick(c, 'recoveryNumber') || '—'}</td>
+                      <td>{pick(c, 'title') || '—'}</td>
+                      <td className="num">{fmtMinor(c['outstandingAmountMinor'])}</td>
+                      <td>{recoveryPill(pick(c, 'status'))}</td>
+                      <td className="muted">{pick(c, 'enforcementStage', 'strategy') || '—'}</td>
+                      <td className="muted">
+                        {pick(c, 'legalOwner', 'recoveryTeam', 'businessOwner') || '—'}
+                      </td>
+                      <td>
+                        <button className="btn link" onClick={() => setOpenId(id)} disabled={id === ''}>
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      {openId && <RecoveryDrawer id={openId} tenant={tenant} onClose={() => setOpenId(null)} />}
+    </>
+  );
+}
+
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▚', group: 'Overview' },
   { id: 'reconciliation', label: 'Reconciliation', icon: '⇄', group: 'Treasury' },
   { id: 'accounts', label: 'Bank accounts', icon: '🏦', group: 'Treasury' },
   { id: 'exceptions', label: 'Exceptions', icon: '!', group: 'Treasury' },
-  { id: 'reports', label: 'Reports', icon: '▤', group: 'Treasury', placeholder: true },
+  { id: 'reports', label: 'Reports', icon: '▤', group: 'Treasury' },
+  { id: 'recovery', label: 'Debt Recovery', icon: '⚖', group: 'Recovery' },
+  { id: 'recovery-cases', label: 'Recovery cases', icon: '▤', group: 'Recovery' },
 ];
 
 const TENANT_KEY = 'aptic.tenant';
@@ -1093,6 +1412,8 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         )}
         {route === 'exceptions' && <Exceptions tenant={tenant} />}
         {route === 'reports' && <Reports tenant={tenant} />}
+        {route === 'recovery' && <RecoveryDashboard tenant={tenant} />}
+        {route === 'recovery-cases' && <RecoveryCases tenant={tenant} />}
       </main>
     </div>
   );
