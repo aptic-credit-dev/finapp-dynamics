@@ -36,6 +36,30 @@ interface ModuleRec {
   readonly surface?: unknown;
   readonly controls?: unknown;
   readonly acceptance?: unknown;
+  readonly certification?: unknown;
+}
+/**
+ * ADR-135 + ADR-129 — a composition vertical may not claim CERTIFIED without the internal prerequisites. A
+ * `certification_status` of `certified`/`certified_on_branch` requires entitlement + m42 completed (not
+ * `pending`) AND a recorded independent sign-off (ADR-129: not the requester; the AI that built the vertical
+ * cannot self-sign). `certification_ready` (evidence/entitlement recorded, decision pending) is always allowed.
+ * No loophole: certified-with-pending fails. Returns violations (empty = ok).
+ */
+export function validateCompositionCertification(m: ModuleRec): string[] {
+  const errs: string[] = [];
+  const c = (m.certification ?? {}) as Record<string, unknown>;
+  const rawStatus = c['certification_status'];
+  const status = typeof rawStatus === 'string' ? rawStatus : '';
+  const isCertified = status === 'certified' || status === 'certified_on_branch';
+  if (!isCertified) return errs; // readiness / pending / unset is fine
+  if (m.kind !== 'composition_vertical') return errs; // domain-module certification is out of scope here
+  if (c['entitlement'] === undefined || c['entitlement'] === 'pending')
+    errs.push(`${m.module}: certified composition_vertical needs a registered (non-pending) entitlement`);
+  if (c['m42'] === undefined || c['m42'] === 'pending')
+    errs.push(`${m.module}: certified composition_vertical needs an M42 evidence entry (non-pending)`);
+  if (c['independent_signoff'] === undefined || c['independent_signoff'] === 'pending')
+    errs.push(`${m.module}: certified composition_vertical needs an independent human sign-off (ADR-129)`);
+  return errs;
 }
 export function validateImplementedModule(m: ModuleRec, hasPackage: boolean): string[] {
   const errs: string[] = [];
@@ -340,6 +364,12 @@ export default defineSuite('conformance', (t) => {
       0,
       `${m.module}: implemented-status criteria met (ADR-135)${errs.length ? ' — ' + errs.join('; ') : ''}`,
     );
+    const cerr = validateCompositionCertification(m);
+    t.equal(
+      cerr.length,
+      0,
+      `${m.module}: certification criteria met (ADR-135/129)${cerr.length ? ' — ' + cerr.join('; ') : ''}`,
+    );
   }
 
   // ADR-135 validator — explicit positive AND negative cases (so the rule cannot silently rot).
@@ -386,6 +416,52 @@ export default defineSuite('conformance', (t) => {
   t.ok(
     validateImplementedModule({ ...cv, acceptance: undefined }, false).length > 0,
     'ADR-135 (−): composition_vertical without acceptance evidence FAILS',
+  );
+
+  // ADR-135/129 certification bar — positive + negative.
+  const certReady = {
+    ...cv,
+    certification: { certification_status: 'certification_ready', entitlement: 'e', m42: 'pending' },
+  };
+  t.equal(
+    validateCompositionCertification(certReady).length,
+    0,
+    'ADR-129 (+): certification_ready (decision pending) is allowed',
+  );
+  const certDone = {
+    ...cv,
+    certification: {
+      certification_status: 'certified_on_branch',
+      entitlement: 'treasury_reconciliation',
+      m42: 'assessed',
+      independent_signoff: 'auditor_2026',
+    },
+  };
+  t.equal(
+    validateCompositionCertification(certDone).length,
+    0,
+    'ADR-129 (+): certified_on_branch WITH entitlement + m42 + independent sign-off passes',
+  );
+  t.ok(
+    validateCompositionCertification({
+      ...certDone,
+      certification: { ...certDone.certification, independent_signoff: 'pending' },
+    }).length > 0,
+    'ADR-129 (−): certified WITHOUT an independent sign-off (self-cert) FAILS',
+  );
+  t.ok(
+    validateCompositionCertification({
+      ...certDone,
+      certification: { ...certDone.certification, entitlement: 'pending' },
+    }).length > 0,
+    'ADR-129 (−): certified WITH a pending entitlement FAILS',
+  );
+  t.ok(
+    validateCompositionCertification({
+      ...certDone,
+      certification: { ...certDone.certification, m42: 'pending' },
+    }).length > 0,
+    'ADR-129 (−): certified WITH a pending M42 entry FAILS',
   );
 
   // --- every workspace's tests live inside its own tsconfig (lint needs no prior build) ------------
