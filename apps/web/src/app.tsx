@@ -18,36 +18,48 @@ const fmtMinor = (v: unknown): string => {
   const whole = padded.slice(0, -2).replace(/^0+(?=\d)/, '');
   return `${neg ? '-' : ''}${whole}.${padded.slice(-2)}`;
 };
-// reconciliation match semantics — label + glyph + colour (never colour alone)
-function matchPill(status: string, confidence?: string): JSX.Element {
-  const s = (status || confidence || '').toLowerCase();
-  if (s.includes('exact') || s.includes('confirm') || s.includes('100') || s.includes('matched'))
-    return (
-      <span className="pill ok">
-        <span className="glyph">✓</span> Exact match
-      </span>
-    );
-  if (s.includes('probable') || s.includes('likely') || s.includes('fuzzy') || s.includes('suggest'))
-    return (
-      <span className="pill info">
-        <span className="glyph">≈</span> Probable match
-      </span>
-    );
-  if (s.includes('split') || s.includes('partial'))
-    return (
-      <span className="pill warn">
-        <span className="glyph">⧉</span> Split / partial
-      </span>
-    );
-  if (s.includes('exception') || s.includes('unmatch') || s.includes('unresolved') || s.includes('reject'))
+// Reconciliation status semantics — label + glyph + colour (never colour alone). Accepts one or more signals
+// (e.g. confidence band + match type + status); the FIRST that classifies wins. Order matters: "unmatched"
+// is tested before "matched" (and "matched" is word-bounded) so an unmatched item is never mislabelled as an
+// exact match — `'unmatched'.includes('matched')` is true, which the old ordering got wrong. Real
+// gl_reconciliation confidence bands are exact / strong / partial / review / unmatched; match types include
+// split; so those vocabularies are recognised alongside the generic words.
+function matchPill(...signals: (string | undefined)[]): JSX.Element {
+  const s = signals.filter(Boolean).join(' ').toLowerCase();
+  const has = (...keys: string[]): boolean => keys.some((k) => s.includes(k));
+  if (has('unmatch', 'exception', 'unresolved', 'reject'))
     return (
       <span className="pill bad">
         <span className="glyph">!</span> Unmatched
       </span>
     );
+  if (has('split', 'partial'))
+    return (
+      <span className="pill warn">
+        <span className="glyph">⧉</span> Split / partial
+      </span>
+    );
+  if (has('probable', 'strong', 'likely', 'fuzzy', 'suggest'))
+    return (
+      <span className="pill info">
+        <span className="glyph">≈</span> Probable match
+      </span>
+    );
+  if (has('exact', 'confirm') || /\bmatched\b/.test(s) || s.includes('100'))
+    return (
+      <span className="pill ok">
+        <span className="glyph">✓</span> Exact match
+      </span>
+    );
+  if (has('active', 'completed', 'reconciled', 'resolved', 'cleared'))
+    return (
+      <span className="pill ok">
+        <span className="glyph">✓</span> {signals.find(Boolean) || 'OK'}
+      </span>
+    );
   return (
     <span className="pill warn">
-      <span className="glyph">?</span> {status || 'Pending review'}
+      <span className="glyph">?</span> {signals.find(Boolean) || 'Pending review'}
     </span>
   );
 }
@@ -254,7 +266,7 @@ function MatchDrawer({
         ) : (
           <div className="drawer-body">
             <div className="drawer-status">
-              {matchPill(pick(m, 'status', 'colourStatus', 'confidenceBand'))}
+              {matchPill(pick(m, 'confidenceBand'), pick(m, 'matchType'), pick(m, 'status'))}
             </div>
             <dl className="kv">
               <dt>Type</dt>
@@ -362,7 +374,9 @@ function RunsWorkspace({ tenant }: { tenant: string | null }): JSX.Element {
                   const id = pick(mt, 'id');
                   return (
                     <tr key={id || i}>
-                      <td>{matchPill(pick(mt, 'status', 'colourStatus', 'confidenceBand'))}</td>
+                      <td>
+                        {matchPill(pick(mt, 'confidenceBand'), pick(mt, 'matchType'), pick(mt, 'status'))}
+                      </td>
                       <td>{pick(mt, 'matchType') || '—'}</td>
                       <td className="num">{fmtMinor(mt['amountVarianceMinor'])}</td>
                       <td className="muted">{pick(mt, 'confidenceBand') || '—'}</td>
