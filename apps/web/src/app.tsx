@@ -969,14 +969,15 @@ function RecoveryDashboard({ tenant }: { tenant: string | null }): JSX.Element {
   const cases = useRows(() => api.getRecoveries(tenant), [tenant]);
   const byStatus = useRows(() => api.getRecoveryAnalytics('status', tenant), [tenant]);
   const has = (re: RegExp): number => cases.rows.filter((c) => re.test(pick(c, 'status'))).length;
+  const n = (v: number): string => (cases.loading ? '—' : String(v));
   const tiles = [
     { k: 'Active recovery cases', v: cases.loading ? '—' : String(cases.rows.length) },
     { k: 'Outstanding', v: cases.loading ? '—' : fmtMinor(sumMinor(cases.rows, 'outstandingAmountMinor')) },
-    {
-      k: 'Legal / enforcement',
-      v: cases.loading ? '—' : String(has(/enforcement|attachment|execution|auction/)),
-    },
-    { k: 'Recovered / closed', v: cases.loading ? '—' : String(has(/recovered|settled|resolved|closed/)) },
+    { k: 'Promises to pay', v: n(has(/arrangement_active/)) },
+    { k: 'Broken promises', v: n(has(/arrangement_default/)) },
+    { k: 'Legal / enforcement', v: n(has(/enforcement|attachment|execution|auction/)) },
+    { k: 'Litigation', v: n(has(/enforcement_active|execution|attachment|auction/)) },
+    { k: 'Recovered / closed', v: n(has(/recovered|settled|resolved|closed/)) },
   ];
   return (
     <>
@@ -1040,6 +1041,10 @@ function RecoveryDrawer({
   const [arrs, setArrs] = useState<api.Row[]>([]);
   const [demands, setDemands] = useState<api.Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nonce, setNonce] = useState(0);
+  const [activity, setActivity] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [actionMsg, setActionMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -1059,7 +1064,25 @@ function RecoveryDrawer({
     return () => {
       live = false;
     };
-  }, [id, tenant]);
+  }, [id, tenant, nonce]);
+  const recordActivity = async (): Promise<void> => {
+    if (activity.trim() === '') return;
+    setSaving(true);
+    setActionMsg(null);
+    const res = await api.recordRecoveryNote(
+      id,
+      { content: activity.trim(), headline: 'Contact / activity' },
+      tenant,
+    );
+    setSaving(false);
+    if (res.ok) {
+      setActivity('');
+      setActionMsg({ ok: true, msg: 'Activity recorded (audited).' });
+      setNonce((x) => x + 1);
+    } else {
+      setActionMsg({ ok: false, msg: res.error ?? 'Could not record activity.' });
+    }
+  };
   const r = rec ?? {};
   return (
     <div className="drawer-overlay" onClick={onClose} role="presentation">
@@ -1093,6 +1116,10 @@ function RecoveryDrawer({
               <dd>{pick(r, 'legalOwner', 'recoveryTeam', 'businessOwner') || '—'}</dd>
               <dt>Jurisdiction</dt>
               <dd>{pick(r, 'jurisdiction') || '—'}</dd>
+              <dt>Legal matter (m14)</dt>
+              <dd className="muted">{pick(r, 'sourceMatterId') || 'Not linked'}</dd>
+              <dt>Litigation (m16)</dt>
+              <dd className="muted">{pick(r, 'sourceProceedingId') || 'Not linked'}</dd>
             </dl>
             <h4 className="drawer-sub">Payment arrangements</h4>
             {arrs.length === 0 ? (
@@ -1138,14 +1165,57 @@ function RecoveryDrawer({
                 </tbody>
               </table>
             )}
-            <h4 className="drawer-sub">Activity / notes</h4>
-            {notes.length === 0 ? (
+            <h4 className="drawer-sub">Record activity</h4>
+            <div className="field">
+              <input
+                value={activity}
+                placeholder="Record a call / contact / field visit…"
+                onChange={(e) => setActivity(e.target.value)}
+              />
+            </div>
+            {actionMsg && <div className={actionMsg.ok ? 'ok-note' : 'error'}>{actionMsg.msg}</div>}
+            <button
+              className="btn secondary"
+              style={{ marginBottom: 8 }}
+              disabled={saving || activity.trim() === ''}
+              onClick={recordActivity}
+            >
+              {saving ? 'Recording…' : 'Record activity'}
+            </button>
+            <p className="muted" style={{ fontSize: 11, margin: '0 0 6px' }}>
+              Writes through the canonical m17 recovery service (permission recovery.case.update,
+              tenant-scoped, audited as RECOVERY_NOTE_CREATED). Restricted users are denied server-side.
+            </p>
+            <h4 className="drawer-sub">Case timeline</h4>
+            {notes.length + arrs.length + demands.length === 0 ? (
               <div className="empty">No activity recorded.</div>
             ) : (
               <ul className="timeline">
+                {arrs.map((a, i) => (
+                  <li key={'a' + (pick(a, 'id') || i)}>
+                    <span className="t-type">arrangement</span>{' '}
+                    <span className="t-head">
+                      {(pick(a, 'arrangementType') || 'arrangement') +
+                        ' · ' +
+                        fmtMinor(a['totalAmountMinor'])}
+                    </span>{' '}
+                    {recoveryPill(pick(a, 'status'))}
+                  </li>
+                ))}
+                {demands.map((d, i) => (
+                  <li key={'d' + (pick(d, 'id') || i)}>
+                    <span className="t-type">demand</span>{' '}
+                    <span className="t-head">
+                      {(pick(d, 'demandType') || 'demand').replace(/_/g, ' ') +
+                        ' · ' +
+                        fmtMinor(d['amountDemandedMinor'])}
+                    </span>{' '}
+                    {recoveryPill(pick(d, 'status'))}
+                  </li>
+                ))}
                 {notes.map((n, i) => (
-                  <li key={pick(n, 'id') || i}>
-                    <span className="t-type">{pick(n, 'noteType') || 'note'}</span>{' '}
+                  <li key={'n' + (pick(n, 'id') || i)}>
+                    <span className="t-type">note</span>{' '}
                     <span className="t-head">{pick(n, 'headline') || pick(n, 'content') || '—'}</span>
                   </li>
                 ))}

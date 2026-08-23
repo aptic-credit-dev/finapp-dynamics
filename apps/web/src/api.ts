@@ -239,6 +239,18 @@ export const getRecoverySub = (
   t?: string | null,
 ): Promise<ApiResult<Row[] | Record<string, Row[]>>> =>
   call(`${RC}/recoveries/${encodeURIComponent(id)}/${kind}`, { tenantId: t });
+// Record a recovery activity note — the canonical write (POST notes, permission recovery.case.update, audited
+// as RECOVERY_NOTE_CREATED). Permission-controlled + tenant-scoped server-side; the UI only surfaces the result.
+export const recordRecoveryNote = (
+  id: string,
+  body: { content: string; headline?: string; noteType?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${RC}/recoveries/${encodeURIComponent(id)}/notes`, {
+    method: 'POST',
+    body: { noteType: 'general', ...body },
+    tenantId: t,
+  });
 
 /**
  * Normalise the various list envelopes to an array, defensively. The gl-reconciliation API returns
