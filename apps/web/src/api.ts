@@ -252,6 +252,31 @@ export const recordRecoveryNote = (
     tenantId: t,
   });
 
+// --- regulatory & compliance (M45 vertical) — reuses the CANONICAL m41 GRC control register + append-only
+// assessment evidence (/api/v1/grc). No duplicate GRC engine; reads are RLS-scoped + permission-gated; the one
+// write (record assessment) goes through the canonical m41 service and is audited. ---
+const GRC = '/grc';
+export const getGrcControls = (t?: string | null): Promise<ApiResult<Row[] | { controls?: Row[] }>> =>
+  call(`${GRC}/controls`, { tenantId: t });
+export const getGrcAssessments = (
+  controlId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { assessments?: Row[] }>> =>
+  call(`${GRC}/controls/${encodeURIComponent(controlId)}/assessments`, { tenantId: t });
+// Record a control ASSESSMENT — canonical append-only evidence (status ∈ compliant/non_compliant/partial/
+// not_assessed), permission grc.control.manage/assessment, audited. This records control/evidence state; it is
+// NOT a regulatory-compliance certification or approval.
+export const recordGrcAssessment = (
+  controlId: string,
+  body: { status: string; reasonCode?: string; evidenceRef?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${GRC}/controls/${encodeURIComponent(controlId)}/assessments`, {
+    method: 'POST',
+    body,
+    tenantId: t,
+  });
+
 /**
  * Normalise the various list envelopes to an array, defensively. The gl-reconciliation API returns
  * domain-keyed envelopes ({accounts:[]}, {imports:[]}, {matches:[]}, {balances:[]}, ...), so after the
@@ -278,6 +303,8 @@ export function asRows(data: unknown): Row[] {
     'arrangements',
     'demands',
     'buckets',
+    'controls',
+    'assessments',
   ]) {
     if (Array.isArray(d[k])) return d[k] as Row[];
   }

@@ -1,9 +1,9 @@
-import { Body, Controller, Headers, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
 import { Endpoint } from '@finapp/kernel';
 import { GovernanceService, M41_PERMISSIONS, M41_AUDIT_CODES } from '@finapp/m41-security';
 import { ActorContextFactory } from '@finapp/m02-identity';
 import { requireString, requireTenantScope } from '../identity/http.ts';
-import { grcControlView } from './views.ts';
+import { grcControlView, grcControlListView, grcAssessmentView } from './views.ts';
 
 /**
  * GRC controls + assessments under `/api/v1/grc`. Controls + assessments are governed evidence — they do NOT duplicate m03
@@ -59,5 +59,19 @@ export class GrcController {
       ...optStr(b['evidenceRef'], 'evidenceRef'),
       ...optStr(b['reasonCode'], 'reasonCode'),
     });
+  }
+
+  // Read surface (permission grc.control.read, RLS-scoped, no @Endpoint — reads are not audited). Mirrors the
+  // GET /security/secrets pattern; exposes the canonical GRC control register + append-only assessment evidence.
+  @Get('controls')
+  async listControls(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list controls (m41)');
+    return { controls: (await this.governance.listControls(s.ctx)).map(grcControlListView) };
+  }
+
+  @Get('controls/:id/assessments')
+  async listAssessments(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list assessments (m41)');
+    return { assessments: (await this.governance.listAssessments(s.ctx, id)).map(grcAssessmentView) };
   }
 }

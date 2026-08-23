@@ -52,6 +52,19 @@ export interface GrcControlRow {
   readonly state: string;
   readonly version: number;
 }
+export interface GrcControlListRow extends GrcControlRow {
+  readonly title: string;
+  readonly scope: string;
+}
+export interface GrcAssessmentListRow {
+  readonly id: string;
+  readonly control_id: string;
+  readonly status: string;
+  readonly evidence_ref: string | null;
+  readonly reason_code: string | null;
+  readonly assessed_by: string | null;
+  readonly created_at: string;
+}
 export interface PrivacyClassificationRow {
   readonly tenant_id: string;
   readonly id: string;
@@ -310,6 +323,23 @@ export class SecurityRepository {
       [id],
     );
     return rows[0] ?? null;
+  }
+  // Read surface (RLS-scoped): the caller runs inside withTenant, so FORCE ROW LEVEL SECURITY restricts these
+  // to the caller's tenant. Read-only — no audit event (reads are not audited; ADR-005/CLAUDE.md).
+  async listGrcControls(tx: Tx): Promise<GrcControlListRow[]> {
+    const { rows } = await tx.query<GrcControlListRow>(
+      `SELECT tenant_id, id, control_key, framework, title, scope, state, version
+         FROM grc_control ORDER BY framework, control_key`,
+    );
+    return rows;
+  }
+  async listGrcAssessments(tx: Tx, controlId: string): Promise<GrcAssessmentListRow[]> {
+    const { rows } = await tx.query<GrcAssessmentListRow>(
+      `SELECT id, control_id, status, evidence_ref, reason_code, assessed_by, created_at::text AS created_at
+         FROM grc_assessment WHERE control_id=$1 ORDER BY created_at DESC`,
+      [controlId],
+    );
+    return rows;
   }
   async insertGrcAssessment(
     tx: Tx,
