@@ -52,6 +52,10 @@
 - **Not changed (documented commissioning items, lockout/disruption risk):** SSH `PasswordAuthentication`/`PermitRootLogin` → key-only (key auth verified working; change belongs in the governed commissioning window with assured console rollback); the reboot to activate kernel updates.
 
 ## 3. Human actions possible NOW (no purchase, no external provider)
+
+> The **actionable decision/sign-off forms** for these are in `STAGE_7_MANAGEMENT_DECISION_AND_ACCEPTANCE_PACK.md`
+> (COO/Ops, Risk, Auditor, OQ#14 nomination, CFO/Legal/business, commissioning approval, lifecycle-movement analysis).
+
 | Action | Owner | Blocked on? |
 | --- | --- | --- |
 | Review Tier-1 evidence (this index) + record independent assurance | Auditor | **nothing — can start now** |
