@@ -146,18 +146,42 @@ function useRows(
 // ---------- screens ----------
 function Dashboard({ tenant }: { tenant: string | null }): JSX.Element {
   const accounts = useRows(() => api.getAccounts(tenant), [tenant]);
-  const imports = useRows(() => api.getGlImports(tenant), [tenant]);
-  const balances = useRows(() => api.getBalances(tenant), [tenant]);
+  const runs = useRows(() => api.getRuns(tenant), [tenant]);
+  // GL imports and balances are per-account endpoints — aggregate across the tenant's accounts once they load.
+  const [agg, setAgg] = useState<{ imports: number; balances: number } | null>(null);
+  const acctKey = accounts.rows.map((a) => pick(a, 'id', 'account_id')).join(',');
+  useEffect(() => {
+    let live = true;
+    setAgg(null);
+    if (accounts.loading) return;
+    const ids = accounts.rows.map((a) => pick(a, 'id', 'account_id')).filter(Boolean);
+    if (ids.length === 0) {
+      setAgg({ imports: 0, balances: 0 });
+      return;
+    }
+    void Promise.all(
+      ids.map(async (id) => ({
+        imports: api.asRows((await api.getGlImports(id, tenant)).data).length,
+        balances: api.asRows((await api.getBalances(id, tenant)).data).length,
+      })),
+    ).then((per) => {
+      if (!live) return;
+      setAgg({
+        imports: per.reduce((s, x) => s + x.imports, 0),
+        balances: per.reduce((s, x) => s + x.balances, 0),
+      });
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant, accounts.loading, acctKey]);
+  const dash = (v: number | undefined): string => (accounts.loading || v === undefined ? '—' : String(v));
   const tiles = [
-    { k: 'Bank / GL accounts', v: accounts.rows.length },
-    { k: 'GL imports', v: imports.rows.length },
-    { k: 'Balance records', v: balances.rows.length },
-    {
-      k: 'Reconciled accounts',
-      v: accounts.rows.filter((a) =>
-        pick(a, 'status', 'reconciliation_status').toLowerCase().includes('recon'),
-      ).length,
-    },
+    { k: 'Bank / GL accounts', v: accounts.loading ? '—' : String(accounts.rows.length) },
+    { k: 'GL imports', v: dash(agg?.imports) },
+    { k: 'Balance records', v: dash(agg?.balances) },
+    { k: 'Reconciliation runs', v: runs.loading ? '—' : String(runs.rows.length) },
   ];
   return (
     <>
@@ -167,7 +191,7 @@ function Dashboard({ tenant }: { tenant: string | null }): JSX.Element {
         {tiles.map((t) => (
           <div className="tile" key={t.k}>
             <div className="k">{t.k}</div>
-            <div className="v">{accounts.loading ? '—' : t.v}</div>
+            <div className="v">{t.v}</div>
           </div>
         ))}
       </div>
@@ -398,8 +422,284 @@ function RunsWorkspace({ tenant }: { tenant: string | null }): JSX.Element {
   );
 }
 
+// GL imports are per-account on the API; this card loads the tenant's accounts then their imports and shows
+// them together (with the owning account name), so the tenant-wide view works despite the per-account endpoint.
+function ImportsCard({ tenant }: { tenant: string | null }): JSX.Element {
+  const accounts = useRows(() => api.getAccounts(tenant), [tenant]);
+  const [rows, setRows] = useState<api.Row[] | null>(null);
+  const acctKey = accounts.rows.map((a) => pick(a, 'id', 'account_id')).join(',');
+  useEffect(() => {
+    let live = true;
+    setRows(null);
+    if (accounts.loading) return;
+    const accts = accounts.rows.map((a) => ({
+      id: pick(a, 'id', 'account_id'),
+      name: pick(a, 'name', 'code'),
+    }));
+    if (accts.length === 0) {
+      setRows([]);
+      return;
+    }
+    void Promise.all(
+      accts
+        .filter((a) => a.id)
+        .map(async (a) =>
+          api.asRows((await api.getGlImports(a.id, tenant)).data).map((im) => ({ ...im, _account: a.name })),
+        ),
+    ).then((per) => {
+      if (live) setRows(per.flat());
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant, accounts.loading, acctKey]);
+  return (
+    <div className="card">
+      <header>
+        <h3>GL / statement imports</h3>
+        <span className="demo-note">SYNTHETIC</span>
+      </header>
+      {rows === null ? (
+        <div className="loading">Loading imports…</div>
+      ) : rows.length === 0 ? (
+        <div className="empty">
+          No imports yet. Import a statement or seed synthetic data to see the matching workspace.
+        </div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Import</th>
+              <th>Account</th>
+              <th>Period</th>
+              <th>Format</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((im, i) => (
+              <tr key={pick(im, 'id') || i}>
+                <td>{pick(im, 'fileName', 'reference', 'name', 'id') || '—'}</td>
+                <td>{pick(im, '_account', 'glAccountId') || '—'}</td>
+                <td className="muted">
+                  {pick(im, 'periodStart') ? `${pick(im, 'periodStart')}…${pick(im, 'periodEnd')}` : '—'}
+                </td>
+                <td className="muted">{pick(im, 'sourceFormat', 'format') || '—'}</td>
+                <td>{matchPill(pick(im, 'status', 'state'))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// Parse a major-unit amount string ("450" / "450.5" / "450.55") to INTEGER minor units without float.
+const toMinorUnits = (v: string): number | null => {
+  const m = v.trim().match(/^(\d+)(?:\.(\d{1,2}))?$/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 100 + parseInt((m[2] ?? '').padEnd(2, '0'), 10);
+};
+
+// Propose a reconciliation adjustment via the CANONICAL M21 maker-checker journal path (create balanced draft
+// → validate → submit → PENDING APPROVAL). No posting: a separate approver authorises server-side (M22 SoD).
+function ProposeAdjustment({
+  tenant,
+  onClose,
+  onDone,
+}: {
+  tenant: string | null;
+  onClose: () => void;
+  onDone: () => void;
+}): JSX.Element {
+  const [desc, setDesc] = useState('Reconciliation adjustment');
+  const [amount, setAmount] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const minor = toMinorUnits(amount);
+  const submit = async (): Promise<void> => {
+    if (minor === null || minor <= 0) {
+      setResult({ ok: false, msg: 'Enter a positive amount (e.g. 450.00).' });
+      return;
+    }
+    setBusy(true);
+    setResult(null);
+    // entity/account refs are the (synthetic) tenant reconciliation context; the workflow — not the specific
+    // account master data — is what this demonstrates. Two balanced lines: DR suspense / CR bank clearing.
+    const r = await api.proposeAdjustment(tenant, {
+      description: desc,
+      entityRef: tenant ?? '',
+      lines: [
+        {
+          direction: 'debit',
+          amountMinor: minor,
+          accountRef: tenant ?? undefined,
+          description: 'DR — Reconciliation suspense',
+        },
+        {
+          direction: 'credit',
+          amountMinor: minor,
+          accountRef: tenant ?? undefined,
+          description: 'CR — Bank clearing',
+        },
+      ],
+    });
+    setBusy(false);
+    if (r.ok) {
+      setResult({
+        ok: true,
+        msg: 'Adjustment proposed — status PENDING APPROVAL. A separate approver must authorise it; you cannot approve your own.',
+      });
+      onDone();
+    } else {
+      setResult({ ok: false, msg: r.error ?? 'Could not propose adjustment.' });
+    }
+  };
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside
+        className="drawer"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Propose adjustment"
+      >
+        <header className="drawer-head">
+          <h3>Propose adjustment</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <p className="page-sub" style={{ marginTop: 0 }}>
+            Creates a <strong>balanced</strong> journal through the canonical maker-checker workflow. It is{' '}
+            <strong>submitted for approval, never posted here</strong> — a separate approver authorises
+            posting (segregation of duties, server-enforced).
+          </p>
+          <div className="field">
+            <label>Description</label>
+            <input value={desc} onChange={(e) => setDesc(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Amount (balanced DR/CR)</label>
+            <input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="450.00"
+              inputMode="decimal"
+            />
+          </div>
+          {minor !== null && minor > 0 && (
+            <dl className="kv">
+              <dt>DR — Reconciliation suspense</dt>
+              <dd>{fmtMinor(minor)}</dd>
+              <dt>CR — Bank clearing</dt>
+              <dd>{fmtMinor(minor)}</dd>
+              <dt>Balanced</dt>
+              <dd>✓ debits = credits</dd>
+            </dl>
+          )}
+          {result && <div className={result.ok ? 'ok-note' : 'error'}>{result.msg}</div>}
+          <button
+            className="btn"
+            style={{ marginTop: 14 }}
+            disabled={busy || minor === null || minor <= 0}
+            onClick={submit}
+          >
+            {busy ? 'Proposing…' : 'Propose for approval'}
+          </button>
+          <p className="muted" style={{ fontSize: 11, marginTop: 12 }}>
+            Synthetic staging · entity/account references are synthetic; this demonstrates the maker-checker
+            workflow, not posting. M02 RBAC + M03 audit + tenant isolation apply on every step.
+          </p>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+// Lists proposed adjustments (journal drafts) for the tenant and launches the Propose-adjustment modal.
+function AdjustmentsCard({ tenant }: { tenant: string | null }): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [nonce, setNonce] = useState(0);
+  const drafts = useRows(() => api.getJournalDrafts(tenant), [tenant, nonce]);
+  return (
+    <div className="card">
+      <header>
+        <h3>Proposed adjustments</h3>
+        <button className="btn secondary" onClick={() => setOpen(true)}>
+          + Propose adjustment
+        </button>
+      </header>
+      {drafts.loading ? (
+        <div className="loading">Loading adjustments…</div>
+      ) : drafts.error ? (
+        <div className="empty">Could not load adjustments ({drafts.error}).</div>
+      ) : drafts.rows.length === 0 ? (
+        <div className="empty">No proposed adjustments yet. Use “Propose adjustment” to create one.</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th className="num">Amount</th>
+              <th>Source</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {drafts.rows.map((d, i) => (
+              <tr key={pick(d, 'id') || i}>
+                <td>{pick(d, 'description') || '—'}</td>
+                <td className="num">{fmtMinor(d['totalDebitsMinor'])}</td>
+                <td className="muted">{pick(d, 'sourceType') || '—'}</td>
+                <td>{adjustmentPill(pick(d, 'status'))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {open && (
+        <ProposeAdjustment
+          tenant={tenant}
+          onClose={() => setOpen(false)}
+          onDone={() => setNonce((n) => n + 1)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Journal draft status → label + colour. "submitted"/"pending" reads as PENDING APPROVAL (the key demo state).
+function adjustmentPill(status: string): JSX.Element {
+  const s = status.toLowerCase();
+  if (s.includes('submit') || s.includes('pending') || s.includes('approval'))
+    return (
+      <span className="pill warn">
+        <span className="glyph">⏳</span> Pending approval
+      </span>
+    );
+  if (s.includes('post') || s.includes('approved'))
+    return (
+      <span className="pill ok">
+        <span className="glyph">✓</span> {status}
+      </span>
+    );
+  if (s.includes('reject') || s.includes('withdraw') || s.includes('cancel'))
+    return (
+      <span className="pill bad">
+        <span className="glyph">!</span> {status}
+      </span>
+    );
+  return (
+    <span className="pill info">
+      <span className="glyph">✎</span> {status || 'Draft'}
+    </span>
+  );
+}
+
 function Reconciliation({ tenant }: { tenant: string | null }): JSX.Element {
-  const imports = useRows(() => api.getGlImports(tenant), [tenant]);
   return (
     <>
       <h1 className="page-title">Reconciliation workspace</h1>
@@ -408,44 +708,8 @@ function Reconciliation({ tenant }: { tenant: string | null }): JSX.Element {
         journals (server-enforced).
       </p>
       <RunsWorkspace tenant={tenant} />
-      <div className="card">
-        <header>
-          <h3>GL / statement imports</h3>
-          <span className="demo-note">SYNTHETIC</span>
-        </header>
-        {imports.loading ? (
-          <div className="loading">Loading imports…</div>
-        ) : imports.rows.length === 0 ? (
-          <div className="empty">
-            No imports yet. Import a statement or seed synthetic data to see the matching workspace.
-          </div>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Import</th>
-                <th>Account</th>
-                <th>Period</th>
-                <th className="num">Lines</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {imports.rows.map((im, i) => (
-                <tr key={pick(im, 'id') || i}>
-                  <td>{pick(im, 'reference', 'name', 'id') || '—'}</td>
-                  <td>{pick(im, 'account_name', 'account_id', 'account') || '—'}</td>
-                  <td className="muted">
-                    {pick(im, 'period', 'statement_period', 'as_of', 'created_at') || '—'}
-                  </td>
-                  <td className="num">{pick(im, 'line_count', 'lines', 'total') || '—'}</td>
-                  <td>{matchPill(pick(im, 'status', 'state'))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <AdjustmentsCard tenant={tenant} />
+      <ImportsCard tenant={tenant} />
       <div className="card">
         <header>
           <h3>Match confidence legend</h3>
@@ -543,18 +807,126 @@ function Exceptions({ tenant }: { tenant: string | null }): JSX.Element {
   );
 }
 
-function Placeholder({ title }: { title: string }): JSX.Element {
+// Reports — a bank reconciliation statement per run, built entirely from existing gl-reconciliation APIs
+// (runs + per-run summaries + certifications). Money is formatted from integer minor-unit strings (no float).
+// Print-friendly: the "Print" button calls window.print(); print CSS hides the app chrome.
+interface RunReport extends api.Row {
+  _variance?: string;
+  _cert?: string;
+}
+function Reports({ tenant }: { tenant: string | null }): JSX.Element {
+  const accounts = useRows(() => api.getAccounts(tenant), [tenant]);
+  const runs = useRows(() => api.getRuns(tenant), [tenant]);
+  const [enriched, setEnriched] = useState<RunReport[] | null>(null);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const runKey = runs.rows.map((r) => pick(r, 'id')).join(',');
+  const acctName = (id: string): string => {
+    const a = accounts.rows.find((x) => pick(x, 'id', 'account_id') === id);
+    return a ? pick(a, 'name', 'code') || id : id;
+  };
+  useEffect(() => {
+    let live = true;
+    setEnriched(null);
+    if (runs.loading) return;
+    void Promise.all(
+      runs.rows.map(async (r) => {
+        const id = pick(r, 'id');
+        const summaries = api.asRows((await api.getRunSummaries(id, tenant)).data);
+        const certs = api.asRows((await api.getRunCertifications(id, tenant)).data);
+        return {
+          ...r,
+          _variance: summaries[0] ? str(summaries[0]['balanceVarianceMinor']) : '',
+          _cert: certs[0] ? pick(certs[0], 'status') : '',
+        } as RunReport;
+      }),
+    ).then((rows) => {
+      if (live) setEnriched(rows);
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant, runs.loading, runKey]);
+  const rows = (enriched ?? []).filter(
+    (r) => statusFilter === 'all' || pick(r, 'status').toLowerCase() === statusFilter,
+  );
   return (
     <>
-      <h1 className="page-title">{title}</h1>
-      <p className="page-sub">
-        This module surface is planned. Backend capabilities are available via the API.
-      </p>
-      <div className="card">
-        <div className="empty">
-          {title} — coming in a follow-up increment. This build focuses on Treasury &amp; Reconciliation.
+      <div className="report-head">
+        <div>
+          <h1 className="page-title">Reconciliation reports</h1>
+          <p className="page-sub">
+            Bank ↔ GL reconciliation statement per run · synthetic staging data. Built from the reconciliation
+            API — read-only.
+          </p>
+        </div>
+        <div className="report-actions no-print">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="all">All statuses</option>
+            <option value="review_required">Review required</option>
+            <option value="completed">Completed</option>
+            <option value="running">Running</option>
+            <option value="draft">Draft</option>
+          </select>
+          <button className="btn secondary" onClick={() => window.print()} disabled={rows.length === 0}>
+            Print
+          </button>
         </div>
       </div>
+      <div className="card">
+        <header>
+          <h3>Reconciliation statements</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        {enriched === null ? (
+          <div className="loading">Loading reports…</div>
+        ) : rows.length === 0 ? (
+          <div className="empty">No reconciliation runs match this filter.</div>
+        ) : (
+          <div className="report-scroll">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Period</th>
+                  <th className="num">Opening</th>
+                  <th className="num">GL closing</th>
+                  <th className="num">Matched</th>
+                  <th className="num">Unmatched</th>
+                  <th className="num">Exceptions</th>
+                  <th className="num">Reconciling</th>
+                  <th className="num">Difference</th>
+                  <th>Status</th>
+                  <th>Certification</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={pick(r, 'id') || i}>
+                    <td>{acctName(pick(r, 'glAccountId'))}</td>
+                    <td className="muted">
+                      {pick(r, 'periodStart') ? `${pick(r, 'periodStart')}…${pick(r, 'periodEnd')}` : '—'}
+                    </td>
+                    <td className="num">{fmtMinor(r['openingBalanceMinor'])}</td>
+                    <td className="num">{fmtMinor(r['closingBalanceMinor'])}</td>
+                    <td className="num">{pick(r, 'matchedCount') || '0'}</td>
+                    <td className="num">{pick(r, 'unmatchedCount') || '0'}</td>
+                    <td className="num">{pick(r, 'exceptionCount') || '0'}</td>
+                    <td className="num">{pick(r, 'itemCount') || '0'}</td>
+                    <td className="num">{r._variance ? fmtMinor(r._variance) : '—'}</td>
+                    <td>{matchPill(pick(r, 'status'))}</td>
+                    <td className="muted">{r._cert || 'Not certified'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      <p className="page-sub no-print" style={{ fontSize: 12 }}>
+        Preparer / reviewer / approver sign-off is captured through the reconciliation certification workflow
+        (maker-checker, server-enforced); certified runs show their certification status above.
+      </p>
     </>
   );
 }
@@ -720,7 +1092,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
           </>
         )}
         {route === 'exceptions' && <Exceptions tenant={tenant} />}
-        {route === 'reports' && <Placeholder title="Reconciliation reports" />}
+        {route === 'reports' && <Reports tenant={tenant} />}
       </main>
     </div>
   );

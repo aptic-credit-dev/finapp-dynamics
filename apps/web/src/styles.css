@@ -492,3 +492,70 @@ dl.kv dd {
   font-size: 13px;
   font-weight: 600;
 }
+
+/* --- reports screen --- */
+.report-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.report-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.report-actions select {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+}
+.report-scroll {
+  overflow-x: auto;
+}
+.report-table {
+  min-width: 900px;
+}
+
+/* Print: show only the report, drop app chrome and interactive controls. */
+@media print {
+  .staging-banner,
+  .sidebar,
+  .topbar,
+  .no-print {
+    display: none !important;
+  }
+  .shell {
+    display: block;
+  }
+  .main {
+    padding: 0;
+  }
+  .card {
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+  .report-table {
+    min-width: 0;
+    width: 100%;
+    font-size: 11px;
+  }
+}
+
+/* propose-adjustment success note */
+.ok-note {
+  background: var(--ok-bg);
+  color: var(--ok);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-top: 8px;
+}
+.card header .btn.secondary {
+  padding: 6px 12px;
+  font-size: 13px;
+}
