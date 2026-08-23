@@ -216,6 +216,30 @@ export async function proposeAdjustment(
   return submitJournalDraft(id, v2, tenant);
 }
 
+// --- debt recovery (M44 vertical — reuses the existing m17-recovery / m14-legal / m16-litigation APIs; no
+// duplicate engine). Read-first; any action stays permission-controlled + audited server-side. ---
+const RC = '/recovery';
+export const getRecoveries = (
+  t?: string | null,
+  q?: Record<string, string>,
+): Promise<ApiResult<Row[] | { recoveries?: Row[] }>> => {
+  const qs = q ? '?' + new URLSearchParams(q).toString() : '';
+  return call(`${RC}/recoveries${qs}`, { tenantId: t });
+};
+export const getRecovery = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${RC}/recoveries/${encodeURIComponent(id)}`, { tenantId: t });
+export const getRecoveryAnalytics = (
+  dimension: string,
+  t?: string | null,
+): Promise<ApiResult<{ dimension: string; buckets: Row[] }>> =>
+  call(`${RC}/recoveries/analytics/summary?dimension=${encodeURIComponent(dimension)}`, { tenantId: t });
+export const getRecoverySub = (
+  id: string,
+  kind: 'notes' | 'arrangements' | 'demands' | 'enforcement-actions' | 'outcomes' | 'negotiations',
+  t?: string | null,
+): Promise<ApiResult<Row[] | Record<string, Row[]>>> =>
+  call(`${RC}/recoveries/${encodeURIComponent(id)}/${kind}`, { tenantId: t });
+
 /**
  * Normalise the various list envelopes to an array, defensively. The gl-reconciliation API returns
  * domain-keyed envelopes ({accounts:[]}, {imports:[]}, {matches:[]}, {balances:[]}, ...), so after the
@@ -237,6 +261,11 @@ export function asRows(data: unknown): Row[] {
     'lines',
     'balances',
     'drafts',
+    'recoveries',
+    'notes',
+    'arrangements',
+    'demands',
+    'buckets',
   ]) {
     if (Array.isArray(d[k])) return d[k] as Row[];
   }
