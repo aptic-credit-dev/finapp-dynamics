@@ -99,6 +99,16 @@ export async function getTenants(): Promise<ApiResult<{ tenants: SelfTenant[] }>
   return call<{ tenants: SelfTenant[] }>('/auth/tenants');
 }
 
+// 6F entitlement self-check (m39): does MY selected tenant have this commercial capability? Gates a
+// composition-vertical's AVAILABILITY; M02 RBAC still governs actions inside it. Server-authoritative
+// (the SERVER resolves the entitlement, RLS-scoped) — the UI only reflects the answer.
+export async function getEntitlement(
+  capabilityKey: string,
+  t?: string | null,
+): Promise<ApiResult<{ capabilityKey: string; entitled: boolean }>> {
+  return call(`/saas/entitlements/check?capabilityKey=${encodeURIComponent(capabilityKey)}`, { tenantId: t });
+}
+
 // --- reconciliation (reuses the existing gl-reconciliation API; no duplicate engine) ---
 export type Row = Record<string, unknown>;
 const R = '/gl-reconciliation';

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 import { Endpoint } from '@finapp/kernel';
 import {
   SubscriptionService,
@@ -180,6 +180,20 @@ export class SaasSubscriptionController {
       meterKey: requireString(b['meterKey'], 'meterKey', s.correlationId),
       periodKey: requireString(b['periodKey'], 'periodKey', s.correlationId),
     });
+  }
+
+  // SELF entitlement check (no @Endpoint — a self-scoped read, like /auth/tenants): "is my tenant entitled to
+  // this capability?". Gates a composition-vertical's AVAILABILITY in the UI; M02 RBAC still governs actions.
+  @Get('entitlements/check')
+  async checkEntitlement(
+    @Query('capabilityKey') capabilityKey: string,
+    @Headers() h: Record<string, string>,
+  ) {
+    const s = await this.scoped(h, 'check entitlement (m39)');
+    return this.quota.resolveEntitlement(
+      s.ctx,
+      requireString(capabilityKey, 'capabilityKey', s.correlationId),
+    );
   }
 
   @Endpoint({

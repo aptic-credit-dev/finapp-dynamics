@@ -62,6 +62,22 @@ export class EntitlementQuotaService {
    * context (m02 authoritative); the entitlement leg reads the tenant's current assignment; the feature leg consults m30
    * through the fail-closed port. Returns the pure decision; a denial is audited (SAAS_ACCESS_BLOCKED).
    */
+  /**
+   * SELF entitlement check — "is MY tenant entitled to this capability?" (RLS-scoped via withTenant; the caller
+   * sees only its own tenant's entitlement). No permission gate: like /auth/tenants it exposes only the caller's
+   * own commercial-surface availability, so a menu/route can be gated WITHOUT granting a broad read. Entitlement
+   * decides the vertical's AVAILABILITY; M02 RBAC still decides actions inside it (unchanged).
+   */
+  async resolveEntitlement(
+    ctx: RequestContext,
+    capabilityKey: string,
+  ): Promise<{ capabilityKey: string; entitled: boolean }> {
+    return this.db.withTenant(ctx, async (tx) => {
+      const ent = await this.repo.currentEntitlement(tx, capabilityKey);
+      return { capabilityKey, entitled: this.hasEntitlement(ent?.allowance) };
+    });
+  }
+
   async evaluateAccess(
     ctx: RequestContext,
     input: { capabilityKey: string; requiredPermission: string },
