@@ -1708,8 +1708,11 @@ function UserDrawer({
 }): JSX.Element {
   const can = (p: string): boolean => perms.has(p);
   const id = pick(identity, 'id');
-  const version = Number(identity['version'] ?? 1);
-  const status = pick(identity, 'status');
+  // Hold a local, refetched copy so status + version stay live after each lifecycle action — a stale version
+  // would 409 the NEXT action (optimistic concurrency). The list is refreshed separately via onChanged.
+  const [ident, setIdent] = useState<api.Row>(identity);
+  const version = Number(ident['version'] ?? 1);
+  const status = pick(ident, 'status');
   const [accounts, setAccounts] = useState<api.Row[] | null>(null);
   const [memberships, setMemberships] = useState<api.Row[] | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -1719,6 +1722,7 @@ function UserDrawer({
     let live = true;
     setAccounts(null);
     setMemberships(null);
+    void api.getIdentity(id, tenant).then((r) => live && r.ok && r.data && setIdent(r.data));
     void api.listLoginAccounts(id, tenant).then((r) => live && setAccounts(api.asRows(r.data)));
     void api.listMemberships(tenant).then((r) => {
       if (!live) return;
@@ -1746,7 +1750,7 @@ function UserDrawer({
     <div className="drawer-overlay" onClick={onClose} role="presentation">
       <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="User">
         <header className="drawer-head">
-          <h3>{pick(identity, 'displayName') || 'User'}</h3>
+          <h3>{pick(ident, 'displayName') || 'User'}</h3>
           <button className="btn secondary" onClick={onClose}>
             Close
           </button>
@@ -1754,9 +1758,9 @@ function UserDrawer({
         <div className="drawer-body">
           <dl className="kv">
             <dt>Type</dt>
-            <dd>{pick(identity, 'identityType') || '—'}</dd>
+            <dd>{pick(ident, 'identityType') || '—'}</dd>
             <dt>Email</dt>
-            <dd>{pick(identity, 'primaryEmail') || '—'}</dd>
+            <dd>{pick(ident, 'primaryEmail') || '—'}</dd>
             <dt>Status</dt>
             <dd>{statusPill(status)}</dd>
           </dl>
@@ -2047,8 +2051,10 @@ function RoleDrawer({
 }): JSX.Element {
   const can = (p: string): boolean => perms.has(p);
   const id = pick(role, 'id');
-  const version = Number(role['version'] ?? 1);
-  const immutable = role['isImmutable'] === true;
+  // Local, refetched copy so status + version stay live after each action (a stale version 409s the next one).
+  const [roleState, setRoleState] = useState<api.Row>(role);
+  const version = Number(roleState['version'] ?? 1);
+  const immutable = roleState['isImmutable'] === true;
   const [held, setHeld] = useState<string[] | null>(null);
   const [nonce, setNonce] = useState(0);
   const [add, setAdd] = useState('');
@@ -2056,6 +2062,7 @@ function RoleDrawer({
   useEffect(() => {
     let live = true;
     setHeld(null);
+    void api.getRole(id, tenant).then((r) => live && r.ok && r.data && setRoleState(r.data));
     void api.getRolePermissions(id, tenant).then((r) => {
       if (live) setHeld(r.ok && r.data ? r.data.permissions : []);
     });
@@ -2075,7 +2082,7 @@ function RoleDrawer({
     <div className="drawer-overlay" onClick={onClose} role="presentation">
       <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Role">
         <header className="drawer-head">
-          <h3>{pick(role, 'name') || pick(role, 'code') || 'Role'}</h3>
+          <h3>{pick(roleState, 'name') || pick(roleState, 'code') || 'Role'}</h3>
           <button className="btn secondary" onClick={onClose}>
             Close
           </button>
@@ -2083,11 +2090,11 @@ function RoleDrawer({
         <div className="drawer-body">
           <dl className="kv">
             <dt>Code</dt>
-            <dd>{pick(role, 'code') || '—'}</dd>
+            <dd>{pick(roleState, 'code') || '—'}</dd>
             <dt>Kind</dt>
-            <dd>{pick(role, 'kind') || '—'}</dd>
+            <dd>{pick(roleState, 'kind') || '—'}</dd>
             <dt>Status</dt>
-            <dd>{statusPill(pick(role, 'status'))}</dd>
+            <dd>{statusPill(pick(roleState, 'status'))}</dd>
           </dl>
           {immutable && (
             <p className="muted" style={{ fontSize: 12 }}>

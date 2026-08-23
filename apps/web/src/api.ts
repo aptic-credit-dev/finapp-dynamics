@@ -375,6 +375,8 @@ export const membershipAction = (
 // Roles (tenant-scoped custom roles; system roles are visible + immutable) and the permission catalogue.
 export const listRoles = (t?: string | null): Promise<ApiResult<Row[]>> =>
   call('/rbac/roles', { tenantId: t });
+export const getRole = (roleId: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`/rbac/roles/${encodeURIComponent(roleId)}`, { tenantId: t });
 export const getRolePermissions = (
   roleId: string,
   t?: string | null,
