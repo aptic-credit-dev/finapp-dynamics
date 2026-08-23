@@ -86,12 +86,18 @@ export const getRunMatches = (
 ): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
   call(`${R}/runs/${encodeURIComponent(runId)}/matches`, { tenantId: t });
 
-/** Normalise the various list envelopes ({items:[]} | [] | {rows:[]}) to an array, defensively. */
+/**
+ * Normalise the various list envelopes to an array, defensively. The gl-reconciliation API returns
+ * domain-keyed envelopes ({accounts:[]}, {imports:[]}, {matches:[]}, {balances:[]}, ...), so after the
+ * known keys we fall back to the FIRST array-valued property of the object.
+ */
 export function asRows(data: unknown): Row[] {
   if (Array.isArray(data)) return data as Row[];
-  const d = data as { items?: unknown; rows?: unknown; data?: unknown } | null;
-  if (d && Array.isArray(d.items)) return d.items as Row[];
-  if (d && Array.isArray(d.rows)) return d.rows as Row[];
-  if (d && Array.isArray(d.data)) return d.data as Row[];
+  if (data === null || typeof data !== 'object') return [];
+  const d = data as Record<string, unknown>;
+  for (const k of ['items', 'rows', 'data', 'accounts', 'imports', 'matches', 'exceptions', 'balances']) {
+    if (Array.isArray(d[k])) return d[k] as Row[];
+  }
+  for (const v of Object.values(d)) if (Array.isArray(v)) return v as Row[];
   return [];
 }
