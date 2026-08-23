@@ -1635,6 +1635,17 @@ const NAV = [
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
 ];
 
+// 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
+// entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
+// M02 RBAC still governs actions inside an available vertical (an entitled tenant's under-permissioned actor
+// still gets 403). The check is server-authoritative (GET /saas/entitlements/check).
+const GROUP_ENTITLEMENT: Record<string, string> = {
+  Treasury: 'treasury_reconciliation',
+  Recovery: 'debt_recovery',
+  Compliance: 'regulatory_compliance',
+};
+const routeGroup = (routeId: string): string => NAV.find((n) => n.id === routeId)?.group ?? 'Overview';
+
 const TENANT_KEY = 'aptic.tenant';
 // The stored/URL tenant is only ever a CANDIDATE. It is never trusted until validated against the caller's
 // authorised tenants (ADR-134 GET /auth/tenants) — a stale or inaccessible id is discarded, and a tenant the
@@ -1738,6 +1749,35 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
       .replace(/[^a-zA-Z]/g, '')
       .slice(0, 2)
       .toUpperCase() || 'AD';
+  // Entitlements for the current tenant (capabilityKey -> entitled). null = still resolving.
+  const [entitled, setEntitled] = useState<Record<string, boolean> | null>(null);
+  useEffect(() => {
+    let live = true;
+    setEntitled(null);
+    if (!tenant) return;
+    const caps = Array.from(new Set(Object.values(GROUP_ENTITLEMENT)));
+    void Promise.all(caps.map((c) => api.getEntitlement(c, tenant))).then((rs) => {
+      if (!live) return;
+      const map: Record<string, boolean> = {};
+      rs.forEach((r, i) => {
+        map[caps[i]] = r.ok && r.data ? r.data.entitled === true : false;
+      });
+      setEntitled(map);
+    });
+    return () => {
+      live = false;
+    };
+  }, [tenant]);
+  const groupAvailable = (g: string): boolean => {
+    const cap = GROUP_ENTITLEMENT[g];
+    if (!cap) return true; // Overview always
+    return entitled?.[cap] === true;
+  };
+  // Fail closed: if the active route belongs to a vertical the tenant is not entitled to, drop to Dashboard.
+  useEffect(() => {
+    if (entitled && !groupAvailable(routeGroup(route)) && route !== 'dashboard') setRoute('dashboard');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entitled, route]);
   const grouped = NAV.reduce<Record<string, typeof NAV>>((acc, n) => {
     (acc[n.group] ??= []).push(n);
     return acc;
@@ -1748,20 +1788,22 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         <div className="brand">
           <span className="mark">A</span> Aptic Dynamics
         </div>
-        {Object.entries(grouped).map(([g, items]) => (
-          <div key={g}>
-            <div className="nav-section">{g}</div>
-            {items.map((n) => (
-              <button
-                key={n.id}
-                className={`nav-item ${route === n.id ? 'active' : ''}`}
-                onClick={() => setRoute(n.id)}
-              >
-                <span aria-hidden>{n.icon}</span> {n.label}
-              </button>
-            ))}
-          </div>
-        ))}
+        {Object.entries(grouped)
+          .filter(([g]) => groupAvailable(g))
+          .map(([g, items]) => (
+            <div key={g}>
+              <div className="nav-section">{g}</div>
+              {items.map((n) => (
+                <button
+                  key={n.id}
+                  className={`nav-item ${route === n.id ? 'active' : ''}`}
+                  onClick={() => setRoute(n.id)}
+                >
+                  <span aria-hidden>{n.icon}</span> {n.label}
+                </button>
+              ))}
+            </div>
+          ))}
       </aside>
       <header className="topbar">
         <div className="title">{NAV.find((n) => n.id === route)?.label ?? 'Aptic Dynamics'}</div>
