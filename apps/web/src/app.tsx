@@ -2663,6 +2663,239 @@ function AccessAdmin({ tenant, perms }: { tenant: string | null; perms: Set<stri
   );
 }
 
+// ---------- approvals (M22 maker-checker inbox) ----------
+// A reusable approvals area over the canonical m22 request+decision engine. The maker-checker + SoD choke point
+// lives server-side: an approving actor is never the maker (403 makerIsChecker), the deciding actor is the
+// session identity. Decision buttons are permission-aware; the server stays authoritative.
+const SUBJECT_LABEL: Record<string, string> = {
+  journal_adjustment: 'Treasury · journal adjustment',
+  journal_posting: 'Treasury · journal posting',
+  recovery_writeoff: 'Recovery · write-off',
+  recovery_arrangement: 'Recovery · arrangement',
+};
+const subjectLabel = (s: string): string => SUBJECT_LABEL[s] || s || '—';
+
+function ApprovalDrawer({
+  requestId,
+  tenant,
+  perms,
+  onClose,
+  onChanged,
+}: {
+  requestId: string;
+  tenant: string | null;
+  perms: Set<string>;
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const canDecide = can('approvals.decision.approve');
+  const [req, setReq] = useState<api.Row | null>(null);
+  const [decisions, setDecisions] = useState<api.Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    setLoading(true);
+    void Promise.all([
+      api.getApprovalRequest(requestId, tenant),
+      api.getApprovalDecisions(requestId, tenant),
+    ]).then(([r, d]) => {
+      if (!live) return;
+      setReq(r.ok && r.data ? r.data.request : null);
+      setDecisions(d.ok && d.data ? d.data.decisions : []);
+      setLoading(false);
+    });
+    return () => {
+      live = false;
+    };
+  }, [requestId, tenant, nonce]);
+  const r = req ?? {};
+  const status = pick(r, 'status').toLowerCase();
+  const version = Number(r['version'] ?? 1);
+  const decidable = status === 'pending' || status === 'escalated';
+  const report = (res: api.ApiResult<api.Row>, okMsg: string): void => {
+    setMsg(res.ok ? { ok: true, msg: okMsg } : { ok: false, msg: res.error ?? 'Action failed.' });
+    if (res.ok) {
+      setNonce((x) => x + 1);
+      onChanged();
+    }
+  };
+  const decide = (d: api.ApprovalDecision, okMsg: string) => (reason: string | undefined) =>
+    api.decideApproval(requestId, version, d, tenant, reason).then((res) => report(res, okMsg));
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside
+        className="drawer"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Approval request"
+      >
+        <header className="drawer-head">
+          <h3>{pick(r, 'title') || 'Approval request'}</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        {loading ? (
+          <div className="loading">Loading…</div>
+        ) : (
+          <div className="drawer-body">
+            <div className="drawer-status">{statusPill(pick(r, 'status'))}</div>
+            <dl className="kv">
+              <dt>Source</dt>
+              <dd>{subjectLabel(pick(r, 'subjectType'))}</dd>
+              <dt>Subject ref</dt>
+              <dd className="muted">{pick(r, 'subjectRef') || '—'}</dd>
+              <dt>Amount</dt>
+              <dd>{r['amountMinor'] != null ? fmtMinor(r['amountMinor']) : '—'}</dd>
+              <dt>Requested by</dt>
+              <dd className="muted">{pick(r, 'requestedBy', 'preparedBy') || '—'}</dd>
+              <dt>Approvals</dt>
+              <dd>
+                {pick(r, 'approvalsCount') || 0} / {pick(r, 'requiredApprovals') || 1}
+              </dd>
+            </dl>
+            <div className="admin-actions">
+              <ActionButton
+                label="Approve"
+                allowed={decidable && canDecide}
+                onRun={decide('approve', 'Approved (SoD-checked, audited).')}
+              />
+              <ActionButton
+                label="Reject"
+                allowed={decidable && canDecide && can('approvals.decision.reject')}
+                danger
+                needsReason
+                onRun={decide('reject', 'Rejected (audited).')}
+              />
+              <ActionButton
+                label="Return"
+                allowed={decidable && canDecide && can('approvals.decision.return')}
+                needsReason
+                onRun={decide('return', 'Returned to maker (audited).')}
+              />
+              <ActionButton
+                label="Escalate"
+                allowed={decidable && canDecide && can('approvals.decision.escalate')}
+                needsReason
+                onRun={decide('escalate', 'Escalated (audited).')}
+              />
+            </div>
+            {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+            {decidable && !canDecide && (
+              <p className="muted" style={{ fontSize: 11 }}>
+                You do not hold an approval-decision permission for this request. A distinct checker must
+                decide it — and the maker can never approve their own (Segregation of Duties,
+                server-enforced).
+              </p>
+            )}
+            <h4 className="drawer-sub">Decision history</h4>
+            {decisions.length === 0 ? (
+              <div className="empty">No decisions recorded yet.</div>
+            ) : (
+              <ul className="timeline">
+                {decisions.map((d, i) => (
+                  <li key={pick(d, 'id') || i}>
+                    {statusPill(pick(d, 'decision'))}{' '}
+                    <span className="t-head">{pick(d, 'actor', 'decidedBy') || ''}</span>{' '}
+                    <span className="muted">{pick(d, 'reason', 'reasonCode') || ''}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </aside>
+    </div>
+  );
+}
+
+function ApprovalsInbox({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const [status, setStatus] = useState('pending');
+  const [nonce, setNonce] = useState(0);
+  const [open, setOpen] = useState<string | null>(null);
+  const requests = useRows(
+    () => api.listApprovalRequests(tenant, status === 'all' ? undefined : status),
+    [tenant, status, nonce],
+  );
+  return (
+    <>
+      <h1 className="page-title">Approvals</h1>
+      <p className="page-sub">
+        Maker-checker requests over the canonical m22 engine · synthetic staging data. An approving actor is
+        never the maker (Segregation of Duties, server-enforced); the deciding actor is your session identity.
+      </p>
+      <div className="card">
+        <header>
+          <h3>Approval requests</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        <div className="run-picker">
+          <label>Status</label>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="pending">Pending</option>
+            <option value="escalated">Escalated</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="returned">Returned</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+        {requests.loading ? (
+          <div className="loading">Loading approvals…</div>
+        ) : requests.error ? (
+          <div className="empty">Could not load approvals ({requests.error}).</div>
+        ) : requests.rows.length === 0 ? (
+          <div className="empty">No approval requests in this status.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Source</th>
+                <th>Requested by</th>
+                <th className="num">Amount</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.rows.map((rq, i) => {
+                const id = pick(rq, 'id');
+                return (
+                  <tr key={id || i}>
+                    <td>{pick(rq, 'title') || '—'}</td>
+                    <td className="muted">{subjectLabel(pick(rq, 'subjectType'))}</td>
+                    <td className="muted">{pick(rq, 'requestedBy', 'preparedBy') || '—'}</td>
+                    <td className="num">{rq['amountMinor'] != null ? fmtMinor(rq['amountMinor']) : '—'}</td>
+                    <td>{statusPill(pick(rq, 'status'))}</td>
+                    <td>
+                      <button className="btn link" onClick={() => setOpen(id)} disabled={id === ''}>
+                        Open
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {open && (
+        <ApprovalDrawer
+          requestId={open}
+          tenant={tenant}
+          perms={perms}
+          onClose={() => setOpen(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▚', group: 'Overview' },
   { id: 'reconciliation', label: 'Reconciliation', icon: '⇄', group: 'Treasury' },
@@ -2673,6 +2906,7 @@ const NAV = [
   { id: 'recovery-cases', label: 'Recovery cases', icon: '▤', group: 'Recovery' },
   { id: 'compliance', label: 'Compliance', icon: '❖', group: 'Compliance' },
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
+  { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
   { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
   { id: 'admin-assignments', label: 'Access Assignments', icon: '🔑', group: 'Administration' },
@@ -2837,6 +3071,9 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
   }, [tenant]);
   const groupAvailable = (g: string): boolean => {
     if (g === 'Administration') return ADMIN_READ_PERMS.some((p) => perms.has(p));
+    // Approvals is RBAC-gated (a platform capability, not a commercial vertical): visible to anyone who may
+    // read approval requests (makers to track their own, checkers to decide). Not entitlement-gated.
+    if (g === 'Approvals') return perms.has('approvals.request.read');
     const cap = GROUP_ENTITLEMENT[g];
     if (!cap) return true; // Overview always
     return entitled?.[cap] === true;
@@ -2903,6 +3140,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'recovery-cases' && <RecoveryCases tenant={tenant} />}
         {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} />}
+        {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-assignments' && <AccessAdmin tenant={tenant} perms={perms} />}

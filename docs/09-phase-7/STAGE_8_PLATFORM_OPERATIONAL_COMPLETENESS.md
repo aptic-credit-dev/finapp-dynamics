@@ -1,0 +1,145 @@
+# Stage-8 — Platform Operational Completeness Sweep
+
+> Rapid platform-wide audit of every implemented module (M01–M42) + the Stage-8 composition verticals
+> (M43/M44/M45), classified by a traffic-light on **operational** coherence (usable CRUD/governed actions ×
+> RBAC × RLS × audit × UI reachability). Base: `main` after PR #152 (Users & Access) merged. Synthetic staging
+> only. **No module is omitted.**
+>
+> This is an operational-completeness map, **not** a production GO and **not** a certification. Controls
+> (RBAC/RLS/audit/maker-checker) are uniformly present in built modules — the gaps below are almost entirely
+> **UI/workflow reachability**, not control violations.
+
+## Legend
+- **GREEN** — operationally complete: core workflow exposed + usable, RBAC/RLS/audit present.
+- **AMBER** — backend complete, UI/workflow incomplete (canonical capability exists, user actions not exposed).
+- **RED** — material functional/control gap OR dead/obsolete declaration.
+- **BLUE** — framework/internal module that correctly has no ordinary business UI.
+
+## Traffic-light inventory (44 module packages)
+
+| Module | Purpose | Backend | UI | Class | Priority | Gap |
+|---|---|---|---|---|---|---|
+| m01-tenant | Tenancy control plane | ✅ | switcher only | BLUE | — | framework |
+| m02-auth | Session/login | ✅ | login page | BLUE | — | framework |
+| m02-identity | Identity/accounts/memberships | ✅ | **Users & Access** | GREEN | — | — |
+| m02-rbac | Roles/permissions/assignments | ✅ | **Roles/Assignments** | GREEN | — | — |
+| m03-audit | Audit spine (hash-chained) | ✅ | none | BLUE | P2 | no audit-viewer (framework) |
+| m04-admin | Admin console orchestration | ✅ (services) | none (web uses m02 direct) | AMBER | P1 | orchestration is service-only (no controllers) |
+| m05-hub | (intended hub) | ❌ README only | none | RED | P1(hygiene) | **obsolete** placeholder → renumbered m30 |
+| m06-workflow | Workflow/SLA/**outbox** | ✅ | none | BLUE | — | framework |
+| m07-rules | Versioned rules engine | ✅ | none | BLUE | — | framework |
+| m08-notify | Notifications/escalation | ✅ | none | AMBER | P2 | no inbox/preferences UI |
+| m09-docs | Documents/records | ✅ | none | AMBER | P2 | no document UI |
+| m10-report | (intended reporting) | ❌ README only | none | RED | P1(hygiene) | **obsolete** → m32-analytics |
+| m11-ai | (intended AI) | ❌ README only | none | RED | P1(hygiene) | **obsolete** → m24-m29 |
+| m12-feedback | Feedback management | ✅ | none | AMBER | P2 | no feedback UI |
+| m13-case | Case management | ✅ | none | AMBER | P2 | no case UI |
+| m14-legal | Legal matters | ✅ (mvp partial) | none | AMBER | P2 | no legal UI |
+| m15-recon | Bank reconciliation | ✅ | none (superseded by m20) | AMBER | P1 | full API, **zero web consumers** (Treasury runs on m20) |
+| m15a-matching | Deterministic matcher | ✅ (pure) | n/a | BLUE | — | internal engine |
+| m16-litigation | Litigation cases | ✅ | none | AMBER | P2 | no UI |
+| m17-recovery | Debt recovery | ✅ | **Recovery vertical** | GREEN | — | (deep CRUD = PR3) |
+| m18-legaldocs | Legal knowledge library | ✅ | none | AMBER | P2 | no UI |
+| m19-finance | GL accounts/periods/config | ✅ | via m20 only | AMBER | P1 | **period-close control** API-only |
+| m20-glrecon | Bank↔GL reconciliation | ✅ | **Treasury vertical (+PR2 actions)** | GREEN | — | — |
+| m21-journal | Draft journal engine | ✅ | partial (propose only) | AMBER | P1 | posting-request/authorize lifecycle no UI |
+| m22-approval | **Maker-checker/SoD engine** | ✅ | **NONE** | **RED** | **P0** | **no approver screen — every maker-checker loop dead-ends** |
+| m23-finance-integration | Posting-integration record | ✅ (framework) | n/a | BLUE | — | intentional framework (ADR-096/101) |
+| m24-ai-foundation | AI gateway/pipeline | ✅ (service) | none | BLUE | P2 | `/api/v1/ai` declared, unwired |
+| m25-operational-ai | Operational AI suggest | ✅ (contract) | none | BLUE | P2 | recommend-only, no surface |
+| m26-legal-ai | Legal AI | ✅ (contract) | none | BLUE | P2 | recommend-only |
+| m27-finance-ai | Finance AI (no auto-post) | ✅ (contract) | none | BLUE | P2 | recommend-only |
+| m28-executive-ai | Executive copilot | ✅ | none | AMBER | P1 | full copilot API, zero UI |
+| m29-ai-governance | AI governance/waivers | ✅ (services) | none | AMBER→RED | P1 | **controls have no controllers** (unreachable) |
+| m30-platform | Kernel/config/features | ✅ | none | BLUE | — | framework |
+| m31-studio | Design-time authoring | ✅ | none | BLUE | — | framework |
+| m32-analytics | Governed reporting | ✅ | none | AMBER | P1 | no reporting UI |
+| m33-integration | Connector SDK | ✅ | none | BLUE | — | infra |
+| m34-marketplace | Connector marketplace | ✅ | none | BLUE | P2 | optional curation UI |
+| m35-devportal | Developer portal | ✅ | none | BLUE | — | developer-facing |
+| m36-events | Webhooks/streaming | ✅ | none | BLUE | — | infra |
+| m37-govrelease | Release governance | ✅ | none | BLUE | — | infra |
+| m38-automation | Scheduler/automation | ✅ | none | BLUE | — | infra |
+| m39-saas | Plans/subscriptions/entitlements | ✅ | self-check only | AMBER | P1 | no entitlement/subscription admin UI |
+| m40-resilience | Backup/observability | ✅ | none | BLUE | — | infra |
+| m41-security | Secrets/privacy/DLP/GRC | ✅ | GRC slice (Compliance) | AMBER | P1 | secrets/privacy/DLP/incident no UI |
+| m42-certification | Certification programmes | ✅ | none | BLUE | — | internal governance runtime |
+
+**Totals:** GREEN 4 · BLUE 20 · AMBER 16 · RED 4.
+
+## Control-gap check
+No RED **control** violations (no mutating endpoint without permission+audit; no tenant table without RLS FORCE)
+were found in any *wired* controller across all 44 packages. The RED items are: one reachability P0
+(m22-approval has no UI) and three **obsolete README-only placeholders** (m05/m10/m11, superseded by renumbered
+modules). Every AMBER item is a UI/reachability gap over an intact, RBAC+RLS+audit-governed backend.
+
+## P0 gaps (fix now)
+1. **m22-approval — no actioning UI (THE top platform P0).** The decision API (`approve/reject/return/escalate/
+   override`, SoD-enforced, audited) is complete, but there is no Approvals screen and no web client. Every
+   maker-checker workflow dead-ends — including the Treasury journal *Propose adjustment* flow (PR2 surfaces the
+   maker side; the checker side is unreachable). Highest-value single fix on the platform.
+
+## P1 gaps (next)
+- m19-finance **period close/reopen** (a financial control) reachable only by raw API.
+- m21-journal posting-request/authorize lifecycle no UI.
+- m39-saas entitlement/subscription/plan **admin console** (commercial engine API-only).
+- m32-analytics reporting/dashboard UI.
+- m41-security secrets/privacy/DLP/incident admin UI (GRC slice already live).
+- m28-executive-ai copilot UI; m29-ai-governance **has no controllers** (wire or classify future).
+- m04-admin orchestration is service-only; m15-recon superseded by m20 (retire or expose).
+- **Hygiene:** m05-hub / m10-report / m11-ai are obsolete README placeholders → mark retired in the manifest.
+
+## Role seeding + the platform_admin coverage gap (verified against the live staging DB)
+Only two **system** roles are seeded — `platform_admin`, `tenant_admin` — plus tenant-custom roles created ad hoc
+via the Users & Access UI (e.g. `treasury_officer_pr1`). No canonical **persona** role matrix (Treasury
+Officer/Approver, Recovery Officer/Manager, Compliance Officer/Reviewer, Auditor, Restricted) is seeded.
+
+**Verified platform_admin coverage (staging): 155 / 834 permissions (~19%).** A static-migration analysis
+suggested ~7% and "cannot perform recovery/finance" — that is **wrong per live truth** (recovery works). The
+real, verified picture: platform_admin is **curated to the Stage-8 surfaces** and has **zero** coverage of the
+dark modules:
+- **Full / near-full:** identity 20/20 · rbac 13/13 · tenant 19/19 · auth 2/2 · grc 3/3 · gl_reconciliation
+  34/35 · recovery 55/58 · journals 9/27.
+- **ZERO** (~29 namespaces): admin 0/30 · **approvals 0/25** · finance 0/45 · legal 0/70 · litigation 0/56 ·
+  cases 0/56 · workflow 0/24 · notifications 0/21 · documents 0/27 · feedback 0/37 · saas 0/12 · analytics 0/12
+  · ai 0/51 · security 0/8 · privacy 0/3 · reconciliation 0/29 (superseded m15) · rules 0/13 · and the infra set.
+
+**Consequence (a real P1, and it gates the P0):** any new UI over a zero-coverage module 403s for platform_admin
+until the matching permissions are granted. In particular **the m22-approval P0 UI is unusable until
+`approvals.*` is granted to a role** — the approvals seed must ship *with* that PR. Fix shape: a staging
+seed/reconciliation granting each module's permissions to the appropriate system/persona role (never a
+wildcard), scoped per PR as each module's UI is exposed.
+
+## Dead-declaration scan (verified highlights)
+- **Read permissions declared, not enforced** (intentional given the read model — reads are gated by tenant
+  membership + RLS, not per-resource permission): the `*.read`/`*.view`/`analyticsRead` family across ~18
+  modules. Inert today; wire only if per-resource read authorization becomes a requirement.
+- **Dead audit codes:** the 18 `m04-admin` codes are **obsolete duplicates** of codes m02-rbac/m06/m07/m08 own
+  and emit → safe to delete. Genuine wiring gaps worth fixing: `partyContactAccessed` (m13/m14/m16/m17 — PII
+  contact access should be audited but isn't); event-without-audit pairs `RECOVERY_ARRANGEMENT_ACTIVATED` and
+  `LITIGATION_SERVICE_COMPLETED`; `RECOVERY_CASE_SUSPENDED` (state + code exist, transition unwired). The rest
+  (`exportRequested`, `slaBreached`, m06 compensation/timer, m03 retention/legal-hold) are intentional future.
+- **Event families:** none dead — all 53 declared families are emitted/consumed.
+- **Nav:** no orphans either direction; gating sound (entitlement for verticals, RBAC for Administration,
+  fail-closed router, no wildcard). The `<main>` render switch is a hard-coded chain, so a new screen needs a
+  code edit there (not a plugin registry) — acceptable, noted.
+
+## Delivered so far
+- **PR #152 (merged)** — Users & Access Administration (m02 identity/RBAC) → m02 GREEN.
+- **PR (this sweep, pushed, pre-merge)** — M43 Treasury operational actions (run execute/complete/reopen, match
+  confirm/reject/unmatch, exception resolve/waive, import accept/reject) → m20 Treasury GREEN. Proven on staging:
+  exception resolved (audited); run Complete **failed closed** ("1 required exception(s) still open").
+
+## Recommended PR sequence
+- **PR3 — M44 Recovery operational actions** (case lifecycle, assign, arrangements +approve, demands, outcomes).
+- **PR4 — M45 Compliance** (define-control + evidence to the limit of the canonical backend; document immutable gaps).
+- **PR5 — Platform P0: m22-approval actioning UI** — *recommend pulling forward* (unblocks maker-checker for
+  Treasury journals + Recovery arrangements/write-offs; single highest-value fix).
+- **PR6+ — P1 sweep** (period-close, posting lifecycle, entitlement admin, analytics) + manifest hygiene for
+  obsolete m05/m10/m11.
+
+## Verdicts (per the completeness gate)
+- **READY:** m02-identity, m02-rbac, m17-recovery, m20-glrecon (Treasury with PR2).
+- **READY WITH LIMITATION:** m19, m21, m32, m39, m41 (backend governed; admin UI pending).
+- **FRAMEWORK ONLY:** m01, m02-auth, m03, m06, m07, m15a, m23-m27, m30, m31, m33-m38, m40, m42.
+- **NOT READY (reachability):** m22-approval (P0). **OBSOLETE:** m05, m10, m11.

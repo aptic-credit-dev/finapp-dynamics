@@ -278,8 +278,76 @@ export async function proposeAdjustment(
   // Re-read the draft to get its current version (validate bumps it), then submit.
   const fresh = await getJournalDraft(id, tenant);
   const v2 = Number((fresh.data as Row | null)?.['version'] ?? v1 + 1);
-  return submitJournalDraft(id, v2, tenant);
+  const submitted = await submitJournalDraft(id, v2, tenant);
+  if (!submitted.ok) return submitted;
+  // Raise the canonical M22 approval request for the submitted adjustment so a DISTINCT checker can decide it
+  // in the Approvals inbox (maker-checker). Best-effort: if the maker lacks approvals.request.* the journal is
+  // still submitted (PENDING APPROVAL) — the request just isn't raised, and that is surfaced, not swallowed.
+  const debitMinor = input.lines
+    .filter((l) => l.direction === 'debit')
+    .reduce((sum, l) => sum + (Number.isFinite(l.amountMinor) ? l.amountMinor : 0), 0);
+  const req = await createApprovalRequest(
+    {
+      subjectType: 'journal_posting',
+      subjectRef: id,
+      title: input.description,
+      amountMinor: debitMinor,
+    },
+    tenant,
+  );
+  if (req.ok && req.data) {
+    const reqId = String(((req.data as Row)['request'] as Row | undefined)?.['id'] ?? '');
+    const reqV = Number(((req.data as Row)['request'] as Row | undefined)?.['version'] ?? 1);
+    if (reqId) await submitApprovalRequest(reqId, reqV, tenant);
+  }
+  return submitted;
 }
+
+// --- approvals (M22 maker-checker / SoD engine) — canonical, reused. THE platform approval choke point: an
+// approving actor is NEVER the maker, a blocked SoD attempt is a 403 with a machine-readable reason code, and
+// the deciding actor is the authenticated SESSION identity (never a request field). This client never approves
+// on anyone's behalf; the server is authoritative. Reused by any module that raises an approval request. ---
+const AP = '/approvals';
+export const listApprovalRequests = (
+  t?: string | null,
+  status?: string,
+): Promise<ApiResult<{ requests: Row[] }>> =>
+  call(`${AP}/requests${status ? `?status=${encodeURIComponent(status)}` : ''}`, { tenantId: t });
+export const getApprovalRequest = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ request: Row; steps: Row[] }>> =>
+  call(`${AP}/requests/${encodeURIComponent(id)}`, { tenantId: t });
+export const getApprovalDecisions = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ decisions: Row[] }>> =>
+  call(`${AP}/requests/${encodeURIComponent(id)}/decisions`, { tenantId: t });
+export const createApprovalRequest = (
+  body: Record<string, unknown>,
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${AP}/requests`, { method: 'POST', body, tenantId: t });
+export const submitApprovalRequest = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${AP}/requests/${encodeURIComponent(id)}/submit`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+// Record a decision (approve/reject/return/escalate). SoD is enforced server-side: a maker deciding their OWN
+// request gets a 403 (makerIsChecker), never a silent no-op.
+export type ApprovalDecision = 'approve' | 'reject' | 'return' | 'escalate';
+export const decideApproval = (
+  id: string,
+  ev: number,
+  decision: ApprovalDecision,
+  t?: string | null,
+  reason?: string,
+): Promise<ApiResult<Row>> =>
+  call(`${AP}/requests/${encodeURIComponent(id)}/decisions`, {
+    method: 'POST',
+    body: { expectedVersion: ev, decision, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
 
 // --- debt recovery (M44 vertical — reuses the existing m17-recovery / m14-legal / m16-litigation APIs; no
 // duplicate engine). Read-first; any action stays permission-controlled + audited server-side. ---
