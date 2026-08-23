@@ -249,16 +249,23 @@ function AccountsCard({ tenant }: { tenant: string | null }): JSX.Element {
 function MatchDrawer({
   matchId,
   tenant,
+  perms,
   onClose,
+  onChanged,
 }: {
   matchId: string;
   tenant: string | null;
+  perms: Set<string>;
   onClose: () => void;
+  onChanged: () => void;
 }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
   const [match, setMatch] = useState<api.Row | null>(null);
   const [lines, setLines] = useState<api.Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -272,8 +279,17 @@ function MatchDrawer({
     return () => {
       live = false;
     };
-  }, [matchId, tenant]);
+  }, [matchId, tenant, nonce]);
   const m = match ?? {};
+  const mStatus = pick(m, 'status').toLowerCase();
+  const mVersion = Number(m['version'] ?? 1);
+  const report = (r: api.ApiResult<api.Row>, okMsg: string): void => {
+    setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) {
+      setNonce((x) => x + 1);
+      onChanged();
+    }
+  };
   return (
     <div className="drawer-overlay" onClick={onClose} role="presentation">
       <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Match detail">
@@ -304,6 +320,44 @@ function MatchDrawer({
               <dt>Matched by</dt>
               <dd>{pick(m, 'matchedBy') || '—'}</dd>
             </dl>
+            <div className="admin-actions">
+              <ActionButton
+                label="Confirm"
+                allowed={
+                  /propos|suggest|pending|review/.test(mStatus) && can('gl_reconciliation.match.review')
+                }
+                onRun={() =>
+                  api
+                    .confirmMatch(matchId, mVersion, tenant)
+                    .then((r) => report(r, 'Match confirmed (audited).'))
+                }
+              />
+              <ActionButton
+                label="Reject"
+                allowed={
+                  /propos|suggest|pending|review/.test(mStatus) && can('gl_reconciliation.match.review')
+                }
+                danger
+                needsReason
+                onRun={(reason) =>
+                  api
+                    .rejectMatch(matchId, mVersion, reason ?? '', tenant)
+                    .then((r) => report(r, 'Match rejected (audited).'))
+                }
+              />
+              <ActionButton
+                label="Unmatch"
+                allowed={/matched|confirm/.test(mStatus) && can('gl_reconciliation.match.unmatch')}
+                danger
+                needsReason
+                onRun={(reason) =>
+                  api
+                    .unmatchMatch(matchId, mVersion, reason ?? '', tenant)
+                    .then((r) => report(r, 'Match unmatched (privileged, audited).'))
+                }
+              />
+            </div>
+            {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
             <h4 className="drawer-sub">Matched lines</h4>
             {lines.length === 0 ? (
               <div className="empty">No lines recorded on this match.</div>
@@ -336,18 +390,28 @@ function MatchDrawer({
 
 // Runs → matches, with a click-through match drawer. A run is picked (most recent first); its matches load
 // on demand. Everything is tenant-scoped — the API enforces membership + RLS on every call.
-function RunsWorkspace({ tenant }: { tenant: string | null }): JSX.Element {
-  const runs = useRows(() => api.getRuns(tenant), [tenant]);
+function RunsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const runs = useRows(() => api.getRuns(tenant), [tenant, nonce]);
   const [runId, setRunId] = useState<string | null>(null);
   const [openMatch, setOpenMatch] = useState<string | null>(null);
   const selectedRun = runId ?? (runs.rows[0] ? pick(runs.rows[0], 'id') : null);
+  const runRow = runs.rows.find((r) => pick(r, 'id') === selectedRun) ?? null;
+  const runStatus = runRow ? pick(runRow, 'status').toLowerCase() : '';
+  const runVersion = runRow ? Number(runRow['version'] ?? 1) : 1;
   const matches = useRows(
     () =>
       selectedRun
         ? api.getRunMatches(selectedRun, tenant)
         : Promise.resolve({ ok: true, status: 200, data: [], error: null }),
-    [selectedRun, tenant],
+    [selectedRun, tenant, nonce],
   );
+  const report = (r: api.ApiResult<api.Row>, okMsg: string): void => {
+    setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) setNonce((x) => x + 1);
+  };
   return (
     <div className="card">
       <header>
@@ -378,6 +442,44 @@ function RunsWorkspace({ tenant }: { tenant: string | null }): JSX.Element {
               })}
             </select>
           </div>
+          {selectedRun && (
+            <div className="admin-actions" style={{ padding: '0 16px 8px' }}>
+              <ActionButton
+                label="Execute"
+                allowed={/draft|review_required/.test(runStatus) && can('gl_reconciliation.run.execute')}
+                onRun={() =>
+                  api
+                    .executeRun(selectedRun, runVersion, tenant)
+                    .then((r) => report(r, 'Run executed — balance invariant + matching (audited).'))
+                }
+              />
+              <ActionButton
+                label="Complete"
+                allowed={/review_required|running/.test(runStatus) && can('gl_reconciliation.run.execute')}
+                onRun={() =>
+                  api
+                    .completeRun(selectedRun, runVersion, tenant)
+                    .then((r) => report(r, 'Run completed (fails closed if a required exception is open).'))
+                }
+              />
+              <ActionButton
+                label="Reopen"
+                allowed={/completed/.test(runStatus) && can('gl_reconciliation.run.reopen')}
+                danger
+                needsReason
+                onRun={(reason) =>
+                  api
+                    .reopenRun(selectedRun, runVersion, reason ?? '', tenant)
+                    .then((r) => report(r, 'Run reopened (audited).'))
+                }
+              />
+            </div>
+          )}
+          {msg && (
+            <div className={msg.ok ? 'ok-note' : 'error'} style={{ margin: '0 16px 8px' }}>
+              {msg.msg}
+            </div>
+          )}
           {matches.loading ? (
             <div className="loading">Loading matches…</div>
           ) : matches.rows.length === 0 ? (
@@ -417,17 +519,32 @@ function RunsWorkspace({ tenant }: { tenant: string | null }): JSX.Element {
           )}
         </>
       )}
-      {openMatch && <MatchDrawer matchId={openMatch} tenant={tenant} onClose={() => setOpenMatch(null)} />}
+      {openMatch && (
+        <MatchDrawer
+          matchId={openMatch}
+          tenant={tenant}
+          perms={perms}
+          onClose={() => setOpenMatch(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
     </div>
   );
 }
 
 // GL imports are per-account on the API; this card loads the tenant's accounts then their imports and shows
 // them together (with the owning account name), so the tenant-wide view works despite the per-account endpoint.
-function ImportsCard({ tenant }: { tenant: string | null }): JSX.Element {
+function ImportsCard({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
   const accounts = useRows(() => api.getAccounts(tenant), [tenant]);
   const [rows, setRows] = useState<api.Row[] | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   const acctKey = accounts.rows.map((a) => pick(a, 'id', 'account_id')).join(',');
+  const report = (r: api.ApiResult<api.Row>, okMsg: string): void => {
+    setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) setNonce((x) => x + 1);
+  };
   useEffect(() => {
     let live = true;
     setRows(null);
@@ -453,13 +570,18 @@ function ImportsCard({ tenant }: { tenant: string | null }): JSX.Element {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenant, accounts.loading, acctKey]);
+  }, [tenant, accounts.loading, acctKey, nonce]);
   return (
     <div className="card">
       <header>
         <h3>GL / statement imports</h3>
         <span className="demo-note">SYNTHETIC</span>
       </header>
+      {msg && (
+        <div className={msg.ok ? 'ok-note' : 'error'} style={{ margin: '0 16px 8px' }}>
+          {msg.msg}
+        </div>
+      )}
       {rows === null ? (
         <div className="loading">Loading imports…</div>
       ) : rows.length === 0 ? (
@@ -475,20 +597,51 @@ function ImportsCard({ tenant }: { tenant: string | null }): JSX.Element {
               <th>Period</th>
               <th>Format</th>
               <th>Status</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((im, i) => (
-              <tr key={pick(im, 'id') || i}>
-                <td>{pick(im, 'fileName', 'reference', 'name', 'id') || '—'}</td>
-                <td>{pick(im, '_account', 'glAccountId') || '—'}</td>
-                <td className="muted">
-                  {pick(im, 'periodStart') ? `${pick(im, 'periodStart')}…${pick(im, 'periodEnd')}` : '—'}
-                </td>
-                <td className="muted">{pick(im, 'sourceFormat', 'format') || '—'}</td>
-                <td>{matchPill(pick(im, 'status', 'state'))}</td>
-              </tr>
-            ))}
+            {rows.map((im, i) => {
+              const id = pick(im, 'id');
+              const ev = Number(im['version'] ?? 1);
+              const st = pick(im, 'status', 'state').toLowerCase();
+              const actionable = /validat|pending|created/.test(st);
+              return (
+                <tr key={id || i}>
+                  <td>{pick(im, 'fileName', 'reference', 'name', 'id') || '—'}</td>
+                  <td>{pick(im, '_account', 'glAccountId') || '—'}</td>
+                  <td className="muted">
+                    {pick(im, 'periodStart') ? `${pick(im, 'periodStart')}…${pick(im, 'periodEnd')}` : '—'}
+                  </td>
+                  <td className="muted">{pick(im, 'sourceFormat', 'format') || '—'}</td>
+                  <td>{matchPill(pick(im, 'status', 'state'))}</td>
+                  <td>
+                    <div className="admin-actions">
+                      <ActionButton
+                        label="Accept"
+                        allowed={actionable && can('gl_reconciliation.import.accept')}
+                        onRun={() =>
+                          api
+                            .acceptImport(id, ev, tenant)
+                            .then((r) => report(r, 'Import accepted (audited).'))
+                        }
+                      />
+                      <ActionButton
+                        label="Reject"
+                        allowed={actionable && can('gl_reconciliation.import.reject')}
+                        danger
+                        needsReason
+                        onRun={(reason) =>
+                          api
+                            .rejectImport(id, ev, reason ?? '', tenant)
+                            .then((r) => report(r, 'Import rejected (audited).'))
+                        }
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -699,17 +852,17 @@ function adjustmentPill(status: string): JSX.Element {
   );
 }
 
-function Reconciliation({ tenant }: { tenant: string | null }): JSX.Element {
+function Reconciliation({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
   return (
     <>
       <h1 className="page-title">Reconciliation workspace</h1>
       <p className="page-sub">
         Match confidence uses labels + glyphs, never colour alone. Adjustments post through maker-checker
-        journals (server-enforced).
+        journals (server-enforced). Run, match and exception actions are permission-gated + audited.
       </p>
-      <RunsWorkspace tenant={tenant} />
+      <RunsWorkspace tenant={tenant} perms={perms} />
       <AdjustmentsCard tenant={tenant} />
-      <ImportsCard tenant={tenant} />
+      <ImportsCard tenant={tenant} perms={perms} />
       <div className="card">
         <header>
           <h3>Match confidence legend</h3>
@@ -729,17 +882,24 @@ function Reconciliation({ tenant }: { tenant: string | null }): JSX.Element {
 // Real Exceptions screen (ADR-134 tenant context + existing gl-reconciliation API). Exceptions are per-run;
 // the most recent run is shown first, with a run selector. Resolve/assign/waive are server-side maker-checker
 // actions — this surface lists and explains them, it does not add a second write path.
-function Exceptions({ tenant }: { tenant: string | null }): JSX.Element {
+function Exceptions({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
   const runs = useRows(() => api.getRuns(tenant), [tenant]);
   const [runId, setRunId] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   const selectedRun = runId ?? (runs.rows[0] ? pick(runs.rows[0], 'id') : null);
   const exceptions = useRows(
     () =>
       selectedRun
         ? api.getRunExceptions(selectedRun, tenant)
         : Promise.resolve({ ok: true, status: 200, data: [], error: null }),
-    [selectedRun, tenant],
+    [selectedRun, tenant, nonce],
   );
+  const report = (r: api.ApiResult<api.Row>, okMsg: string): void => {
+    setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) setNonce((x) => x + 1);
+  };
   return (
     <>
       <h1 className="page-title">Reconciliation exceptions</h1>
@@ -772,6 +932,7 @@ function Exceptions({ tenant }: { tenant: string | null }): JSX.Element {
                 })}
               </select>
             </div>
+            {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
             {exceptions.loading ? (
               <div className="loading">Loading exceptions…</div>
             ) : exceptions.rows.length === 0 ? (
@@ -785,18 +946,50 @@ function Exceptions({ tenant }: { tenant: string | null }): JSX.Element {
                     <th>Reason</th>
                     <th className="num">Age (days)</th>
                     <th>Assigned</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {exceptions.rows.map((ex, i) => (
-                    <tr key={pick(ex, 'id') || i}>
-                      <td>{pick(ex, 'exceptionType') || '—'}</td>
-                      <td>{matchPill(pick(ex, 'status'))}</td>
-                      <td className="muted">{pick(ex, 'reason') || '—'}</td>
-                      <td className="num">{pick(ex, 'ageDays') || '0'}</td>
-                      <td className="muted">{pick(ex, 'assignedTo') || 'Unassigned'}</td>
-                    </tr>
-                  ))}
+                  {exceptions.rows.map((ex, i) => {
+                    const open = !/resolv|waiv|closed/i.test(pick(ex, 'status'));
+                    const id = pick(ex, 'id');
+                    const ev = Number(ex['version'] ?? 1);
+                    return (
+                      <tr key={id || i}>
+                        <td>{pick(ex, 'exceptionType') || '—'}</td>
+                        <td>{matchPill(pick(ex, 'status'))}</td>
+                        <td className="muted">{pick(ex, 'reason') || '—'}</td>
+                        <td className="num">{pick(ex, 'ageDays') || '0'}</td>
+                        <td className="muted">{pick(ex, 'assignedTo') || 'Unassigned'}</td>
+                        <td>
+                          <div className="admin-actions">
+                            <ActionButton
+                              label="Resolve"
+                              allowed={open && can('gl_reconciliation.exception.resolve')}
+                              needsReason
+                              onRun={(reason) =>
+                                api
+                                  .resolveException(id, ev, reason ?? '', tenant)
+                                  .then((r) => report(r, 'Exception resolved (audited).'))
+                              }
+                            />
+                            <ActionButton
+                              label="Waive"
+                              allowed={open && can('gl_reconciliation.exception.waive')}
+                              danger
+                              needsReason
+                              onRun={(reason) =>
+                                api
+                                  .waiveException(id, ev, reason ?? '', tenant)
+                                  .then((r) => report(r, 'Exception waived (privileged, audited).'))
+                              }
+                            />
+                            {!open && <span className="muted">—</span>}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -2696,7 +2889,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
       </header>
       <main className="main">
         {route === 'dashboard' && <Dashboard tenant={tenant} />}
-        {route === 'reconciliation' && <Reconciliation tenant={tenant} />}
+        {route === 'reconciliation' && <Reconciliation tenant={tenant} perms={perms} />}
         {route === 'accounts' && (
           <>
             <h1 className="page-title">Bank accounts</h1>
@@ -2704,7 +2897,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
             <AccountsCard tenant={tenant} />
           </>
         )}
-        {route === 'exceptions' && <Exceptions tenant={tenant} />}
+        {route === 'exceptions' && <Exceptions tenant={tenant} perms={perms} />}
         {route === 'reports' && <Reports tenant={tenant} />}
         {route === 'recovery' && <RecoveryDashboard tenant={tenant} />}
         {route === 'recovery-cases' && <RecoveryCases tenant={tenant} />}
