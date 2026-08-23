@@ -338,6 +338,34 @@ export class SessionService {
     }));
   }
 
+  /**
+   * SELF-ONLY tenant discovery (ADR-134). Returns the active tenant memberships of ONE identity — the
+   * authenticated caller's own. The identity MUST come from the session (the controller derives it; there is
+   * no client-supplied id). Uses the SECURITY DEFINER `auth_self_tenants` function so FORCE-RLS on
+   * `tenant_memberships` stays intact and no other member is ever exposed. Not a general RLS escape.
+   */
+  async selfTenants(
+    ctx: { correlationId: string },
+    identityId: string,
+  ): Promise<{ tenantId: string; code: string; name: string; isPrimary: boolean }[]> {
+    const sys: SystemContext = {
+      reason: 'self tenant discovery (m02-auth, ADR-134)',
+      correlationId: ctx.correlationId,
+    };
+    const result = await this.db.withSystem(sys, (tx) =>
+      tx.query<{ tenant_id: string; code: string; name: string; is_primary: boolean }>(
+        'SELECT tenant_id, code, name, is_primary FROM auth_self_tenants($1)',
+        [identityId],
+      ),
+    );
+    return result.rows.map((r) => ({
+      tenantId: r.tenant_id,
+      code: r.code,
+      name: r.name,
+      isPrimary: r.is_primary,
+    }));
+  }
+
   // --- internal transitions -----------------------------------------------------------------------
 
   private async revokeFamilyInTx(
