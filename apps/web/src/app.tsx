@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import * as api from './api.ts';
 
 // ---------- helpers ----------
@@ -286,15 +286,34 @@ const NAV = [
   { id: 'reports', label: 'Reports', icon: '▤', group: 'Treasury', placeholder: true },
 ];
 
+function initialTenant(): string | null {
+  // Explicit tenant context (isolation-safe): the API enforces membership + RLS on every request. Auto-discovery
+  // of a user's tenants is a governed platform capability not yet built (tenant_memberships is FORCE-RLS,
+  // no-escape) — until then the tenant is provided explicitly (?tenant=<id> or the topbar field) and persisted.
+  try {
+    const q = new URLSearchParams(window.location.search).get('tenant');
+    if (q) {
+      window.localStorage.setItem('aptic.tenant', q);
+      return q;
+    }
+    return window.localStorage.getItem('aptic.tenant');
+  } catch {
+    return null;
+  }
+}
+
 function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX.Element {
   const [route, setRoute] = useState('dashboard');
-  const tenants = useMemo(() => {
-    const t = session['tenant_ids'] ?? session['tenants'] ?? session['tenantId'] ?? session['tenant_id'];
-    if (Array.isArray(t)) return t.map(String);
-    if (typeof t === 'string' && t) return [t];
-    return [];
-  }, [session]);
-  const [tenant, setTenant] = useState<string | null>(tenants[0] ?? null);
+  const [tenant, setTenantState] = useState<string | null>(initialTenant());
+  const setTenant = (t: string | null): void => {
+    setTenantState(t);
+    try {
+      if (t) window.localStorage.setItem('aptic.tenant', t);
+      else window.localStorage.removeItem('aptic.tenant');
+    } catch {
+      /* ignore */
+    }
+  };
   const who =
     str(session['login'] ?? session['username'] ?? session['account'] ?? session['display_name']) || 'User';
   const initials =
@@ -330,20 +349,14 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
       <header className="topbar">
         <div className="title">{NAV.find((n) => n.id === route)?.label ?? 'Aptic Dynamics'}</div>
         <div className="right">
-          {tenants.length > 1 && (
-            <select
-              className="tenant-select"
-              value={tenant ?? ''}
-              onChange={(e) => setTenant(e.target.value || null)}
-              title="Tenant context"
-            >
-              {tenants.map((t) => (
-                <option key={t} value={t}>
-                  Tenant {t.slice(0, 8)}
-                </option>
-              ))}
-            </select>
-          )}
+          <input
+            className="tenant-select"
+            value={tenant ?? ''}
+            placeholder="tenant id (x-tenant-id)"
+            onChange={(e) => setTenant(e.target.value.trim() || null)}
+            title="Tenant context — API-enforced (RLS). Auto-discovery is a governed follow-up."
+            style={{ width: 210 }}
+          />
           <div className="usermenu">
             <div className="avatar">{initials}</div>
             <span>{who}</span>
