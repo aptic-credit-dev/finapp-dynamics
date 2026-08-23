@@ -287,6 +287,150 @@ export const recordGrcAssessment = (
     tenantId: t,
   });
 
+// --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
+// engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
+// (RLS, no escape). Every write is a canonical permissioned + audited endpoint; the server is authoritative,
+// this client adds no authorization of its own. Lifecycle is modelled as named POST actions (activate /
+// suspend / reactivate / close / end / retire / revoke) — there is NO hard delete anywhere in the platform. ---
+
+// SELF effective permissions for the selected tenant (GET /auth/permissions) — used to HIDE actions the actor
+// cannot perform. The server still 403s a hidden action if called directly (UI is not the authz source).
+export async function getMyPermissions(
+  t?: string | null,
+): Promise<ApiResult<{ tenantId: string | null; permissions: string[] }>> {
+  return call('/auth/permissions', { tenantId: t });
+}
+
+// Identities (global registry) — a person, distinct from their login accounts.
+export const listIdentities = (t?: string | null): Promise<ApiResult<Row[]>> =>
+  call('/identities', { tenantId: t });
+export const getIdentity = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`/identities/${encodeURIComponent(id)}`, { tenantId: t });
+export const createIdentity = (body: Record<string, unknown>, t?: string | null): Promise<ApiResult<Row>> =>
+  call('/identities', { method: 'POST', body, tenantId: t });
+export const updateIdentity = (
+  id: string,
+  body: Record<string, unknown>,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`/identities/${encodeURIComponent(id)}`, { method: 'PATCH', body, tenantId: t });
+export type IdentityAction = 'activate' | 'suspend' | 'reactivate' | 'close';
+// Lifecycle actions carry `expectedVersion` (optimistic concurrency, mandatory server-side) and an optional
+// `reason` (recorded in the audit trail) — there is no delete; disposal is a governed state transition.
+export const identityAction = (
+  id: string,
+  action: IdentityAction,
+  expectedVersion: number,
+  t?: string | null,
+  reason?: string,
+): Promise<ApiResult<Row>> =>
+  call(`/identities/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
+
+// Login accounts (global) — a way IN for an identity. Never carries a credential in any response.
+export const listLoginAccounts = (identityId: string, t?: string | null): Promise<ApiResult<Row[]>> =>
+  call(`/accounts?identityId=${encodeURIComponent(identityId)}`, { tenantId: t });
+export const createLoginAccount = (
+  body: { identityId: string; accountType: string; loginIdentifier: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call('/accounts', { method: 'POST', body, tenantId: t });
+export type AccountAction = 'activate' | 'suspend' | 'reactivate' | 'deactivate';
+export const accountAction = (
+  id: string,
+  action: AccountAction,
+  expectedVersion: number,
+  t?: string | null,
+  reason?: string,
+): Promise<ApiResult<Row>> =>
+  call(`/accounts/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
+
+// Tenant memberships (tenant-scoped) — the ONLY part of identity a tenant may see (RLS, no escape).
+export const listMemberships = (t?: string | null): Promise<ApiResult<Row[]>> =>
+  call('/tenant-memberships', { tenantId: t });
+export const createMembership = (
+  body: { identityId: string; membershipType: string; accountId?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call('/tenant-memberships', { method: 'POST', body, tenantId: t });
+export type MembershipAction = 'activate' | 'suspend' | 'reactivate' | 'end';
+export const membershipAction = (
+  id: string,
+  action: MembershipAction,
+  expectedVersion: number,
+  t?: string | null,
+  reason?: string,
+): Promise<ApiResult<Row>> =>
+  call(`/tenant-memberships/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
+
+// Roles (tenant-scoped custom roles; system roles are visible + immutable) and the permission catalogue.
+export const listRoles = (t?: string | null): Promise<ApiResult<Row[]>> =>
+  call('/rbac/roles', { tenantId: t });
+export const getRole = (roleId: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`/rbac/roles/${encodeURIComponent(roleId)}`, { tenantId: t });
+export const getRolePermissions = (
+  roleId: string,
+  t?: string | null,
+): Promise<ApiResult<{ permissions: string[] }>> =>
+  call(`/rbac/roles/${encodeURIComponent(roleId)}/permissions`, { tenantId: t });
+export const createRole = (
+  body: { code: string; name: string; description?: string; risk?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call('/rbac/roles', { method: 'POST', body, tenantId: t });
+export const changeRolePermissions = (
+  roleId: string,
+  body: { add?: string[]; remove?: string[] },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`/rbac/roles/${encodeURIComponent(roleId)}/permissions`, { method: 'PATCH', body, tenantId: t });
+export type RoleAction = 'activate' | 'suspend' | 'reactivate' | 'retire';
+export const roleAction = (
+  id: string,
+  action: RoleAction,
+  expectedVersion: number,
+  t?: string | null,
+  reason?: string,
+): Promise<ApiResult<Row>> =>
+  call(`/rbac/roles/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
+export const getPermissionCatalogue = (t?: string | null): Promise<ApiResult<Row[]>> =>
+  call('/rbac/permissions', { tenantId: t });
+
+// Role assignments (tenant-scoped) — grant a role to a membership; SoD + grantor-bounded server-side.
+export const listAssignments = (t?: string | null, membershipId?: string): Promise<ApiResult<Row[]>> =>
+  call(`/rbac/assignments${membershipId ? `?membershipId=${encodeURIComponent(membershipId)}` : ''}`, {
+    tenantId: t,
+  });
+export const grantAssignment = (
+  body: { membershipId: string; roleId: string; justification?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call('/rbac/assignments', { method: 'POST', body, tenantId: t });
+export type AssignmentAction = 'revoke' | 'suspend' | 'reactivate';
+export const assignmentAction = (
+  id: string,
+  action: AssignmentAction,
+  expectedVersion: number,
+  t?: string | null,
+  reason?: string,
+): Promise<ApiResult<Row>> =>
+  call(`/rbac/assignments/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
+
 /**
  * Normalise the various list envelopes to an array, defensively. The gl-reconciliation API returns
  * domain-keyed envelopes ({accounts:[]}, {imports:[]}, {matches:[]}, {balances:[]}, ...), so after the

@@ -141,6 +141,23 @@ export class AuthController {
     return { tenants };
   }
 
+  /**
+   * SELF effective-permissions read. Returns the permission strings the AUTHENTICATED caller effectively holds
+   * in the CURRENTLY-SELECTED tenant (`x-tenant-id`), resolved fresh from persistent RBAC — the exact set M02
+   * enforces with. No permission gate and no `userId` query: like `GET /auth/tenants`, it can only ever report
+   * on the caller themselves. The UI uses this to HIDE actions the actor cannot perform; the server stays
+   * authoritative — a hidden action still 403s if invoked directly, so this never becomes the authorization
+   * source. `tenantId` is null when no tenant is selected (permissions then reflect the platform scope only).
+   */
+  @Get('permissions')
+  async myPermissions(@Headers() headers: Record<string, string>) {
+    const scoped = await this.actors.forRequest(headers, 'self effective permissions (m02)');
+    return {
+      tenantId: scoped.scope === 'tenant' ? scoped.ctx.tenantId : null,
+      permissions: [...scoped.ctx.permissions].sort(),
+    };
+  }
+
   @Get('sessions')
   async listSessions(@Headers() headers: Record<string, string>) {
     const { actor, correlationId } = await this.actors.forPlatformRequest(
