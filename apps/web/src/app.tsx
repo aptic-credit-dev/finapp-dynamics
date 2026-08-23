@@ -8,6 +8,16 @@ const pick = (row: api.Row, ...keys: string[]): string => {
   for (const k of keys) if (row[k] !== undefined && row[k] !== null && row[k] !== '') return String(row[k]);
   return '';
 };
+// Format integer MINOR units for DISPLAY. The value is a string end-to-end and is NEVER parsed to a float
+// (ADR-007) — the decimal point is inserted by string surgery so no rounding error can be introduced.
+const fmtMinor = (v: unknown): string => {
+  const s = str(v).trim();
+  if (s === '' || !/^-?\d+$/.test(s)) return '—';
+  const neg = s.startsWith('-');
+  const padded = (neg ? s.slice(1) : s).padStart(3, '0');
+  const whole = padded.slice(0, -2).replace(/^0+(?=\d)/, '');
+  return `${neg ? '-' : ''}${whole}.${padded.slice(-2)}`;
+};
 // reconciliation match semantics — label + glyph + colour (never colour alone)
 function matchPill(status: string, confidence?: string): JSX.Element {
   const s = (status || confidence || '').toLowerCase();
@@ -198,6 +208,182 @@ function AccountsCard({ tenant }: { tenant: string | null }): JSX.Element {
   );
 }
 
+// Slide-over showing one match and its matched lines. Read-only: confirm/reject/adjust are maker-checker
+// actions that post server-side; this build surfaces the evidence, not a second posting path.
+function MatchDrawer({
+  matchId,
+  tenant,
+  onClose,
+}: {
+  matchId: string;
+  tenant: string | null;
+  onClose: () => void;
+}): JSX.Element {
+  const [match, setMatch] = useState<api.Row | null>(null);
+  const [lines, setLines] = useState<api.Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    setLoading(true);
+    void Promise.all([api.getMatch(matchId, tenant), api.getMatchLines(matchId, tenant)]).then(([m, l]) => {
+      if (!live) return;
+      if (m.ok) setMatch((m.data as api.Row | null) ?? null);
+      else setError(m.error);
+      if (l.ok) setLines(api.asRows(l.data));
+      setLoading(false);
+    });
+    return () => {
+      live = false;
+    };
+  }, [matchId, tenant]);
+  const m = match ?? {};
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Match detail">
+        <header className="drawer-head">
+          <h3>Match detail</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        {loading ? (
+          <div className="loading">Loading match…</div>
+        ) : error ? (
+          <div className="empty">Could not load match ({error}).</div>
+        ) : (
+          <div className="drawer-body">
+            <div className="drawer-status">
+              {matchPill(pick(m, 'status', 'colourStatus', 'confidenceBand'))}
+            </div>
+            <dl className="kv">
+              <dt>Type</dt>
+              <dd>{pick(m, 'matchType') || '—'}</dd>
+              <dt>Confidence</dt>
+              <dd>{pick(m, 'confidenceBand') || '—'}</dd>
+              <dt>Score</dt>
+              <dd>{pick(m, 'score') || '—'}</dd>
+              <dt>Amount variance</dt>
+              <dd>{fmtMinor(m['amountVarianceMinor'])}</dd>
+              <dt>Matched by</dt>
+              <dd>{pick(m, 'matchedBy') || '—'}</dd>
+            </dl>
+            <h4 className="drawer-sub">Matched lines</h4>
+            {lines.length === 0 ? (
+              <div className="empty">No lines recorded on this match.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Side</th>
+                    <th>Line</th>
+                    <th className="num">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((ln, i) => (
+                    <tr key={pick(ln, 'id') || i}>
+                      <td>{pick(ln, 'side') || '—'}</td>
+                      <td className="muted">{pick(ln, 'glLineId', 'sourceLineId', 'id') || '—'}</td>
+                      <td className="num">{fmtMinor(ln['amountMinor'])}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </aside>
+    </div>
+  );
+}
+
+// Runs → matches, with a click-through match drawer. A run is picked (most recent first); its matches load
+// on demand. Everything is tenant-scoped — the API enforces membership + RLS on every call.
+function RunsWorkspace({ tenant }: { tenant: string | null }): JSX.Element {
+  const runs = useRows(() => api.getRuns(tenant), [tenant]);
+  const [runId, setRunId] = useState<string | null>(null);
+  const [openMatch, setOpenMatch] = useState<string | null>(null);
+  const selectedRun = runId ?? (runs.rows[0] ? pick(runs.rows[0], 'id') : null);
+  const matches = useRows(
+    () =>
+      selectedRun
+        ? api.getRunMatches(selectedRun, tenant)
+        : Promise.resolve({ ok: true, status: 200, data: [], error: null }),
+    [selectedRun, tenant],
+  );
+  return (
+    <div className="card">
+      <header>
+        <h3>Reconciliation runs &amp; matches</h3>
+        <span className="demo-note">SYNTHETIC</span>
+      </header>
+      {runs.loading ? (
+        <div className="loading">Loading runs…</div>
+      ) : runs.rows.length === 0 ? (
+        <div className="empty">
+          No reconciliation runs yet. Seed synthetic runs/matches to populate the matching workspace.
+        </div>
+      ) : (
+        <>
+          <div className="run-picker">
+            <label>Run</label>
+            <select value={selectedRun ?? ''} onChange={(e) => setRunId(e.target.value || null)}>
+              {runs.rows.map((r, i) => {
+                const id = pick(r, 'id');
+                return (
+                  <option key={id || i} value={id}>
+                    {(pick(r, 'periodStart') || 'run') +
+                      '…' +
+                      pick(r, 'periodEnd') +
+                      ` · ${pick(r, 'status')} · ${pick(r, 'matchedCount') || 0}✓ / ${pick(r, 'exceptionCount') || 0}!`}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+          {matches.loading ? (
+            <div className="loading">Loading matches…</div>
+          ) : matches.rows.length === 0 ? (
+            <div className="empty">This run has no matches to show.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Match</th>
+                  <th>Type</th>
+                  <th className="num">Variance</th>
+                  <th>Confidence</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {matches.rows.map((mt, i) => {
+                  const id = pick(mt, 'id');
+                  return (
+                    <tr key={id || i}>
+                      <td>{matchPill(pick(mt, 'status', 'colourStatus', 'confidenceBand'))}</td>
+                      <td>{pick(mt, 'matchType') || '—'}</td>
+                      <td className="num">{fmtMinor(mt['amountVarianceMinor'])}</td>
+                      <td className="muted">{pick(mt, 'confidenceBand') || '—'}</td>
+                      <td>
+                        <button className="btn link" onClick={() => setOpenMatch(id)} disabled={id === ''}>
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+      {openMatch && <MatchDrawer matchId={openMatch} tenant={tenant} onClose={() => setOpenMatch(null)} />}
+    </div>
+  );
+}
+
 function Reconciliation({ tenant }: { tenant: string | null }): JSX.Element {
   const imports = useRows(() => api.getGlImports(tenant), [tenant]);
   return (
@@ -207,16 +393,17 @@ function Reconciliation({ tenant }: { tenant: string | null }): JSX.Element {
         Match confidence uses labels + glyphs, never colour alone. Adjustments post through maker-checker
         journals (server-enforced).
       </p>
+      <RunsWorkspace tenant={tenant} />
       <div className="card">
         <header>
-          <h3>GL / statement imports &amp; runs</h3>
+          <h3>GL / statement imports</h3>
           <span className="demo-note">SYNTHETIC</span>
         </header>
         {imports.loading ? (
           <div className="loading">Loading imports…</div>
         ) : imports.rows.length === 0 ? (
           <div className="empty">
-            No imports/runs yet. Import a statement or seed synthetic data to see the matching workspace.
+            No imports yet. Import a statement or seed synthetic data to see the matching workspace.
           </div>
         ) : (
           <table>
@@ -261,6 +448,87 @@ function Reconciliation({ tenant }: { tenant: string | null }): JSX.Element {
   );
 }
 
+// Real Exceptions screen (ADR-134 tenant context + existing gl-reconciliation API). Exceptions are per-run;
+// the most recent run is shown first, with a run selector. Resolve/assign/waive are server-side maker-checker
+// actions — this surface lists and explains them, it does not add a second write path.
+function Exceptions({ tenant }: { tenant: string | null }): JSX.Element {
+  const runs = useRows(() => api.getRuns(tenant), [tenant]);
+  const [runId, setRunId] = useState<string | null>(null);
+  const selectedRun = runId ?? (runs.rows[0] ? pick(runs.rows[0], 'id') : null);
+  const exceptions = useRows(
+    () =>
+      selectedRun
+        ? api.getRunExceptions(selectedRun, tenant)
+        : Promise.resolve({ ok: true, status: 200, data: [], error: null }),
+    [selectedRun, tenant],
+  );
+  return (
+    <>
+      <h1 className="page-title">Reconciliation exceptions</h1>
+      <p className="page-sub">
+        Unmatched, split and out-of-tolerance items awaiting a human decision. Assignment and resolution are
+        maker-checker actions enforced server-side.
+      </p>
+      <div className="card">
+        <header>
+          <h3>Exceptions</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        {runs.loading ? (
+          <div className="loading">Loading runs…</div>
+        ) : runs.rows.length === 0 ? (
+          <div className="empty">No reconciliation runs yet — nothing to show exceptions for.</div>
+        ) : (
+          <>
+            <div className="run-picker">
+              <label>Run</label>
+              <select value={selectedRun ?? ''} onChange={(e) => setRunId(e.target.value || null)}>
+                {runs.rows.map((r, i) => {
+                  const id = pick(r, 'id');
+                  return (
+                    <option key={id || i} value={id}>
+                      {(pick(r, 'periodStart') || 'run') + '…' + pick(r, 'periodEnd')} ·{' '}
+                      {pick(r, 'exceptionCount') || 0} exceptions
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+            {exceptions.loading ? (
+              <div className="loading">Loading exceptions…</div>
+            ) : exceptions.rows.length === 0 ? (
+              <div className="empty">No exceptions on this run — everything reconciled.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Reason</th>
+                    <th className="num">Age (days)</th>
+                    <th>Assigned</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {exceptions.rows.map((ex, i) => (
+                    <tr key={pick(ex, 'id') || i}>
+                      <td>{pick(ex, 'exceptionType') || '—'}</td>
+                      <td>{matchPill(pick(ex, 'status'))}</td>
+                      <td className="muted">{pick(ex, 'reason') || '—'}</td>
+                      <td className="num">{pick(ex, 'ageDays') || '0'}</td>
+                      <td className="muted">{pick(ex, 'assignedTo') || 'Unassigned'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 function Placeholder({ title }: { title: string }): JSX.Element {
   return (
     <>
@@ -282,38 +550,106 @@ const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▚', group: 'Overview' },
   { id: 'reconciliation', label: 'Reconciliation', icon: '⇄', group: 'Treasury' },
   { id: 'accounts', label: 'Bank accounts', icon: '🏦', group: 'Treasury' },
-  { id: 'exceptions', label: 'Exceptions', icon: '!', group: 'Treasury', placeholder: true },
+  { id: 'exceptions', label: 'Exceptions', icon: '!', group: 'Treasury' },
   { id: 'reports', label: 'Reports', icon: '▤', group: 'Treasury', placeholder: true },
 ];
 
-function initialTenant(): string | null {
-  // Explicit tenant context (isolation-safe): the API enforces membership + RLS on every request. Auto-discovery
-  // of a user's tenants is a governed platform capability not yet built (tenant_memberships is FORCE-RLS,
-  // no-escape) — until then the tenant is provided explicitly (?tenant=<id> or the topbar field) and persisted.
+const TENANT_KEY = 'aptic.tenant';
+// The stored/URL tenant is only ever a CANDIDATE. It is never trusted until validated against the caller's
+// authorised tenants (ADR-134 GET /auth/tenants) — a stale or inaccessible id is discarded, and a tenant the
+// caller cannot access is never selected or displayed. The API additionally enforces membership + RLS server-side.
+function tenantCandidate(): string | null {
   try {
     const q = new URLSearchParams(window.location.search).get('tenant');
-    if (q) {
-      window.localStorage.setItem('aptic.tenant', q);
-      return q;
-    }
-    return window.localStorage.getItem('aptic.tenant');
+    if (q) return q;
+    return window.localStorage.getItem(TENANT_KEY);
   } catch {
     return null;
   }
 }
+function persistTenant(t: string | null): void {
+  try {
+    if (t) window.localStorage.setItem(TENANT_KEY, t);
+    else window.localStorage.removeItem(TENANT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+// Governed tenant switcher (ADR-134): options come ONLY from the caller's authorised tenants. One membership →
+// a static label (auto-selected, no manual entry); several → a real dropdown; none → a clear "no access" state.
+// A raw UUID field is never shown — management no longer pastes tenant ids.
+function TenantSwitcher({
+  tenants,
+  tenant,
+  onSelect,
+}: {
+  tenants: api.SelfTenant[] | null;
+  tenant: string | null;
+  onSelect: (t: string | null) => void;
+}): JSX.Element {
+  if (tenants === null) return <span className="tenant-select muted">Loading tenants…</span>;
+  if (tenants.length === 0)
+    return (
+      <span className="tenant-select muted" title="Your account has no active tenant membership.">
+        No tenant access
+      </span>
+    );
+  if (tenants.length === 1) {
+    const only = tenants[0];
+    return (
+      <span className="tenant-select" title={only.tenantId}>
+        {only.name || only.code}
+      </span>
+    );
+  }
+  return (
+    <select
+      className="tenant-select"
+      value={tenant ?? ''}
+      onChange={(e) => onSelect(e.target.value || null)}
+      title="Select tenant context — only tenants you are a member of are shown."
+      style={{ width: 210 }}
+    >
+      {tenants.map((t) => (
+        <option key={t.tenantId} value={t.tenantId}>
+          {(t.name || t.code) + (t.isPrimary ? ' ★' : '')}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX.Element {
   const [route, setRoute] = useState('dashboard');
-  const [tenant, setTenantState] = useState<string | null>(initialTenant());
+  // `tenants === null` = still discovering; `[]` = caller has no selectable tenant. `tenant` is ALWAYS either
+  // null or an id present in `tenants` — never an unvalidated candidate.
+  const [tenants, setTenants] = useState<api.SelfTenant[] | null>(null);
+  const [tenant, setTenantState] = useState<string | null>(null);
   const setTenant = (t: string | null): void => {
     setTenantState(t);
-    try {
-      if (t) window.localStorage.setItem('aptic.tenant', t);
-      else window.localStorage.removeItem('aptic.tenant');
-    } catch {
-      /* ignore */
-    }
+    persistTenant(t);
   };
+  useEffect(() => {
+    let live = true;
+    void api.getTenants().then((r) => {
+      if (!live) return;
+      const list = r.ok && r.data ? r.data.tenants : [];
+      setTenants(list);
+      const candidate = tenantCandidate();
+      // preserve ?tenant=/stored ONLY if it is in the authorised list; otherwise discard it and fall back to
+      // the primary membership (or the first authorised tenant). Never keep an inaccessible id.
+      const validated = candidate && list.some((t) => t.tenantId === candidate) ? candidate : null;
+      if (candidate && !validated) persistTenant(null);
+      const chosen =
+        validated ?? (list.length > 0 ? (list.find((t) => t.isPrimary)?.tenantId ?? list[0].tenantId) : null);
+      setTenantState(chosen);
+      persistTenant(chosen);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
   const who =
     str(session['login'] ?? session['username'] ?? session['account'] ?? session['display_name']) || 'User';
   const initials =
@@ -349,14 +685,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
       <header className="topbar">
         <div className="title">{NAV.find((n) => n.id === route)?.label ?? 'Aptic Dynamics'}</div>
         <div className="right">
-          <input
-            className="tenant-select"
-            value={tenant ?? ''}
-            placeholder="tenant id (x-tenant-id)"
-            onChange={(e) => setTenant(e.target.value.trim() || null)}
-            title="Tenant context — API-enforced (RLS). Auto-discovery is a governed follow-up."
-            style={{ width: 210 }}
-          />
+          <TenantSwitcher tenants={tenants} tenant={tenant} onSelect={setTenant} />
           <div className="usermenu">
             <div className="avatar">{initials}</div>
             <span>{who}</span>
@@ -376,7 +705,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
             <AccountsCard tenant={tenant} />
           </>
         )}
-        {route === 'exceptions' && <Placeholder title="Reconciliation exceptions" />}
+        {route === 'exceptions' && <Exceptions tenant={tenant} />}
         {route === 'reports' && <Placeholder title="Reconciliation reports" />}
       </main>
     </div>

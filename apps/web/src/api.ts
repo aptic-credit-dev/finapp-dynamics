@@ -71,6 +71,18 @@ export async function logout(): Promise<void> {
   setCsrf(null);
 }
 
+// Self-only tenant discovery (ADR-134): the tenants the AUTHENTICATED caller may select. Identity is derived
+// server-side from the session — this sends no id and cannot ask on behalf of anyone else.
+export interface SelfTenant {
+  tenantId: string;
+  code: string;
+  name: string;
+  isPrimary: boolean;
+}
+export async function getTenants(): Promise<ApiResult<{ tenants: SelfTenant[] }>> {
+  return call<{ tenants: SelfTenant[] }>('/auth/tenants');
+}
+
 // --- reconciliation (reuses the existing gl-reconciliation API; no duplicate engine) ---
 export type Row = Record<string, unknown>;
 const R = '/gl-reconciliation';
@@ -80,11 +92,22 @@ export const getBalances = (t?: string | null): Promise<ApiResult<Row[] | { item
   call(`${R}/balances`, { tenantId: t });
 export const getGlImports = (t?: string | null): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
   call(`${R}/gl-imports`, { tenantId: t });
+export const getRuns = (t?: string | null): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
+  call(`${R}/runs`, { tenantId: t });
 export const getRunMatches = (
   runId: string,
   t?: string | null,
 ): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
   call(`${R}/runs/${encodeURIComponent(runId)}/matches`, { tenantId: t });
+export const getRunExceptions = (
+  runId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
+  call(`${R}/runs/${encodeURIComponent(runId)}/exceptions`, { tenantId: t });
+export const getMatch = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${R}/matches/${encodeURIComponent(id)}`, { tenantId: t });
+export const getMatchLines = (id: string, t?: string | null): Promise<ApiResult<Row[] | { items?: Row[] }>> =>
+  call(`${R}/matches/${encodeURIComponent(id)}/lines`, { tenantId: t });
 
 /**
  * Normalise the various list envelopes to an array, defensively. The gl-reconciliation API returns
@@ -95,7 +118,18 @@ export function asRows(data: unknown): Row[] {
   if (Array.isArray(data)) return data as Row[];
   if (data === null || typeof data !== 'object') return [];
   const d = data as Record<string, unknown>;
-  for (const k of ['items', 'rows', 'data', 'accounts', 'imports', 'matches', 'exceptions', 'balances']) {
+  for (const k of [
+    'items',
+    'rows',
+    'data',
+    'accounts',
+    'imports',
+    'runs',
+    'matches',
+    'exceptions',
+    'lines',
+    'balances',
+  ]) {
     if (Array.isArray(d[k])) return d[k] as Row[];
   }
   for (const v of Object.values(d)) if (Array.isArray(v)) return v as Row[];

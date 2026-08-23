@@ -125,6 +125,22 @@ export class AuthController {
     return current;
   }
 
+  /**
+   * SELF-ONLY tenant discovery (ADR-134). Returns the tenants the AUTHENTICATED caller may select. Identity is
+   * derived solely from the session actor — there is no `userId`/identity query parameter and no way to ask on
+   * behalf of another user. Backed by the SECURITY DEFINER `auth_self_tenants` function, so FORCE-RLS on
+   * `tenant_memberships` is untouched and no other member is ever exposed.
+   */
+  @Get('tenants')
+  async myTenants(@Headers() headers: Record<string, string>) {
+    const { actor, correlationId } = await this.actors.forPlatformRequest(
+      headers,
+      'self tenant discovery (m02-auth)',
+    );
+    const tenants = await this.sessions.selfTenants({ correlationId }, actor.identityId);
+    return { tenants };
+  }
+
   @Get('sessions')
   async listSessions(@Headers() headers: Record<string, string>) {
     const { actor, correlationId } = await this.actors.forPlatformRequest(
