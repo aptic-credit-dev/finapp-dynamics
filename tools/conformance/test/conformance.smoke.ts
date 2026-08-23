@@ -21,6 +21,46 @@ import {
 
 const REPO_ROOT = resolve(import.meta.dirname, '../../..');
 
+/**
+ * ADR-135 — implemented-status criteria. A DOMAIN module (default) marked `implemented` must ship real source
+ * in its own `packages/<module>/src/` (generalises the m02 rule — CLAUDE.md: no `implemented` without real
+ * code). A `composition_vertical` (a UI/orchestration experience over existing engines) instead must DECLARE
+ * and satisfy the composition criteria and must NOT own a domain package. Pure function so both the manifest
+ * scan and explicit positive/negative unit cases can exercise it. Returns the list of violations (empty = ok).
+ */
+interface ModuleRec {
+  readonly module: string;
+  readonly status?: string;
+  readonly kind?: string;
+  readonly reuses?: unknown;
+  readonly surface?: unknown;
+  readonly controls?: unknown;
+  readonly acceptance?: unknown;
+}
+export function validateImplementedModule(m: ModuleRec, hasPackage: boolean): string[] {
+  const errs: string[] = [];
+  if (m.status !== 'implemented') return errs; // only `implemented` is gated
+  if (m.kind === 'composition_vertical') {
+    // ADR-135: a composition vertical owns NO new domain engine.
+    if (hasPackage)
+      errs.push(`${m.module}: composition_vertical must NOT own a packages/${m.module} domain package`);
+    if (!Array.isArray(m.reuses) || m.reuses.length === 0)
+      errs.push(`${m.module}: composition_vertical implemented needs a non-empty reuses[] dependency map`);
+    if (typeof m.surface !== 'string' || m.surface.trim() === '')
+      errs.push(`${m.module}: composition_vertical implemented needs a declared surface`);
+    const c = (m.controls ?? {}) as Record<string, unknown>;
+    if (!c['rbac'] || !c['audit'] || !c['tenancy'])
+      errs.push(`${m.module}: composition_vertical implemented needs controls.{rbac,audit,tenancy}`);
+    if (typeof m.acceptance !== 'string' || m.acceptance.trim() === '')
+      errs.push(`${m.module}: composition_vertical implemented needs an acceptance-evidence reference`);
+  } else {
+    // Domain module (default): must have real source in its own package. No loophole.
+    if (!hasPackage)
+      errs.push(`${m.module}: implemented domain module must ship packages/${m.module}/src/ source`);
+  }
+  return errs;
+}
+
 export default defineSuite('conformance', (t) => {
   const files = manifestFiles(REPO_ROOT);
   t.ok(files.length >= 6, `manifests/ contains the expected registries (found ${files.length})`);
@@ -284,6 +324,69 @@ export default defineSuite('conformance', (t) => {
       'm02-identity is marked implemented and ships the actor resolver the stage is defined by',
     );
   }
+
+  // --- ADR-135: every `implemented` module satisfies its kind's criteria --------------------------
+  // Domain modules need their own package (generalises the m02 rule above — no loophole); a
+  // `composition_vertical` needs its declared composition criteria and NO domain package.
+  for (const m of modulesInPlan as ModuleRec[]) {
+    if (m.status !== 'implemented') continue;
+    // A manifest entry may name a compound module (e.g. "m15-recon + m15a-matching"); a domain module is
+    // "backed" if ANY of its mNN- package tokens ships source. (composition_vertical must own NONE — see below.)
+    const tokens = m.module.match(/m\d+[a-z]?-[a-z0-9-]+/g) ?? [m.module];
+    const hasPackage = tokens.some((tok) => sources.some((f) => f.name.startsWith(`packages/${tok}/src/`)));
+    const errs = validateImplementedModule(m, hasPackage);
+    t.equal(
+      errs.length,
+      0,
+      `${m.module}: implemented-status criteria met (ADR-135)${errs.length ? ' — ' + errs.join('; ') : ''}`,
+    );
+  }
+
+  // ADR-135 validator — explicit positive AND negative cases (so the rule cannot silently rot).
+  const cv = {
+    module: 'mcv',
+    status: 'implemented',
+    kind: 'composition_vertical',
+    reuses: ['m20-glrecon'],
+    surface: 'apps/web',
+    controls: { rbac: true, audit: true, tenancy: true },
+    acceptance: 'evidence_2026',
+  } satisfies ModuleRec;
+  t.equal(
+    validateImplementedModule({ module: 'x', status: 'approved_for_build' }, false).length,
+    0,
+    'ADR-135: a non-implemented module is not gated',
+  );
+  t.equal(
+    validateImplementedModule({ module: 'm02-identity', status: 'implemented' }, true).length,
+    0,
+    'ADR-135 (+): implemented DOMAIN module WITH its package passes',
+  );
+  t.ok(
+    validateImplementedModule({ module: 'm02-identity', status: 'implemented' }, false).length > 0,
+    'ADR-135 (−): implemented DOMAIN module WITHOUT a package FAILS',
+  );
+  t.equal(
+    validateImplementedModule(cv, false).length,
+    0,
+    'ADR-135 (+): composition_vertical meeting all criteria (no package) passes',
+  );
+  t.ok(
+    validateImplementedModule(cv, true).length > 0,
+    'ADR-135 (−): composition_vertical that OWNS a domain package FAILS',
+  );
+  t.ok(
+    validateImplementedModule({ ...cv, reuses: [] }, false).length > 0,
+    'ADR-135 (−): composition_vertical with an EMPTY reuses map FAILS',
+  );
+  t.ok(
+    validateImplementedModule({ ...cv, controls: { rbac: true } }, false).length > 0,
+    'ADR-135 (−): composition_vertical missing controls.audit/tenancy FAILS',
+  );
+  t.ok(
+    validateImplementedModule({ ...cv, acceptance: undefined }, false).length > 0,
+    'ADR-135 (−): composition_vertical without acceptance evidence FAILS',
+  );
 
   // --- every workspace's tests live inside its own tsconfig (lint needs no prior build) ------------
   // REGRESSION GUARD for the Stage 1B CI failure. apps/api excluded test/** from its tsconfig, so its
