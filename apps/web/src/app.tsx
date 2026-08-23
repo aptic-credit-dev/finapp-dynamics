@@ -1012,8 +1012,8 @@ function RecoveryDashboard({ tenant }: { tenant: string | null }): JSX.Element {
             </thead>
             <tbody>
               {byStatus.rows.map((b, i) => (
-                <tr key={pick(b, 'value', 'key', 'status') || i}>
-                  <td>{recoveryPill(pick(b, 'value', 'key', 'status', 'label'))}</td>
+                <tr key={pick(b, 'dim', 'value', 'key', 'status') || i}>
+                  <td>{recoveryPill(pick(b, 'dim', 'value', 'key', 'status', 'label'))}</td>
                   <td className="num">{pick(b, 'count', 'total', 'n', 'cases') || '0'}</td>
                 </tr>
               ))}
