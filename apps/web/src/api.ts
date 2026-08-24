@@ -494,6 +494,74 @@ export const createGrcControl = (
   t?: string | null,
 ): Promise<ApiResult<Row>> => call(`${GRC}/controls`, { method: 'POST', body, tenantId: t });
 
+// --- M19 finance fiscal calendar — the canonical accounting-period control surface (`/api/v1/finance`). Reuses
+// the m19 CalendarService: fiscal years (create/close/reopen) and accounting periods (open/close/lock/reopen),
+// each permission-gated + audited + expectedVersion + RLS server-side. m19 NEVER posts and carries NO monetary
+// amounts (ADR-007); period close/lock is the CROSS-MODULE gate m21 posting honours. There is NO hard delete and
+// NO unlock (a locked period is a terminal seal). The accounting entity comes from the canonical GET
+// /finance/entities list (no invented entity master). ---
+const FIN = '/finance';
+export const getFinanceEntities = (
+  t?: string | null,
+  status?: string,
+): Promise<ApiResult<Row[] | { entities?: Row[] }>> =>
+  call(`${FIN}/entities${status ? `?status=${encodeURIComponent(status)}` : ''}`, { tenantId: t });
+export const getFiscalYears = (
+  entityId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { fiscalYears?: Row[] }>> =>
+  call(`${FIN}/fiscal-years?entityId=${encodeURIComponent(entityId)}`, { tenantId: t });
+export const createFiscalYear = (
+  body: { entityId: string; code: string; startDate: string; endDate: string; name?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${FIN}/fiscal-years`, { method: 'POST', body, tenantId: t });
+export const closeFiscalYear = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FIN}/fiscal-years/${encodeURIComponent(id)}/close`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const reopenFiscalYear = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FIN}/fiscal-years/${encodeURIComponent(id)}/reopen`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const getFiscalPeriods = (
+  fiscalYearId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { periods?: Row[] }>> =>
+  call(`${FIN}/fiscal-years/${encodeURIComponent(fiscalYearId)}/periods`, { tenantId: t });
+export const getPeriodHistory = (
+  periodId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { history?: Row[] }>> =>
+  call(`${FIN}/periods/${encodeURIComponent(periodId)}/history`, { tenantId: t });
+export const openPeriod = (
+  fiscalYearId: string,
+  body: { periodNumber: number; startDate: string; endDate: string; name?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${FIN}/fiscal-years/${encodeURIComponent(fiscalYearId)}/periods`, {
+    method: 'POST',
+    body,
+    tenantId: t,
+  });
+// close / lock / reopen carry ONLY expectedVersion — the canonical endpoints derive the reasonCode server-side
+// (closed/locked/reopened); they accept NO user reason, so the client sends none. Lock is a terminal seal.
+const periodAction = (id: string, action: string, ev: number, t?: string | null) =>
+  call<Row>(`${FIN}/periods/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const closePeriod = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  periodAction(id, 'close', ev, t);
+export const lockPeriod = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  periodAction(id, 'lock', ev, t);
+export const reopenPeriod = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  periodAction(id, 'reopen', ev, t);
+
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
 // (RLS, no escape). Every write is a canonical permissioned + audited endpoint; the server is authoritative,

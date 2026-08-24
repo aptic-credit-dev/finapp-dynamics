@@ -1765,6 +1765,380 @@ function RecoveryCases({
   );
 }
 
+// ---------- Finance → Fiscal Calendar (M19) — operational UI over the CANONICAL m19 CalendarService. No second
+// finance engine, no monetary amounts (ADR-007), no hard delete, no invented maker-checker: period transitions
+// are single-actor privileged controls (permission + expectedVersion + audit), NOT dual approval — that lives in
+// m21 posting. Period close/lock is the cross-module gate m21 honours. A locked period is a TERMINAL seal (there
+// is no canonical unlock). The accounting entity comes from the canonical GET /finance/entities list. ----------
+const periodPill = (status: string, locked: boolean): JSX.Element => {
+  const s = (status || '').toLowerCase();
+  if (locked || s === 'locked')
+    return (
+      <span className="pill bad">
+        <span className="glyph">🔒</span> Locked (sealed)
+      </span>
+    );
+  if (s === 'closed') return <span className="pill warn">Closed</span>;
+  if (s === 'open') return <span className="pill ok">Open</span>;
+  return <span className="pill info">{status || '—'}</span>;
+};
+
+function PeriodHistoryDrawer({
+  period,
+  tenant,
+  onClose,
+}: {
+  period: api.Row;
+  tenant: string | null;
+  onClose: () => void;
+}): JSX.Element {
+  const id = pick(period, 'id');
+  const [rows, setRows] = useState<api.Row[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    setRows(null);
+    void api.getPeriodHistory(id, tenant).then((r) => {
+      if (live) setRows(api.asRows(r.data));
+    });
+    return () => {
+      live = false;
+    };
+  }, [id, tenant]);
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside
+        className="drawer"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Period history"
+      >
+        <header className="drawer-head">
+          <h3>Period {pick(period, 'periodNumber')} — history</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <p className="muted" style={{ fontSize: 12 }}>
+            Canonical append-only calendar transitions (m19). Reason codes are derived server-side.
+          </p>
+          {rows === null ? (
+            <div className="loading">Loading…</div>
+          ) : rows.length === 0 ? (
+            <div className="empty">No transitions recorded.</div>
+          ) : (
+            <ul className="timeline">
+              {rows.map((h, i) => (
+                <li key={pick(h, 'id') || i}>
+                  <span className="t-head">
+                    {(pick(h, 'fromStatus') || '—') + ' → ' + pick(h, 'toStatus')}
+                  </span>{' '}
+                  <span className="muted">
+                    {pick(h, 'reasonCode') || pick(h, 'reason') || ''}
+                    {pick(h, 'byUser') ? ` · ${pick(h, 'byUser')}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function PeriodsPanel({
+  fiscalYear,
+  tenant,
+  perms,
+}: {
+  fiscalYear: api.Row;
+  tenant: string | null;
+  perms: Set<string>;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const fyId = pick(fiscalYear, 'id');
+  const fyOpen = pick(fiscalYear, 'status').toLowerCase() === 'open';
+  const [nonce, setNonce] = useState(0);
+  const periods = useRows(() => api.getFiscalPeriods(fyId, tenant), [fyId, tenant, nonce]);
+  const [history, setHistory] = useState<api.Row | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [num, setNum] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const refresh = (): void => setNonce((x) => x + 1);
+  const run = async (p: Promise<api.ApiResult<api.Row>>, okMsg: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+  const rows = periods.rows;
+  return (
+    <div className="card">
+      <header>
+        <h3>Periods · {pick(fiscalYear, 'code')}</h3>
+        <span className="demo-note">SYNTHETIC</span>
+      </header>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      {can('finance.period.open') && fyOpen && (
+        <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+          <input
+            style={{ width: 90 }}
+            value={num}
+            placeholder="Period #"
+            onChange={(e) => setNum(e.target.value)}
+          />
+          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+          <button
+            className="btn"
+            disabled={!/^\d+$/.test(num.trim()) || start === '' || end === ''}
+            onClick={() =>
+              void run(
+                api.openPeriod(
+                  fyId,
+                  { periodNumber: Number(num.trim()), startDate: start, endDate: end },
+                  tenant,
+                ),
+                'Period opened.',
+              ).then(() => {
+                setNum('');
+                setStart('');
+                setEnd('');
+              })
+            }
+          >
+            Open period
+          </button>
+        </div>
+      )}
+      {periods.loading ? (
+        <div className="loading">Loading periods…</div>
+      ) : periods.error ? (
+        <div className="empty">Could not load periods ({periods.error}).</div>
+      ) : rows.length === 0 ? (
+        <div className="empty">No periods in this fiscal year yet.</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th className="num">#</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((p, i) => {
+              const id = pick(p, 'id');
+              const ev = Number(p['version'] ?? 1);
+              const status = pick(p, 'status').toLowerCase();
+              const locked = status === 'locked' || pick(p, 'lockedAt') !== '';
+              return (
+                <tr key={id || i}>
+                  <td className="num">{pick(p, 'periodNumber')}</td>
+                  <td className="muted">{pick(p, 'startDate')}</td>
+                  <td className="muted">{pick(p, 'endDate')}</td>
+                  <td>{periodPill(status, locked)}</td>
+                  <td>
+                    <div className="action-row">
+                      <ActionButton
+                        label="Close"
+                        allowed={status === 'open' && can('finance.period.close')}
+                        onRun={() => run(api.closePeriod(id, ev, tenant), 'Period closed.')}
+                      />
+                      <ActionButton
+                        label="Reopen"
+                        allowed={status === 'closed' && can('finance.period.reopen')}
+                        onRun={() => run(api.reopenPeriod(id, ev, tenant), 'Period reopened.')}
+                      />
+                      <ActionButton
+                        label="Lock / seal"
+                        danger
+                        allowed={(status === 'open' || status === 'closed') && can('finance.period.lock')}
+                        onRun={() => run(api.lockPeriod(id, ev, tenant), 'Period locked (sealed).')}
+                      />
+                      <button className="btn link sm" onClick={() => setHistory(p)}>
+                        History
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      <p className="muted" style={{ fontSize: 11, margin: '8px 0 0' }}>
+        Locking a period <strong>seals the posting window</strong>: per canonical m19/m21 rules, journals can
+        no longer post into it. A lock is <strong>terminal</strong> — there is no unlock (a closed period may
+        be reopened; a locked one cannot). All actions are permission-gated, versioned and audited
+        server-side.
+      </p>
+      {history && <PeriodHistoryDrawer period={history} tenant={tenant} onClose={() => setHistory(null)} />}
+    </div>
+  );
+}
+
+function FiscalCalendar({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const entities = useRows(() => api.getFinanceEntities(tenant), [tenant]);
+  const [entityId, setEntityId] = useState('');
+  const entityKey = entities.rows.map((e) => pick(e, 'id')).join(',');
+  useEffect(() => {
+    // Default to the first entity once entities load / tenant changes (clears stale selection on tenant switch).
+    const first = entities.rows[0] ? pick(entities.rows[0], 'id') : '';
+    setEntityId((cur) => (entities.rows.some((e) => pick(e, 'id') === cur) ? cur : first));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityKey, tenant]);
+  const [fyNonce, setFyNonce] = useState(0);
+  const fys = useRows(
+    () =>
+      entityId
+        ? api.getFiscalYears(entityId, tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [entityId, tenant, fyNonce],
+  );
+  const [selFy, setSelFy] = useState<api.Row | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [code, setCode] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const refreshFy = (): void => {
+    setFyNonce((x) => x + 1);
+    setSelFy(null);
+  };
+  const run = async (p: Promise<api.ApiResult<api.Row>>, okMsg: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refreshFy();
+  };
+  return (
+    <>
+      <h1 className="page-title">Fiscal calendar</h1>
+      <p className="page-sub">
+        Accounting periods over the canonical m19 fiscal calendar · synthetic staging data. Period close/lock
+        is the posting-window control m21 honours. RBAC + tenant isolation + audit enforced server-side; no
+        monetary amounts, no hard delete.
+      </p>
+      <div className="card">
+        <div className="run-picker">
+          <label>Accounting entity</label>
+          {entities.loading ? (
+            <span className="muted">Loading entities…</span>
+          ) : entities.rows.length === 0 ? (
+            <span className="muted">
+              No accounting entities (register one in Finance configuration first).
+            </span>
+          ) : (
+            <select value={entityId} onChange={(e) => setEntityId(e.target.value)}>
+              {entities.rows.map((e) => (
+                <option key={pick(e, 'id')} value={pick(e, 'id')}>
+                  {pick(e, 'code')} — {pick(e, 'name')}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+      {entityId !== '' && (
+        <div className="card">
+          <header>
+            <h3>Fiscal years</h3>
+            <span className="demo-note">SYNTHETIC</span>
+          </header>
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+          {can('finance.fiscal_year.manage') && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <input
+                style={{ width: 120 }}
+                value={code}
+                placeholder="Code (e.g. FY2026)"
+                onChange={(e) => setCode(e.target.value)}
+              />
+              <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+              <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+              <button
+                className="btn"
+                disabled={code.trim() === '' || start === '' || end === ''}
+                onClick={() =>
+                  void run(
+                    api.createFiscalYear(
+                      { entityId, code: code.trim(), startDate: start, endDate: end },
+                      tenant,
+                    ),
+                    'Fiscal year created.',
+                  ).then(() => {
+                    setCode('');
+                    setStart('');
+                    setEnd('');
+                  })
+                }
+              >
+                Create fiscal year
+              </button>
+            </div>
+          )}
+          {fys.loading ? (
+            <div className="loading">Loading fiscal years…</div>
+          ) : fys.error ? (
+            <div className="empty">Could not load fiscal years ({fys.error}).</div>
+          ) : fys.rows.length === 0 ? (
+            <div className="empty">No fiscal years for this entity yet.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fys.rows.map((fy, i) => {
+                  const id = pick(fy, 'id');
+                  const ev = Number(fy['version'] ?? 1);
+                  const status = pick(fy, 'status').toLowerCase();
+                  const selected = selFy !== null && pick(selFy, 'id') === id;
+                  return (
+                    <tr key={id || i} className={selected ? 'row-selected' : ''}>
+                      <td>{pick(fy, 'code')}</td>
+                      <td className="muted">{pick(fy, 'startDate')}</td>
+                      <td className="muted">{pick(fy, 'endDate')}</td>
+                      <td>{statusPill(pick(fy, 'status'))}</td>
+                      <td>
+                        <div className="action-row">
+                          <button className="btn link sm" onClick={() => setSelFy(selected ? null : fy)}>
+                            {selected ? 'Hide periods' : 'View periods'}
+                          </button>
+                          <ActionButton
+                            label="Close year"
+                            allowed={status === 'open' && can('finance.fiscal_year.close')}
+                            onRun={() => run(api.closeFiscalYear(id, ev, tenant), 'Fiscal year closed.')}
+                          />
+                          <ActionButton
+                            label="Reopen year"
+                            allowed={status === 'closed' && can('finance.fiscal_year.reopen')}
+                            onRun={() => run(api.reopenFiscalYear(id, ev, tenant), 'Fiscal year reopened.')}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+      {selFy && <PeriodsPanel fiscalYear={selFy} tenant={tenant} perms={perms} />}
+    </>
+  );
+}
+
 // ---------- Regulatory & Compliance (M45) — UI over the canonical m41 GRC control register; no duplicate engine ----------
 // Renders CONTROL/EVIDENCE state (an assessment), never a blanket "Aptic is compliant/certified" claim.
 const FRAMEWORK_LABEL: Record<string, string> = {
@@ -3260,6 +3634,7 @@ const NAV = [
   { id: 'reports', label: 'Reports', icon: '▤', group: 'Treasury' },
   { id: 'recovery', label: 'Debt Recovery', icon: '⚖', group: 'Recovery' },
   { id: 'recovery-cases', label: 'Recovery cases', icon: '▤', group: 'Recovery' },
+  { id: 'finance-calendar', label: 'Fiscal calendar', icon: '📅', group: 'Finance' },
   { id: 'compliance', label: 'Compliance', icon: '❖', group: 'Compliance' },
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
   { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
@@ -3276,6 +3651,10 @@ const ADMIN_READ_PERMS = [
   'rbac.role.view',
   'rbac.assignment.view',
 ];
+
+// Finance (m19 fiscal calendar) is a platform finance-CONTROL capability, not a commercial vertical, so — like
+// Administration — it is RBAC-gated (visible to anyone who may read the calendar), not entitlement-gated.
+const FINANCE_READ_PERMS = ['finance.period.read', 'finance.fiscal_year.read', 'finance.entity.read'];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
 // entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
@@ -3432,6 +3811,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
     // Approvals is RBAC-gated (a platform capability, not a commercial vertical): visible to anyone who may
     // read approval requests (makers to track their own, checkers to decide). Not entitlement-gated.
     if (g === 'Approvals') return perms.has('approvals.request.read');
+    if (g === 'Finance') return FINANCE_READ_PERMS.some((p) => perms.has(p));
     const cap = GROUP_ENTITLEMENT[g];
     if (!cap) return true; // Overview always
     return entitled?.[cap] === true;
@@ -3496,6 +3876,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'reports' && <Reports tenant={tenant} />}
         {route === 'recovery' && <RecoveryDashboard tenant={tenant} />}
         {route === 'recovery-cases' && <RecoveryCases tenant={tenant} perms={perms} actorId={actorId} />}
+        {route === 'finance-calendar' && <FiscalCalendar tenant={tenant} perms={perms} />}
         {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} perms={perms} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
