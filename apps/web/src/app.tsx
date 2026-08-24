@@ -1220,24 +1220,60 @@ function RecoveryDashboard({ tenant }: { tenant: string | null }): JSX.Element {
 }
 
 // Case-detail drawer — recovery header + notes/arrangements/demands (canonical sub-resources).
+const ARRANGEMENT_TYPES = [
+  'installment',
+  'lump_sum',
+  'structured_settlement',
+  'moratorium',
+  'restructure',
+  'standstill',
+];
+const DEMAND_TYPES = [
+  'informal_demand',
+  'formal_demand',
+  'final_demand',
+  'letter_before_action',
+  'notice_to_pay',
+  'statutory_demand',
+  'notice_of_default',
+];
+const OUTCOME_TYPES = [
+  'partially_recovered',
+  'fully_recovered',
+  'settled',
+  'written_off',
+  'uncollectible',
+  'withdrawn',
+  'referred_out',
+  'other',
+];
+
 function RecoveryDrawer({
   id,
   tenant,
+  perms,
+  actorId,
   onClose,
 }: {
   id: string;
   tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
   onClose: () => void;
 }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
   const [rec, setRec] = useState<api.Row | null>(null);
   const [notes, setNotes] = useState<api.Row[]>([]);
   const [arrs, setArrs] = useState<api.Row[]>([]);
   const [demands, setDemands] = useState<api.Row[]>([]);
+  const [outcomes, setOutcomes] = useState<api.Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [nonce, setNonce] = useState(0);
   const [activity, setActivity] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [actionMsg, setActionMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [arrForm, setArrForm] = useState({ arrangementType: 'installment', amount: '' });
+  const [demForm, setDemForm] = useState({ demandType: 'formal_demand', amount: '' });
+  const [outForm, setOutForm] = useState({ outcomeType: 'partially_recovered', amount: '' });
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -1246,37 +1282,38 @@ function RecoveryDrawer({
       api.getRecoverySub(id, 'notes', tenant),
       api.getRecoverySub(id, 'arrangements', tenant),
       api.getRecoverySub(id, 'demands', tenant),
-    ]).then(([r, n, a, d]) => {
+      api.getRecoverySub(id, 'outcomes', tenant),
+    ]).then(([r, n, a, d, o]) => {
       if (!live) return;
       if (r.ok) setRec((r.data as api.Row | null) ?? null);
       setNotes(api.asRows(n.data));
       setArrs(api.asRows(a.data));
       setDemands(api.asRows(d.data));
+      setOutcomes(api.asRows(o.data));
       setLoading(false);
     });
     return () => {
       live = false;
     };
   }, [id, tenant, nonce]);
+  const r = rec ?? {};
+  const version = Number(r['version'] ?? 1);
+  const status = pick(r, 'status').toLowerCase();
+  const openish = !/closed|archived|resolved|withdrawn/.test(status);
+  const report = (res: api.ApiResult<api.Row>, okMsg: string): void => {
+    setMsg(res.ok ? { ok: true, msg: okMsg } : { ok: false, msg: res.error ?? 'Action failed.' });
+    if (res.ok) setNonce((x) => x + 1);
+  };
   const recordActivity = async (): Promise<void> => {
     if (activity.trim() === '') return;
-    setSaving(true);
-    setActionMsg(null);
     const res = await api.recordRecoveryNote(
       id,
       { content: activity.trim(), headline: 'Contact / activity' },
       tenant,
     );
-    setSaving(false);
-    if (res.ok) {
-      setActivity('');
-      setActionMsg({ ok: true, msg: 'Activity recorded (audited).' });
-      setNonce((x) => x + 1);
-    } else {
-      setActionMsg({ ok: false, msg: res.error ?? 'Could not record activity.' });
-    }
+    report(res, 'Activity recorded (audited).');
+    if (res.ok) setActivity('');
   };
-  const r = rec ?? {};
   return (
     <div className="drawer-overlay" onClick={onClose} role="presentation">
       <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Recovery case">
@@ -1297,24 +1334,75 @@ function RecoveryDrawer({
               <dd>{pick(r, 'recoveryTypeCode') || '—'}</dd>
               <dt>Outstanding</dt>
               <dd>{fmtMinor(r['outstandingAmountMinor'])}</dd>
-              <dt>Recoverable</dt>
-              <dd>{fmtMinor(r['recoverableAmountMinor'])}</dd>
               <dt>Recovered</dt>
               <dd>{fmtMinor(r['recoveredAmountMinor'])}</dd>
               <dt>Enforcement stage</dt>
               <dd>{pick(r, 'enforcementStage') || '—'}</dd>
-              <dt>Priority / risk</dt>
-              <dd>{(pick(r, 'priority') || '—') + ' / ' + (pick(r, 'recoveryRisk') || '—')}</dd>
               <dt>Owner</dt>
               <dd>{pick(r, 'legalOwner', 'recoveryTeam', 'businessOwner') || '—'}</dd>
-              <dt>Jurisdiction</dt>
-              <dd>{pick(r, 'jurisdiction') || '—'}</dd>
-              <dt>Legal matter (m14)</dt>
-              <dd className="muted">{pick(r, 'sourceMatterId') || 'Not linked'}</dd>
-              <dt>Litigation (m16)</dt>
-              <dd className="muted">{pick(r, 'sourceProceedingId') || 'Not linked'}</dd>
+              <dt>Legal / litigation</dt>
+              <dd className="muted">
+                {pick(r, 'sourceMatterId') ? 'm14 linked' : 'no matter'} ·{' '}
+                {pick(r, 'sourceProceedingId') ? 'm16 linked' : 'no proceeding'}
+              </dd>
             </dl>
-            <h4 className="drawer-sub">Payment arrangements</h4>
+
+            <h4 className="drawer-sub">Case actions</h4>
+            <div className="admin-actions">
+              <ActionButton
+                label="Take ownership"
+                allowed={openish && can('recovery.case.assign')}
+                onRun={() =>
+                  api
+                    .assignRecovery(id, version, actorId, tenant)
+                    .then((res) => report(res, 'Case assigned to you (audited).'))
+                }
+              />
+              <ActionButton
+                label="Resolve"
+                allowed={openish && can('recovery.case.resolve')}
+                onRun={() =>
+                  api
+                    .resolveRecovery(id, version, tenant)
+                    .then((res) => report(res, 'Case resolved (audited).'))
+                }
+              />
+              <ActionButton
+                label="Close"
+                allowed={openish && can('recovery.case.close')}
+                danger
+                needsReason
+                onRun={(reason) =>
+                  api
+                    .closeRecovery(id, version, tenant, reason)
+                    .then((res) => report(res, 'Case closed (rule-gated, audited).'))
+                }
+              />
+              <ActionButton
+                label="Reopen"
+                allowed={!openish && can('recovery.case.reopen')}
+                needsReason
+                onRun={(reason) =>
+                  api
+                    .reopenRecovery(id, version, reason ?? '', tenant)
+                    .then((res) => report(res, 'Case reopened (audited).'))
+                }
+              />
+              <ActionButton
+                label="Archive"
+                allowed={/closed|resolved/.test(status) && can('recovery.case.archive')}
+                danger
+                needsReason
+                onRun={(reason) =>
+                  api
+                    .archiveRecovery(id, version, tenant, reason)
+                    .then((res) => report(res, 'Case archived (audited).'))
+                }
+              />
+            </div>
+            {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+            <h4 className="drawer-sub">Payment arrangements (maker-checker)</h4>
             {arrs.length === 0 ? (
               <div className="empty">No arrangements.</div>
             ) : (
@@ -1324,90 +1412,239 @@ function RecoveryDrawer({
                     <th>Type</th>
                     <th className="num">Amount</th>
                     <th>Status</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {arrs.map((a, i) => (
-                    <tr key={pick(a, 'id') || i}>
-                      <td>{pick(a, 'arrangementType') || '—'}</td>
-                      <td className="num">{fmtMinor(a['totalAmountMinor'])}</td>
-                      <td>{recoveryPill(pick(a, 'status'))}</td>
-                    </tr>
-                  ))}
+                  {arrs.map((a, i) => {
+                    const aid = pick(a, 'id');
+                    const av = Number(a['version'] ?? 1);
+                    const ast = pick(a, 'status').toLowerCase();
+                    const pendingApproval = /propos|pending|draft/.test(ast);
+                    const active = /active|approved/.test(ast);
+                    return (
+                      <tr key={aid || i}>
+                        <td>{(pick(a, 'arrangementType') || '—').replace(/_/g, ' ')}</td>
+                        <td className="num">{fmtMinor(a['totalAmountMinor'])}</td>
+                        <td>{recoveryPill(pick(a, 'status'))}</td>
+                        <td>
+                          <div className="admin-actions">
+                            <ActionButton
+                              label="Approve"
+                              allowed={pendingApproval && can('recovery.arrangement.approve')}
+                              onRun={() =>
+                                api
+                                  .approveArrangement(aid, av, tenant)
+                                  .then((res) =>
+                                    report(res, 'Arrangement approved (SoD: not the proposer; audited).'),
+                                  )
+                              }
+                            />
+                            <ActionButton
+                              label="Default"
+                              allowed={active && can('recovery.arrangement.manage')}
+                              danger
+                              needsReason
+                              onRun={(reason) =>
+                                api
+                                  .defaultArrangement(aid, av, reason ?? '', tenant)
+                                  .then((res) => report(res, 'Arrangement defaulted (audited).'))
+                              }
+                            />
+                            <ActionButton
+                              label="Complete"
+                              allowed={active && can('recovery.arrangement.manage')}
+                              onRun={() =>
+                                api
+                                  .completeArrangement(aid, av, tenant)
+                                  .then((res) => report(res, 'Arrangement completed (audited).'))
+                              }
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
+            {can('recovery.arrangement.manage') && openish && (
+              <div className="inline-form">
+                <select
+                  value={arrForm.arrangementType}
+                  onChange={(e) => setArrForm({ ...arrForm, arrangementType: e.target.value })}
+                >
+                  {ARRANGEMENT_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t.replace(/_/g, ' ')}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={arrForm.amount}
+                  placeholder="Total amount (e.g. 5000.00)"
+                  onChange={(e) => setArrForm({ ...arrForm, amount: e.target.value })}
+                />
+                <button
+                  className="btn secondary sm"
+                  disabled={toMinorUnits(arrForm.amount) === null}
+                  onClick={() =>
+                    void api
+                      .proposeArrangement(
+                        id,
+                        {
+                          arrangementType: arrForm.arrangementType,
+                          totalAmountMinor: toMinorUnits(arrForm.amount) ?? 0,
+                        },
+                        tenant,
+                      )
+                      .then((res) => {
+                        report(res, 'Arrangement proposed (pending approval by a DIFFERENT checker).');
+                        if (res.ok) setArrForm({ ...arrForm, amount: '' });
+                      })
+                  }
+                >
+                  + Propose arrangement
+                </button>
+              </div>
+            )}
+
             <h4 className="drawer-sub">Demands</h4>
             {demands.length === 0 ? (
               <div className="empty">No demands issued.</div>
             ) : (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Reference</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {demands.map((d, i) => (
-                    <tr key={pick(d, 'id') || i}>
-                      <td className="muted">{pick(d, 'demandNumber', 'reference', 'id') || '—'}</td>
-                      <td>{recoveryPill(pick(d, 'status'))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <ul className="timeline">
+                {demands.map((d, i) => (
+                  <li key={pick(d, 'id') || i}>
+                    <span className="t-type">{(pick(d, 'demandType') || 'demand').replace(/_/g, ' ')}</span>{' '}
+                    {recoveryPill(pick(d, 'status'))}{' '}
+                    <span className="muted">{fmtMinor(d['amountDemandedMinor'])}</span>
+                  </li>
+                ))}
+              </ul>
             )}
+            {can('recovery.demand.manage') && openish && (
+              <div className="inline-form">
+                <select
+                  value={demForm.demandType}
+                  onChange={(e) => setDemForm({ ...demForm, demandType: e.target.value })}
+                >
+                  {DEMAND_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t.replace(/_/g, ' ')}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={demForm.amount}
+                  placeholder="Amount demanded"
+                  onChange={(e) => setDemForm({ ...demForm, amount: e.target.value })}
+                />
+                <button
+                  className="btn secondary sm"
+                  disabled={toMinorUnits(demForm.amount) === null}
+                  onClick={() =>
+                    void api
+                      .issueDemand(
+                        id,
+                        {
+                          demandType: demForm.demandType,
+                          amountDemandedMinor: toMinorUnits(demForm.amount) ?? 0,
+                        },
+                        tenant,
+                      )
+                      .then((res) => {
+                        report(res, 'Demand issued (audited).');
+                        if (res.ok) setDemForm({ ...demForm, amount: '' });
+                      })
+                  }
+                >
+                  + Issue demand
+                </button>
+              </div>
+            )}
+
+            <h4 className="drawer-sub">Outcomes (append-only)</h4>
+            {outcomes.length === 0 ? (
+              <div className="empty">No outcome recorded.</div>
+            ) : (
+              <ul className="timeline">
+                {outcomes.map((o, i) => (
+                  <li key={pick(o, 'id') || i}>
+                    <span className="t-type">{(pick(o, 'outcomeType') || 'outcome').replace(/_/g, ' ')}</span>{' '}
+                    <span className="muted">recovered {fmtMinor(o['recoveredAmountMinor'])}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {can('recovery.outcome.manage') && (
+              <div className="inline-form">
+                <select
+                  value={outForm.outcomeType}
+                  onChange={(e) => setOutForm({ ...outForm, outcomeType: e.target.value })}
+                >
+                  {OUTCOME_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t.replace(/_/g, ' ')}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={outForm.amount}
+                  placeholder="Recovered amount"
+                  onChange={(e) => setOutForm({ ...outForm, amount: e.target.value })}
+                />
+                <button
+                  className="btn secondary sm"
+                  disabled={toMinorUnits(outForm.amount) === null}
+                  onClick={() =>
+                    void api
+                      .recordOutcome(
+                        id,
+                        {
+                          outcomeType: outForm.outcomeType,
+                          recoveredAmountMinor: toMinorUnits(outForm.amount) ?? 0,
+                        },
+                        tenant,
+                      )
+                      .then((res) => {
+                        report(res, 'Outcome recorded (append-only, audited).');
+                        if (res.ok) setOutForm({ ...outForm, amount: '' });
+                      })
+                  }
+                >
+                  + Record outcome
+                </button>
+              </div>
+            )}
+
             <h4 className="drawer-sub">Record activity</h4>
-            <div className="field">
+            <div className="inline-form">
               <input
                 value={activity}
                 placeholder="Record a call / contact / field visit…"
                 onChange={(e) => setActivity(e.target.value)}
               />
+              <button
+                className="btn secondary sm"
+                disabled={activity.trim() === '' || !can('recovery.case.update')}
+                onClick={recordActivity}
+              >
+                Record activity
+              </button>
             </div>
-            {actionMsg && <div className={actionMsg.ok ? 'ok-note' : 'error'}>{actionMsg.msg}</div>}
-            <button
-              className="btn secondary"
-              style={{ marginBottom: 8 }}
-              disabled={saving || activity.trim() === ''}
-              onClick={recordActivity}
-            >
-              {saving ? 'Recording…' : 'Record activity'}
-            </button>
-            <p className="muted" style={{ fontSize: 11, margin: '0 0 6px' }}>
-              Writes through the canonical m17 recovery service (permission recovery.case.update,
-              tenant-scoped, audited as RECOVERY_NOTE_CREATED). Restricted users are denied server-side.
+            <p className="muted" style={{ fontSize: 11, margin: '6px 0' }}>
+              All writes go through the canonical m17 recovery service (permission-gated, tenant-scoped,
+              audited). No hard delete — a case resolves/closes/reopens/archives. Restricted users are denied
+              server-side.
             </p>
             <h4 className="drawer-sub">Case timeline</h4>
-            {notes.length + arrs.length + demands.length === 0 ? (
-              <div className="empty">No activity recorded.</div>
+            {notes.length === 0 ? (
+              <div className="empty">No notes recorded.</div>
             ) : (
               <ul className="timeline">
-                {arrs.map((a, i) => (
-                  <li key={'a' + (pick(a, 'id') || i)}>
-                    <span className="t-type">arrangement</span>{' '}
-                    <span className="t-head">
-                      {(pick(a, 'arrangementType') || 'arrangement') +
-                        ' · ' +
-                        fmtMinor(a['totalAmountMinor'])}
-                    </span>{' '}
-                    {recoveryPill(pick(a, 'status'))}
-                  </li>
-                ))}
-                {demands.map((d, i) => (
-                  <li key={'d' + (pick(d, 'id') || i)}>
-                    <span className="t-type">demand</span>{' '}
-                    <span className="t-head">
-                      {(pick(d, 'demandType') || 'demand').replace(/_/g, ' ') +
-                        ' · ' +
-                        fmtMinor(d['amountDemandedMinor'])}
-                    </span>{' '}
-                    {recoveryPill(pick(d, 'status'))}
-                  </li>
-                ))}
                 {notes.map((n, i) => (
-                  <li key={'n' + (pick(n, 'id') || i)}>
+                  <li key={pick(n, 'id') || i}>
                     <span className="t-type">note</span>{' '}
                     <span className="t-head">{pick(n, 'headline') || pick(n, 'content') || '—'}</span>
                   </li>
@@ -1421,7 +1658,15 @@ function RecoveryDrawer({
   );
 }
 
-function RecoveryCases({ tenant }: { tenant: string | null }): JSX.Element {
+function RecoveryCases({
+  tenant,
+  perms,
+  actorId,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+}): JSX.Element {
   const [statusFilter, setStatusFilter] = useState('');
   const cases = useRows(
     () => api.getRecoveries(tenant, statusFilter ? { status: statusFilter } : undefined),
@@ -1507,7 +1752,15 @@ function RecoveryCases({ tenant }: { tenant: string | null }): JSX.Element {
           </div>
         )}
       </div>
-      {openId && <RecoveryDrawer id={openId} tenant={tenant} onClose={() => setOpenId(null)} />}
+      {openId && (
+        <RecoveryDrawer
+          id={openId}
+          tenant={tenant}
+          perms={perms}
+          actorId={actorId}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </>
   );
 }
@@ -3057,6 +3310,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
   // Effective permissions of the caller in the selected tenant (server-authoritative). Drives permission-aware
   // Administration nav + action visibility; the server still 403s a hidden action if invoked directly.
   const [perms, setPerms] = useState<Set<string>>(new Set());
+  const [actorId, setActorId] = useState('');
   useEffect(() => {
     let live = true;
     setPerms(new Set());
@@ -3064,6 +3318,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
     void api.getMyPermissions(tenant).then((r) => {
       if (!live) return;
       setPerms(new Set(r.ok && r.data ? r.data.permissions : []));
+      setActorId(r.ok && r.data ? r.data.actorId : '');
     });
     return () => {
       live = false;
@@ -3137,7 +3392,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'exceptions' && <Exceptions tenant={tenant} perms={perms} />}
         {route === 'reports' && <Reports tenant={tenant} />}
         {route === 'recovery' && <RecoveryDashboard tenant={tenant} />}
-        {route === 'recovery-cases' && <RecoveryCases tenant={tenant} />}
+        {route === 'recovery-cases' && <RecoveryCases tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
