@@ -1,9 +1,9 @@
-import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
 import { Endpoint } from '@finapp/kernel';
 import { GovernanceService, M41_PERMISSIONS, M41_AUDIT_CODES } from '@finapp/m41-security';
 import { ActorContextFactory } from '@finapp/m02-identity';
 import { requireString, requireTenantScope } from '../identity/http.ts';
-import { privacyClassificationView } from './views.ts';
+import { privacyClassificationView, privacyClassificationListView, privacyRecordView } from './views.ts';
 
 /**
  * Data classification + privacy processing records under `/api/v1/privacy`. Privacy records are bounded evidence over an OPAQUE
@@ -59,5 +59,27 @@ export class PrivacyController {
       ...optStr(b['classification'], 'classification'),
       ...optStr(b['reasonCode'], 'reasonCode'),
     });
+  }
+
+  // Read surface (permission privacy.policy.read, enforced in-service; RLS-scoped; no @Endpoint — reads are not
+  // audited). Privacy records expose only an OPAQUE subject reference, never raw personal data.
+  @Get('classifications')
+  async listClassifications(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list classifications (m41)');
+    const rows = await this.governance.listPrivacyClassifications(s.ctx);
+    return { classifications: rows.map(privacyClassificationListView) };
+  }
+
+  @Get('classifications/:id')
+  async getClassification(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'get classification (m41)');
+    return privacyClassificationListView(await this.governance.getPrivacyClassification(s.ctx, id));
+  }
+
+  @Get('records')
+  async listRecords(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list privacy records (m41)');
+    const rows = await this.governance.listPrivacyRecords(s.ctx);
+    return { records: rows.map(privacyRecordView) };
   }
 }

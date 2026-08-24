@@ -15,6 +15,9 @@ import {
   type GrcControlListRow,
   type GrcAssessmentListRow,
   type PrivacyClassificationRow,
+  type PrivacyClassificationListRow,
+  type PrivacyRecordListRow,
+  type IncidentListRow,
 } from './repository.ts';
 import type { M41Emitter } from './emit.ts';
 
@@ -243,6 +246,38 @@ export class GovernanceService {
         payload: { recordId: row.id, recordType: 'incident', reasonCode: severity },
       });
       return { id: row.id };
+    });
+  }
+
+  // ---- Privacy + SOC READ surface (permission-gated, RLS-scoped, read-only/no audit). Privacy records and
+  // incidents are append-only evidence — list-only. Privacy records expose only an OPAQUE subject reference,
+  // never raw personal data, so surfacing them is not protected-PII access and emits no access audit. ----
+  async listPrivacyClassifications(ctx: RequestContext): Promise<PrivacyClassificationListRow[]> {
+    await this.authz.require(ctx, M41_PERMISSIONS.privacyPolicyRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listPrivacyClassifications(tx));
+  }
+  async getPrivacyClassification(ctx: RequestContext, id: string): Promise<PrivacyClassificationListRow> {
+    await this.authz.require(ctx, M41_PERMISSIONS.privacyPolicyRead);
+    return this.db.withTenant(ctx, async (tx) => {
+      const row = await this.repo.getPrivacyClassification(tx, id);
+      if (!row) throw notFound('classification not found.', ctx.correlationId);
+      return row;
+    });
+  }
+  async listPrivacyRecords(ctx: RequestContext, limit = 200): Promise<PrivacyRecordListRow[]> {
+    await this.authz.require(ctx, M41_PERMISSIONS.privacyPolicyRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listPrivacyRecords(tx, limit));
+  }
+  async listIncidents(ctx: RequestContext): Promise<IncidentListRow[]> {
+    await this.authz.require(ctx, M41_PERMISSIONS.dlpRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listIncidents(tx));
+  }
+  async getIncident(ctx: RequestContext, id: string): Promise<IncidentListRow> {
+    await this.authz.require(ctx, M41_PERMISSIONS.dlpRead);
+    return this.db.withTenant(ctx, async (tx) => {
+      const row = await this.repo.getIncident(tx, id);
+      if (!row) throw notFound('incident not found.', ctx.correlationId);
+      return row;
     });
   }
 }

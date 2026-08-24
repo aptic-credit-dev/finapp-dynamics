@@ -63,7 +63,7 @@
 | m38-automation | Scheduler/automation | ✅ | none | BLUE | — | infra |
 | m39-saas | Plans/subscriptions/entitlements | ✅ | self-check only | AMBER | P1 | no entitlement/subscription admin UI |
 | m40-resilience | Backup/observability | ✅ | none | BLUE | — | infra |
-| m41-security | Secrets/privacy/DLP/GRC | ✅ | **Compliance vertical (GRC: define-control + assess + read)** | AMBER | P1 | GRC slice governed-complete to canonical limit; secrets/privacy/DLP/incident **write-only backend, no read route** |
+| m41-security | Secrets/privacy/DLP/GRC | ✅ | **Compliance vertical (GRC define+assess+read; Privacy/DLP/incident read model)** | AMBER→GREEN(compliance slice) | P2 | GRC + privacy/DLP/incident now operationally readable (RLS + RBAC); only **secrets** admin UI remains unbuilt (privileged maker-checker) |
 | m42-certification | Certification programmes | ✅ | none | BLUE | — | internal governance runtime |
 
 **Totals:** GREEN 4 · BLUE 20 · AMBER 16 · RED 4.
@@ -85,7 +85,7 @@ modules). Every AMBER item is a UI/reachability gap over an intact, RBAC+RLS+aud
 - m21-journal posting-request/authorize lifecycle no UI.
 - m39-saas entitlement/subscription/plan **admin console** (commercial engine API-only).
 - m32-analytics reporting/dashboard UI.
-- m41-security secrets/privacy/DLP/incident admin UI (GRC slice already live).
+- m41-security: GRC + privacy/DLP/incident now live (read model shipped); only **secrets** admin UI remains (P2).
 - m28-executive-ai copilot UI; m29-ai-governance **has no controllers** (wire or classify future).
 - m04-admin orchestration is service-only; m15-recon superseded by m20 (retire or expose).
 - **Hygiene:** m05-hub / m10-report / m11-ai are obsolete README placeholders → mark retired in the manifest.
@@ -147,14 +147,16 @@ wildcard), scoped per PR as each module's UI is exposed.
 | Evidence | `evidenceRef` on assessment | **APPEND-ONLY** (no standalone entity) |
 | Findings | none (only DLP-scan findings, table-only) | **NOT EXPOSED / BACKEND GAP** |
 | Remediation | none | **NOT EXPOSED** (no canonical concept) |
-| Privacy (classifications/records) | `POST` only, no `GET` | **BACKEND GAP** (write-only; `privacy.policy.read` declared, no HTTP read) |
-| Security incidents / DLP policies | `POST` only, no `GET` | **BACKEND GAP** (write-only; `security.dlp.read` declared, no HTTP read) |
+| Privacy (classifications/records) | `GET`/`POST` classifications, records | **READ-ONLY** (list/detail; records append-only, opaque subject ref) ✅ *gap closed* |
+| Security incidents / DLP policies | `GET`/`POST` incidents, dlp/policies, dlp/findings | **READ-ONLY** (findings append-only evidence) ✅ *gap closed* |
 | Review / certification | m42 (separate module, consumes GRC by contract) | **NOT EXPOSED here** (out of M45 scope) |
 
 Note: there is **no self-certification path** in GRC at all — an assessment is append-only evidence of control
 state, never a regulator certification; the UI renders control/assessment **state** and never "Compliant" as a
-blanket verdict. P1 follow-up to close the BACKEND GAPs = add RLS-scoped `GET` read models for
-privacy/DLP/incidents in m41 (backend), then surface them under Compliance.
+blanket verdict. **The privacy/DLP/incident BACKEND GAP is now CLOSED** (this PR): RLS-scoped, permission-gated
+(`privacy.policy.read` / `security.dlp.read`) `GET` read models added at repository→service→controller, surfaced
+as the Compliance **Privacy & security** tabs. No mutation was added; DLP findings + privacy records stay
+append-only. Remaining m41 UI gap: the **secrets** lifecycle admin (privileged maker-checker) has no screen.
 
 ## Recommended PR sequence
 - ~~PR3 — M44 Recovery~~ **merged (#155).**

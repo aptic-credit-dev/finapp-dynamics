@@ -17,7 +17,12 @@ import {
   REASON_CODES,
   type DlpAction,
 } from './domain.ts';
-import { SecurityRepository, type DlpPolicyRow } from './repository.ts';
+import {
+  SecurityRepository,
+  type DlpPolicyRow,
+  type DlpPolicyListRow,
+  type DlpFindingListRow,
+} from './repository.ts';
 import type { M41Emitter } from './emit.ts';
 
 const LOOKS_SECRET = /\b(secret|password|api[_-]?key|ssn|pan|private[_-]?key|token)\b/i;
@@ -43,6 +48,21 @@ export class DlpService {
     this.authz = authz;
     this.emitter = emitter;
     this.repo = repo;
+  }
+
+  // ---- DLP READ surface (permission security.dlp.read, RLS-scoped, read-only/no audit). DLP findings are
+  // auto-generated append-only decision evidence — exposed READ-ONLY (no update/remediation path exists). ----
+  async listPolicies(ctx: RequestContext): Promise<DlpPolicyListRow[]> {
+    await this.authz.require(ctx, M41_PERMISSIONS.dlpRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listDlpPolicies(tx));
+  }
+  async getPolicy(ctx: RequestContext, id: string): Promise<DlpPolicyListRow | null> {
+    await this.authz.require(ctx, M41_PERMISSIONS.dlpRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.getDlpPolicy(tx, id));
+  }
+  async listFindings(ctx: RequestContext, limit = 200): Promise<DlpFindingListRow[]> {
+    await this.authz.require(ctx, M41_PERMISSIONS.dlpRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listDlpFindings(tx, limit));
   }
 
   async setPolicy(

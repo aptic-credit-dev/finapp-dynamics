@@ -73,6 +73,49 @@ export interface PrivacyClassificationRow {
   readonly state: string;
   readonly version: number;
 }
+// ---- read-model row types (RLS-scoped list/detail projections; append-only entities are list-only) ----
+export interface DlpPolicyListRow extends DlpPolicyRow {
+  readonly scope: string;
+  readonly created_at: string;
+}
+export interface DlpFindingListRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly policy_id: string | null;
+  readonly classification: string;
+  readonly action: string;
+  readonly reason_code: string | null;
+  readonly source_ref: string | null;
+  readonly finding_count: number;
+  readonly created_at: string;
+}
+export interface IncidentListRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly incident_key: string;
+  readonly severity: string;
+  readonly category: string;
+  readonly state: string;
+  readonly reason_code: string | null;
+  readonly evidence_ref: string | null;
+  readonly created_at: string;
+}
+export interface PrivacyClassificationListRow extends PrivacyClassificationRow {
+  readonly scope: string;
+  readonly retention_days: number | null;
+  readonly created_at: string;
+}
+// Append-only privacy processing evidence over an OPAQUE subject reference — never raw personal data.
+export interface PrivacyRecordListRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly subject_ref: string;
+  readonly classification: string | null;
+  readonly action: string;
+  readonly reason_code: string | null;
+  readonly evidence_ref: string | null;
+  readonly created_at: string;
+}
 
 export class SecurityRepository {
   // ---- secret (mutable aggregate) ----
@@ -409,6 +452,71 @@ export class SecurityRepository {
       ],
     );
     return firstRow(rows, 'insertPrivacyRecord');
+  }
+
+  // ---- privacy/DLP/incident READ surface (RLS-scoped; the caller runs inside withTenant so FORCE ROW LEVEL
+  // SECURITY restricts every row to the caller's tenant). Read-only — no audit event (reads are not audited).
+  // No tenant_id predicate is added: RLS is the isolation guarantee. Append-only entities are list-only. ----
+  async listDlpPolicies(tx: Tx): Promise<DlpPolicyListRow[]> {
+    const { rows } = await tx.query<DlpPolicyListRow>(
+      `SELECT tenant_id, id, policy_key, classification, action, scope, state, version, created_at::text AS created_at
+         FROM security_dlp_policy ORDER BY created_at DESC`,
+    );
+    return rows;
+  }
+  async getDlpPolicy(tx: Tx, id: string): Promise<DlpPolicyListRow | null> {
+    const { rows } = await tx.query<DlpPolicyListRow>(
+      `SELECT tenant_id, id, policy_key, classification, action, scope, state, version, created_at::text AS created_at
+         FROM security_dlp_policy WHERE id=$1`,
+      [id],
+    );
+    return rows[0] ?? null;
+  }
+  async listDlpFindings(tx: Tx, limit: number): Promise<DlpFindingListRow[]> {
+    const { rows } = await tx.query<DlpFindingListRow>(
+      `SELECT tenant_id, id, policy_id, classification, action, reason_code, source_ref, finding_count, created_at::text AS created_at
+         FROM security_dlp_finding ORDER BY created_at DESC LIMIT $1`,
+      [limit],
+    );
+    return rows;
+  }
+  async listIncidents(tx: Tx): Promise<IncidentListRow[]> {
+    const { rows } = await tx.query<IncidentListRow>(
+      `SELECT tenant_id, id, incident_key, severity, category, state, reason_code, evidence_ref, created_at::text AS created_at
+         FROM security_incident ORDER BY created_at DESC`,
+    );
+    return rows;
+  }
+  async getIncident(tx: Tx, id: string): Promise<IncidentListRow | null> {
+    const { rows } = await tx.query<IncidentListRow>(
+      `SELECT tenant_id, id, incident_key, severity, category, state, reason_code, evidence_ref, created_at::text AS created_at
+         FROM security_incident WHERE id=$1`,
+      [id],
+    );
+    return rows[0] ?? null;
+  }
+  async listPrivacyClassifications(tx: Tx): Promise<PrivacyClassificationListRow[]> {
+    const { rows } = await tx.query<PrivacyClassificationListRow>(
+      `SELECT tenant_id, id, classification_key, level, scope, retention_days, state, version, created_at::text AS created_at
+         FROM privacy_classification ORDER BY classification_key`,
+    );
+    return rows;
+  }
+  async getPrivacyClassification(tx: Tx, id: string): Promise<PrivacyClassificationListRow | null> {
+    const { rows } = await tx.query<PrivacyClassificationListRow>(
+      `SELECT tenant_id, id, classification_key, level, scope, retention_days, state, version, created_at::text AS created_at
+         FROM privacy_classification WHERE id=$1`,
+      [id],
+    );
+    return rows[0] ?? null;
+  }
+  async listPrivacyRecords(tx: Tx, limit: number): Promise<PrivacyRecordListRow[]> {
+    const { rows } = await tx.query<PrivacyRecordListRow>(
+      `SELECT tenant_id, id, subject_ref, classification, action, reason_code, evidence_ref, created_at::text AS created_at
+         FROM privacy_record ORDER BY created_at DESC LIMIT $1`,
+      [limit],
+    );
+    return rows;
   }
 
   // ---- review + history + idempotency (append-only) ----
