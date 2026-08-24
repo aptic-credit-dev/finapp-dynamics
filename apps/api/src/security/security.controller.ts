@@ -9,7 +9,7 @@ import {
 } from '@finapp/m41-security';
 import { ActorContextFactory } from '@finapp/m02-identity';
 import { requireString, requireTenantScope, requireVersion } from '../identity/http.ts';
-import { secretView, dlpPolicyView } from './views.ts';
+import { secretView, dlpPolicyView, dlpPolicyListView, dlpFindingView, incidentView } from './views.ts';
 
 /**
  * Secrets / keys / reveal / DLP / SOC under `/api/v1/security`. Secret rotate/reveal/destroy are privileged maker-checker
@@ -212,5 +212,38 @@ export class SecurityController {
       category: requireString(b['category'], 'category', s.correlationId),
       ...optStr(b['severity'], 'severity'),
     });
+  }
+
+  // Read surface (permission security.dlp.read, enforced in-service; RLS-scoped; no @Endpoint — reads are not
+  // audited). DLP findings are auto-generated append-only decision evidence — READ-ONLY (no update/remediation).
+  @Get('dlp/policies')
+  async listDlpPolicies(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list dlp policies (m41)');
+    return { policies: (await this.dlp.listPolicies(s.ctx)).map(dlpPolicyListView) };
+  }
+
+  @Get('dlp/policies/:id')
+  async getDlpPolicy(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'get dlp policy (m41)');
+    const p = await this.dlp.getPolicy(s.ctx, id);
+    return { policy: p ? dlpPolicyListView(p) : null };
+  }
+
+  @Get('dlp/findings')
+  async listDlpFindings(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list dlp findings (m41)');
+    return { findings: (await this.dlp.listFindings(s.ctx)).map(dlpFindingView) };
+  }
+
+  @Get('incidents')
+  async listIncidents(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list incidents (m41)');
+    return { incidents: (await this.governance.listIncidents(s.ctx)).map(incidentView) };
+  }
+
+  @Get('incidents/:id')
+  async getIncident(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'get incident (m41)');
+    return incidentView(await this.governance.getIncident(s.ctx, id));
   }
 }

@@ -6,10 +6,15 @@
 import type {
   SecretRow,
   DlpPolicyRow,
+  DlpPolicyListRow,
+  DlpFindingListRow,
+  IncidentListRow,
   GrcControlRow,
   GrcControlListRow,
   GrcAssessmentListRow,
   PrivacyClassificationRow,
+  PrivacyClassificationListRow,
+  PrivacyRecordListRow,
 } from '@finapp/m41-security';
 
 export function secretView(s: SecretRow) {
@@ -70,5 +75,67 @@ export function privacyClassificationView(p: PrivacyClassificationRow) {
     level: p.level,
     state: p.state,
     version: p.version,
+  };
+}
+
+// ---- read-model DTOs (bounded projections; no raw restricted content, no personal data — a privacy record
+// exposes only its OPAQUE subject reference). ----
+export function dlpPolicyListView(p: DlpPolicyListRow) {
+  return {
+    id: p.id,
+    policyKey: p.policy_key,
+    classification: p.classification,
+    action: p.action,
+    scope: p.scope,
+    state: p.state,
+    version: p.version,
+    createdAt: p.created_at,
+  };
+}
+export function dlpFindingView(f: DlpFindingListRow) {
+  return {
+    id: f.id,
+    policyId: f.policy_id,
+    classification: f.classification,
+    action: f.action,
+    reasonCode: f.reason_code,
+    sourceRef: f.source_ref,
+    findingCount: f.finding_count,
+    createdAt: f.created_at,
+  };
+}
+export function incidentView(i: IncidentListRow) {
+  return {
+    id: i.id,
+    incidentKey: i.incident_key,
+    severity: i.severity,
+    category: i.category,
+    state: i.state,
+    reasonCode: i.reason_code,
+    evidenceRef: i.evidence_ref,
+    createdAt: i.created_at,
+  };
+}
+export function privacyClassificationListView(p: PrivacyClassificationListRow) {
+  return {
+    id: p.id,
+    classificationKey: p.classification_key,
+    level: p.level,
+    scope: p.scope,
+    retentionDays: p.retention_days,
+    state: p.state,
+    version: p.version,
+    createdAt: p.created_at,
+  };
+}
+export function privacyRecordView(r: PrivacyRecordListRow) {
+  return {
+    id: r.id,
+    subjectRef: r.subject_ref,
+    classification: r.classification,
+    action: r.action,
+    reasonCode: r.reason_code,
+    evidenceRef: r.evidence_ref,
+    createdAt: r.created_at,
   };
 }

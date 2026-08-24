@@ -706,6 +706,25 @@ export const lockPeriod = (id: string, ev: number, t?: string | null): Promise<A
 export const reopenPeriod = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
   periodAction(id, 'reopen', ev, t);
 
+// --- privacy / DLP / security-incident READ MODEL (m41) — closes the write-only backend gap. These are
+// canonical RLS-scoped, permission-gated GET endpoints (privacy.policy.read / security.dlp.read); NO mutation is
+// added here (the writes stay where they are). DLP findings are auto-generated append-only evidence (read-only);
+// privacy records expose only an OPAQUE subject reference — never personal data. ---
+const PRIV = '/privacy';
+const SEC = '/security';
+export const getPrivacyClassifications = (
+  t?: string | null,
+): Promise<ApiResult<Row[] | { classifications?: Row[] }>> =>
+  call(`${PRIV}/classifications`, { tenantId: t });
+export const getPrivacyRecords = (t?: string | null): Promise<ApiResult<Row[] | { records?: Row[] }>> =>
+  call(`${PRIV}/records`, { tenantId: t });
+export const getDlpPolicies = (t?: string | null): Promise<ApiResult<Row[] | { policies?: Row[] }>> =>
+  call(`${SEC}/dlp/policies`, { tenantId: t });
+export const getDlpFindings = (t?: string | null): Promise<ApiResult<Row[] | { findings?: Row[] }>> =>
+  call(`${SEC}/dlp/findings`, { tenantId: t });
+export const getSecurityIncidents = (t?: string | null): Promise<ApiResult<Row[] | { incidents?: Row[] }>> =>
+  call(`${SEC}/incidents`, { tenantId: t });
+
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
 // (RLS, no escape). Every write is a canonical permissioned + audited endpoint; the server is authoritative,

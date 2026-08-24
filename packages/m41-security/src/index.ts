@@ -88,10 +88,15 @@ export type {
   SecretRow,
   SecretVersionRow,
   DlpPolicyRow,
+  DlpPolicyListRow,
+  DlpFindingListRow,
+  IncidentListRow,
   GrcControlRow,
   GrcControlListRow,
   GrcAssessmentListRow,
   PrivacyClassificationRow,
+  PrivacyClassificationListRow,
+  PrivacyRecordListRow,
 } from './repository.ts';
 
 export { SecretService } from './secret.service.ts';
