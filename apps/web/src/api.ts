@@ -485,6 +485,14 @@ export const recordGrcAssessment = (
     body,
     tenantId: t,
   });
+// Define a GRC CONTROL — canonical m41 `POST /grc/controls` (permission grc.control.manage, audited
+// GRC_CONTROL_DEFINED). The canonical create contract is exactly controlKey+framework+title (+ optional scope);
+// there is no owner/state field on create, so the UI does not invent one. There is NO update/retire route on the
+// canonical surface — a control's posture changes only via append-only assessments (see recordGrcAssessment).
+export const createGrcControl = (
+  body: { controlKey: string; framework: string; title: string; scope?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${GRC}/controls`, { method: 'POST', body, tenantId: t });
 
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
