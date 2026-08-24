@@ -202,4 +202,78 @@ export default defineDbSpec('m41-services', async (ctx, t) => {
     action: 'erase_request',
   });
   t.ok(record.id, 'a privacy processing record is added (opaque subject ref; no personal data)');
+
+  // --- READ MODEL (M41 privacy/DLP/incident read-model completion) -------------------------------
+  // Closes the write-only gap: everything written above is now readable over an RLS-scoped, permission-gated
+  // read surface (no audit on reads). Prove: (1) reads return the written rows; (2) a caller WITHOUT the read
+  // permission is denied server-side; (3) RLS isolates another tenant (empty list + not-found by id).
+  const soc = await gov.recordIncident(dlpCtx, {
+    incidentKey: 'inc-1',
+    category: 'dlp_block',
+    severity: 'high',
+  });
+  const dlpReadCtx = ctxOf(userR, [M41_PERMISSIONS.dlpRead]);
+  const privacyReadCtx = ctxOf(userR, [M41_PERMISSIONS.privacyPolicyRead]);
+
+  const policies = await dlp.listPolicies(dlpReadCtx);
+  t.ok(
+    policies.some((p) => p.policy_key === 'internal-allow'),
+    'DLP policies are readable (read model returns the written policy)',
+  );
+  const findings = await dlp.listFindings(dlpReadCtx);
+  t.ok(findings.length >= 1, 'DLP findings are readable as append-only evidence');
+  const incidents = await gov.listIncidents(dlpReadCtx);
+  t.ok(
+    incidents.some((i) => i.incident_key === 'inc-1' && i.state === 'open'),
+    'security incidents are readable (with lifecycle state)',
+  );
+  t.equal(
+    (await gov.getIncident(dlpReadCtx, soc.id)).incident_key,
+    'inc-1',
+    'an incident is readable by id (RLS-scoped)',
+  );
+  const classifications = await gov.listPrivacyClassifications(privacyReadCtx);
+  t.ok(
+    classifications.some((c) => c.classification_key === 'pii'),
+    'privacy classifications are readable',
+  );
+  const records = await gov.listPrivacyRecords(privacyReadCtx);
+  t.ok(
+    records.some((r) => r.subject_ref === 'subject:opaque-123'),
+    'privacy records are readable (opaque subject ref only — never personal data)',
+  );
+
+  // (2) permission gating — a caller WITHOUT the read permission is denied in-service (Restricted/Auditor
+  // without the grant cannot read), independent of any UI.
+  const noPerm = ctxOf(userR, []);
+  await t.rejects(gov.listIncidents(noPerm), 'reading incidents requires security.dlp.read (fail closed)');
+  await t.rejects(
+    gov.listPrivacyRecords(noPerm),
+    'reading privacy records requires privacy.policy.read (fail closed)',
+  );
+  await t.rejects(dlp.listPolicies(noPerm), 'reading DLP policies requires security.dlp.read (fail closed)');
+
+  // (3) tenant isolation — another tenant (with the read grants) sees NONE of tenant-1's rows, and a
+  // detail-by-id for a foreign row fails closed (RLS makes it invisible => not found).
+  const tenant2 = randomUUID();
+  const otherCtx = (perms: readonly string[]): RequestContext => ({
+    tenantId: tenant2,
+    userId: randomUUID(),
+    correlationId: randomUUID(),
+    permissions: [...perms],
+  });
+  t.equal(
+    (await gov.listIncidents(otherCtx([M41_PERMISSIONS.dlpRead]))).length,
+    0,
+    'a different tenant sees NO incidents (FORCE RLS isolation)',
+  );
+  t.equal(
+    (await gov.listPrivacyRecords(otherCtx([M41_PERMISSIONS.privacyPolicyRead]))).length,
+    0,
+    'a different tenant sees NO privacy records (FORCE RLS isolation)',
+  );
+  await t.rejects(
+    gov.getIncident(otherCtx([M41_PERMISSIONS.dlpRead]), soc.id),
+    'cross-tenant incident detail-by-id fails closed (RLS => not found)',
+  );
 });

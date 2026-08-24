@@ -2172,6 +2172,213 @@ function ComplianceRegister({ tenant, perms }: { tenant: string | null; perms: S
   );
 }
 
+// ---------- Privacy & Security read model (M41) — RLS-scoped, permission-gated READS over the canonical
+// privacy/DLP/incident tables. No mutation here; no regulatory conclusions — canonical fields only. DLP findings
+// + privacy records are append-only evidence (privacy records show only an OPAQUE subject reference). ----------
+const sevPill = (s: string): JSX.Element => {
+  const v = (s || '').toLowerCase();
+  const cls = /critical|high/.test(v) ? 'bad' : /medium/.test(v) ? 'warn' : 'info';
+  return <span className={`pill ${cls}`}>{s || '—'}</span>;
+};
+
+function PrivacySecurityWorkspace({
+  tenant,
+  perms,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const canPrivacy = can('privacy.policy.read');
+  const canSec = can('security.dlp.read');
+  const tabs = (
+    [
+      canPrivacy && { id: 'classifications', label: 'Data classifications' },
+      canPrivacy && { id: 'records', label: 'Privacy records' },
+      canSec && { id: 'policies', label: 'DLP policies' },
+      canSec && { id: 'findings', label: 'DLP findings' },
+      canSec && { id: 'incidents', label: 'Security incidents' },
+    ] as ({ id: string; label: string } | false)[]
+  ).filter(Boolean) as { id: string; label: string }[];
+  const [tab, setTab] = useState(tabs[0]?.id ?? 'none');
+  const list = useRows(() => {
+    switch (tab) {
+      case 'classifications':
+        return api.getPrivacyClassifications(tenant);
+      case 'records':
+        return api.getPrivacyRecords(tenant);
+      case 'policies':
+        return api.getDlpPolicies(tenant);
+      case 'findings':
+        return api.getDlpFindings(tenant);
+      case 'incidents':
+        return api.getSecurityIncidents(tenant);
+      default:
+        return Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>);
+    }
+  }, [tenant, tab]);
+  const rows = list.rows;
+  return (
+    <>
+      <h1 className="page-title">Privacy &amp; security</h1>
+      <p className="page-sub">
+        Read-only view over the canonical m41 privacy / DLP / incident evidence · synthetic staging data. RLS
+        + RBAC enforced server-side. Shows control/evidence <strong>state</strong> — not a regulatory
+        conclusion.
+      </p>
+      {tabs.length === 0 ? (
+        <div className="card">
+          <div className="empty">
+            Reading these surfaces needs <code>privacy.policy.read</code> or <code>security.dlp.read</code>.
+            Your role has neither — the server denies the read (this is not merely hidden UI).
+          </div>
+        </div>
+      ) : (
+        <div className="card">
+          <div className="run-picker">
+            {tabs.map((tb) => (
+              <button
+                key={tb.id}
+                className={`btn ${tab === tb.id ? '' : 'secondary'}`}
+                onClick={() => setTab(tb.id)}
+              >
+                {tb.label}
+              </button>
+            ))}
+          </div>
+          <span className="demo-note">SYNTHETIC</span>
+          {list.loading ? (
+            <div className="loading">Loading…</div>
+          ) : list.error ? (
+            <div className="empty">Could not load ({list.error}).</div>
+          ) : rows.length === 0 ? (
+            <div className="empty">No records.</div>
+          ) : tab === 'classifications' ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Level</th>
+                  <th>Retention (days)</th>
+                  <th>Scope</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={pick(r, 'id') || i}>
+                    <td className="muted">{pick(r, 'classificationKey')}</td>
+                    <td>{statusPill(pick(r, 'level'))}</td>
+                    <td>{pick(r, 'retentionDays') || '—'}</td>
+                    <td className="muted">{pick(r, 'scope')}</td>
+                    <td>{statusPill(pick(r, 'state'))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : tab === 'records' ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>Subject ref (opaque)</th>
+                  <th>Action</th>
+                  <th>Classification</th>
+                  <th>Reason</th>
+                  <th>When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={pick(r, 'id') || i}>
+                    <td className="muted">{pick(r, 'subjectRef')}</td>
+                    <td>{pick(r, 'action')}</td>
+                    <td className="muted">{pick(r, 'classification') || '—'}</td>
+                    <td className="muted">{pick(r, 'reasonCode') || '—'}</td>
+                    <td className="muted">{pick(r, 'createdAt').slice(0, 19).replace('T', ' ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : tab === 'policies' ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Classification</th>
+                  <th>Action</th>
+                  <th>Scope</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={pick(r, 'id') || i}>
+                    <td className="muted">{pick(r, 'policyKey')}</td>
+                    <td>{statusPill(pick(r, 'classification'))}</td>
+                    <td>{pick(r, 'action')}</td>
+                    <td className="muted">{pick(r, 'scope')}</td>
+                    <td>{statusPill(pick(r, 'state'))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : tab === 'findings' ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>Classification</th>
+                  <th>Action</th>
+                  <th className="num">Count</th>
+                  <th>Reason</th>
+                  <th>When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={pick(r, 'id') || i}>
+                    <td>{statusPill(pick(r, 'classification'))}</td>
+                    <td>{pick(r, 'action')}</td>
+                    <td className="num">{pick(r, 'findingCount')}</td>
+                    <td className="muted">{pick(r, 'reasonCode') || '—'}</td>
+                    <td className="muted">{pick(r, 'createdAt').slice(0, 19).replace('T', ' ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Incident</th>
+                  <th>Severity</th>
+                  <th>Category</th>
+                  <th>State</th>
+                  <th>When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={pick(r, 'id') || i}>
+                    <td className="muted">{pick(r, 'incidentKey')}</td>
+                    <td>{sevPill(pick(r, 'severity'))}</td>
+                    <td>{pick(r, 'category')}</td>
+                    <td>{statusPill(pick(r, 'state'))}</td>
+                    <td className="muted">{pick(r, 'createdAt').slice(0, 19).replace('T', ' ')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p className="muted" style={{ fontSize: 11, margin: '8px 0 0' }}>
+            Canonical m41 read model (permission-gated, tenant-scoped by FORCE RLS, no audit on reads). DLP
+            findings and privacy records are append-only evidence — there is no update or delete.
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ---------- administration: users & access (M02 identity/RBAC — no second identity engine) ----------
 // Permission-aware UI: an action control is HIDDEN when the actor lacks the permission (fetched via
 // GET /auth/permissions), but the server stays authoritative — a hidden action still 403s if called directly.
@@ -3262,6 +3469,7 @@ const NAV = [
   { id: 'recovery-cases', label: 'Recovery cases', icon: '▤', group: 'Recovery' },
   { id: 'compliance', label: 'Compliance', icon: '❖', group: 'Compliance' },
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
+  { id: 'compliance-privacy', label: 'Privacy & security', icon: '🔒', group: 'Compliance' },
   { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
   { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
@@ -3498,6 +3706,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'recovery-cases' && <RecoveryCases tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} perms={perms} />}
+        {route === 'compliance-privacy' && <PrivacySecurityWorkspace tenant={tenant} perms={perms} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}
