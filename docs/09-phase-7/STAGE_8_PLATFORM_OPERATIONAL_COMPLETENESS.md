@@ -3,9 +3,9 @@
 > Rapid platform-wide audit of every implemented module (M01–M42) + the Stage-8 composition verticals
 > (M43/M44/M45), classified by a traffic-light on **operational** coherence (usable CRUD/governed actions ×
 > RBAC × RLS × audit × UI reachability). Base: `main` after PR #156 (M45 Compliance) merged — the sequence
-> #152 Users & Access → #153 M43 Treasury → #154 m22 Approvals → #155 M44 Recovery → #156 M45 Compliance is all
-> on `main`. **Two PRs are open pre-merge: M41 privacy/DLP/incident read-model, and M19 Fiscal Calendar (this
-> PR).** Synthetic staging only. **No module is omitted.**
+> #152 Users & Access → #153 M43 Treasury → #154 m22 Approvals → #155 M44 Recovery → #156 M45 Compliance →
+> **#157 M41 read-model** is all on `main`. **Open pre-merge (stacked): M19 Fiscal Calendar, then M21 Journals &
+> Posting (this PR, based on the M19 branch).** Synthetic staging only. **No module is omitted.**
 >
 > This is an operational-completeness map, **not** a production GO and **not** a certification. Controls
 > (RBAC/RLS/audit/maker-checker) are uniformly present in built modules — the gaps below are almost entirely
@@ -44,7 +44,7 @@
 | m18-legaldocs | Legal knowledge library | ✅ | none | AMBER | P2 | no UI |
 | m19-finance | GL accounts/periods/config | ✅ | **Finance → Fiscal Calendar (period controls)** | GREEN(calendar slice) | P2 | fiscal-year + period open/close/lock/reopen + history now operational; GL-account/config admin UI still pending |
 | m20-glrecon | Bank↔GL reconciliation | ✅ | **Treasury vertical (+PR2 actions)** | GREEN | — | — |
-| m21-journal | Draft journal engine | ✅ | partial (propose only) | AMBER | P1 | posting-request/authorize lifecycle no UI |
+| m21-journal | Draft journal engine | ✅ | **Finance → Journals workspace (draft→submit→posting→authorize)** | GREEN(workspace slice) | P2 | posting-result is evidence-only; external core-post deferred (m23/m33) |
 | m22-approval | **Maker-checker/SoD engine** | ✅ | **NONE** | **RED** | **P0** | **no approver screen — every maker-checker loop dead-ends** |
 | m23-finance-integration | Posting-integration record | ✅ (framework) | n/a | BLUE | — | intentional framework (ADR-096/101) |
 | m24-ai-foundation | AI gateway/pipeline | ✅ (service) | none | BLUE | P2 | `/api/v1/ai` declared, unwired |
@@ -83,7 +83,7 @@ modules). Every AMBER item is a UI/reachability gap over an intact, RBAC+RLS+aud
 
 ## P1 gaps (next)
 - ~~m19-finance period close/reopen~~ **DONE (this PR)** — Fiscal Calendar UI: fiscal-year + period lifecycle.
-- **m21-journal posting-request/authorize lifecycle no UI** ← next P1 (the dual-control finance flow).
+- ~~m21-journal posting-request/authorize lifecycle no UI~~ **DONE (this PR)** — Finance → Journals workspace.
 - m39-saas entitlement/subscription/plan **admin console** (commercial engine API-only).
 - m32-analytics reporting/dashboard UI.
 - m41-security: privacy/DLP/incident read model **shipped (open PR)**; secrets admin UI still pending (P2).
@@ -176,16 +176,38 @@ Note: period transitions are **single-actor privileged controls** (distinct `fin
 expectedVersion + audit), **not** maker-checker — dual-control lives in m21 posting (authorizer ≠ requester).
 The M19 UI deliberately does **not** route through M22.
 
+## M21 Journals & Posting — capability classification
+| Capability | Canonical HTTP | Classification |
+|---|---|---|
+| Journal drafts | `POST/GET drafts`, `drafts/:id/edit` | **GOVERNED CRUD** (create/edit while mutable; no delete) |
+| Journal lines | `drafts/:id/lines`, `lines/:id/{update,remove}` | **GOVERNED CRUD** (add/edit/remove while draft mutable) |
+| Validation | `drafts/:id/validate`, `GET .../validations` | **READ + ACTION** (deterministic; balance/debits/credits) |
+| Submission / withdrawal | `drafts/:id/{submit,withdraw}` | **READ + ACTION** (submit→m22; withdraw needs reason) |
+| Posting requests | `drafts/:id/posting-requests`, `.../{authorize,cancel}` | **GOVERNED CRUD** (prepare/authorize/cancel; period-gated) |
+| M22 approval | reuses `/approvals` inbox (subjectType `journal_posting`) | **READ + ACTION** (checker path; maker ≠ checker, SoD) |
+| Authorisation | `posting-requests/:id/authorize` (approvalRef+approvedBy) | **READ + ACTION** (records opaque m22 ref; SoD DB CHECK; period open) |
+| Posting results | `posting-requests/:id/results` | **APPEND-ONLY** (evidence; external core-post deferred m23/m33) |
+| Cancellation | `posting-requests/:id/cancel` | **READ + ACTION** (reason required) |
+| Reversal / void | none | **NOT EXPOSED** (no canonical route; corrections = new adjusting journals) |
+
+## M39 Subscription/Entitlement — assessment (read-only, next after M21)
+- **Readable now:** `GET plans`, `GET plans/:id`, `GET subscriptions`, `GET quota/check`, `GET entitlements/check`.
+- **Write, no read:** plan **versions**, version **entitlements**, **quota-policies**, **usage**, **overrides**,
+  **billing-cycles** — a **BACKEND GAP** (create/validate/publish exist; no GET to list them back).
+- **UI today:** only the entitlement self-check is wired; no plan/subscription admin screen.
+- **Recommended next PR (M39a, frontend):** Subscriptions admin (list + activate/change-plan/suspend/cancel/renew)
+  + Plans list/detail/create + quota/entitlement self-check display. **M39b (backend read-model, like M41):** add
+  RLS-scoped GETs for versions/entitlements/quota-policies/usage/overrides before a full plan-version admin UI.
+
 ## Recommended PR sequence
-- ~~PR3 — M44 Recovery~~ **merged (#155).** · ~~PR4 — M45 Compliance~~ **merged (#156).**
+- ~~PR3 — M44 Recovery~~ **merged (#155).** · ~~PR4 — M45 Compliance~~ **merged (#156).** · ~~M41 read-model~~ **merged (#157).**
 - **PR5 — Platform P0: m22-approval actioning UI** — **merged (#154).**
-- **M41 read-model** (open, pre-merge) · **M19 Fiscal Calendar** (this PR, pre-merge).
-- **NEXT — M21 Posting Lifecycle** (draft→validate→submit→posting-request→authorize (SoD)→result; the dual-
-  control finance flow, reuses m22 checker), then m39 entitlement admin, m32 analytics, legal/litigation UI,
-  remaining user-admin lifecycle) + manifest hygiene for obsolete m05/m10/m11.
+- **M19 Fiscal Calendar** (open, pre-merge) · **M21 Journals & Posting** (this PR, stacked on M19, pre-merge).
+- **NEXT — M39 Subscription/Entitlement admin** (M39a frontend, then M39b read-model), then m32 analytics,
+  legal/litigation UI, remaining user-admin lifecycle + manifest hygiene for obsolete m05/m10/m11.
 
 ## Verdicts (per the completeness gate)
-- **READY:** m02-identity, m02-rbac, m17-recovery, m19-finance (calendar slice), m20-glrecon (Treasury with PR2).
-- **READY WITH LIMITATION:** m21, m32, m39, m41 (backend governed; admin UI pending).
+- **READY:** m02-identity, m02-rbac, m17-recovery, m19-finance (calendar), m20-glrecon, m21-journal (workspace), m41-security (compliance read model).
+- **READY WITH LIMITATION:** m32, m39 (backend governed; admin UI pending).
 - **FRAMEWORK ONLY:** m01, m02-auth, m03, m06, m07, m15a, m23-m27, m30, m31, m33-m38, m40, m42.
 - **CLEARED (was NOT READY):** m22-approval P0 — Approvals UI merged (#154). **OBSOLETE:** m05, m10, m11.

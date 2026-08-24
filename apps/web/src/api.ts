@@ -250,6 +250,101 @@ export const submitJournalDraft = (
     tenantId: t,
   });
 
+// M21 draft workbench (operational completion). Every mutation carries expectedVersion; amounts are INTEGER
+// MINOR UNITS (never a float, ADR-007). m21 NEVER approves or posts — submit hands off to m22; posting is
+// approval-gated + period-gated server-side.
+export const editJournalDraft = (
+  id: string,
+  ev: number,
+  body: Record<string, unknown>,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(id)}/edit`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+export const addJournalLine = (
+  draftId: string,
+  line: DraftLineInput,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(draftId)}/lines`, { method: 'POST', body: line, tenantId: t });
+export const updateJournalLine = (
+  lineId: string,
+  ev: number,
+  body: Partial<DraftLineInput>,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/lines/${encodeURIComponent(lineId)}/update`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+export const removeJournalLine = (lineId: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${J}/lines/${encodeURIComponent(lineId)}/remove`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const withdrawJournalDraft = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(id)}/withdraw`, {
+    method: 'POST',
+    body: { expectedVersion: ev, reason },
+    tenantId: t,
+  });
+export const addJournalNote = (id: string, content: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(id)}/notes`, { method: 'POST', body: { content }, tenantId: t });
+export const getJournalDraftHistory = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ history: Row[] }>> =>
+  call(`${J}/drafts/${encodeURIComponent(id)}/history`, { tenantId: t });
+// Posting requests — approval-gated + period-gated. authorize records the OPAQUE m22 approval reference +
+// approver (SoD: approver != requester, DB CHECK). recordResult records EVIDENCE of an external/core posting
+// outcome — m21 itself never pushes to a core banking/accounting system (m23/m33, deferred post-MVP).
+export const preparePostingRequest = (draftId: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(draftId)}/posting-requests`, { method: 'POST', tenantId: t });
+export const getPostingRequests = (
+  draftId: string,
+  t?: string | null,
+): Promise<ApiResult<{ postingRequests: Row[] }>> =>
+  call(`${J}/drafts/${encodeURIComponent(draftId)}/posting-requests`, { tenantId: t });
+export const authorizePosting = (
+  id: string,
+  ev: number,
+  approvalRef: string,
+  approvedBy: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/posting-requests/${encodeURIComponent(id)}/authorize`, {
+    method: 'POST',
+    body: { expectedVersion: ev, approvalRef, approvedBy },
+    tenantId: t,
+  });
+export const cancelPostingRequest = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/posting-requests/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    body: { expectedVersion: ev, reason },
+    tenantId: t,
+  });
+export const recordPostingResult = (
+  id: string,
+  body: { status: string; externalSystem?: string; externalRef?: string; message?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/posting-requests/${encodeURIComponent(id)}/results`, { method: 'POST', body, tenantId: t });
+
 /**
  * Propose a reconciliation adjustment through the canonical M21 flow: create a balanced draft → validate →
  * submit (→ PENDING APPROVAL). Returns the final draft (or the first failing step's error). Never posts.

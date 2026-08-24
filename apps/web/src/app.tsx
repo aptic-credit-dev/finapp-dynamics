@@ -2139,6 +2139,570 @@ function FiscalCalendar({ tenant, perms }: { tenant: string | null; perms: Set<s
   );
 }
 
+// ---------- Finance → Journals & Posting (M21) — operational workspace over the CANONICAL m21 engine, with the
+// checker path routed through the CANONICAL m22 Approvals inbox (no second journal engine, no second approval
+// engine, no direct-post bypass, no reversal — none exists canonically). Amounts are INTEGER MINOR UNITS,
+// decimal-safe (ADR-007); posting is approval-gated + period-gated (from merged M19) server-side. m21 records
+// posting-result EVIDENCE only — it never pushes to a core banking/accounting system (m23/m33, deferred). ----------
+function JournalDraftDrawer({
+  draftId,
+  tenant,
+  perms,
+  onClose,
+  onChanged,
+}: {
+  draftId: string;
+  tenant: string | null;
+  perms: Set<string>;
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [draft, setDraft] = useState<api.Row | null>(null);
+  const [lines, setLines] = useState<api.Row[]>([]);
+  const [preqs, setPreqs] = useState<api.Row[]>([]);
+  const [approvals, setApprovals] = useState<api.Row[]>([]);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  // add/edit-line form
+  const [acct, setAcct] = useState('');
+  const [dir, setDir] = useState<'debit' | 'credit'>('debit');
+  const [amt, setAmt] = useState('');
+  const [ldesc, setLdesc] = useState('');
+  const [editLine, setEditLine] = useState<api.Row | null>(null);
+  const [note, setNote] = useState('');
+  useEffect(() => {
+    let live = true;
+    void api.getJournalDraft(draftId, tenant).then((r) => {
+      if (!live) return;
+      const d = (r.data as { draft?: api.Row; lines?: api.Row[] } | null) ?? {};
+      setDraft(d.draft ?? null);
+      setLines(d.lines ?? []);
+    });
+    void api.getPostingRequests(draftId, tenant).then((r) => {
+      if (live) setPreqs((r.data as { postingRequests?: api.Row[] } | null)?.postingRequests ?? []);
+    });
+    void api.listApprovalRequests(tenant).then((r) => {
+      if (live) setApprovals((r.data as { requests?: api.Row[] } | null)?.requests ?? []);
+    });
+    return () => {
+      live = false;
+    };
+  }, [draftId, tenant, nonce]);
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+  if (draft === null)
+    return (
+      <div className="drawer-overlay" onClick={onClose} role="presentation">
+        <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog">
+          <div className="loading">Loading draft…</div>
+        </aside>
+      </div>
+    );
+  const status = pick(draft, 'status').toLowerCase();
+  const version = Number(draft['version'] ?? 1);
+  const mutable = status === 'draft' || status === 'validated';
+  const periodStatus = pick(draft, 'periodStatus').toLowerCase() || 'open';
+  const periodOpen = periodStatus === 'open';
+  const debits = pick(draft, 'totalDebitsMinor');
+  const credits = pick(draft, 'totalCreditsMinor');
+  const balanced = String(draft['isBalanced']) === 'true';
+  const submitLine = (): void => {
+    const minor = Number(amt.trim());
+    if (!Number.isInteger(minor) || minor <= 0) {
+      setMsg({ ok: false, msg: 'Amount must be a positive integer (minor units).' });
+      return;
+    }
+    const body = {
+      direction: dir,
+      amountMinor: minor,
+      ...(acct.trim() ? { accountRef: acct.trim() } : {}),
+      ...(ldesc.trim() ? { description: ldesc.trim() } : {}),
+    };
+    const after = (): void => {
+      setAcct('');
+      setAmt('');
+      setLdesc('');
+      setEditLine(null);
+    };
+    if (editLine) {
+      void run(
+        api.updateJournalLine(pick(editLine, 'id'), Number(editLine['version'] ?? 1), body, tenant),
+        'Line updated.',
+      ).then(after);
+    } else {
+      void run(api.addJournalLine(draftId, body as api.DraftLineInput, tenant), 'Line added.').then(after);
+    }
+  };
+  // Submit hands off to m22: submit the draft, then raise + submit a canonical approval request so a DISTINCT
+  // checker can decide it in the Approvals inbox (best-effort — if the maker lacks approvals.request.* the draft
+  // is still submitted PENDING APPROVAL and that is surfaced, not swallowed).
+  const submitDraft = async (): Promise<void> => {
+    const r = await api.submitJournalDraft(draftId, version, tenant);
+    if (!r.ok) {
+      setMsg({ ok: false, msg: r.error ?? 'Submit failed.' });
+      return;
+    }
+    const req = await api.createApprovalRequest(
+      {
+        subjectType: 'journal_posting',
+        subjectRef: draftId,
+        title: pick(draft, 'description') || 'Journal posting',
+        amountMinor: Number(debits) || 0,
+      },
+      tenant,
+    );
+    if (req.ok && req.data) {
+      const rq = (req.data as { request?: api.Row } | null)?.request;
+      if (rq) await api.submitApprovalRequest(pick(rq, 'id'), Number(rq['version'] ?? 1), tenant);
+      setMsg({ ok: true, msg: 'Submitted → approval request raised in the Approvals inbox (m22).' });
+    } else {
+      setMsg({
+        ok: true,
+        msg: 'Submitted (PENDING APPROVAL). Approval request not raised: ' + (req.error ?? ''),
+      });
+    }
+    refresh();
+  };
+  const approvalFor = approvals.find(
+    (a) => pick(a, 'subjectRef') === draftId && pick(a, 'status').toLowerCase() === 'approved',
+  );
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside
+        className="drawer wide"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Journal draft"
+      >
+        <header className="drawer-head">
+          <h3>{pick(draft, 'description') || 'Journal draft'}</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Status</dt>
+            <dd>{statusPill(pick(draft, 'status'))}</dd>
+            <dt>Entity</dt>
+            <dd>{pick(draft, 'entityRef') || '—'}</dd>
+            <dt>Period</dt>
+            <dd>
+              {pick(draft, 'periodRef') || '—'} {periodPill(periodStatus, periodStatus === 'locked')}
+            </dd>
+            <dt>Date</dt>
+            <dd>{pick(draft, 'journalDate') || '—'}</dd>
+          </dl>
+          {!periodOpen && (
+            <div className="error">
+              This draft's accounting period is <strong>{periodStatus}</strong> — per canonical m19/m21 rules
+              it cannot be submitted or posted until the period is reopened (M19).
+            </div>
+          )}
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+          <h4 className="drawer-sub">Lines</h4>
+          <table>
+            <thead>
+              <tr>
+                <th className="num">#</th>
+                <th>Account</th>
+                <th>Dr/Cr</th>
+                <th className="num">Amount</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l, i) => (
+                <tr key={pick(l, 'id') || i}>
+                  <td className="num">{pick(l, 'lineNo')}</td>
+                  <td className="muted">{pick(l, 'accountRef') || '—'}</td>
+                  <td>{pick(l, 'direction')}</td>
+                  <td className="num">{fmtMinor(pick(l, 'amountMinor'))}</td>
+                  <td>
+                    {mutable && can('journals.line.manage') && (
+                      <span className="action-row">
+                        <button
+                          className="btn link sm"
+                          onClick={() => {
+                            setEditLine(l);
+                            setAcct(pick(l, 'accountRef'));
+                            setDir(pick(l, 'direction') === 'credit' ? 'credit' : 'debit');
+                            setAmt(pick(l, 'amountMinor'));
+                            setLdesc(pick(l, 'description'));
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="btn link sm"
+                          onClick={() =>
+                            void run(
+                              api.removeJournalLine(pick(l, 'id'), Number(l['version'] ?? 1), tenant),
+                              'Line removed.',
+                            )
+                          }
+                        >
+                          Remove
+                        </button>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {lines.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    No lines yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          <div className="balance-bar">
+            <span>
+              Debits <strong>{fmtMinor(debits)}</strong>
+            </span>
+            <span>
+              Credits <strong>{fmtMinor(credits)}</strong>
+            </span>
+            <span>
+              Diff <strong>{fmtMinor(String(Number(debits) - Number(credits)))}</strong>
+            </span>
+            {balanced ? (
+              <span className="pill ok">Balanced</span>
+            ) : (
+              <span className="pill bad">Not balanced</span>
+            )}
+          </div>
+
+          {mutable && can('journals.line.manage') && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <input
+                style={{ width: 120 }}
+                value={acct}
+                placeholder="Account ref"
+                onChange={(e) => setAcct(e.target.value)}
+              />
+              <select value={dir} onChange={(e) => setDir(e.target.value === 'credit' ? 'credit' : 'debit')}>
+                <option value="debit">Debit</option>
+                <option value="credit">Credit</option>
+              </select>
+              <input
+                style={{ width: 130 }}
+                value={amt}
+                placeholder="Amount (minor)"
+                onChange={(e) => setAmt(e.target.value)}
+              />
+              <input
+                style={{ width: 140 }}
+                value={ldesc}
+                placeholder="Description"
+                onChange={(e) => setLdesc(e.target.value)}
+              />
+              <button className="btn" onClick={submitLine}>
+                {editLine ? 'Update line' : 'Add line'}
+              </button>
+              {editLine && (
+                <button
+                  className="btn link"
+                  onClick={() => {
+                    setEditLine(null);
+                    setAcct('');
+                    setAmt('');
+                    setLdesc('');
+                  }}
+                >
+                  Cancel edit
+                </button>
+              )}
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Actions</h4>
+          <div className="action-row">
+            <ActionButton
+              label="Validate"
+              allowed={mutable && lines.length > 0 && can('journals.validation.run')}
+              onRun={() => run(api.validateJournalDraft(draftId, version, tenant), 'Validation run.')}
+            />
+            <ActionButton
+              label="Submit for approval"
+              allowed={status === 'validated' && balanced && periodOpen && can('journals.draft.submit')}
+              onRun={submitDraft}
+            />
+            <ActionButton
+              label="Withdraw"
+              danger
+              needsReason
+              allowed={status === 'submitted' && can('journals.draft.withdraw')}
+              onRun={(reason) =>
+                run(api.withdrawJournalDraft(draftId, version, reason ?? '', tenant), 'Draft withdrawn.')
+              }
+            />
+          </div>
+          {can('journals.note.add') && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={note}
+                placeholder="Add a note…"
+                onChange={(e) => setNote(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn secondary"
+                disabled={note.trim() === ''}
+                onClick={() =>
+                  void run(api.addJournalNote(draftId, note.trim(), tenant), 'Note added.').then(() =>
+                    setNote(''),
+                  )
+                }
+              >
+                Add note
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Posting requests (approval-gated)</h4>
+          <p className="muted" style={{ fontSize: 11, margin: '0 0 6px' }}>
+            A posting request needs a DISTINCT m22 approver (maker ≠ checker, enforced server-side + DB) and
+            an open period. m21 records posting-result <strong>evidence</strong> only — it does not push to a
+            core banking/accounting system (m23/m33, deferred post-MVP).
+          </p>
+          {status === 'submitted' && can('journals.posting_request.create') && (
+            <ActionButton
+              label="Prepare posting request"
+              allowed={periodOpen}
+              onRun={() => run(api.preparePostingRequest(draftId, tenant), 'Posting request prepared.')}
+            />
+          )}
+          {preqs.length === 0 ? (
+            <div className="empty">No posting requests.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th className="num">Amount</th>
+                  <th>Approval</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preqs.map((pr, i) => {
+                  const prId = pick(pr, 'id');
+                  const prEv = Number(pr['version'] ?? 1);
+                  const prStatus = pick(pr, 'status').toLowerCase();
+                  return (
+                    <tr key={prId || i}>
+                      <td>{statusPill(pick(pr, 'status'))}</td>
+                      <td className="num">{fmtMinor(pick(pr, 'amountMinor'))}</td>
+                      <td className="muted">
+                        {pick(pr, 'approvalRef') || (approvalFor ? 'approved (m22)' : '—')}
+                      </td>
+                      <td>
+                        <div className="action-row">
+                          <ActionButton
+                            label="Authorize"
+                            allowed={
+                              prStatus === 'prepared' &&
+                              approvalFor !== undefined &&
+                              periodOpen &&
+                              can('journals.posting_request.authorize')
+                            }
+                            onRun={() =>
+                              run(
+                                api.authorizePosting(
+                                  prId,
+                                  prEv,
+                                  pick(approvalFor as api.Row, 'id'),
+                                  pick(approvalFor as api.Row, 'finalApprover'),
+                                  tenant,
+                                ),
+                                'Posting request authorized (m22 approval recorded).',
+                              )
+                            }
+                          />
+                          <ActionButton
+                            label="Cancel"
+                            danger
+                            needsReason
+                            allowed={
+                              (prStatus === 'prepared' || prStatus === 'ready') &&
+                              can('journals.posting_request.cancel')
+                            }
+                            onRun={(reason) =>
+                              run(
+                                api.cancelPostingRequest(prId, prEv, reason ?? '', tenant),
+                                'Posting request cancelled.',
+                              )
+                            }
+                          />
+                          <ActionButton
+                            label="Record result"
+                            allowed={prStatus === 'ready' && can('journals.posting_result.record')}
+                            onRun={() =>
+                              run(
+                                api.recordPostingResult(
+                                  prId,
+                                  {
+                                    status: 'recorded',
+                                    externalSystem: 'deferred',
+                                    message: 'evidence only',
+                                  },
+                                  tenant,
+                                ),
+                                'Posting-result evidence recorded (external core posting deferred).',
+                              )
+                            }
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function JournalsWorkspace({
+  tenant,
+  perms,
+  actorId,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [nonce, setNonce] = useState(0);
+  const drafts = useRows(() => api.getJournalDrafts(tenant), [tenant, nonce]);
+  const [status, setStatus] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [desc, setDesc] = useState('');
+  const [entity, setEntity] = useState('');
+  const shown = drafts.rows.filter((d) => status === '' || pick(d, 'status') === status);
+  const createDraft = async (): Promise<void> => {
+    const r = await api.createJournalDraft(
+      {
+        description: desc.trim() || 'Journal draft',
+        ...(entity.trim() ? { entityRef: entity.trim() } : {}),
+        journalDate: '2026-08-24',
+        sourceType: 'manual',
+      },
+      tenant,
+    );
+    if (r.ok && r.data) {
+      setCreating(false);
+      setDesc('');
+      setEntity('');
+      setNonce((x) => x + 1);
+      setOpenId(pick(r.data as api.Row, 'id'));
+    }
+  };
+  return (
+    <>
+      <h1 className="page-title">Journals &amp; posting</h1>
+      <p className="page-sub">
+        Draft → validate → submit → m22 approval → authorize → posting-result evidence, over the canonical m21
+        engine · synthetic staging data. No direct post; posting is approval-gated (m22) and period-gated
+        (M19). Actor: <span className="muted">{actorId || '—'}</span>.
+      </p>
+      <div className="card">
+        <header>
+          <h3>Journal drafts</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        <div className="run-picker" style={{ gap: 6 }}>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            {['draft', 'validated', 'submitted', 'posted', 'withdrawn'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          {can('journals.draft.create') && !creating && (
+            <button className="btn" onClick={() => setCreating(true)}>
+              New draft
+            </button>
+          )}
+          {creating && (
+            <>
+              <input value={desc} placeholder="Description" onChange={(e) => setDesc(e.target.value)} />
+              <input value={entity} placeholder="Entity ref" onChange={(e) => setEntity(e.target.value)} />
+              <button className="btn" onClick={createDraft}>
+                Create
+              </button>
+              <button className="btn link" onClick={() => setCreating(false)}>
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+        {drafts.loading ? (
+          <div className="loading">Loading drafts…</div>
+        ) : shown.length === 0 ? (
+          <div className="empty">No drafts.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Status</th>
+                <th className="num">Debits</th>
+                <th className="num">Credits</th>
+                <th>Balanced</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((d, i) => (
+                <tr key={pick(d, 'id') || i}>
+                  <td>{pick(d, 'description') || '—'}</td>
+                  <td>{statusPill(pick(d, 'status'))}</td>
+                  <td className="num">{fmtMinor(pick(d, 'totalDebitsMinor'))}</td>
+                  <td className="num">{fmtMinor(pick(d, 'totalCreditsMinor'))}</td>
+                  <td>{String(d['isBalanced']) === 'true' ? '✓' : '—'}</td>
+                  <td>
+                    <button className="btn link" onClick={() => setOpenId(pick(d, 'id'))}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {openId && (
+        <JournalDraftDrawer
+          draftId={openId}
+          tenant={tenant}
+          perms={perms}
+          onClose={() => setOpenId(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
 // ---------- Regulatory & Compliance (M45) — UI over the canonical m41 GRC control register; no duplicate engine ----------
 // Renders CONTROL/EVIDENCE state (an assessment), never a blanket "Aptic is compliant/certified" claim.
 const FRAMEWORK_LABEL: Record<string, string> = {
@@ -3635,6 +4199,7 @@ const NAV = [
   { id: 'recovery', label: 'Debt Recovery', icon: '⚖', group: 'Recovery' },
   { id: 'recovery-cases', label: 'Recovery cases', icon: '▤', group: 'Recovery' },
   { id: 'finance-calendar', label: 'Fiscal calendar', icon: '📅', group: 'Finance' },
+  { id: 'finance-journals', label: 'Journals', icon: '📒', group: 'Finance' },
   { id: 'compliance', label: 'Compliance', icon: '❖', group: 'Compliance' },
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
   { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
@@ -3654,7 +4219,12 @@ const ADMIN_READ_PERMS = [
 
 // Finance (m19 fiscal calendar) is a platform finance-CONTROL capability, not a commercial vertical, so — like
 // Administration — it is RBAC-gated (visible to anyone who may read the calendar), not entitlement-gated.
-const FINANCE_READ_PERMS = ['finance.period.read', 'finance.fiscal_year.read', 'finance.entity.read'];
+const FINANCE_READ_PERMS = [
+  'finance.period.read',
+  'finance.fiscal_year.read',
+  'finance.entity.read',
+  'journals.draft.read',
+];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
 // entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
@@ -3877,6 +4447,9 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'recovery' && <RecoveryDashboard tenant={tenant} />}
         {route === 'recovery-cases' && <RecoveryCases tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'finance-calendar' && <FiscalCalendar tenant={tenant} perms={perms} />}
+        {route === 'finance-journals' && (
+          <JournalsWorkspace tenant={tenant} perms={perms} actorId={actorId} />
+        )}
         {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} perms={perms} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
