@@ -2,8 +2,9 @@
 
 > Rapid platform-wide audit of every implemented module (M01–M42) + the Stage-8 composition verticals
 > (M43/M44/M45), classified by a traffic-light on **operational** coherence (usable CRUD/governed actions ×
-> RBAC × RLS × audit × UI reachability). Base: `main` after PR #152 (Users & Access) merged. Synthetic staging
-> only. **No module is omitted.**
+> RBAC × RLS × audit × UI reachability). Base: `main` after PR #155 (M44 Recovery) merged — the sequence
+> #152 Users & Access → #153 M43 Treasury → #154 m22 Approvals → #155 M44 Recovery is all on `main`; **M45
+> Compliance is this PR (pre-merge)**. Synthetic staging only. **No module is omitted.**
 >
 > This is an operational-completeness map, **not** a production GO and **not** a certification. Controls
 > (RBAC/RLS/audit/maker-checker) are uniformly present in built modules — the gaps below are almost entirely
@@ -62,7 +63,7 @@
 | m38-automation | Scheduler/automation | ✅ | none | BLUE | — | infra |
 | m39-saas | Plans/subscriptions/entitlements | ✅ | self-check only | AMBER | P1 | no entitlement/subscription admin UI |
 | m40-resilience | Backup/observability | ✅ | none | BLUE | — | infra |
-| m41-security | Secrets/privacy/DLP/GRC | ✅ | GRC slice (Compliance) | AMBER | P1 | secrets/privacy/DLP/incident no UI |
+| m41-security | Secrets/privacy/DLP/GRC | ✅ | **Compliance vertical (GRC: define-control + assess + read)** | AMBER | P1 | GRC slice governed-complete to canonical limit; secrets/privacy/DLP/incident **write-only backend, no read route** |
 | m42-certification | Certification programmes | ✅ | none | BLUE | — | internal governance runtime |
 
 **Totals:** GREEN 4 · BLUE 20 · AMBER 16 · RED 4.
@@ -126,20 +127,45 @@ wildcard), scoped per PR as each module's UI is exposed.
 
 ## Delivered so far
 - **PR #152 (merged)** — Users & Access Administration (m02 identity/RBAC) → m02 GREEN.
-- **PR (this sweep, pushed, pre-merge)** — M43 Treasury operational actions (run execute/complete/reopen, match
+- **PR #153 (merged)** — M43 Treasury operational actions (run execute/complete/reopen, match
   confirm/reject/unmatch, exception resolve/waive, import accept/reject) → m20 Treasury GREEN. Proven on staging:
   exception resolved (audited); run Complete **failed closed** ("1 required exception(s) still open").
+- **PR #154 (merged)** — m22 Approvals inbox + reusable maker-checker UI → m22 P0 cleared.
+- **PR #155 (merged)** — M44 Recovery operational actions (case lifecycle, take-ownership, arrangements
+  +approve via canonical m17 SoD, demands, outcomes) → m17 GREEN (operational).
+- **PR (this sweep, pushed, pre-merge)** — M45 Compliance operational completion: adds canonical **Define
+  control** (`POST /grc/controls`, grc.control.manage, audited GRC_CONTROL_DEFINED) + register search to the
+  existing read/assess slice. GRC slice now governed-complete to the canonical limit.
+
+## M45 Compliance — capability classification (canonical limit)
+| Capability | Canonical HTTP | Classification |
+|---|---|---|
+| Controls — create | `POST /grc/controls` | **GOVERNED CRUD** (create only; perm+audit) |
+| Controls — read/list/search | `GET /grc/controls` | **READ + ACTION** (client filter/search) |
+| Controls — update/retire | none | **NOT EXPOSED / CANONICAL GAP** (no route; posture changes via assessments) |
+| Assessments — record/history | `POST`/`GET .../assessments` | **APPEND-ONLY** |
+| Evidence | `evidenceRef` on assessment | **APPEND-ONLY** (no standalone entity) |
+| Findings | none (only DLP-scan findings, table-only) | **NOT EXPOSED / BACKEND GAP** |
+| Remediation | none | **NOT EXPOSED** (no canonical concept) |
+| Privacy (classifications/records) | `POST` only, no `GET` | **BACKEND GAP** (write-only; `privacy.policy.read` declared, no HTTP read) |
+| Security incidents / DLP policies | `POST` only, no `GET` | **BACKEND GAP** (write-only; `security.dlp.read` declared, no HTTP read) |
+| Review / certification | m42 (separate module, consumes GRC by contract) | **NOT EXPOSED here** (out of M45 scope) |
+
+Note: there is **no self-certification path** in GRC at all — an assessment is append-only evidence of control
+state, never a regulator certification; the UI renders control/assessment **state** and never "Compliant" as a
+blanket verdict. P1 follow-up to close the BACKEND GAPs = add RLS-scoped `GET` read models for
+privacy/DLP/incidents in m41 (backend), then surface them under Compliance.
 
 ## Recommended PR sequence
-- **PR3 — M44 Recovery operational actions** (case lifecycle, assign, arrangements +approve, demands, outcomes).
-- **PR4 — M45 Compliance** (define-control + evidence to the limit of the canonical backend; document immutable gaps).
-- **PR5 — Platform P0: m22-approval actioning UI** — *recommend pulling forward* (unblocks maker-checker for
-  Treasury journals + Recovery arrangements/write-offs; single highest-value fix).
-- **PR6+ — P1 sweep** (period-close, posting lifecycle, entitlement admin, analytics) + manifest hygiene for
+- ~~PR3 — M44 Recovery~~ **merged (#155).**
+- ~~PR4 — M45 Compliance~~ **this PR (pre-merge).**
+- **PR5 — Platform P0: m22-approval actioning UI** — **merged (#154).**
+- **PR6+ — P1 sweep** (m19 period-close, m21 posting lifecycle, m39 entitlement admin, m32 analytics, m41
+  privacy/security read models, legal/litigation UI, remaining user-admin lifecycle) + manifest hygiene for
   obsolete m05/m10/m11.
 
 ## Verdicts (per the completeness gate)
 - **READY:** m02-identity, m02-rbac, m17-recovery, m20-glrecon (Treasury with PR2).
 - **READY WITH LIMITATION:** m19, m21, m32, m39, m41 (backend governed; admin UI pending).
 - **FRAMEWORK ONLY:** m01, m02-auth, m03, m06, m07, m15a, m23-m27, m30, m31, m33-m38, m40, m42.
-- **NOT READY (reachability):** m22-approval (P0). **OBSOLETE:** m05, m10, m11.
+- **CLEARED (was NOT READY):** m22-approval P0 — Approvals UI merged (#154). **OBSOLETE:** m05, m10, m11.

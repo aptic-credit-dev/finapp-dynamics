@@ -1800,12 +1800,15 @@ function assessmentPill(status: string): JSX.Element {
     </span>
   );
 }
-function useControlsWithStatus(tenant: string | null): {
+function useControlsWithStatus(
+  tenant: string | null,
+  nonce = 0,
+): {
   rows: (api.Row & { _latest: string })[];
   loading: boolean;
   error: string | null;
 } {
-  const controls = useRows(() => api.getGrcControls(tenant), [tenant]);
+  const controls = useRows(() => api.getGrcControls(tenant), [tenant, nonce]);
   const [rows, setRows] = useState<(api.Row & { _latest: string })[] | null>(null);
   const key = controls.rows.map((c) => pick(c, 'id')).join(',');
   useEffect(() => {
@@ -2000,12 +2003,103 @@ function ControlDrawer({
   );
 }
 
-function ComplianceRegister({ tenant }: { tenant: string | null }): JSX.Element {
-  const { rows, loading, error } = useControlsWithStatus(tenant);
+// Define a new control — canonical m41 `POST /grc/controls` (grc.control.manage, audited). Rendered only when the
+// actor holds the permission; the server stays authoritative (a hidden form still 403s if the route is called
+// directly). This is the ONLY governed write here besides append-only assessments — there is no update/retire.
+function CreateControlCard({
+  tenant,
+  onCreated,
+}: {
+  tenant: string | null;
+  onCreated: () => void;
+}): JSX.Element {
+  const [controlKey, setControlKey] = useState('');
+  const [framework, setFramework] = useState('kenya_dpa');
+  const [title, setTitle] = useState('');
+  const [scope, setScope] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const valid = controlKey.trim() !== '' && title.trim() !== '';
+  const submit = async (): Promise<void> => {
+    setSaving(true);
+    setMsg(null);
+    const r = await api.createGrcControl(
+      {
+        controlKey: controlKey.trim(),
+        framework,
+        title: title.trim(),
+        ...(scope.trim() ? { scope: scope.trim() } : {}),
+      },
+      tenant,
+    );
+    setSaving(false);
+    if (r.ok) {
+      setMsg({ ok: true, msg: 'Control defined (canonical m41, audited GRC_CONTROL_DEFINED).' });
+      setControlKey('');
+      setTitle('');
+      setScope('');
+      onCreated();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not define control.' });
+    }
+  };
+  return (
+    <div className="card">
+      <header>
+        <h3>Define control</h3>
+        <span className="demo-note">grc.control.manage</span>
+      </header>
+      <div className="field">
+        <input
+          value={controlKey}
+          placeholder="Control key (e.g. DPA-07)"
+          onChange={(e) => setControlKey(e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <input value={title} placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
+      </div>
+      <div className="run-picker" style={{ padding: 0, border: 'none' }}>
+        <label>Framework</label>
+        <select value={framework} onChange={(e) => setFramework(e.target.value)}>
+          {Object.entries(FRAMEWORK_LABEL).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <input value={scope} placeholder="Scope (optional)" onChange={(e) => setScope(e.target.value)} />
+      </div>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <button className="btn" disabled={!valid || saving} onClick={submit}>
+        {saving ? 'Defining…' : 'Define control'}
+      </button>
+      <p className="muted" style={{ fontSize: 11, margin: '6px 0 0' }}>
+        Canonical create only (controlKey · framework · title · optional scope). Posture then changes via
+        append-only assessments — there is no control update or hard delete.
+      </p>
+    </div>
+  );
+}
+
+function ComplianceRegister({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [nonce, setNonce] = useState(0);
+  const { rows, loading, error } = useControlsWithStatus(tenant, nonce);
   const [fw, setFw] = useState('');
+  const [q, setQ] = useState('');
   const [open, setOpen] = useState<api.Row | null>(null);
   const frameworks = Array.from(new Set(rows.map((r) => pick(r, 'framework')))).filter(Boolean);
-  const shown = rows.filter((r) => fw === '' || pick(r, 'framework') === fw);
+  const ql = q.trim().toLowerCase();
+  const shown = rows.filter(
+    (r) =>
+      (fw === '' || pick(r, 'framework') === fw) &&
+      (ql === '' ||
+        pick(r, 'controlKey').toLowerCase().includes(ql) ||
+        pick(r, 'title').toLowerCase().includes(ql)),
+  );
   return (
     <>
       <h1 className="page-title">Control register</h1>
@@ -2013,6 +2107,9 @@ function ComplianceRegister({ tenant }: { tenant: string | null }): JSX.Element 
         Compliance controls + latest assessment evidence over the canonical GRC register (m41) · synthetic
         staging data. RBAC + tenant isolation enforced server-side.
       </p>
+      {can('grc.control.manage') && (
+        <CreateControlCard tenant={tenant} onCreated={() => setNonce((x) => x + 1)} />
+      )}
       <div className="card">
         <header>
           <h3>Controls</h3>
@@ -2028,6 +2125,12 @@ function ComplianceRegister({ tenant }: { tenant: string | null }): JSX.Element 
               </option>
             ))}
           </select>
+          <input
+            value={q}
+            placeholder="Search key or title…"
+            onChange={(e) => setQ(e.target.value)}
+            style={{ marginLeft: 8 }}
+          />
         </div>
         {loading ? (
           <div className="loading">Loading controls…</div>
@@ -3394,7 +3497,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'recovery' && <RecoveryDashboard tenant={tenant} />}
         {route === 'recovery-cases' && <RecoveryCases tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
-        {route === 'compliance-register' && <ComplianceRegister tenant={tenant} />}
+        {route === 'compliance-register' && <ComplianceRegister tenant={tenant} perms={perms} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}
