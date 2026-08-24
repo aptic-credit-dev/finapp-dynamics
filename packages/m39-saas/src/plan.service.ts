@@ -19,7 +19,7 @@ import {
   clampPage,
   REASON_CODES,
 } from './domain.ts';
-import { SaasRepository, type PlanRow, type PlanVersionRow } from './repository.ts';
+import { SaasRepository, type PlanRow, type PlanVersionRow, type EntitlementRow } from './repository.ts';
 import type { M39Emitter } from './emit.ts';
 
 export class PlanService {
@@ -290,5 +290,16 @@ export class PlanService {
     await this.authz.require(ctx, M39_PERMISSIONS.planRead);
     const { limit, offset } = clampPage(page, size);
     return this.db.withTenant(ctx, (tx) => this.repo.listPlans(tx, limit, offset));
+  }
+  // Plan-version read model (planRead, RLS-scoped, no audit) — versions + the entitlements bundled in a version.
+  // These are plan CATALOGUE data (not a tenant's effective grant); the write paths already exist, this just
+  // makes them readable so a plan-version admin screen can list them back.
+  async listVersions(ctx: RequestContext, planId: string): Promise<PlanVersionRow[]> {
+    await this.authz.require(ctx, M39_PERMISSIONS.planRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listPlanVersions(tx, planId));
+  }
+  async listVersionEntitlements(ctx: RequestContext, versionId: string): Promise<EntitlementRow[]> {
+    await this.authz.require(ctx, M39_PERMISSIONS.planRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listPlanEntitlements(tx, versionId));
   }
 }

@@ -109,6 +109,55 @@ export async function getEntitlement(
   return call(`/saas/entitlements/check?capabilityKey=${encodeURIComponent(capabilityKey)}`, { tenantId: t });
 }
 
+// --- M39 Plans & Subscriptions admin — canonical m39-saas commercial engine, reused (no second SaaS engine).
+// Reads are RLS-scoped + permission-gated (saas.plan.read / saas.subscription.read); subscription lifecycle is
+// permission-gated + audited, carries the mandatory version (optimistic concurrency), and has NO hard delete —
+// a subscription suspends / cancels (governed transitions), commercial history is preserved. Published plan
+// versions are immutable (DB trigger). Money is minor units as text (never a float). ---
+const SA = '/saas';
+export const getSaasPlans = (t?: string | null): Promise<ApiResult<{ plans: Row[] }>> =>
+  call(`${SA}/plans`, { tenantId: t });
+export const getSaasPlan = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${SA}/plans/${encodeURIComponent(id)}`, { tenantId: t });
+export const createSaasPlan = (
+  body: { planKey: string; name: string; scope?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${SA}/plans`, { method: 'POST', body, tenantId: t });
+export const getPlanVersions = (planId: string, t?: string | null): Promise<ApiResult<{ versions: Row[] }>> =>
+  call(`${SA}/plans/${encodeURIComponent(planId)}/versions`, { tenantId: t });
+export const getVersionEntitlements = (
+  versionId: string,
+  t?: string | null,
+): Promise<ApiResult<{ entitlements: Row[] }>> =>
+  call(`${SA}/versions/${encodeURIComponent(versionId)}/entitlements`, { tenantId: t });
+export const getSubscriptions = (t?: string | null): Promise<ApiResult<{ subscriptions: Row[] }>> =>
+  call(`${SA}/subscriptions`, { tenantId: t });
+export const getSubscription = (id: string, t?: string | null): Promise<ApiResult<{ subscription: Row }>> =>
+  call(`${SA}/subscriptions/${encodeURIComponent(id)}`, { tenantId: t });
+// Lifecycle — the canonical endpoints take `version` (not `expectedVersion`); change-plan also needs the target
+// planId + planVersionId. No delete — suspend/cancel are governed transitions.
+const subAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${SA}/subscriptions/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body,
+    tenantId: t,
+  });
+export const activateSubscription = (id: string, ver: number, t?: string | null): Promise<ApiResult<Row>> =>
+  subAction(id, 'activate', { version: ver }, t);
+export const suspendSubscription = (id: string, ver: number, t?: string | null): Promise<ApiResult<Row>> =>
+  subAction(id, 'suspend', { version: ver }, t);
+export const cancelSubscription = (id: string, ver: number, t?: string | null): Promise<ApiResult<Row>> =>
+  subAction(id, 'cancel', { version: ver }, t);
+export const renewSubscription = (id: string, ver: number, t?: string | null): Promise<ApiResult<Row>> =>
+  subAction(id, 'renew', { version: ver }, t);
+export const changeSubscriptionPlan = (
+  id: string,
+  ver: number,
+  planId: string,
+  planVersionId: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => subAction(id, 'change-plan', { version: ver, planId, planVersionId }, t);
+
 // --- reconciliation (reuses the existing gl-reconciliation API; no duplicate engine) ---
 export type Row = Record<string, unknown>;
 const R = '/gl-reconciliation';

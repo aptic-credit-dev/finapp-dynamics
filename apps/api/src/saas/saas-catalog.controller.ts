@@ -3,7 +3,7 @@ import { Endpoint } from '@finapp/kernel';
 import { PlanService, M39_PERMISSIONS, M39_AUDIT_CODES } from '@finapp/m39-saas';
 import { ActorContextFactory } from '@finapp/m02-identity';
 import { requireString, requireTenantScope, requireVersion } from '../identity/http.ts';
-import { planView, planVersionView } from './views.ts';
+import { planView, planVersionView, entitlementView } from './views.ts';
 
 /**
  * Commercial CATALOGUE under `/api/v1/saas` — plans, versioned pricing/entitlements/quota policies, and the maker-checker
@@ -59,6 +59,28 @@ export class SaasCatalogController {
     const s = await this.scoped(h, 'read plan (m39)');
     const p = await this.plans.getPlan(s.ctx, id);
     return p ? planView(p) : { plan: null };
+  }
+
+  // Plan-version read model (permission saas.plan.read, enforced in-service; RLS-scoped; no @Endpoint). Makes the
+  // already-writable plan versions + their bundled entitlements readable so a plan-version admin screen can list
+  // them back. No mutation added; a published version stays immutable (DB trigger).
+  @Get('plans/:id/versions')
+  async listVersions(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list plan versions (m39)');
+    return { versions: (await this.plans.listVersions(s.ctx, id)).map(planVersionView) };
+  }
+
+  @Get('versions/:id')
+  async getVersion(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'read plan version (m39)');
+    const v = await this.plans.getVersion(s.ctx, id);
+    return { version: v ? planVersionView(v) : null };
+  }
+
+  @Get('versions/:id/entitlements')
+  async listVersionEntitlements(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list version entitlements (m39)');
+    return { entitlements: (await this.plans.listVersionEntitlements(s.ctx, id)).map(entitlementView) };
   }
 
   @Endpoint({

@@ -3110,6 +3110,349 @@ function ComplianceRegister({ tenant, perms }: { tenant: string | null; perms: S
   );
 }
 
+// ---------- Administration → Plans & Subscriptions (M39) — canonical m39-saas commercial engine. No second SaaS
+// engine, no hard delete (suspend/cancel are governed transitions; published versions immutable). Entitlement
+// (subscription/assignment) decides MODULE AVAILABILITY; M02 RBAC still decides actor actions inside a module —
+// the two are never collapsed. ----------
+const VERTICAL_CAPS: { key: string; label: string }[] = [
+  { key: 'treasury_reconciliation', label: 'Treasury reconciliation' },
+  { key: 'debt_recovery', label: 'Debt recovery' },
+  { key: 'regulatory_compliance', label: 'Regulatory compliance' },
+];
+
+function PlanVersionsDrawer({
+  plan,
+  tenant,
+  onClose,
+}: {
+  plan: api.Row;
+  tenant: string | null;
+  onClose: () => void;
+}): JSX.Element {
+  const planId = pick(plan, 'id');
+  const [versions, setVersions] = useState<api.Row[] | null>(null);
+  const [ents, setEnts] = useState<Record<string, api.Row[]>>({});
+  useEffect(() => {
+    let live = true;
+    setVersions(null);
+    void api.getPlanVersions(planId, tenant).then(async (r) => {
+      const vs = (r.data as { versions?: api.Row[] } | null)?.versions ?? [];
+      if (!live) return;
+      setVersions(vs);
+      const map: Record<string, api.Row[]> = {};
+      for (const v of vs) {
+        const er = await api.getVersionEntitlements(pick(v, 'id'), tenant);
+        map[pick(v, 'id')] = (er.data as { entitlements?: api.Row[] } | null)?.entitlements ?? [];
+      }
+      if (live) setEnts(map);
+    });
+    return () => {
+      live = false;
+    };
+  }, [planId, tenant]);
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Plan versions">
+        <header className="drawer-head">
+          <h3>{pick(plan, 'name') || pick(plan, 'planKey')}</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Plan key</dt>
+            <dd>{pick(plan, 'planKey')}</dd>
+            <dt>State</dt>
+            <dd>{statusPill(pick(plan, 'state'))}</dd>
+            <dt>Current version</dt>
+            <dd>{pick(plan, 'currentVersionNo') || '—'}</dd>
+          </dl>
+          <h4 className="drawer-sub">Versions</h4>
+          {versions === null ? (
+            <div className="loading">Loading…</div>
+          ) : versions.length === 0 ? (
+            <div className="empty">No versions yet.</div>
+          ) : (
+            versions.map((v, i) => (
+              <div className="card" key={pick(v, 'id') || i} style={{ marginBottom: 8 }}>
+                <header>
+                  <h3>
+                    v{pick(v, 'versionNo')} · {fmtMinor(pick(v, 'baseAmountMinor'))} {pick(v, 'currency')}
+                  </h3>
+                  {statusPill(pick(v, 'state'))}
+                </header>
+                <p className="muted" style={{ fontSize: 12, margin: '2px 0' }}>
+                  Billing {pick(v, 'billingInterval') || '—'} · validation{' '}
+                  {String(v['validationPassed']) === 'true' ? '✓' : '—'} ·{' '}
+                  {String(v['state']).toLowerCase() === 'published' ? 'immutable (published)' : 'draft'}
+                </p>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Capability</th>
+                      <th>Allowance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(ents[pick(v, 'id')] ?? []).map((e, j) => (
+                      <tr key={pick(e, 'id') || j}>
+                        <td className="muted">{pick(e, 'capabilityKey')}</td>
+                        <td>{pick(e, 'allowance')}</td>
+                      </tr>
+                    ))}
+                    {(ents[pick(v, 'id')] ?? []).length === 0 && (
+                      <tr>
+                        <td colSpan={2} className="muted">
+                          No entitlements in this version.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function PlansSubscriptionsAdmin({
+  tenant,
+  perms,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [tab, setTab] = useState<'plans' | 'subscriptions' | 'entitlements'>('plans');
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [openPlan, setOpenPlan] = useState<api.Row | null>(null);
+  const plans = useRows(async () => {
+    const r = await api.getSaasPlans(tenant);
+    return { ...r, data: (r.data as { plans?: api.Row[] } | null)?.plans ?? [] };
+  }, [tenant, nonce]);
+  const subs = useRows(async () => {
+    const r = await api.getSubscriptions(tenant);
+    return { ...r, data: (r.data as { subscriptions?: api.Row[] } | null)?.subscriptions ?? [] };
+  }, [tenant, nonce]);
+  // effective entitlements for the current tenant (the canonical resolver self-check).
+  const [ent, setEnt] = useState<Record<string, boolean> | null>(null);
+  useEffect(() => {
+    let live = true;
+    setEnt(null);
+    if (!tenant) return;
+    void Promise.all(VERTICAL_CAPS.map((c) => api.getEntitlement(c.key, tenant))).then((rs) => {
+      if (!live) return;
+      const m: Record<string, boolean> = {};
+      rs.forEach((r, i) => (m[VERTICAL_CAPS[i].key] = r.ok && r.data ? r.data.entitled === true : false));
+      setEnt(m);
+    });
+    return () => {
+      live = false;
+    };
+  }, [tenant, nonce]);
+  const [planKey, setPlanKey] = useState('');
+  const [planName, setPlanName] = useState('');
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) setNonce((x) => x + 1);
+  };
+  const tabs: { id: typeof tab; label: string }[] = [
+    { id: 'plans', label: 'Plans' },
+    { id: 'subscriptions', label: 'Subscriptions' },
+    { id: 'entitlements', label: 'Effective entitlements' },
+  ];
+  return (
+    <>
+      <h1 className="page-title">Plans &amp; subscriptions</h1>
+      <p className="page-sub">
+        Commercial catalogue + subscriptions over the canonical m39 engine · synthetic staging data.
+        Entitlement (subscription) decides module <strong>availability</strong>; M02 RBAC still governs
+        actions inside a module. RBAC + tenant isolation enforced server-side; no hard delete.
+      </p>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <div className="card">
+        <div className="run-picker">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              className={`btn ${tab === t.id ? '' : 'secondary'}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'plans' && (
+          <>
+            {can('saas.plan.manage') && (
+              <div className="run-picker" style={{ gap: 6 }}>
+                <input value={planKey} placeholder="Plan key" onChange={(e) => setPlanKey(e.target.value)} />
+                <input value={planName} placeholder="Name" onChange={(e) => setPlanName(e.target.value)} />
+                <button
+                  className="btn"
+                  disabled={planKey.trim() === '' || planName.trim() === ''}
+                  onClick={() =>
+                    void run(
+                      api.createSaasPlan({ planKey: planKey.trim(), name: planName.trim() }, tenant),
+                      'Plan defined (draft).',
+                    ).then(() => {
+                      setPlanKey('');
+                      setPlanName('');
+                    })
+                  }
+                >
+                  Define plan
+                </button>
+              </div>
+            )}
+            {plans.loading ? (
+              <div className="loading">Loading plans…</div>
+            ) : plans.rows.length === 0 ? (
+              <div className="empty">No plans.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>Name</th>
+                    <th>State</th>
+                    <th className="num">Current ver.</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plans.rows.map((p, i) => (
+                    <tr key={pick(p, 'id') || i}>
+                      <td className="muted">{pick(p, 'planKey')}</td>
+                      <td>{pick(p, 'name')}</td>
+                      <td>{statusPill(pick(p, 'state'))}</td>
+                      <td className="num">{pick(p, 'currentVersionNo') || '—'}</td>
+                      <td>
+                        <button className="btn link" onClick={() => setOpenPlan(p)}>
+                          Versions
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        {tab === 'subscriptions' &&
+          (subs.loading ? (
+            <div className="loading">Loading subscriptions…</div>
+          ) : subs.rows.length === 0 ? (
+            <div className="empty">No subscriptions.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Plan / version</th>
+                  <th>Status</th>
+                  <th>Lifecycle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subs.rows.map((sub, i) => {
+                  const id = pick(sub, 'id');
+                  const ver = Number(sub['version'] ?? 1);
+                  const st = pick(sub, 'state').toLowerCase();
+                  const m = can('saas.subscription.manage');
+                  return (
+                    <tr key={id || i}>
+                      <td className="muted">{pick(sub, 'subscriptionKey')}</td>
+                      <td className="muted">
+                        {pick(sub, 'planId').slice(0, 8)} / {pick(sub, 'planVersionId').slice(0, 8)}
+                      </td>
+                      <td>{statusPill(pick(sub, 'state'))}</td>
+                      <td>
+                        <div className="action-row">
+                          <ActionButton
+                            label="Activate"
+                            allowed={m && st !== 'active' && st !== 'cancelled'}
+                            onRun={() =>
+                              run(api.activateSubscription(id, ver, tenant), 'Subscription activated.')
+                            }
+                          />
+                          <ActionButton
+                            label="Suspend"
+                            allowed={m && st === 'active'}
+                            onRun={() =>
+                              run(api.suspendSubscription(id, ver, tenant), 'Subscription suspended.')
+                            }
+                          />
+                          <ActionButton
+                            label="Renew"
+                            allowed={m && st === 'active'}
+                            onRun={() => run(api.renewSubscription(id, ver, tenant), 'Subscription renewed.')}
+                          />
+                          <ActionButton
+                            label="Cancel"
+                            danger
+                            needsReason
+                            allowed={m && st !== 'cancelled'}
+                            onRun={() =>
+                              run(api.cancelSubscription(id, ver, tenant), 'Subscription cancelled.')
+                            }
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ))}
+
+        {tab === 'entitlements' && (
+          <>
+            <p className="muted" style={{ fontSize: 12 }}>
+              The current tenant's effective vertical entitlements, from the canonical resolver (`GET
+              /saas/entitlements/check`). This governs whether a vertical's nav group is AVAILABLE; a member
+              still needs the M02 permission to act inside it.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Capability</th>
+                  <th>Entitled</th>
+                </tr>
+              </thead>
+              <tbody>
+                {VERTICAL_CAPS.map((c) => (
+                  <tr key={c.key}>
+                    <td>{c.label}</td>
+                    <td>
+                      {ent === null ? (
+                        '…'
+                      ) : ent[c.key] ? (
+                        <span className="pill ok">Included</span>
+                      ) : (
+                        <span className="pill bad">Not entitled</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+      {openPlan && <PlanVersionsDrawer plan={openPlan} tenant={tenant} onClose={() => setOpenPlan(null)} />}
+    </>
+  );
+}
+
 // ---------- administration: users & access (M02 identity/RBAC — no second identity engine) ----------
 // Permission-aware UI: an action control is HIDDEN when the actor lacks the permission (fetched via
 // GET /auth/permissions), but the server stays authoritative — a hidden action still 403s if called directly.
@@ -4206,6 +4549,7 @@ const NAV = [
   { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
   { id: 'admin-assignments', label: 'Access Assignments', icon: '🔑', group: 'Administration' },
+  { id: 'admin-billing', label: 'Plans & Subscriptions', icon: '🧾', group: 'Administration' },
 ];
 
 // The Administration group is NOT entitlement-gated (it is a platform capability, not a commercial vertical):
@@ -4215,6 +4559,8 @@ const ADMIN_READ_PERMS = [
   'identity.membership.view',
   'rbac.role.view',
   'rbac.assignment.view',
+  'saas.plan.read',
+  'saas.subscription.read',
 ];
 
 // Finance (m19 fiscal calendar) is a platform finance-CONTROL capability, not a commercial vertical, so — like
@@ -4456,6 +4802,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-assignments' && <AccessAdmin tenant={tenant} perms={perms} />}
+        {route === 'admin-billing' && <PlansSubscriptionsAdmin tenant={tenant} perms={perms} />}
       </main>
     </div>
   );

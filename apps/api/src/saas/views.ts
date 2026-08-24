@@ -9,7 +9,19 @@ import type {
   SubscriptionRow,
   QuotaPeriodRow,
   BillingCycleRow,
+  EntitlementRow,
 } from '@finapp/m39-saas';
+
+// A capability entitlement bundled in a plan version (catalogue data — not a tenant's effective grant). Allowance
+// is a bounded string (e.g. a quantity or 'included'); never a raw customer payload.
+export function entitlementView(e: EntitlementRow) {
+  return {
+    id: e.id,
+    capabilityKey: e.capability_key,
+    allowance: e.allowance,
+    sourceKind: e.source_kind,
+  };
+}
 
 export function planView(p: PlanRow) {
   return {

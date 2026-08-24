@@ -62,7 +62,7 @@
 | m36-events | Webhooks/streaming | ✅ | none | BLUE | — | infra |
 | m37-govrelease | Release governance | ✅ | none | BLUE | — | infra |
 | m38-automation | Scheduler/automation | ✅ | none | BLUE | — | infra |
-| m39-saas | Plans/subscriptions/entitlements | ✅ | self-check only | AMBER | P1 | no entitlement/subscription admin UI |
+| m39-saas | Plans/subscriptions/entitlements | ✅ | **Administration → Plans & Subscriptions** | GREEN(admin slice) | P2 | plan-version authoring UI + usage/overrides/billing read models still pending |
 | m40-resilience | Backup/observability | ✅ | none | BLUE | — | infra |
 | m41-security | Secrets/privacy/DLP/GRC | ✅ | **Compliance vertical (GRC: define-control + assess + read)** | AMBER | P1 | GRC slice governed-complete to canonical limit; secrets/privacy/DLP/incident **write-only backend, no read route** |
 | m42-certification | Certification programmes | ✅ | none | BLUE | — | internal governance runtime |
@@ -84,7 +84,9 @@ modules). Every AMBER item is a UI/reachability gap over an intact, RBAC+RLS+aud
 ## P1 gaps (next)
 - ~~m19-finance period close/reopen~~ **DONE (this PR)** — Fiscal Calendar UI: fiscal-year + period lifecycle.
 - ~~m21-journal posting-request/authorize lifecycle no UI~~ **DONE (this PR)** — Finance → Journals workspace.
-- m39-saas entitlement/subscription/plan **admin console** (commercial engine API-only).
+- ~~m39-saas entitlement/subscription/plan admin console~~ **DONE (this PR)** — Plans & Subscriptions admin +
+  plan-version/entitlement read model. See **`STAGE_8_WEB_MODULE_COMPLETENESS.md`** for the full web-surface audit:
+  the remaining P1 web gaps are the **Legal cluster** (m13/m14/m16/m18), **m32 analytics**, **m28 copilot**.
 - m32-analytics reporting/dashboard UI.
 - m41-security: privacy/DLP/incident read model **shipped (open PR)**; secrets admin UI still pending (P2).
 - m28-executive-ai copilot UI; m29-ai-governance **has no controllers** (wire or classify future).
@@ -202,9 +204,10 @@ The M19 UI deliberately does **not** route through M22.
 ## Recommended PR sequence
 - ~~PR3 — M44 Recovery~~ **merged (#155).** · ~~PR4 — M45 Compliance~~ **merged (#156).** · ~~M41 read-model~~ **merged (#157).**
 - **PR5 — Platform P0: m22-approval actioning UI** — **merged (#154).**
-- **M19 Fiscal Calendar** (open, pre-merge) · **M21 Journals & Posting** (this PR, stacked on M19, pre-merge).
-- **NEXT — M39 Subscription/Entitlement admin** (M39a frontend, then M39b read-model), then m32 analytics,
-  legal/litigation UI, remaining user-admin lifecycle + manifest hygiene for obsolete m05/m10/m11.
+- **M19 Fiscal Calendar** → **M21 Journals** → **M39 Plans & Subscriptions** (this PR) — stacked, pre-merge.
+- **NEXT (per `STAGE_8_WEB_MODULE_COMPLETENESS.md`) — the Legal cluster** (m13-case/m14-legal/m16-litigation/
+  m18-legaldocs: a new Legal nav group), then **m32 analytics/reporting**, then **m28 copilot**, then P2
+  (notify/docs/feedback, m19 config slice, m41 secrets, m39 plan-version authoring) + manifest hygiene m05/m10/m11.
 
 ## Verdicts (per the completeness gate)
 - **READY:** m02-identity, m02-rbac, m17-recovery, m19-finance (calendar), m20-glrecon, m21-journal (workspace), m41-security (compliance read model).
