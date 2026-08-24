@@ -153,6 +153,9 @@ export class AuthController {
   async myPermissions(@Headers() headers: Record<string, string>) {
     const scoped = await this.actors.forRequest(headers, 'self effective permissions (m02)');
     return {
+      // The caller's OWN acting identity — used by the UI for "assign to me" and to show who acted. It is the
+      // session identity (never a request field), the same value that lands in `created_by`/audit server-side.
+      actorId: scoped.actor.identityId,
       tenantId: scoped.scope === 'tenant' ? scoped.ctx.tenantId : null,
       permissions: [...scoped.ctx.permissions].sort(),
     };

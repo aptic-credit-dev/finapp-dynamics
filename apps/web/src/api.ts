@@ -385,6 +385,82 @@ export const recordRecoveryNote = (
     tenantId: t,
   });
 
+// M44 Recovery OPERATIONAL actions — canonical m17 lifecycle, reused (no duplicate recovery engine). Every action
+// is permission-gated + audited server-side, carries the mandatory expectedVersion, and respects the m17 state
+// machine (an invalid transition fails closed). There is NO hard delete — a case resolves/closes/reopens/archives.
+const rcBody = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${RC}/recoveries/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+export const assignRecovery = (
+  id: string,
+  ev: number,
+  owner: string,
+  t?: string | null,
+  reassign = false,
+): Promise<ApiResult<Row>> => rcBody(id, reassign ? 'reassign' : 'assign', { expectedVersion: ev, owner }, t);
+export const advanceRecovery = (
+  id: string,
+  ev: number,
+  toStatus: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => rcBody(id, 'advance', { expectedVersion: ev, toStatus }, t);
+export const resolveRecovery = (
+  id: string,
+  ev: number,
+  t?: string | null,
+  reasonCode?: string,
+): Promise<ApiResult<Row>> =>
+  rcBody(id, 'resolve', { expectedVersion: ev, ...(reasonCode ? { reasonCode } : {}) }, t);
+export const closeRecovery = (
+  id: string,
+  ev: number,
+  t?: string | null,
+  summary?: string,
+): Promise<ApiResult<Row>> =>
+  rcBody(id, 'close', { expectedVersion: ev, ...(summary ? { summary } : {}) }, t);
+export const reopenRecovery = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => rcBody(id, 'reopen', { expectedVersion: ev, reason }, t);
+export const archiveRecovery = (
+  id: string,
+  ev: number,
+  t?: string | null,
+  reason?: string,
+): Promise<ApiResult<Row>> =>
+  rcBody(id, 'archive', { expectedVersion: ev, ...(reason ? { reason } : {}) }, t);
+// Arrangements — canonical m17 maker-checker (the approver is NEVER the proposer; SoD enforced in the m17
+// service, NOT a second approval engine). propose → approve/default/complete.
+export const proposeArrangement = (
+  id: string,
+  body: { arrangementType: string; totalAmountMinor?: number; installmentCount?: number; frequency?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => rcBody(id, 'arrangements', body, t);
+const arrAction = (aid: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${RC}/arrangements/${encodeURIComponent(aid)}/${action}`, { method: 'POST', body, tenantId: t });
+export const approveArrangement = (aid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  arrAction(aid, 'approve', { expectedVersion: ev }, t);
+export const defaultArrangement = (
+  aid: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => arrAction(aid, 'default', { expectedVersion: ev, reason }, t);
+export const completeArrangement = (aid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  arrAction(aid, 'complete', { expectedVersion: ev }, t);
+// Demands + outcomes (append-only outcome evidence).
+export const issueDemand = (
+  id: string,
+  body: { demandType: string; amountDemandedMinor?: number; responseDue?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => rcBody(id, 'demands', body, t);
+export const recordOutcome = (
+  id: string,
+  body: { outcomeType: string; recoveredAmountMinor?: number; summary?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => rcBody(id, 'outcomes', body, t);
+
 // --- regulatory & compliance (M45 vertical) — reuses the CANONICAL m41 GRC control register + append-only
 // assessment evidence (/api/v1/grc). No duplicate GRC engine; reads are RLS-scoped + permission-gated; the one
 // write (record assessment) goes through the canonical m41 service and is audited. ---
@@ -420,7 +496,7 @@ export const recordGrcAssessment = (
 // cannot perform. The server still 403s a hidden action if called directly (UI is not the authz source).
 export async function getMyPermissions(
   t?: string | null,
-): Promise<ApiResult<{ tenantId: string | null; permissions: string[] }>> {
+): Promise<ApiResult<{ actorId: string; tenantId: string | null; permissions: string[] }>> {
   return call('/auth/permissions', { tenantId: t });
 }
 
