@@ -1765,6 +1765,1442 @@ function RecoveryCases({
   );
 }
 
+// ---------- Finance → Fiscal Calendar (M19) — operational UI over the CANONICAL m19 CalendarService. No second
+// finance engine, no monetary amounts (ADR-007), no hard delete, no invented maker-checker: period transitions
+// are single-actor privileged controls (permission + expectedVersion + audit), NOT dual approval — that lives in
+// m21 posting. Period close/lock is the cross-module gate m21 honours. A locked period is a TERMINAL seal (there
+// is no canonical unlock). The accounting entity comes from the canonical GET /finance/entities list. ----------
+const periodPill = (status: string, locked: boolean): JSX.Element => {
+  const s = (status || '').toLowerCase();
+  if (locked || s === 'locked')
+    return (
+      <span className="pill bad">
+        <span className="glyph">🔒</span> Locked (sealed)
+      </span>
+    );
+  if (s === 'closed') return <span className="pill warn">Closed</span>;
+  if (s === 'open') return <span className="pill ok">Open</span>;
+  return <span className="pill info">{status || '—'}</span>;
+};
+
+function PeriodHistoryDrawer({
+  period,
+  tenant,
+  onClose,
+}: {
+  period: api.Row;
+  tenant: string | null;
+  onClose: () => void;
+}): JSX.Element {
+  const id = pick(period, 'id');
+  const [rows, setRows] = useState<api.Row[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    setRows(null);
+    void api.getPeriodHistory(id, tenant).then((r) => {
+      if (live) setRows(api.asRows(r.data));
+    });
+    return () => {
+      live = false;
+    };
+  }, [id, tenant]);
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside
+        className="drawer"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Period history"
+      >
+        <header className="drawer-head">
+          <h3>Period {pick(period, 'periodNumber')} — history</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <p className="muted" style={{ fontSize: 12 }}>
+            Canonical append-only calendar transitions (m19). Reason codes are derived server-side.
+          </p>
+          {rows === null ? (
+            <div className="loading">Loading…</div>
+          ) : rows.length === 0 ? (
+            <div className="empty">No transitions recorded.</div>
+          ) : (
+            <ul className="timeline">
+              {rows.map((h, i) => (
+                <li key={pick(h, 'id') || i}>
+                  <span className="t-head">
+                    {(pick(h, 'fromStatus') || '—') + ' → ' + pick(h, 'toStatus')}
+                  </span>{' '}
+                  <span className="muted">
+                    {pick(h, 'reasonCode') || pick(h, 'reason') || ''}
+                    {pick(h, 'byUser') ? ` · ${pick(h, 'byUser')}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function PeriodsPanel({
+  fiscalYear,
+  tenant,
+  perms,
+}: {
+  fiscalYear: api.Row;
+  tenant: string | null;
+  perms: Set<string>;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const fyId = pick(fiscalYear, 'id');
+  const fyOpen = pick(fiscalYear, 'status').toLowerCase() === 'open';
+  const [nonce, setNonce] = useState(0);
+  const periods = useRows(() => api.getFiscalPeriods(fyId, tenant), [fyId, tenant, nonce]);
+  const [history, setHistory] = useState<api.Row | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [num, setNum] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const refresh = (): void => setNonce((x) => x + 1);
+  const run = async (p: Promise<api.ApiResult<api.Row>>, okMsg: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+  const rows = periods.rows;
+  return (
+    <div className="card">
+      <header>
+        <h3>Periods · {pick(fiscalYear, 'code')}</h3>
+        <span className="demo-note">SYNTHETIC</span>
+      </header>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      {can('finance.period.open') && fyOpen && (
+        <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+          <input
+            style={{ width: 90 }}
+            value={num}
+            placeholder="Period #"
+            onChange={(e) => setNum(e.target.value)}
+          />
+          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+          <button
+            className="btn"
+            disabled={!/^\d+$/.test(num.trim()) || start === '' || end === ''}
+            onClick={() =>
+              void run(
+                api.openPeriod(
+                  fyId,
+                  { periodNumber: Number(num.trim()), startDate: start, endDate: end },
+                  tenant,
+                ),
+                'Period opened.',
+              ).then(() => {
+                setNum('');
+                setStart('');
+                setEnd('');
+              })
+            }
+          >
+            Open period
+          </button>
+        </div>
+      )}
+      {periods.loading ? (
+        <div className="loading">Loading periods…</div>
+      ) : periods.error ? (
+        <div className="empty">Could not load periods ({periods.error}).</div>
+      ) : rows.length === 0 ? (
+        <div className="empty">No periods in this fiscal year yet.</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th className="num">#</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((p, i) => {
+              const id = pick(p, 'id');
+              const ev = Number(p['version'] ?? 1);
+              const status = pick(p, 'status').toLowerCase();
+              const locked = status === 'locked' || pick(p, 'lockedAt') !== '';
+              return (
+                <tr key={id || i}>
+                  <td className="num">{pick(p, 'periodNumber')}</td>
+                  <td className="muted">{pick(p, 'startDate')}</td>
+                  <td className="muted">{pick(p, 'endDate')}</td>
+                  <td>{periodPill(status, locked)}</td>
+                  <td>
+                    <div className="action-row">
+                      <ActionButton
+                        label="Close"
+                        allowed={status === 'open' && can('finance.period.close')}
+                        onRun={() => run(api.closePeriod(id, ev, tenant), 'Period closed.')}
+                      />
+                      <ActionButton
+                        label="Reopen"
+                        allowed={status === 'closed' && can('finance.period.reopen')}
+                        onRun={() => run(api.reopenPeriod(id, ev, tenant), 'Period reopened.')}
+                      />
+                      <ActionButton
+                        label="Lock / seal"
+                        danger
+                        allowed={(status === 'open' || status === 'closed') && can('finance.period.lock')}
+                        onRun={() => run(api.lockPeriod(id, ev, tenant), 'Period locked (sealed).')}
+                      />
+                      <button className="btn link sm" onClick={() => setHistory(p)}>
+                        History
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      <p className="muted" style={{ fontSize: 11, margin: '8px 0 0' }}>
+        Locking a period <strong>seals the posting window</strong>: per canonical m19/m21 rules, journals can
+        no longer post into it. A lock is <strong>terminal</strong> — there is no unlock (a closed period may
+        be reopened; a locked one cannot). All actions are permission-gated, versioned and audited
+        server-side.
+      </p>
+      {history && <PeriodHistoryDrawer period={history} tenant={tenant} onClose={() => setHistory(null)} />}
+    </div>
+  );
+}
+
+function FiscalCalendar({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const entities = useRows(() => api.getFinanceEntities(tenant), [tenant]);
+  const [entityId, setEntityId] = useState('');
+  const entityKey = entities.rows.map((e) => pick(e, 'id')).join(',');
+  useEffect(() => {
+    // Default to the first entity once entities load / tenant changes (clears stale selection on tenant switch).
+    const first = entities.rows[0] ? pick(entities.rows[0], 'id') : '';
+    setEntityId((cur) => (entities.rows.some((e) => pick(e, 'id') === cur) ? cur : first));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityKey, tenant]);
+  const [fyNonce, setFyNonce] = useState(0);
+  const fys = useRows(
+    () =>
+      entityId
+        ? api.getFiscalYears(entityId, tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [entityId, tenant, fyNonce],
+  );
+  const [selFy, setSelFy] = useState<api.Row | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [code, setCode] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const refreshFy = (): void => {
+    setFyNonce((x) => x + 1);
+    setSelFy(null);
+  };
+  const run = async (p: Promise<api.ApiResult<api.Row>>, okMsg: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refreshFy();
+  };
+  return (
+    <>
+      <h1 className="page-title">Fiscal calendar</h1>
+      <p className="page-sub">
+        Accounting periods over the canonical m19 fiscal calendar · synthetic staging data. Period close/lock
+        is the posting-window control m21 honours. RBAC + tenant isolation + audit enforced server-side; no
+        monetary amounts, no hard delete.
+      </p>
+      <div className="card">
+        <div className="run-picker">
+          <label>Accounting entity</label>
+          {entities.loading ? (
+            <span className="muted">Loading entities…</span>
+          ) : entities.rows.length === 0 ? (
+            <span className="muted">
+              No accounting entities (register one in Finance configuration first).
+            </span>
+          ) : (
+            <select value={entityId} onChange={(e) => setEntityId(e.target.value)}>
+              {entities.rows.map((e) => (
+                <option key={pick(e, 'id')} value={pick(e, 'id')}>
+                  {pick(e, 'code')} — {pick(e, 'name')}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+      {entityId !== '' && (
+        <div className="card">
+          <header>
+            <h3>Fiscal years</h3>
+            <span className="demo-note">SYNTHETIC</span>
+          </header>
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+          {can('finance.fiscal_year.manage') && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <input
+                style={{ width: 120 }}
+                value={code}
+                placeholder="Code (e.g. FY2026)"
+                onChange={(e) => setCode(e.target.value)}
+              />
+              <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+              <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+              <button
+                className="btn"
+                disabled={code.trim() === '' || start === '' || end === ''}
+                onClick={() =>
+                  void run(
+                    api.createFiscalYear(
+                      { entityId, code: code.trim(), startDate: start, endDate: end },
+                      tenant,
+                    ),
+                    'Fiscal year created.',
+                  ).then(() => {
+                    setCode('');
+                    setStart('');
+                    setEnd('');
+                  })
+                }
+              >
+                Create fiscal year
+              </button>
+            </div>
+          )}
+          {fys.loading ? (
+            <div className="loading">Loading fiscal years…</div>
+          ) : fys.error ? (
+            <div className="empty">Could not load fiscal years ({fys.error}).</div>
+          ) : fys.rows.length === 0 ? (
+            <div className="empty">No fiscal years for this entity yet.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fys.rows.map((fy, i) => {
+                  const id = pick(fy, 'id');
+                  const ev = Number(fy['version'] ?? 1);
+                  const status = pick(fy, 'status').toLowerCase();
+                  const selected = selFy !== null && pick(selFy, 'id') === id;
+                  return (
+                    <tr key={id || i} className={selected ? 'row-selected' : ''}>
+                      <td>{pick(fy, 'code')}</td>
+                      <td className="muted">{pick(fy, 'startDate')}</td>
+                      <td className="muted">{pick(fy, 'endDate')}</td>
+                      <td>{statusPill(pick(fy, 'status'))}</td>
+                      <td>
+                        <div className="action-row">
+                          <button className="btn link sm" onClick={() => setSelFy(selected ? null : fy)}>
+                            {selected ? 'Hide periods' : 'View periods'}
+                          </button>
+                          <ActionButton
+                            label="Close year"
+                            allowed={status === 'open' && can('finance.fiscal_year.close')}
+                            onRun={() => run(api.closeFiscalYear(id, ev, tenant), 'Fiscal year closed.')}
+                          />
+                          <ActionButton
+                            label="Reopen year"
+                            allowed={status === 'closed' && can('finance.fiscal_year.reopen')}
+                            onRun={() => run(api.reopenFiscalYear(id, ev, tenant), 'Fiscal year reopened.')}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+      {selFy && <PeriodsPanel fiscalYear={selFy} tenant={tenant} perms={perms} />}
+    </>
+  );
+}
+
+// ---------- Finance → Journals & Posting (M21) — operational workspace over the CANONICAL m21 engine, with the
+// checker path routed through the CANONICAL m22 Approvals inbox (no second journal engine, no second approval
+// engine, no direct-post bypass, no reversal — none exists canonically). Amounts are INTEGER MINOR UNITS,
+// decimal-safe (ADR-007); posting is approval-gated + period-gated (from merged M19) server-side. m21 records
+// posting-result EVIDENCE only — it never pushes to a core banking/accounting system (m23/m33, deferred). ----------
+function JournalDraftDrawer({
+  draftId,
+  tenant,
+  perms,
+  onClose,
+  onChanged,
+}: {
+  draftId: string;
+  tenant: string | null;
+  perms: Set<string>;
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [draft, setDraft] = useState<api.Row | null>(null);
+  const [lines, setLines] = useState<api.Row[]>([]);
+  const [preqs, setPreqs] = useState<api.Row[]>([]);
+  const [approvals, setApprovals] = useState<api.Row[]>([]);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  // add/edit-line form
+  const [acct, setAcct] = useState('');
+  const [dir, setDir] = useState<'debit' | 'credit'>('debit');
+  const [amt, setAmt] = useState('');
+  const [ldesc, setLdesc] = useState('');
+  const [editLine, setEditLine] = useState<api.Row | null>(null);
+  const [note, setNote] = useState('');
+  useEffect(() => {
+    let live = true;
+    void api.getJournalDraft(draftId, tenant).then((r) => {
+      if (!live) return;
+      const d = (r.data as { draft?: api.Row; lines?: api.Row[] } | null) ?? {};
+      setDraft(d.draft ?? null);
+      setLines(d.lines ?? []);
+    });
+    void api.getPostingRequests(draftId, tenant).then((r) => {
+      if (live) setPreqs((r.data as { postingRequests?: api.Row[] } | null)?.postingRequests ?? []);
+    });
+    void api.listApprovalRequests(tenant).then((r) => {
+      if (live) setApprovals((r.data as { requests?: api.Row[] } | null)?.requests ?? []);
+    });
+    return () => {
+      live = false;
+    };
+  }, [draftId, tenant, nonce]);
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+  if (draft === null)
+    return (
+      <div className="drawer-overlay" onClick={onClose} role="presentation">
+        <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog">
+          <div className="loading">Loading draft…</div>
+        </aside>
+      </div>
+    );
+  const status = pick(draft, 'status').toLowerCase();
+  const version = Number(draft['version'] ?? 1);
+  const mutable = status === 'draft' || status === 'validated';
+  const periodStatus = pick(draft, 'periodStatus').toLowerCase() || 'open';
+  const periodOpen = periodStatus === 'open';
+  const debits = pick(draft, 'totalDebitsMinor');
+  const credits = pick(draft, 'totalCreditsMinor');
+  const balanced = String(draft['isBalanced']) === 'true';
+  const submitLine = (): void => {
+    const minor = Number(amt.trim());
+    if (!Number.isInteger(minor) || minor <= 0) {
+      setMsg({ ok: false, msg: 'Amount must be a positive integer (minor units).' });
+      return;
+    }
+    const body = {
+      direction: dir,
+      amountMinor: minor,
+      ...(acct.trim() ? { accountRef: acct.trim() } : {}),
+      ...(ldesc.trim() ? { description: ldesc.trim() } : {}),
+    };
+    const after = (): void => {
+      setAcct('');
+      setAmt('');
+      setLdesc('');
+      setEditLine(null);
+    };
+    if (editLine) {
+      void run(
+        api.updateJournalLine(pick(editLine, 'id'), Number(editLine['version'] ?? 1), body, tenant),
+        'Line updated.',
+      ).then(after);
+    } else {
+      void run(api.addJournalLine(draftId, body as api.DraftLineInput, tenant), 'Line added.').then(after);
+    }
+  };
+  // Submit hands off to m22: submit the draft, then raise + submit a canonical approval request so a DISTINCT
+  // checker can decide it in the Approvals inbox (best-effort — if the maker lacks approvals.request.* the draft
+  // is still submitted PENDING APPROVAL and that is surfaced, not swallowed).
+  const submitDraft = async (): Promise<void> => {
+    const r = await api.submitJournalDraft(draftId, version, tenant);
+    if (!r.ok) {
+      setMsg({ ok: false, msg: r.error ?? 'Submit failed.' });
+      return;
+    }
+    const req = await api.createApprovalRequest(
+      {
+        subjectType: 'journal_posting',
+        subjectRef: draftId,
+        title: pick(draft, 'description') || 'Journal posting',
+        amountMinor: Number(debits) || 0,
+      },
+      tenant,
+    );
+    if (req.ok && req.data) {
+      const rq = (req.data as { request?: api.Row } | null)?.request;
+      if (rq) await api.submitApprovalRequest(pick(rq, 'id'), Number(rq['version'] ?? 1), tenant);
+      setMsg({ ok: true, msg: 'Submitted → approval request raised in the Approvals inbox (m22).' });
+    } else {
+      setMsg({
+        ok: true,
+        msg: 'Submitted (PENDING APPROVAL). Approval request not raised: ' + (req.error ?? ''),
+      });
+    }
+    refresh();
+  };
+  const approvalFor = approvals.find(
+    (a) => pick(a, 'subjectRef') === draftId && pick(a, 'status').toLowerCase() === 'approved',
+  );
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside
+        className="drawer wide"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Journal draft"
+      >
+        <header className="drawer-head">
+          <h3>{pick(draft, 'description') || 'Journal draft'}</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Status</dt>
+            <dd>{statusPill(pick(draft, 'status'))}</dd>
+            <dt>Entity</dt>
+            <dd>{pick(draft, 'entityRef') || '—'}</dd>
+            <dt>Period</dt>
+            <dd>
+              {pick(draft, 'periodRef') || '—'} {periodPill(periodStatus, periodStatus === 'locked')}
+            </dd>
+            <dt>Date</dt>
+            <dd>{pick(draft, 'journalDate') || '—'}</dd>
+          </dl>
+          {!periodOpen && (
+            <div className="error">
+              This draft's accounting period is <strong>{periodStatus}</strong> — per canonical m19/m21 rules
+              it cannot be submitted or posted until the period is reopened (M19).
+            </div>
+          )}
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+          <h4 className="drawer-sub">Lines</h4>
+          <table>
+            <thead>
+              <tr>
+                <th className="num">#</th>
+                <th>Account</th>
+                <th>Dr/Cr</th>
+                <th className="num">Amount</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l, i) => (
+                <tr key={pick(l, 'id') || i}>
+                  <td className="num">{pick(l, 'lineNo')}</td>
+                  <td className="muted">{pick(l, 'accountRef') || '—'}</td>
+                  <td>{pick(l, 'direction')}</td>
+                  <td className="num">{fmtMinor(pick(l, 'amountMinor'))}</td>
+                  <td>
+                    {mutable && can('journals.line.manage') && (
+                      <span className="action-row">
+                        <button
+                          className="btn link sm"
+                          onClick={() => {
+                            setEditLine(l);
+                            setAcct(pick(l, 'accountRef'));
+                            setDir(pick(l, 'direction') === 'credit' ? 'credit' : 'debit');
+                            setAmt(pick(l, 'amountMinor'));
+                            setLdesc(pick(l, 'description'));
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="btn link sm"
+                          onClick={() =>
+                            void run(
+                              api.removeJournalLine(pick(l, 'id'), Number(l['version'] ?? 1), tenant),
+                              'Line removed.',
+                            )
+                          }
+                        >
+                          Remove
+                        </button>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {lines.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    No lines yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          <div className="balance-bar">
+            <span>
+              Debits <strong>{fmtMinor(debits)}</strong>
+            </span>
+            <span>
+              Credits <strong>{fmtMinor(credits)}</strong>
+            </span>
+            <span>
+              Diff <strong>{fmtMinor(String(Number(debits) - Number(credits)))}</strong>
+            </span>
+            {balanced ? (
+              <span className="pill ok">Balanced</span>
+            ) : (
+              <span className="pill bad">Not balanced</span>
+            )}
+          </div>
+
+          {mutable && can('journals.line.manage') && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <input
+                style={{ width: 120 }}
+                value={acct}
+                placeholder="Account ref"
+                onChange={(e) => setAcct(e.target.value)}
+              />
+              <select value={dir} onChange={(e) => setDir(e.target.value === 'credit' ? 'credit' : 'debit')}>
+                <option value="debit">Debit</option>
+                <option value="credit">Credit</option>
+              </select>
+              <input
+                style={{ width: 130 }}
+                value={amt}
+                placeholder="Amount (minor)"
+                onChange={(e) => setAmt(e.target.value)}
+              />
+              <input
+                style={{ width: 140 }}
+                value={ldesc}
+                placeholder="Description"
+                onChange={(e) => setLdesc(e.target.value)}
+              />
+              <button className="btn" onClick={submitLine}>
+                {editLine ? 'Update line' : 'Add line'}
+              </button>
+              {editLine && (
+                <button
+                  className="btn link"
+                  onClick={() => {
+                    setEditLine(null);
+                    setAcct('');
+                    setAmt('');
+                    setLdesc('');
+                  }}
+                >
+                  Cancel edit
+                </button>
+              )}
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Actions</h4>
+          <div className="action-row">
+            <ActionButton
+              label="Validate"
+              allowed={mutable && lines.length > 0 && can('journals.validation.run')}
+              onRun={() => run(api.validateJournalDraft(draftId, version, tenant), 'Validation run.')}
+            />
+            <ActionButton
+              label="Submit for approval"
+              allowed={status === 'validated' && balanced && periodOpen && can('journals.draft.submit')}
+              onRun={submitDraft}
+            />
+            <ActionButton
+              label="Withdraw"
+              danger
+              needsReason
+              allowed={status === 'submitted' && can('journals.draft.withdraw')}
+              onRun={(reason) =>
+                run(api.withdrawJournalDraft(draftId, version, reason ?? '', tenant), 'Draft withdrawn.')
+              }
+            />
+          </div>
+          {can('journals.note.add') && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={note}
+                placeholder="Add a note…"
+                onChange={(e) => setNote(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn secondary"
+                disabled={note.trim() === ''}
+                onClick={() =>
+                  void run(api.addJournalNote(draftId, note.trim(), tenant), 'Note added.').then(() =>
+                    setNote(''),
+                  )
+                }
+              >
+                Add note
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Posting requests (approval-gated)</h4>
+          <p className="muted" style={{ fontSize: 11, margin: '0 0 6px' }}>
+            A posting request needs a DISTINCT m22 approver (maker ≠ checker, enforced server-side + DB) and
+            an open period. m21 records posting-result <strong>evidence</strong> only — it does not push to a
+            core banking/accounting system (m23/m33, deferred post-MVP).
+          </p>
+          {status === 'submitted' && can('journals.posting_request.create') && (
+            <ActionButton
+              label="Prepare posting request"
+              allowed={periodOpen}
+              onRun={() => run(api.preparePostingRequest(draftId, tenant), 'Posting request prepared.')}
+            />
+          )}
+          {preqs.length === 0 ? (
+            <div className="empty">No posting requests.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th className="num">Amount</th>
+                  <th>Approval</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preqs.map((pr, i) => {
+                  const prId = pick(pr, 'id');
+                  const prEv = Number(pr['version'] ?? 1);
+                  const prStatus = pick(pr, 'status').toLowerCase();
+                  return (
+                    <tr key={prId || i}>
+                      <td>{statusPill(pick(pr, 'status'))}</td>
+                      <td className="num">{fmtMinor(pick(pr, 'amountMinor'))}</td>
+                      <td className="muted">
+                        {pick(pr, 'approvalRef') || (approvalFor ? 'approved (m22)' : '—')}
+                      </td>
+                      <td>
+                        <div className="action-row">
+                          <ActionButton
+                            label="Authorize"
+                            allowed={
+                              prStatus === 'prepared' &&
+                              approvalFor !== undefined &&
+                              periodOpen &&
+                              can('journals.posting_request.authorize')
+                            }
+                            onRun={() =>
+                              run(
+                                api.authorizePosting(
+                                  prId,
+                                  prEv,
+                                  pick(approvalFor as api.Row, 'id'),
+                                  pick(approvalFor as api.Row, 'finalApprover'),
+                                  tenant,
+                                ),
+                                'Posting request authorized (m22 approval recorded).',
+                              )
+                            }
+                          />
+                          <ActionButton
+                            label="Cancel"
+                            danger
+                            needsReason
+                            allowed={
+                              (prStatus === 'prepared' || prStatus === 'ready') &&
+                              can('journals.posting_request.cancel')
+                            }
+                            onRun={(reason) =>
+                              run(
+                                api.cancelPostingRequest(prId, prEv, reason ?? '', tenant),
+                                'Posting request cancelled.',
+                              )
+                            }
+                          />
+                          <ActionButton
+                            label="Record result"
+                            allowed={prStatus === 'ready' && can('journals.posting_result.record')}
+                            onRun={() =>
+                              run(
+                                api.recordPostingResult(
+                                  prId,
+                                  {
+                                    status: 'recorded',
+                                    externalSystem: 'deferred',
+                                    message: 'evidence only',
+                                  },
+                                  tenant,
+                                ),
+                                'Posting-result evidence recorded (external core posting deferred).',
+                              )
+                            }
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function JournalsWorkspace({
+  tenant,
+  perms,
+  actorId,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [nonce, setNonce] = useState(0);
+  const drafts = useRows(() => api.getJournalDrafts(tenant), [tenant, nonce]);
+  const [status, setStatus] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [desc, setDesc] = useState('');
+  const [entity, setEntity] = useState('');
+  const shown = drafts.rows.filter((d) => status === '' || pick(d, 'status') === status);
+  const createDraft = async (): Promise<void> => {
+    const r = await api.createJournalDraft(
+      {
+        description: desc.trim() || 'Journal draft',
+        ...(entity.trim() ? { entityRef: entity.trim() } : {}),
+        journalDate: '2026-08-24',
+        sourceType: 'manual',
+      },
+      tenant,
+    );
+    if (r.ok && r.data) {
+      setCreating(false);
+      setDesc('');
+      setEntity('');
+      setNonce((x) => x + 1);
+      setOpenId(pick(r.data as api.Row, 'id'));
+    }
+  };
+  return (
+    <>
+      <h1 className="page-title">Journals &amp; posting</h1>
+      <p className="page-sub">
+        Draft → validate → submit → m22 approval → authorize → posting-result evidence, over the canonical m21
+        engine · synthetic staging data. No direct post; posting is approval-gated (m22) and period-gated
+        (M19). Actor: <span className="muted">{actorId || '—'}</span>.
+      </p>
+      <div className="card">
+        <header>
+          <h3>Journal drafts</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        <div className="run-picker" style={{ gap: 6 }}>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            {['draft', 'validated', 'submitted', 'posted', 'withdrawn'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          {can('journals.draft.create') && !creating && (
+            <button className="btn" onClick={() => setCreating(true)}>
+              New draft
+            </button>
+          )}
+          {creating && (
+            <>
+              <input value={desc} placeholder="Description" onChange={(e) => setDesc(e.target.value)} />
+              <input value={entity} placeholder="Entity ref" onChange={(e) => setEntity(e.target.value)} />
+              <button className="btn" onClick={createDraft}>
+                Create
+              </button>
+              <button className="btn link" onClick={() => setCreating(false)}>
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+        {drafts.loading ? (
+          <div className="loading">Loading drafts…</div>
+        ) : shown.length === 0 ? (
+          <div className="empty">No drafts.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Status</th>
+                <th className="num">Debits</th>
+                <th className="num">Credits</th>
+                <th>Balanced</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((d, i) => (
+                <tr key={pick(d, 'id') || i}>
+                  <td>{pick(d, 'description') || '—'}</td>
+                  <td>{statusPill(pick(d, 'status'))}</td>
+                  <td className="num">{fmtMinor(pick(d, 'totalDebitsMinor'))}</td>
+                  <td className="num">{fmtMinor(pick(d, 'totalCreditsMinor'))}</td>
+                  <td>{String(d['isBalanced']) === 'true' ? '✓' : '—'}</td>
+                  <td>
+                    <button className="btn link" onClick={() => setOpenId(pick(d, 'id'))}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {openId && (
+        <JournalDraftDrawer
+          draftId={openId}
+          tenant={tenant}
+          perms={perms}
+          onClose={() => setOpenId(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
+// ---------- Legal → Cases (M13) — operational case workspace over the CANONICAL m13-case engine. No second case
+// engine, no hard delete (open/triage/assign/resolve/close/reopen/archive/escalate are governed transitions).
+// Party CONTACT details are redacted server-side unless the caller holds cases.party_contact.read, and a genuine
+// contact reveal is audited (CASE_PARTY_CONTACT_ACCESSED). Links to m14/m16/m17/m18 are shown truthfully as
+// references — those workspaces come next; no fake detail routes. ----------
+const CASE_LINKS: { field: string; label: string }[] = [
+  { field: 'legalStatus', label: 'Legal matter (m14)' },
+  { field: 'courtReference', label: 'Litigation (m16)' },
+  { field: 'recoveryState', label: 'Recovery (m17)' },
+];
+
+function CaseDrawer({
+  caseId,
+  tenant,
+  perms,
+  actorId,
+  onClose,
+  onChanged,
+}: {
+  caseId: string;
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [c, setC] = useState<api.Row | null>(null);
+  const [parties, setParties] = useState<api.Row[]>([]);
+  const [acts, setActs] = useState<api.Row[]>([]);
+  const [deadlines, setDeadlines] = useState<api.Row[]>([]);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [owner, setOwner] = useState('');
+  const [pType, setPType] = useState('complainant');
+  const [pLabel, setPLabel] = useState('');
+  const [pContact, setPContact] = useState('');
+  const [actType, setActType] = useState('note');
+  const [actHead, setActHead] = useState('');
+  useEffect(() => {
+    let live = true;
+    void api.getCase(caseId, tenant).then((r) => {
+      if (live) setC((r.data as api.Row) ?? null);
+    });
+    void api.getCaseParties(caseId, tenant).then((r) => {
+      if (live) setParties((r.data as { parties?: api.Row[] } | null)?.parties ?? []);
+    });
+    void api.getCaseActivities(caseId, tenant).then((r) => {
+      if (live) setActs((r.data as { activities?: api.Row[] } | null)?.activities ?? []);
+    });
+    void api.getCaseDeadlines(caseId, tenant).then((r) => {
+      if (live) setDeadlines((r.data as { deadlines?: api.Row[] } | null)?.deadlines ?? []);
+    });
+    return () => {
+      live = false;
+    };
+  }, [caseId, tenant, nonce]);
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+  if (c === null)
+    return (
+      <div className="drawer-overlay" onClick={onClose} role="presentation">
+        <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog">
+          <div className="loading">Loading case…</div>
+        </aside>
+      </div>
+    );
+  const status = pick(c, 'status').toLowerCase();
+  const ev = Number(c['version'] ?? 1);
+  const terminal = /closed|archived/.test(status);
+  const hasOwner = pick(c, 'currentOwner') !== '';
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Case">
+        <header className="drawer-head">
+          <h3>
+            {pick(c, 'caseNumber') || 'Case'} — {pick(c, 'title')}
+          </h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Status</dt>
+            <dd>
+              {statusPill(pick(c, 'status'))} {pick(c, 'currentStage') && `· ${pick(c, 'currentStage')}`}
+            </dd>
+            <dt>Priority / severity</dt>
+            <dd>
+              {pick(c, 'priority') || '—'} / {pick(c, 'severity') || '—'}
+            </dd>
+            <dt>Owner / team</dt>
+            <dd>
+              {pick(c, 'currentOwner') || 'unassigned'} · {pick(c, 'responsibleTeam') || '—'}
+            </dd>
+            <dt>SLA policy</dt>
+            <dd>{pick(c, 'slaPolicyCode') || '—'}</dd>
+            <dt>Customer</dt>
+            <dd>{pick(c, 'customerRef') || '—'}</dd>
+            <dt>Confidentiality</dt>
+            <dd>
+              {pick(c, 'confidentiality') || 'standard'}
+              {String(c['legalHold']) === 'true' ? ' · ⚖ legal hold' : ''}
+            </dd>
+          </dl>
+          {pick(c, 'summary') && <p className="muted">{pick(c, 'summary')}</p>}
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+          <h4 className="drawer-sub">Actions</h4>
+          <div className="action-row">
+            <ActionButton
+              label="Open"
+              allowed={/draft|registered|new|intake/.test(status) && can('cases.case.open')}
+              onRun={() => run(api.openCase(caseId, ev, tenant), 'Case opened.')}
+            />
+            <ActionButton
+              label="Resolve"
+              allowed={!terminal && status !== 'resolved' && can('cases.case.resolve')}
+              onRun={() => run(api.resolveCase(caseId, ev, tenant), 'Case resolved.')}
+            />
+            <ActionButton
+              label="Close"
+              allowed={(status === 'resolved' || !terminal) && can('cases.case.close')}
+              onRun={() => run(api.closeCase(caseId, ev, tenant), 'Case closed.')}
+            />
+            <ActionButton
+              label="Reopen"
+              allowed={(status === 'resolved' || status === 'closed') && can('cases.case.reopen')}
+              needsReason
+              onRun={(reason) => run(api.reopenCase(caseId, ev, reason ?? '', tenant), 'Case reopened.')}
+            />
+            <ActionButton
+              label="Archive"
+              allowed={status === 'closed' && can('cases.case.archive')}
+              danger
+              onRun={() => run(api.archiveCase(caseId, ev, tenant), 'Case archived.')}
+            />
+            <ActionButton
+              label="Escalate"
+              allowed={!terminal && can('cases.case.update')}
+              needsReason
+              onRun={(reason) => run(api.escalateCase(caseId, reason ?? '', tenant), 'Escalation triggered.')}
+            />
+          </div>
+          {!terminal && can('cases.case.assign') && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={owner}
+                placeholder={hasOwner ? 'Reassign to (actor id)' : 'Assign to (actor id)'}
+                onChange={(e) => setOwner(e.target.value)}
+              />
+              <button
+                className="btn"
+                disabled={owner.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.assignCase(caseId, ev, owner.trim(), tenant, hasOwner),
+                    hasOwner ? 'Case reassigned.' : 'Case assigned.',
+                  ).then(() => setOwner(''))
+                }
+              >
+                {hasOwner ? 'Reassign' : 'Assign'}
+              </button>
+              <button
+                className="btn secondary"
+                onClick={() =>
+                  void run(api.assignCase(caseId, ev, actorId, tenant, hasOwner), 'Assigned to me.')
+                }
+              >
+                Take ownership
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Parties</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Type / role</th>
+                <th>Label</th>
+                <th>Contact</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {parties.map((p, i) => (
+                <tr key={pick(p, 'id') || i}>
+                  <td className="muted">
+                    {pick(p, 'partyType')} {pick(p, 'role') && `· ${pick(p, 'role')}`}
+                  </td>
+                  <td>{pick(p, 'displayLabel') || '—'}</td>
+                  <td className="muted">{pick(p, 'contactRef') || '—'}</td>
+                  <td>
+                    {can('cases.party.manage') && String(p['active']) === 'true' && (
+                      <button
+                        className="btn link sm"
+                        onClick={() =>
+                          void run(
+                            api.removeCaseParty(pick(p, 'id'), Number(p['version'] ?? 1), tenant),
+                            'Party removed.',
+                          )
+                        }
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {parties.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    No parties.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {can('cases.party.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={pType} onChange={(e) => setPType(e.target.value)}>
+                {['complainant', 'respondent', 'witness', 'representative', 'third_party'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input value={pLabel} placeholder="Display label" onChange={(e) => setPLabel(e.target.value)} />
+              <input
+                value={pContact}
+                placeholder="Contact ref (optional)"
+                onChange={(e) => setPContact(e.target.value)}
+              />
+              <button
+                className="btn"
+                onClick={() =>
+                  void run(
+                    api.addCaseParty(
+                      caseId,
+                      {
+                        partyType: pType,
+                        ...(pLabel.trim() ? { displayLabel: pLabel.trim() } : {}),
+                        ...(pContact.trim() ? { contactRef: pContact.trim() } : {}),
+                      },
+                      tenant,
+                    ),
+                    'Party added.',
+                  ).then(() => {
+                    setPLabel('');
+                    setPContact('');
+                  })
+                }
+              >
+                Add party
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Activity timeline</h4>
+          <ul className="timeline">
+            {acts.map((a, i) => (
+              <li key={pick(a, 'id') || i}>
+                <span className="t-head">{pick(a, 'headline') || pick(a, 'activityType')}</span>{' '}
+                <span className="muted">
+                  {pick(a, 'activityType')} · {pick(a, 'status')}
+                  {pick(a, 'outcome') ? ` · ${pick(a, 'outcome')}` : ''}
+                </span>
+              </li>
+            ))}
+            {acts.length === 0 && <li className="muted">No activities.</li>}
+          </ul>
+          {can('cases.activity.create') && !terminal && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <select value={actType} onChange={(e) => setActType(e.target.value)}>
+                {['note', 'call', 'email', 'meeting', 'correspondence', 'task'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={actHead}
+                placeholder="Headline"
+                onChange={(e) => setActHead(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn"
+                disabled={actHead.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.addCaseActivity(caseId, { activityType: actType, headline: actHead.trim() }, tenant),
+                    'Activity added.',
+                  ).then(() => setActHead(''))
+                }
+              >
+                Add
+              </button>
+            </div>
+          )}
+
+          {deadlines.length > 0 && (
+            <>
+              <h4 className="drawer-sub">Deadlines</h4>
+              <ul className="timeline">
+                {deadlines.map((d, i) => (
+                  <li key={pick(d, 'id') || i}>
+                    <span className="t-head">
+                      {pick(d, 'deadlineType') || pick(d, 'label') || 'Deadline'}
+                    </span>{' '}
+                    <span className="muted">
+                      {pick(d, 'dueAt') || pick(d, 'dueDate') || ''} · {pick(d, 'status')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <h4 className="drawer-sub">Cross-module links</h4>
+          <div className="linkrow">
+            {CASE_LINKS.filter((l) => pick(c, l.field) !== '').map((l) => (
+              <span key={l.field} className="pill info" title="Workspace coming next">
+                {l.label}: {pick(c, l.field)} — web workspace coming next
+              </span>
+            ))}
+            {CASE_LINKS.every((l) => pick(c, l.field) === '') && (
+              <span className="muted">No linked matter / litigation / recovery.</span>
+            )}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function CasesWorkspace({
+  tenant,
+  perms,
+  actorId,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [nonce, setNonce] = useState(0);
+  const [status, setStatus] = useState('');
+  const [priority, setPriority] = useState('');
+  const [q, setQ] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [typeCode, setTypeCode] = useState('');
+  const [title, setTitle] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const cases = useRows(async () => {
+    const r = await api.getCases(tenant, { status, priority });
+    return { ...r, data: (r.data as { cases?: api.Row[] } | null)?.cases ?? [] };
+  }, [tenant, nonce, status, priority]);
+  const ql = q.trim().toLowerCase();
+  const shown = cases.rows.filter(
+    (c) =>
+      ql === '' ||
+      pick(c, 'title').toLowerCase().includes(ql) ||
+      pick(c, 'caseNumber').toLowerCase().includes(ql),
+  );
+  const createCase = async (): Promise<void> => {
+    const r = await api.createCase({ caseTypeCode: typeCode.trim(), title: title.trim() }, tenant);
+    if (r.ok && r.data) {
+      setMsg({ ok: true, msg: 'Case created.' });
+      setCreating(false);
+      setTypeCode('');
+      setTitle('');
+      setNonce((x) => x + 1);
+      setOpenId(pick(r.data as api.Row, 'id'));
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not create case (a published case type is required).' });
+    }
+  };
+  return (
+    <>
+      <h1 className="page-title">Cases</h1>
+      <p className="page-sub">
+        Case management over the canonical m13 engine · synthetic staging data. RBAC + tenant isolation +
+        audit enforced server-side; party contacts are redacted unless permitted (and a reveal is audited). No
+        hard delete — cases resolve / close / archive.
+      </p>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <div className="card">
+        <header>
+          <h3>Cases</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            {['draft', 'open', 'assigned', 'resolved', 'closed', 'archived'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+            <option value="">All priorities</option>
+            {['low', 'medium', 'high', 'urgent'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <input value={q} placeholder="Search #/title…" onChange={(e) => setQ(e.target.value)} />
+          {can('cases.case.create') && !creating && (
+            <button className="btn" onClick={() => setCreating(true)}>
+              New case
+            </button>
+          )}
+          {creating && (
+            <>
+              <input
+                value={typeCode}
+                placeholder="Case type code"
+                onChange={(e) => setTypeCode(e.target.value)}
+              />
+              <input value={title} placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
+              <button
+                className="btn"
+                disabled={typeCode.trim() === '' || title.trim() === ''}
+                onClick={createCase}
+              >
+                Create
+              </button>
+              <button className="btn link" onClick={() => setCreating(false)}>
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+        {cases.loading ? (
+          <div className="loading">Loading cases…</div>
+        ) : cases.error ? (
+          <div className="empty">Could not load cases ({cases.error}).</div>
+        ) : shown.length === 0 ? (
+          <div className="empty">No cases match.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Case #</th>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Owner</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((c, i) => (
+                <tr key={pick(c, 'id') || i}>
+                  <td className="muted">{pick(c, 'caseNumber') || '—'}</td>
+                  <td>{pick(c, 'title')}</td>
+                  <td className="muted">{pick(c, 'caseTypeCode')}</td>
+                  <td>{statusPill(pick(c, 'status'))}</td>
+                  <td className="muted">{pick(c, 'priority') || '—'}</td>
+                  <td className="muted">{pick(c, 'currentOwner') || 'unassigned'}</td>
+                  <td>
+                    <button className="btn link" onClick={() => setOpenId(pick(c, 'id'))}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {openId && (
+        <CaseDrawer
+          caseId={openId}
+          tenant={tenant}
+          perms={perms}
+          actorId={actorId}
+          onClose={() => setOpenId(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
 // ---------- Regulatory & Compliance (M45) — UI over the canonical m41 GRC control register; no duplicate engine ----------
 // Renders CONTROL/EVIDENCE state (an assessment), never a blanket "Aptic is compliant/certified" claim.
 const FRAMEWORK_LABEL: Record<string, string> = {
@@ -2168,6 +3604,349 @@ function ComplianceRegister({ tenant, perms }: { tenant: string | null; perms: S
         )}
       </div>
       {open && <ControlDrawer control={open} tenant={tenant} onClose={() => setOpen(null)} />}
+    </>
+  );
+}
+
+// ---------- Administration → Plans & Subscriptions (M39) — canonical m39-saas commercial engine. No second SaaS
+// engine, no hard delete (suspend/cancel are governed transitions; published versions immutable). Entitlement
+// (subscription/assignment) decides MODULE AVAILABILITY; M02 RBAC still decides actor actions inside a module —
+// the two are never collapsed. ----------
+const VERTICAL_CAPS: { key: string; label: string }[] = [
+  { key: 'treasury_reconciliation', label: 'Treasury reconciliation' },
+  { key: 'debt_recovery', label: 'Debt recovery' },
+  { key: 'regulatory_compliance', label: 'Regulatory compliance' },
+];
+
+function PlanVersionsDrawer({
+  plan,
+  tenant,
+  onClose,
+}: {
+  plan: api.Row;
+  tenant: string | null;
+  onClose: () => void;
+}): JSX.Element {
+  const planId = pick(plan, 'id');
+  const [versions, setVersions] = useState<api.Row[] | null>(null);
+  const [ents, setEnts] = useState<Record<string, api.Row[]>>({});
+  useEffect(() => {
+    let live = true;
+    setVersions(null);
+    void api.getPlanVersions(planId, tenant).then(async (r) => {
+      const vs = (r.data as { versions?: api.Row[] } | null)?.versions ?? [];
+      if (!live) return;
+      setVersions(vs);
+      const map: Record<string, api.Row[]> = {};
+      for (const v of vs) {
+        const er = await api.getVersionEntitlements(pick(v, 'id'), tenant);
+        map[pick(v, 'id')] = (er.data as { entitlements?: api.Row[] } | null)?.entitlements ?? [];
+      }
+      if (live) setEnts(map);
+    });
+    return () => {
+      live = false;
+    };
+  }, [planId, tenant]);
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Plan versions">
+        <header className="drawer-head">
+          <h3>{pick(plan, 'name') || pick(plan, 'planKey')}</h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Plan key</dt>
+            <dd>{pick(plan, 'planKey')}</dd>
+            <dt>State</dt>
+            <dd>{statusPill(pick(plan, 'state'))}</dd>
+            <dt>Current version</dt>
+            <dd>{pick(plan, 'currentVersionNo') || '—'}</dd>
+          </dl>
+          <h4 className="drawer-sub">Versions</h4>
+          {versions === null ? (
+            <div className="loading">Loading…</div>
+          ) : versions.length === 0 ? (
+            <div className="empty">No versions yet.</div>
+          ) : (
+            versions.map((v, i) => (
+              <div className="card" key={pick(v, 'id') || i} style={{ marginBottom: 8 }}>
+                <header>
+                  <h3>
+                    v{pick(v, 'versionNo')} · {fmtMinor(pick(v, 'baseAmountMinor'))} {pick(v, 'currency')}
+                  </h3>
+                  {statusPill(pick(v, 'state'))}
+                </header>
+                <p className="muted" style={{ fontSize: 12, margin: '2px 0' }}>
+                  Billing {pick(v, 'billingInterval') || '—'} · validation{' '}
+                  {String(v['validationPassed']) === 'true' ? '✓' : '—'} ·{' '}
+                  {String(v['state']).toLowerCase() === 'published' ? 'immutable (published)' : 'draft'}
+                </p>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Capability</th>
+                      <th>Allowance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(ents[pick(v, 'id')] ?? []).map((e, j) => (
+                      <tr key={pick(e, 'id') || j}>
+                        <td className="muted">{pick(e, 'capabilityKey')}</td>
+                        <td>{pick(e, 'allowance')}</td>
+                      </tr>
+                    ))}
+                    {(ents[pick(v, 'id')] ?? []).length === 0 && (
+                      <tr>
+                        <td colSpan={2} className="muted">
+                          No entitlements in this version.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function PlansSubscriptionsAdmin({
+  tenant,
+  perms,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [tab, setTab] = useState<'plans' | 'subscriptions' | 'entitlements'>('plans');
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [openPlan, setOpenPlan] = useState<api.Row | null>(null);
+  const plans = useRows(async () => {
+    const r = await api.getSaasPlans(tenant);
+    return { ...r, data: (r.data as { plans?: api.Row[] } | null)?.plans ?? [] };
+  }, [tenant, nonce]);
+  const subs = useRows(async () => {
+    const r = await api.getSubscriptions(tenant);
+    return { ...r, data: (r.data as { subscriptions?: api.Row[] } | null)?.subscriptions ?? [] };
+  }, [tenant, nonce]);
+  // effective entitlements for the current tenant (the canonical resolver self-check).
+  const [ent, setEnt] = useState<Record<string, boolean> | null>(null);
+  useEffect(() => {
+    let live = true;
+    setEnt(null);
+    if (!tenant) return;
+    void Promise.all(VERTICAL_CAPS.map((c) => api.getEntitlement(c.key, tenant))).then((rs) => {
+      if (!live) return;
+      const m: Record<string, boolean> = {};
+      rs.forEach((r, i) => (m[VERTICAL_CAPS[i].key] = r.ok && r.data ? r.data.entitled === true : false));
+      setEnt(m);
+    });
+    return () => {
+      live = false;
+    };
+  }, [tenant, nonce]);
+  const [planKey, setPlanKey] = useState('');
+  const [planName, setPlanName] = useState('');
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) setNonce((x) => x + 1);
+  };
+  const tabs: { id: typeof tab; label: string }[] = [
+    { id: 'plans', label: 'Plans' },
+    { id: 'subscriptions', label: 'Subscriptions' },
+    { id: 'entitlements', label: 'Effective entitlements' },
+  ];
+  return (
+    <>
+      <h1 className="page-title">Plans &amp; subscriptions</h1>
+      <p className="page-sub">
+        Commercial catalogue + subscriptions over the canonical m39 engine · synthetic staging data.
+        Entitlement (subscription) decides module <strong>availability</strong>; M02 RBAC still governs
+        actions inside a module. RBAC + tenant isolation enforced server-side; no hard delete.
+      </p>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <div className="card">
+        <div className="run-picker">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              className={`btn ${tab === t.id ? '' : 'secondary'}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'plans' && (
+          <>
+            {can('saas.plan.manage') && (
+              <div className="run-picker" style={{ gap: 6 }}>
+                <input value={planKey} placeholder="Plan key" onChange={(e) => setPlanKey(e.target.value)} />
+                <input value={planName} placeholder="Name" onChange={(e) => setPlanName(e.target.value)} />
+                <button
+                  className="btn"
+                  disabled={planKey.trim() === '' || planName.trim() === ''}
+                  onClick={() =>
+                    void run(
+                      api.createSaasPlan({ planKey: planKey.trim(), name: planName.trim() }, tenant),
+                      'Plan defined (draft).',
+                    ).then(() => {
+                      setPlanKey('');
+                      setPlanName('');
+                    })
+                  }
+                >
+                  Define plan
+                </button>
+              </div>
+            )}
+            {plans.loading ? (
+              <div className="loading">Loading plans…</div>
+            ) : plans.rows.length === 0 ? (
+              <div className="empty">No plans.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>Name</th>
+                    <th>State</th>
+                    <th className="num">Current ver.</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plans.rows.map((p, i) => (
+                    <tr key={pick(p, 'id') || i}>
+                      <td className="muted">{pick(p, 'planKey')}</td>
+                      <td>{pick(p, 'name')}</td>
+                      <td>{statusPill(pick(p, 'state'))}</td>
+                      <td className="num">{pick(p, 'currentVersionNo') || '—'}</td>
+                      <td>
+                        <button className="btn link" onClick={() => setOpenPlan(p)}>
+                          Versions
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        {tab === 'subscriptions' &&
+          (subs.loading ? (
+            <div className="loading">Loading subscriptions…</div>
+          ) : subs.rows.length === 0 ? (
+            <div className="empty">No subscriptions.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Plan / version</th>
+                  <th>Status</th>
+                  <th>Lifecycle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subs.rows.map((sub, i) => {
+                  const id = pick(sub, 'id');
+                  const ver = Number(sub['version'] ?? 1);
+                  const st = pick(sub, 'state').toLowerCase();
+                  const m = can('saas.subscription.manage');
+                  return (
+                    <tr key={id || i}>
+                      <td className="muted">{pick(sub, 'subscriptionKey')}</td>
+                      <td className="muted">
+                        {pick(sub, 'planId').slice(0, 8)} / {pick(sub, 'planVersionId').slice(0, 8)}
+                      </td>
+                      <td>{statusPill(pick(sub, 'state'))}</td>
+                      <td>
+                        <div className="action-row">
+                          <ActionButton
+                            label="Activate"
+                            allowed={m && st !== 'active' && st !== 'cancelled'}
+                            onRun={() =>
+                              run(api.activateSubscription(id, ver, tenant), 'Subscription activated.')
+                            }
+                          />
+                          <ActionButton
+                            label="Suspend"
+                            allowed={m && st === 'active'}
+                            onRun={() =>
+                              run(api.suspendSubscription(id, ver, tenant), 'Subscription suspended.')
+                            }
+                          />
+                          <ActionButton
+                            label="Renew"
+                            allowed={m && st === 'active'}
+                            onRun={() => run(api.renewSubscription(id, ver, tenant), 'Subscription renewed.')}
+                          />
+                          <ActionButton
+                            label="Cancel"
+                            danger
+                            needsReason
+                            allowed={m && st !== 'cancelled'}
+                            onRun={() =>
+                              run(api.cancelSubscription(id, ver, tenant), 'Subscription cancelled.')
+                            }
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ))}
+
+        {tab === 'entitlements' && (
+          <>
+            <p className="muted" style={{ fontSize: 12 }}>
+              The current tenant's effective vertical entitlements, from the canonical resolver (`GET
+              /saas/entitlements/check`). This governs whether a vertical's nav group is AVAILABLE; a member
+              still needs the M02 permission to act inside it.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Capability</th>
+                  <th>Entitled</th>
+                </tr>
+              </thead>
+              <tbody>
+                {VERTICAL_CAPS.map((c) => (
+                  <tr key={c.key}>
+                    <td>{c.label}</td>
+                    <td>
+                      {ent === null ? (
+                        '…'
+                      ) : ent[c.key] ? (
+                        <span className="pill ok">Included</span>
+                      ) : (
+                        <span className="pill bad">Not entitled</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+      {openPlan && <PlanVersionsDrawer plan={openPlan} tenant={tenant} onClose={() => setOpenPlan(null)} />}
     </>
   );
 }
@@ -3467,13 +5246,17 @@ const NAV = [
   { id: 'reports', label: 'Reports', icon: '▤', group: 'Treasury' },
   { id: 'recovery', label: 'Debt Recovery', icon: '⚖', group: 'Recovery' },
   { id: 'recovery-cases', label: 'Recovery cases', icon: '▤', group: 'Recovery' },
+  { id: 'finance-calendar', label: 'Fiscal calendar', icon: '📅', group: 'Finance' },
+  { id: 'finance-journals', label: 'Journals', icon: '📒', group: 'Finance' },
   { id: 'compliance', label: 'Compliance', icon: '❖', group: 'Compliance' },
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
   { id: 'compliance-privacy', label: 'Privacy & security', icon: '🔒', group: 'Compliance' },
+  { id: 'legal-cases', label: 'Cases', icon: '⚖', group: 'Legal' },
   { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
   { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
   { id: 'admin-assignments', label: 'Access Assignments', icon: '🔑', group: 'Administration' },
+  { id: 'admin-billing', label: 'Plans & Subscriptions', icon: '🧾', group: 'Administration' },
 ];
 
 // The Administration group is NOT entitlement-gated (it is a platform capability, not a commercial vertical):
@@ -3483,7 +5266,25 @@ const ADMIN_READ_PERMS = [
   'identity.membership.view',
   'rbac.role.view',
   'rbac.assignment.view',
+  'saas.plan.read',
+  'saas.subscription.read',
 ];
+
+// Finance (m19 fiscal calendar) is a platform finance-CONTROL capability, not a commercial vertical, so — like
+// Administration — it is RBAC-gated (visible to anyone who may read the calendar), not entitlement-gated.
+const FINANCE_READ_PERMS = [
+  'finance.period.read',
+  'finance.fiscal_year.read',
+  'finance.entity.read',
+  'journals.draft.read',
+];
+
+// Legal (m13 case management, + m14/m16/m18 later) is a platform operational capability. It is RBAC-gated on
+// case-read for now (visible to anyone who may read cases) rather than entitlement-gated: a `legal_services`
+// entitlement would need to be seeded per tenant first, and gating on an unseeded capability would hide the
+// group for everyone (fail closed). Switch to entitlement-gating once `legal_services` is seeded (see the
+// web-completeness doc).
+const LEGAL_READ_PERMS = ['cases.case.read'];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
 // entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
@@ -3640,6 +5441,8 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
     // Approvals is RBAC-gated (a platform capability, not a commercial vertical): visible to anyone who may
     // read approval requests (makers to track their own, checkers to decide). Not entitlement-gated.
     if (g === 'Approvals') return perms.has('approvals.request.read');
+    if (g === 'Finance') return FINANCE_READ_PERMS.some((p) => perms.has(p));
+    if (g === 'Legal') return LEGAL_READ_PERMS.some((p) => perms.has(p));
     const cap = GROUP_ENTITLEMENT[g];
     if (!cap) return true; // Overview always
     return entitled?.[cap] === true;
@@ -3704,13 +5507,19 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'reports' && <Reports tenant={tenant} />}
         {route === 'recovery' && <RecoveryDashboard tenant={tenant} />}
         {route === 'recovery-cases' && <RecoveryCases tenant={tenant} perms={perms} actorId={actorId} />}
+        {route === 'finance-calendar' && <FiscalCalendar tenant={tenant} perms={perms} />}
+        {route === 'finance-journals' && (
+          <JournalsWorkspace tenant={tenant} perms={perms} actorId={actorId} />
+        )}
         {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} perms={perms} />}
         {route === 'compliance-privacy' && <PrivacySecurityWorkspace tenant={tenant} perms={perms} />}
+        {route === 'legal-cases' && <CasesWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-assignments' && <AccessAdmin tenant={tenant} perms={perms} />}
+        {route === 'admin-billing' && <PlansSubscriptionsAdmin tenant={tenant} perms={perms} />}
       </main>
     </div>
   );

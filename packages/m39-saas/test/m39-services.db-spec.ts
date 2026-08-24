@@ -318,4 +318,34 @@ export default defineDbSpec('m39-services', async (ctx, t) => {
     'closed',
     'a billing cycle closes (settlement deferred/fail-closed; no journal posted)',
   );
+
+  // --- READ MODEL (M39b: plan-version + version-entitlement reads for the admin UI) ---------------
+  // The versions + their bundled entitlements were writable but not readable; prove the new reads return them,
+  // are permission-gated (saas.plan.read), and RLS-isolate another tenant.
+  const readCtx = ctxOf(author, [M39_PERMISSIONS.planRead]);
+  const versions = await plans.listVersions(readCtx, plan.id);
+  t.ok(
+    versions.some((v) => v.id === version.id),
+    'plan versions are readable (read model returns the written version)',
+  );
+  const vEnts = await plans.listVersionEntitlements(readCtx, version.id);
+  t.ok(
+    vEnts.some((e) => e.capability_key === CAP),
+    'version entitlements are readable',
+  );
+  const subDetail = await subs.getSubscription(subCtx, sub.id);
+  t.equal(subDetail?.id, sub.id, 'a subscription is readable by id');
+  // permission gating — a caller WITHOUT saas.plan.read is denied server-side (not merely hidden UI).
+  await t.rejects(
+    plans.listVersions(ctxOf(author, []), plan.id),
+    'reading plan versions requires saas.plan.read (fail closed)',
+  );
+  // tenant isolation — another tenant (with the read grant) sees NONE of this tenant's versions (FORCE RLS).
+  const otherCtx = ctxOf(randomUUID(), [M39_PERMISSIONS.planRead]);
+  const otherTenant: RequestContext = { ...otherCtx, tenantId: randomUUID() };
+  t.equal(
+    (await plans.listVersions(otherTenant, plan.id)).length,
+    0,
+    'a different tenant sees NO plan versions (FORCE RLS isolation)',
+  );
 });

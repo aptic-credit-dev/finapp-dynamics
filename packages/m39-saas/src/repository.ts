@@ -166,6 +166,14 @@ export class SaasRepository {
     );
     return rows[0] ?? null;
   }
+  // Read surface (RLS-scoped): list a plan's versions oldest-first. No tenant_id predicate — FORCE RLS isolates.
+  async listPlanVersions(tx: Tx, planId: string): Promise<PlanVersionRow[]> {
+    const { rows } = await tx.query<PlanVersionRow>(
+      `SELECT tenant_id, id, plan_id, version_no, state, currency, base_amount_minor::text, billing_interval, validation_passed, version FROM saas_plan_version WHERE plan_id=$1 ORDER BY version_no`,
+      [planId],
+    );
+    return rows;
+  }
   async updatePlanVersion(
     tx: Tx,
     id: string,

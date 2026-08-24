@@ -14,6 +14,7 @@ import {
   FixedClock,
   InMemoryHandoffSource,
   M13_PERMISSIONS,
+  M13_AUDIT_CODES,
   ALL_M13_PERMISSIONS,
 } from '@finapp/m13-case';
 
@@ -28,7 +29,8 @@ import {
 export default defineDbSpec('m13-services', async (ctx, t) => {
   const db = new PgDb({ pool: ctx.pool, appRole: ctx.appRole });
   const authz = new RbacAuthz();
-  const emitter = new M13Emitter(new RecordingAudit(), new RecordingOutbox());
+  const audit = new RecordingAudit();
+  const emitter = new M13Emitter(audit, new RecordingOutbox());
   const repo = new CaseRepository();
   const clock = new FixedClock(1_700_000_000_000);
   const handoffSource = new InMemoryHandoffSource();
@@ -150,6 +152,30 @@ export default defineDbSpec('m13-services', async (ctx, t) => {
     contactRef: '+254700000000',
     confidentiality: 'confidential',
   });
+  // PII contact-access audit (M13 fix): revealing a party's contact under cases.party_contact.read is itself a
+  // sensitive, auditable act — it emits CASE_PARTY_CONTACT_ACCESSED (case id + count only; never the value).
+  audit.drain();
+  const revealed = await work.listParties(full, c0.id);
+  t.ok(revealed.canReadContact, 'a fully-permitted caller may read party contacts');
+  t.ok(
+    audit.entries.some((e) => e.code === M13_AUDIT_CODES.partyContactAccessed),
+    'revealing party contact emits CASE_PARTY_CONTACT_ACCESSED (audited PII access)',
+  );
+  // A caller WITHOUT cases.party_contact.read gets the redacted view and emits NO access audit.
+  const noContactCtx: RequestContext = {
+    tenantId: tenant,
+    userId: officer,
+    correlationId: cid(),
+    permissions: [M13_PERMISSIONS.caseRead, M13_PERMISSIONS.partyRead],
+  };
+  audit.drain();
+  const redacted = await work.listParties(noContactCtx, c0.id);
+  t.ok(!redacted.canReadContact, 'a caller without cases.party_contact.read cannot read contacts');
+  t.ok(
+    !audit.entries.some((e) => e.code === M13_AUDIT_CODES.partyContactAccessed),
+    'no contact-access audit is emitted when contact is not revealed (no false PII audit)',
+  );
+
   await work.addActivity(full, officer, c0.id, {
     activityType: 'client_call',
     headline: 'Called the client',

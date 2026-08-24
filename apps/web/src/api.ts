@@ -109,6 +109,55 @@ export async function getEntitlement(
   return call(`/saas/entitlements/check?capabilityKey=${encodeURIComponent(capabilityKey)}`, { tenantId: t });
 }
 
+// --- M39 Plans & Subscriptions admin — canonical m39-saas commercial engine, reused (no second SaaS engine).
+// Reads are RLS-scoped + permission-gated (saas.plan.read / saas.subscription.read); subscription lifecycle is
+// permission-gated + audited, carries the mandatory version (optimistic concurrency), and has NO hard delete —
+// a subscription suspends / cancels (governed transitions), commercial history is preserved. Published plan
+// versions are immutable (DB trigger). Money is minor units as text (never a float). ---
+const SA = '/saas';
+export const getSaasPlans = (t?: string | null): Promise<ApiResult<{ plans: Row[] }>> =>
+  call(`${SA}/plans`, { tenantId: t });
+export const getSaasPlan = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${SA}/plans/${encodeURIComponent(id)}`, { tenantId: t });
+export const createSaasPlan = (
+  body: { planKey: string; name: string; scope?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${SA}/plans`, { method: 'POST', body, tenantId: t });
+export const getPlanVersions = (planId: string, t?: string | null): Promise<ApiResult<{ versions: Row[] }>> =>
+  call(`${SA}/plans/${encodeURIComponent(planId)}/versions`, { tenantId: t });
+export const getVersionEntitlements = (
+  versionId: string,
+  t?: string | null,
+): Promise<ApiResult<{ entitlements: Row[] }>> =>
+  call(`${SA}/versions/${encodeURIComponent(versionId)}/entitlements`, { tenantId: t });
+export const getSubscriptions = (t?: string | null): Promise<ApiResult<{ subscriptions: Row[] }>> =>
+  call(`${SA}/subscriptions`, { tenantId: t });
+export const getSubscription = (id: string, t?: string | null): Promise<ApiResult<{ subscription: Row }>> =>
+  call(`${SA}/subscriptions/${encodeURIComponent(id)}`, { tenantId: t });
+// Lifecycle — the canonical endpoints take `version` (not `expectedVersion`); change-plan also needs the target
+// planId + planVersionId. No delete — suspend/cancel are governed transitions.
+const subAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${SA}/subscriptions/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body,
+    tenantId: t,
+  });
+export const activateSubscription = (id: string, ver: number, t?: string | null): Promise<ApiResult<Row>> =>
+  subAction(id, 'activate', { version: ver }, t);
+export const suspendSubscription = (id: string, ver: number, t?: string | null): Promise<ApiResult<Row>> =>
+  subAction(id, 'suspend', { version: ver }, t);
+export const cancelSubscription = (id: string, ver: number, t?: string | null): Promise<ApiResult<Row>> =>
+  subAction(id, 'cancel', { version: ver }, t);
+export const renewSubscription = (id: string, ver: number, t?: string | null): Promise<ApiResult<Row>> =>
+  subAction(id, 'renew', { version: ver }, t);
+export const changeSubscriptionPlan = (
+  id: string,
+  ver: number,
+  planId: string,
+  planVersionId: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => subAction(id, 'change-plan', { version: ver, planId, planVersionId }, t);
+
 // --- reconciliation (reuses the existing gl-reconciliation API; no duplicate engine) ---
 export type Row = Record<string, unknown>;
 const R = '/gl-reconciliation';
@@ -249,6 +298,101 @@ export const submitJournalDraft = (
     body: { expectedVersion },
     tenantId: t,
   });
+
+// M21 draft workbench (operational completion). Every mutation carries expectedVersion; amounts are INTEGER
+// MINOR UNITS (never a float, ADR-007). m21 NEVER approves or posts — submit hands off to m22; posting is
+// approval-gated + period-gated server-side.
+export const editJournalDraft = (
+  id: string,
+  ev: number,
+  body: Record<string, unknown>,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(id)}/edit`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+export const addJournalLine = (
+  draftId: string,
+  line: DraftLineInput,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(draftId)}/lines`, { method: 'POST', body: line, tenantId: t });
+export const updateJournalLine = (
+  lineId: string,
+  ev: number,
+  body: Partial<DraftLineInput>,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/lines/${encodeURIComponent(lineId)}/update`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+export const removeJournalLine = (lineId: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${J}/lines/${encodeURIComponent(lineId)}/remove`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const withdrawJournalDraft = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(id)}/withdraw`, {
+    method: 'POST',
+    body: { expectedVersion: ev, reason },
+    tenantId: t,
+  });
+export const addJournalNote = (id: string, content: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(id)}/notes`, { method: 'POST', body: { content }, tenantId: t });
+export const getJournalDraftHistory = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ history: Row[] }>> =>
+  call(`${J}/drafts/${encodeURIComponent(id)}/history`, { tenantId: t });
+// Posting requests — approval-gated + period-gated. authorize records the OPAQUE m22 approval reference +
+// approver (SoD: approver != requester, DB CHECK). recordResult records EVIDENCE of an external/core posting
+// outcome — m21 itself never pushes to a core banking/accounting system (m23/m33, deferred post-MVP).
+export const preparePostingRequest = (draftId: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${J}/drafts/${encodeURIComponent(draftId)}/posting-requests`, { method: 'POST', tenantId: t });
+export const getPostingRequests = (
+  draftId: string,
+  t?: string | null,
+): Promise<ApiResult<{ postingRequests: Row[] }>> =>
+  call(`${J}/drafts/${encodeURIComponent(draftId)}/posting-requests`, { tenantId: t });
+export const authorizePosting = (
+  id: string,
+  ev: number,
+  approvalRef: string,
+  approvedBy: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/posting-requests/${encodeURIComponent(id)}/authorize`, {
+    method: 'POST',
+    body: { expectedVersion: ev, approvalRef, approvedBy },
+    tenantId: t,
+  });
+export const cancelPostingRequest = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/posting-requests/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    body: { expectedVersion: ev, reason },
+    tenantId: t,
+  });
+export const recordPostingResult = (
+  id: string,
+  body: { status: string; externalSystem?: string; externalRef?: string; message?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${J}/posting-requests/${encodeURIComponent(id)}/results`, { method: 'POST', body, tenantId: t });
 
 /**
  * Propose a reconciliation adjustment through the canonical M21 flow: create a balanced draft → validate →
@@ -494,6 +638,74 @@ export const createGrcControl = (
   t?: string | null,
 ): Promise<ApiResult<Row>> => call(`${GRC}/controls`, { method: 'POST', body, tenantId: t });
 
+// --- M19 finance fiscal calendar — the canonical accounting-period control surface (`/api/v1/finance`). Reuses
+// the m19 CalendarService: fiscal years (create/close/reopen) and accounting periods (open/close/lock/reopen),
+// each permission-gated + audited + expectedVersion + RLS server-side. m19 NEVER posts and carries NO monetary
+// amounts (ADR-007); period close/lock is the CROSS-MODULE gate m21 posting honours. There is NO hard delete and
+// NO unlock (a locked period is a terminal seal). The accounting entity comes from the canonical GET
+// /finance/entities list (no invented entity master). ---
+const FIN = '/finance';
+export const getFinanceEntities = (
+  t?: string | null,
+  status?: string,
+): Promise<ApiResult<Row[] | { entities?: Row[] }>> =>
+  call(`${FIN}/entities${status ? `?status=${encodeURIComponent(status)}` : ''}`, { tenantId: t });
+export const getFiscalYears = (
+  entityId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { fiscalYears?: Row[] }>> =>
+  call(`${FIN}/fiscal-years?entityId=${encodeURIComponent(entityId)}`, { tenantId: t });
+export const createFiscalYear = (
+  body: { entityId: string; code: string; startDate: string; endDate: string; name?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${FIN}/fiscal-years`, { method: 'POST', body, tenantId: t });
+export const closeFiscalYear = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FIN}/fiscal-years/${encodeURIComponent(id)}/close`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const reopenFiscalYear = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FIN}/fiscal-years/${encodeURIComponent(id)}/reopen`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const getFiscalPeriods = (
+  fiscalYearId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { periods?: Row[] }>> =>
+  call(`${FIN}/fiscal-years/${encodeURIComponent(fiscalYearId)}/periods`, { tenantId: t });
+export const getPeriodHistory = (
+  periodId: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { history?: Row[] }>> =>
+  call(`${FIN}/periods/${encodeURIComponent(periodId)}/history`, { tenantId: t });
+export const openPeriod = (
+  fiscalYearId: string,
+  body: { periodNumber: number; startDate: string; endDate: string; name?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${FIN}/fiscal-years/${encodeURIComponent(fiscalYearId)}/periods`, {
+    method: 'POST',
+    body,
+    tenantId: t,
+  });
+// close / lock / reopen carry ONLY expectedVersion — the canonical endpoints derive the reasonCode server-side
+// (closed/locked/reopened); they accept NO user reason, so the client sends none. Lock is a terminal seal.
+const periodAction = (id: string, action: string, ev: number, t?: string | null) =>
+  call<Row>(`${FIN}/periods/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const closePeriod = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  periodAction(id, 'close', ev, t);
+export const lockPeriod = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  periodAction(id, 'lock', ev, t);
+export const reopenPeriod = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  periodAction(id, 'reopen', ev, t);
+
 // --- privacy / DLP / security-incident READ MODEL (m41) — closes the write-only backend gap. These are
 // canonical RLS-scoped, permission-gated GET endpoints (privacy.policy.read / security.dlp.read); NO mutation is
 // added here (the writes stay where they are). DLP findings are auto-generated append-only evidence (read-only);
@@ -512,6 +724,103 @@ export const getDlpFindings = (t?: string | null): Promise<ApiResult<Row[] | { f
   call(`${SEC}/dlp/findings`, { tenantId: t });
 export const getSecurityIncidents = (t?: string | null): Promise<ApiResult<Row[] | { incidents?: Row[] }>> =>
   call(`${SEC}/incidents`, { tenantId: t });
+
+// --- M13 Case management (Legal workspace) — canonical m13-case engine, reused (no second case engine). Every
+// mutation is permission-gated + audited + carries expectedVersion where required; lifecycle is named POST
+// actions (open/triage/assign/reassign/resolve/close/reopen/archive/escalate) — there is NO hard delete. Party
+// CONTACT details are redacted server-side unless the caller holds cases.party_contact.read, and a genuine
+// contact reveal is itself audited (CASE_PARTY_CONTACT_ACCESSED). ---
+const CS = '/cases';
+export const getCases = (
+  t?: string | null,
+  filters?: Record<string, string>,
+): Promise<ApiResult<{ cases: Row[] }>> => {
+  const qs = filters
+    ? '?' +
+      Object.entries(filters)
+        .filter(([, v]) => v !== '')
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&')
+    : '';
+  return call(`${CS}${qs}`, { tenantId: t });
+};
+export const getCase = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${CS}/${encodeURIComponent(id)}`, { tenantId: t });
+export const createCase = (
+  body: { caseTypeCode: string; title: string; [k: string]: unknown },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(CS, { method: 'POST', body, tenantId: t });
+const caseAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${CS}/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+export const openCase = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  caseAction(id, 'open', { expectedVersion: ev }, t);
+export const triageCase = (
+  id: string,
+  ev: number,
+  body: Record<string, unknown>,
+  t?: string | null,
+): Promise<ApiResult<Row>> => caseAction(id, 'triage', { expectedVersion: ev, ...body }, t);
+export const assignCase = (
+  id: string,
+  ev: number,
+  owner: string,
+  t?: string | null,
+  reassign = false,
+): Promise<ApiResult<Row>> =>
+  caseAction(id, reassign ? 'reassign' : 'assign', { expectedVersion: ev, owner }, t);
+export const resolveCase = (
+  id: string,
+  ev: number,
+  t?: string | null,
+  summary?: string,
+): Promise<ApiResult<Row>> =>
+  caseAction(id, 'resolve', { expectedVersion: ev, ...(summary ? { summary } : {}) }, t);
+export const closeCase = (
+  id: string,
+  ev: number,
+  t?: string | null,
+  summary?: string,
+): Promise<ApiResult<Row>> =>
+  caseAction(id, 'close', { expectedVersion: ev, ...(summary ? { summary } : {}) }, t);
+export const reopenCase = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => caseAction(id, 'reopen', { expectedVersion: ev, reason }, t);
+export const archiveCase = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  caseAction(id, 'archive', { expectedVersion: ev }, t);
+export const escalateCase = (id: string, reason: string, t?: string | null): Promise<ApiResult<Row>> =>
+  caseAction(id, 'escalate', { reason }, t);
+export const getCaseParties = (id: string, t?: string | null): Promise<ApiResult<{ parties: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/parties`, { tenantId: t });
+export const addCaseParty = (
+  id: string,
+  body: { partyType: string; role?: string; displayLabel?: string; contactRef?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/${encodeURIComponent(id)}/parties`, { method: 'POST', body, tenantId: t });
+export const removeCaseParty = (pid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${CS}/parties/${encodeURIComponent(pid)}/remove`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const getCaseActivities = (id: string, t?: string | null): Promise<ApiResult<{ activities: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/activities`, { tenantId: t });
+export const addCaseActivity = (
+  id: string,
+  body: { activityType: string; headline: string; description?: string; direction?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/${encodeURIComponent(id)}/activities`, { method: 'POST', body, tenantId: t });
+export const getCaseDeadlines = (id: string, t?: string | null): Promise<ApiResult<{ deadlines: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/deadlines`, { tenantId: t });
+export const getCaseRelationships = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ relationships: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/relationships`, { tenantId: t });
 
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped

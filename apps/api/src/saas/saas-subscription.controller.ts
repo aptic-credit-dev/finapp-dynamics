@@ -69,6 +69,13 @@ export class SaasSubscriptionController {
     return { subscriptions: rows.map(subscriptionView) };
   }
 
+  @Get('subscriptions/:id')
+  async getSubscription(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'read subscription (m39)');
+    const sub = await this.subs.getSubscription(s.ctx, id);
+    return { subscription: sub ? subscriptionView(sub) : null };
+  }
+
   @Endpoint({
     permission: M39_PERMISSIONS.subscriptionManage,
     auditCode: M39_AUDIT_CODES.subscriptionActivated,

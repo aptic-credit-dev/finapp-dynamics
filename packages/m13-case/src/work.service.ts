@@ -151,8 +151,23 @@ export class CaseWorkService {
   ): Promise<{ parties: PartyRow[]; canReadContact: boolean }> {
     await this.authz.require(ctx, M13_PERMISSIONS.partyRead);
     const canReadContact = await this.authz.can(ctx, M13_PERMISSIONS.partyContactRead);
-    const parties = await this.db.withTenant(ctx, (tx) => this.repo.listParties(tx, caseId));
-    return { parties, canReadContact };
+    return this.db.withTenant(ctx, async (tx) => {
+      const parties = await this.repo.listParties(tx, caseId);
+      // ADR-060: contact VALUES never enter events/audit — but ACCESS to protected contact data is itself a
+      // sensitive, auditable act. Emit CASE_PARTY_CONTACT_ACCESSED ONLY when contact is actually revealed
+      // (the caller holds cases.party_contact.read AND ≥1 party exposes a non-null contact ref) — never for
+      // non-sensitive party metadata, and carrying only the case id + a count, never the contact value.
+      const revealedCount = canReadContact ? parties.filter((p) => p.contact_ref !== null).length : 0;
+      if (revealedCount > 0) {
+        await this.emitter.recordAudit(tx, ctx, {
+          code: M13_AUDIT_CODES.partyContactAccessed,
+          entityType: 'case',
+          entityId: caseId,
+          detail: { revealedCount },
+        });
+      }
+      return { parties, canReadContact };
+    });
   }
 
   // --- activities (incl. correspondence) --------------------------------------------------------
