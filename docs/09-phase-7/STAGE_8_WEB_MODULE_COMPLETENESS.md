@@ -39,7 +39,7 @@ pre-merge on their stacked branches.
 | m10-report | obsolete placeholder | none | FRAMEWORK ONLY (obsolete → m32) |
 | m11-ai | obsolete placeholder | none | FRAMEWORK ONLY (obsolete → m24-29) |
 | m12-feedback | Feedback management | none | **NOT WEB READY** |
-| m13-case | Case management + decisions | none | **NOT WEB READY** |
+| m13-case | Case management + decisions | **Legal → Cases** | **WEB READY WITH LIMITATION** (case lifecycle + parties + activities + links done; decisions/settlements/tasks/investigation not surfaced) |
 | m14-legal | Legal matters | none (ref-links in Recovery only) | **NOT WEB READY** |
 | m15-recon | Legacy bank recon | none (superseded by m20) | FRAMEWORK ONLY |
 | m15a-matching | Deterministic matcher | n/a (pure) | FRAMEWORK ONLY |
@@ -71,18 +71,42 @@ pre-merge on their stacked branches.
 | m41-security | Secrets / privacy / DLP / GRC | **Compliance (GRC) + Privacy & security (on main, #157)** | **WEB READY WITH LIMITATION** (secrets lifecycle admin not surfaced) |
 | m42-certification | Certification programmes | none | FRAMEWORK ONLY |
 
-## Summary counts
+## Summary counts (after M13)
 - **WEB READY**: m02-identity, m02-rbac, m17-recovery, m20-glrecon, m21-journal, m22-approval (6).
-- **WEB READY WITH LIMITATION**: m19-finance, m39-saas, m41-security (3).
-- **NOT WEB READY (genuine gaps)**: m08-notify, m09-docs, m12-feedback, m13-case, m14-legal, m16-litigation,
-  m18-legaldocs, m28-executive-ai, m32-analytics (9).
+- **WEB READY WITH LIMITATION**: m19-finance, m39-saas, m41-security, **m13-case** (4).
+- **NOT WEB READY (genuine gaps)**: m08-notify, m09-docs, m12-feedback, m14-legal, m16-litigation,
+  m18-legaldocs, m28-executive-ai, m32-analytics (8).
 - **FRAMEWORK ONLY**: the remaining 26 (kernel/infra/engine/AI-contract/obsolete).
+
+## Global Stage-8 web-navigation smoke (current composed branch: main+M41 + M19 + M21 + M39 + M13)
+Verified by source-level composition (nav item + route dispatch + api client wired + RBAC/entitlement gate). No
+BROKEN screens. Live browser run not executed (no live stack this turn — see "Staging visibility truth" below).
+
+| Screen | Nav | Route | API wired | RBAC | Entitlement | Verdict |
+|---|---|---|---|---|---|---|
+| Users & Access | ✓ | ✓ | ✓ (`/identities`,`/accounts`,`/tenant-memberships`) | identity.* | — (RBAC group) | READY |
+| Roles & Permissions | ✓ | ✓ | ✓ (`/rbac`) | rbac.* | — | READY |
+| Access Assignments | ✓ | ✓ | ✓ (`/rbac`) | rbac.assignment.* | — | READY |
+| Treasury / Reconciliation | ✓ | ✓ | ✓ (`/gl-reconciliation`) | gl_reconciliation.* | treasury_reconciliation | READY |
+| Approvals | ✓ | ✓ | ✓ (`/approvals`) | approvals.request.read | — | READY |
+| Recovery | ✓ | ✓ | ✓ (`/recovery`) | recovery.* | debt_recovery | READY |
+| Compliance / GRC | ✓ | ✓ | ✓ (`/grc`) | grc.* | regulatory_compliance | READY |
+| Privacy / Security / DLP | ✓ | ✓ | ✓ (`/privacy`,`/security`) | privacy.policy.read / security.dlp.read | regulatory_compliance | READY |
+| Finance → Fiscal Calendar | ✓ | ✓ | ✓ (`/finance`) | finance.{period,fiscal_year,entity}.read | — (RBAC group) | READY |
+| Finance → Journals | ✓ | ✓ | ✓ (`/journals`,`/approvals`) | journals.* | — | READY |
+| Administration → Plans & Subscriptions | ✓ | ✓ | ✓ (`/saas`) | saas.{plan,subscription}.* | — | READY |
+| Legal → Cases | ✓ | ✓ | ✓ (`/cases`) | cases.* | — (RBAC group; `legal_services` entitlement is the future option) | READY WITH LIMITATION |
+
+**Zero BROKEN.** Every completed Stage-8 business-facing screen composes and renders on this branch. The one
+WITH-LIMITATION (Cases) reflects the un-surfaced deeper case sub-domains (decisions/settlements/tasks), not a
+reachability defect.
 
 ## Genuine web gaps — ranked for the next bounded PRs
 **P1 (high-value operational surfaces, full backends, zero UI):**
-1. **Legal cluster** — m13-case, m14-legal, m16-litigation, m18-legaldocs. Four full backends
-   (`cases/*`, `legal/*`, `litigation/*`, `legaldocs/*`), no nav group. **Biggest structural gap.** Warrants a
-   new **Legal** nav group (entitlement-gated like the other verticals).
+1. **Legal cluster — m13-case DONE** (Legal → Cases, this PR). Remaining: **m14-legal, m16-litigation,
+   m18-legaldocs** — three full backends (`legal/*`, `litigation/*`, `legaldocs/*`) that should join the new
+   **Legal** nav group as sibling screens. The Case detail already renders truthful cross-module link chips for
+   them ("web workspace coming next").
 2. **m32-analytics** — reporting/dashboard (`analytics/definitions`, `analytics/runtime`); no UI at all.
 3. **m28-executive-ai** — executive copilot (`copilot/*`, full API); no entry point.
 

@@ -2703,6 +2703,504 @@ function JournalsWorkspace({
   );
 }
 
+// ---------- Legal → Cases (M13) — operational case workspace over the CANONICAL m13-case engine. No second case
+// engine, no hard delete (open/triage/assign/resolve/close/reopen/archive/escalate are governed transitions).
+// Party CONTACT details are redacted server-side unless the caller holds cases.party_contact.read, and a genuine
+// contact reveal is audited (CASE_PARTY_CONTACT_ACCESSED). Links to m14/m16/m17/m18 are shown truthfully as
+// references — those workspaces come next; no fake detail routes. ----------
+const CASE_LINKS: { field: string; label: string }[] = [
+  { field: 'legalStatus', label: 'Legal matter (m14)' },
+  { field: 'courtReference', label: 'Litigation (m16)' },
+  { field: 'recoveryState', label: 'Recovery (m17)' },
+];
+
+function CaseDrawer({
+  caseId,
+  tenant,
+  perms,
+  actorId,
+  onClose,
+  onChanged,
+}: {
+  caseId: string;
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [c, setC] = useState<api.Row | null>(null);
+  const [parties, setParties] = useState<api.Row[]>([]);
+  const [acts, setActs] = useState<api.Row[]>([]);
+  const [deadlines, setDeadlines] = useState<api.Row[]>([]);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [owner, setOwner] = useState('');
+  const [pType, setPType] = useState('complainant');
+  const [pLabel, setPLabel] = useState('');
+  const [pContact, setPContact] = useState('');
+  const [actType, setActType] = useState('note');
+  const [actHead, setActHead] = useState('');
+  useEffect(() => {
+    let live = true;
+    void api.getCase(caseId, tenant).then((r) => {
+      if (live) setC((r.data as api.Row) ?? null);
+    });
+    void api.getCaseParties(caseId, tenant).then((r) => {
+      if (live) setParties((r.data as { parties?: api.Row[] } | null)?.parties ?? []);
+    });
+    void api.getCaseActivities(caseId, tenant).then((r) => {
+      if (live) setActs((r.data as { activities?: api.Row[] } | null)?.activities ?? []);
+    });
+    void api.getCaseDeadlines(caseId, tenant).then((r) => {
+      if (live) setDeadlines((r.data as { deadlines?: api.Row[] } | null)?.deadlines ?? []);
+    });
+    return () => {
+      live = false;
+    };
+  }, [caseId, tenant, nonce]);
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+  if (c === null)
+    return (
+      <div className="drawer-overlay" onClick={onClose} role="presentation">
+        <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog">
+          <div className="loading">Loading case…</div>
+        </aside>
+      </div>
+    );
+  const status = pick(c, 'status').toLowerCase();
+  const ev = Number(c['version'] ?? 1);
+  const terminal = /closed|archived/.test(status);
+  const hasOwner = pick(c, 'currentOwner') !== '';
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Case">
+        <header className="drawer-head">
+          <h3>
+            {pick(c, 'caseNumber') || 'Case'} — {pick(c, 'title')}
+          </h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Status</dt>
+            <dd>
+              {statusPill(pick(c, 'status'))} {pick(c, 'currentStage') && `· ${pick(c, 'currentStage')}`}
+            </dd>
+            <dt>Priority / severity</dt>
+            <dd>
+              {pick(c, 'priority') || '—'} / {pick(c, 'severity') || '—'}
+            </dd>
+            <dt>Owner / team</dt>
+            <dd>
+              {pick(c, 'currentOwner') || 'unassigned'} · {pick(c, 'responsibleTeam') || '—'}
+            </dd>
+            <dt>SLA policy</dt>
+            <dd>{pick(c, 'slaPolicyCode') || '—'}</dd>
+            <dt>Customer</dt>
+            <dd>{pick(c, 'customerRef') || '—'}</dd>
+            <dt>Confidentiality</dt>
+            <dd>
+              {pick(c, 'confidentiality') || 'standard'}
+              {String(c['legalHold']) === 'true' ? ' · ⚖ legal hold' : ''}
+            </dd>
+          </dl>
+          {pick(c, 'summary') && <p className="muted">{pick(c, 'summary')}</p>}
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+          <h4 className="drawer-sub">Actions</h4>
+          <div className="action-row">
+            <ActionButton
+              label="Open"
+              allowed={/draft|registered|new|intake/.test(status) && can('cases.case.open')}
+              onRun={() => run(api.openCase(caseId, ev, tenant), 'Case opened.')}
+            />
+            <ActionButton
+              label="Resolve"
+              allowed={!terminal && status !== 'resolved' && can('cases.case.resolve')}
+              onRun={() => run(api.resolveCase(caseId, ev, tenant), 'Case resolved.')}
+            />
+            <ActionButton
+              label="Close"
+              allowed={(status === 'resolved' || !terminal) && can('cases.case.close')}
+              onRun={() => run(api.closeCase(caseId, ev, tenant), 'Case closed.')}
+            />
+            <ActionButton
+              label="Reopen"
+              allowed={(status === 'resolved' || status === 'closed') && can('cases.case.reopen')}
+              needsReason
+              onRun={(reason) => run(api.reopenCase(caseId, ev, reason ?? '', tenant), 'Case reopened.')}
+            />
+            <ActionButton
+              label="Archive"
+              allowed={status === 'closed' && can('cases.case.archive')}
+              danger
+              onRun={() => run(api.archiveCase(caseId, ev, tenant), 'Case archived.')}
+            />
+            <ActionButton
+              label="Escalate"
+              allowed={!terminal && can('cases.case.update')}
+              needsReason
+              onRun={(reason) => run(api.escalateCase(caseId, reason ?? '', tenant), 'Escalation triggered.')}
+            />
+          </div>
+          {!terminal && can('cases.case.assign') && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={owner}
+                placeholder={hasOwner ? 'Reassign to (actor id)' : 'Assign to (actor id)'}
+                onChange={(e) => setOwner(e.target.value)}
+              />
+              <button
+                className="btn"
+                disabled={owner.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.assignCase(caseId, ev, owner.trim(), tenant, hasOwner),
+                    hasOwner ? 'Case reassigned.' : 'Case assigned.',
+                  ).then(() => setOwner(''))
+                }
+              >
+                {hasOwner ? 'Reassign' : 'Assign'}
+              </button>
+              <button
+                className="btn secondary"
+                onClick={() =>
+                  void run(api.assignCase(caseId, ev, actorId, tenant, hasOwner), 'Assigned to me.')
+                }
+              >
+                Take ownership
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Parties</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Type / role</th>
+                <th>Label</th>
+                <th>Contact</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {parties.map((p, i) => (
+                <tr key={pick(p, 'id') || i}>
+                  <td className="muted">
+                    {pick(p, 'partyType')} {pick(p, 'role') && `· ${pick(p, 'role')}`}
+                  </td>
+                  <td>{pick(p, 'displayLabel') || '—'}</td>
+                  <td className="muted">{pick(p, 'contactRef') || '—'}</td>
+                  <td>
+                    {can('cases.party.manage') && String(p['active']) === 'true' && (
+                      <button
+                        className="btn link sm"
+                        onClick={() =>
+                          void run(
+                            api.removeCaseParty(pick(p, 'id'), Number(p['version'] ?? 1), tenant),
+                            'Party removed.',
+                          )
+                        }
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {parties.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    No parties.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {can('cases.party.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={pType} onChange={(e) => setPType(e.target.value)}>
+                {['complainant', 'respondent', 'witness', 'representative', 'third_party'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input value={pLabel} placeholder="Display label" onChange={(e) => setPLabel(e.target.value)} />
+              <input
+                value={pContact}
+                placeholder="Contact ref (optional)"
+                onChange={(e) => setPContact(e.target.value)}
+              />
+              <button
+                className="btn"
+                onClick={() =>
+                  void run(
+                    api.addCaseParty(
+                      caseId,
+                      {
+                        partyType: pType,
+                        ...(pLabel.trim() ? { displayLabel: pLabel.trim() } : {}),
+                        ...(pContact.trim() ? { contactRef: pContact.trim() } : {}),
+                      },
+                      tenant,
+                    ),
+                    'Party added.',
+                  ).then(() => {
+                    setPLabel('');
+                    setPContact('');
+                  })
+                }
+              >
+                Add party
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Activity timeline</h4>
+          <ul className="timeline">
+            {acts.map((a, i) => (
+              <li key={pick(a, 'id') || i}>
+                <span className="t-head">{pick(a, 'headline') || pick(a, 'activityType')}</span>{' '}
+                <span className="muted">
+                  {pick(a, 'activityType')} · {pick(a, 'status')}
+                  {pick(a, 'outcome') ? ` · ${pick(a, 'outcome')}` : ''}
+                </span>
+              </li>
+            ))}
+            {acts.length === 0 && <li className="muted">No activities.</li>}
+          </ul>
+          {can('cases.activity.create') && !terminal && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <select value={actType} onChange={(e) => setActType(e.target.value)}>
+                {['note', 'call', 'email', 'meeting', 'correspondence', 'task'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={actHead}
+                placeholder="Headline"
+                onChange={(e) => setActHead(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn"
+                disabled={actHead.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.addCaseActivity(caseId, { activityType: actType, headline: actHead.trim() }, tenant),
+                    'Activity added.',
+                  ).then(() => setActHead(''))
+                }
+              >
+                Add
+              </button>
+            </div>
+          )}
+
+          {deadlines.length > 0 && (
+            <>
+              <h4 className="drawer-sub">Deadlines</h4>
+              <ul className="timeline">
+                {deadlines.map((d, i) => (
+                  <li key={pick(d, 'id') || i}>
+                    <span className="t-head">
+                      {pick(d, 'deadlineType') || pick(d, 'label') || 'Deadline'}
+                    </span>{' '}
+                    <span className="muted">
+                      {pick(d, 'dueAt') || pick(d, 'dueDate') || ''} · {pick(d, 'status')}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <h4 className="drawer-sub">Cross-module links</h4>
+          <div className="linkrow">
+            {CASE_LINKS.filter((l) => pick(c, l.field) !== '').map((l) => (
+              <span key={l.field} className="pill info" title="Workspace coming next">
+                {l.label}: {pick(c, l.field)} — web workspace coming next
+              </span>
+            ))}
+            {CASE_LINKS.every((l) => pick(c, l.field) === '') && (
+              <span className="muted">No linked matter / litigation / recovery.</span>
+            )}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function CasesWorkspace({
+  tenant,
+  perms,
+  actorId,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [nonce, setNonce] = useState(0);
+  const [status, setStatus] = useState('');
+  const [priority, setPriority] = useState('');
+  const [q, setQ] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [typeCode, setTypeCode] = useState('');
+  const [title, setTitle] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const cases = useRows(async () => {
+    const r = await api.getCases(tenant, { status, priority });
+    return { ...r, data: (r.data as { cases?: api.Row[] } | null)?.cases ?? [] };
+  }, [tenant, nonce, status, priority]);
+  const ql = q.trim().toLowerCase();
+  const shown = cases.rows.filter(
+    (c) =>
+      ql === '' ||
+      pick(c, 'title').toLowerCase().includes(ql) ||
+      pick(c, 'caseNumber').toLowerCase().includes(ql),
+  );
+  const createCase = async (): Promise<void> => {
+    const r = await api.createCase({ caseTypeCode: typeCode.trim(), title: title.trim() }, tenant);
+    if (r.ok && r.data) {
+      setMsg({ ok: true, msg: 'Case created.' });
+      setCreating(false);
+      setTypeCode('');
+      setTitle('');
+      setNonce((x) => x + 1);
+      setOpenId(pick(r.data as api.Row, 'id'));
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not create case (a published case type is required).' });
+    }
+  };
+  return (
+    <>
+      <h1 className="page-title">Cases</h1>
+      <p className="page-sub">
+        Case management over the canonical m13 engine · synthetic staging data. RBAC + tenant isolation +
+        audit enforced server-side; party contacts are redacted unless permitted (and a reveal is audited). No
+        hard delete — cases resolve / close / archive.
+      </p>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <div className="card">
+        <header>
+          <h3>Cases</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            {['draft', 'open', 'assigned', 'resolved', 'closed', 'archived'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <select value={priority} onChange={(e) => setPriority(e.target.value)}>
+            <option value="">All priorities</option>
+            {['low', 'medium', 'high', 'urgent'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <input value={q} placeholder="Search #/title…" onChange={(e) => setQ(e.target.value)} />
+          {can('cases.case.create') && !creating && (
+            <button className="btn" onClick={() => setCreating(true)}>
+              New case
+            </button>
+          )}
+          {creating && (
+            <>
+              <input
+                value={typeCode}
+                placeholder="Case type code"
+                onChange={(e) => setTypeCode(e.target.value)}
+              />
+              <input value={title} placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
+              <button
+                className="btn"
+                disabled={typeCode.trim() === '' || title.trim() === ''}
+                onClick={createCase}
+              >
+                Create
+              </button>
+              <button className="btn link" onClick={() => setCreating(false)}>
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+        {cases.loading ? (
+          <div className="loading">Loading cases…</div>
+        ) : cases.error ? (
+          <div className="empty">Could not load cases ({cases.error}).</div>
+        ) : shown.length === 0 ? (
+          <div className="empty">No cases match.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Case #</th>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Owner</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((c, i) => (
+                <tr key={pick(c, 'id') || i}>
+                  <td className="muted">{pick(c, 'caseNumber') || '—'}</td>
+                  <td>{pick(c, 'title')}</td>
+                  <td className="muted">{pick(c, 'caseTypeCode')}</td>
+                  <td>{statusPill(pick(c, 'status'))}</td>
+                  <td className="muted">{pick(c, 'priority') || '—'}</td>
+                  <td className="muted">{pick(c, 'currentOwner') || 'unassigned'}</td>
+                  <td>
+                    <button className="btn link" onClick={() => setOpenId(pick(c, 'id'))}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {openId && (
+        <CaseDrawer
+          caseId={openId}
+          tenant={tenant}
+          perms={perms}
+          actorId={actorId}
+          onClose={() => setOpenId(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
 // ---------- Regulatory & Compliance (M45) — UI over the canonical m41 GRC control register; no duplicate engine ----------
 // Renders CONTROL/EVIDENCE state (an assessment), never a blanket "Aptic is compliant/certified" claim.
 const FRAMEWORK_LABEL: Record<string, string> = {
@@ -4753,6 +5251,7 @@ const NAV = [
   { id: 'compliance', label: 'Compliance', icon: '❖', group: 'Compliance' },
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
   { id: 'compliance-privacy', label: 'Privacy & security', icon: '🔒', group: 'Compliance' },
+  { id: 'legal-cases', label: 'Cases', icon: '⚖', group: 'Legal' },
   { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
   { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
@@ -4779,6 +5278,13 @@ const FINANCE_READ_PERMS = [
   'finance.entity.read',
   'journals.draft.read',
 ];
+
+// Legal (m13 case management, + m14/m16/m18 later) is a platform operational capability. It is RBAC-gated on
+// case-read for now (visible to anyone who may read cases) rather than entitlement-gated: a `legal_services`
+// entitlement would need to be seeded per tenant first, and gating on an unseeded capability would hide the
+// group for everyone (fail closed). Switch to entitlement-gating once `legal_services` is seeded (see the
+// web-completeness doc).
+const LEGAL_READ_PERMS = ['cases.case.read'];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
 // entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
@@ -4936,6 +5442,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
     // read approval requests (makers to track their own, checkers to decide). Not entitlement-gated.
     if (g === 'Approvals') return perms.has('approvals.request.read');
     if (g === 'Finance') return FINANCE_READ_PERMS.some((p) => perms.has(p));
+    if (g === 'Legal') return LEGAL_READ_PERMS.some((p) => perms.has(p));
     const cap = GROUP_ENTITLEMENT[g];
     if (!cap) return true; // Overview always
     return entitled?.[cap] === true;
@@ -5007,6 +5514,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} perms={perms} />}
         {route === 'compliance-privacy' && <PrivacySecurityWorkspace tenant={tenant} perms={perms} />}
+        {route === 'legal-cases' && <CasesWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}

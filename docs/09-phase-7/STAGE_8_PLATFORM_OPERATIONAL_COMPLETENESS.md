@@ -35,7 +35,7 @@
 | m10-report | (intended reporting) | ❌ README only | none | RED | P1(hygiene) | **obsolete** → m32-analytics |
 | m11-ai | (intended AI) | ❌ README only | none | RED | P1(hygiene) | **obsolete** → m24-m29 |
 | m12-feedback | Feedback management | ✅ | none | AMBER | P2 | no feedback UI |
-| m13-case | Case management | ✅ | none | AMBER | P2 | no case UI |
+| m13-case | Case management | ✅ | **Legal → Cases** | GREEN(case slice) | P2 | lifecycle+parties+activities+links done; decisions/settlements/tasks/investigation not surfaced; **`partyContactAccessed` PII audit now wired** |
 | m14-legal | Legal matters | ✅ (mvp partial) | none | AMBER | P2 | no legal UI |
 | m15-recon | Bank reconciliation | ✅ | none (superseded by m20) | AMBER | P1 | full API, **zero web consumers** (Treasury runs on m20) |
 | m15a-matching | Deterministic matcher | ✅ (pure) | n/a | BLUE | — | internal engine |
@@ -120,8 +120,9 @@ wildcard), scoped per PR as each module's UI is exposed.
   membership + RLS, not per-resource permission): the `*.read`/`*.view`/`analyticsRead` family across ~18
   modules. Inert today; wire only if per-resource read authorization becomes a requirement.
 - **Dead audit codes:** the 18 `m04-admin` codes are **obsolete duplicates** of codes m02-rbac/m06/m07/m08 own
-  and emit → safe to delete. Genuine wiring gaps worth fixing: `partyContactAccessed` (m13/m14/m16/m17 — PII
-  contact access should be audited but isn't); event-without-audit pairs `RECOVERY_ARRANGEMENT_ACTIVATED` and
+  and emit → safe to delete. Genuine wiring gaps worth fixing: `partyContactAccessed` (**m13 now WIRED** — a
+  contact reveal on `GET /cases/:id/parties` emits `CASE_PARTY_CONTACT_ACCESSED`; m14/m16/m17 still to do);
+  event-without-audit pairs `RECOVERY_ARRANGEMENT_ACTIVATED` and
   `LITIGATION_SERVICE_COMPLETED`; `RECOVERY_CASE_SUSPENDED` (state + code exist, transition unwired). The rest
   (`exportRequested`, `slaBreached`, m06 compensation/timer, m03 retention/legal-hold) are intentional future.
 - **Event families:** none dead — all 53 declared families are emitted/consumed.

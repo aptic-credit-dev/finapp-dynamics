@@ -725,6 +725,103 @@ export const getDlpFindings = (t?: string | null): Promise<ApiResult<Row[] | { f
 export const getSecurityIncidents = (t?: string | null): Promise<ApiResult<Row[] | { incidents?: Row[] }>> =>
   call(`${SEC}/incidents`, { tenantId: t });
 
+// --- M13 Case management (Legal workspace) — canonical m13-case engine, reused (no second case engine). Every
+// mutation is permission-gated + audited + carries expectedVersion where required; lifecycle is named POST
+// actions (open/triage/assign/reassign/resolve/close/reopen/archive/escalate) — there is NO hard delete. Party
+// CONTACT details are redacted server-side unless the caller holds cases.party_contact.read, and a genuine
+// contact reveal is itself audited (CASE_PARTY_CONTACT_ACCESSED). ---
+const CS = '/cases';
+export const getCases = (
+  t?: string | null,
+  filters?: Record<string, string>,
+): Promise<ApiResult<{ cases: Row[] }>> => {
+  const qs = filters
+    ? '?' +
+      Object.entries(filters)
+        .filter(([, v]) => v !== '')
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&')
+    : '';
+  return call(`${CS}${qs}`, { tenantId: t });
+};
+export const getCase = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${CS}/${encodeURIComponent(id)}`, { tenantId: t });
+export const createCase = (
+  body: { caseTypeCode: string; title: string; [k: string]: unknown },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(CS, { method: 'POST', body, tenantId: t });
+const caseAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${CS}/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+export const openCase = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  caseAction(id, 'open', { expectedVersion: ev }, t);
+export const triageCase = (
+  id: string,
+  ev: number,
+  body: Record<string, unknown>,
+  t?: string | null,
+): Promise<ApiResult<Row>> => caseAction(id, 'triage', { expectedVersion: ev, ...body }, t);
+export const assignCase = (
+  id: string,
+  ev: number,
+  owner: string,
+  t?: string | null,
+  reassign = false,
+): Promise<ApiResult<Row>> =>
+  caseAction(id, reassign ? 'reassign' : 'assign', { expectedVersion: ev, owner }, t);
+export const resolveCase = (
+  id: string,
+  ev: number,
+  t?: string | null,
+  summary?: string,
+): Promise<ApiResult<Row>> =>
+  caseAction(id, 'resolve', { expectedVersion: ev, ...(summary ? { summary } : {}) }, t);
+export const closeCase = (
+  id: string,
+  ev: number,
+  t?: string | null,
+  summary?: string,
+): Promise<ApiResult<Row>> =>
+  caseAction(id, 'close', { expectedVersion: ev, ...(summary ? { summary } : {}) }, t);
+export const reopenCase = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => caseAction(id, 'reopen', { expectedVersion: ev, reason }, t);
+export const archiveCase = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  caseAction(id, 'archive', { expectedVersion: ev }, t);
+export const escalateCase = (id: string, reason: string, t?: string | null): Promise<ApiResult<Row>> =>
+  caseAction(id, 'escalate', { reason }, t);
+export const getCaseParties = (id: string, t?: string | null): Promise<ApiResult<{ parties: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/parties`, { tenantId: t });
+export const addCaseParty = (
+  id: string,
+  body: { partyType: string; role?: string; displayLabel?: string; contactRef?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/${encodeURIComponent(id)}/parties`, { method: 'POST', body, tenantId: t });
+export const removeCaseParty = (pid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${CS}/parties/${encodeURIComponent(pid)}/remove`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const getCaseActivities = (id: string, t?: string | null): Promise<ApiResult<{ activities: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/activities`, { tenantId: t });
+export const addCaseActivity = (
+  id: string,
+  body: { activityType: string; headline: string; description?: string; direction?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/${encodeURIComponent(id)}/activities`, { method: 'POST', body, tenantId: t });
+export const getCaseDeadlines = (id: string, t?: string | null): Promise<ApiResult<{ deadlines: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/deadlines`, { tenantId: t });
+export const getCaseRelationships = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ relationships: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/relationships`, { tenantId: t });
+
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
 // (RLS, no escape). Every write is a canonical permissioned + audited endpoint; the server is authoritative,
