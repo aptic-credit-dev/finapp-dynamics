@@ -2703,6 +2703,436 @@ function JournalsWorkspace({
   );
 }
 
+// ---------- Legal → Legal Documents (M18) — knowledge + template library over the CANONICAL m18-legaldocs
+// engine. No second document/knowledge engine, no second blob store (files live in m09 by reference), no hard
+// delete (withdraw/supersede/archive are governed transitions). The editorial lifecycle is maker-checker:
+// create → submit → review/request-changes → approve (a DISTINCT approver, SoD server-side) → publish →
+// supersede. A published version is immutable (content hash frozen); a list view never returns privileged
+// content (ADR-076). ----------
+function KnowledgeDrawer({
+  item,
+  tenant,
+  perms,
+  onClose,
+  onChanged,
+}: {
+  item: api.Row;
+  tenant: string | null;
+  perms: Set<string>;
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const id = pick(item, 'id');
+  const [k, setK] = useState<api.Row | null>(null);
+  const [reviews, setReviews] = useState<api.Row[]>([]);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    void api.getKnowledgeItem(id, tenant).then((r) => live && setK((r.data as api.Row) ?? item));
+    void api
+      .getKnowledgeReviews(id, tenant)
+      .then((r) => live && setReviews((r.data as { reviews?: api.Row[] } | null)?.reviews ?? []));
+    return () => {
+      live = false;
+    };
+  }, [id, tenant, nonce, item]);
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+  const kn = k ?? item;
+  const status = pick(kn, 'status').toLowerCase();
+  const ev = Number(kn['version'] ?? 1);
+  const terminal = /published|superseded|withdrawn|archived/.test(status);
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside
+        className="drawer wide"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Knowledge"
+      >
+        <header className="drawer-head">
+          <h3>
+            {pick(kn, 'knowledgeNumber') || 'Knowledge'} — {pick(kn, 'title')}
+          </h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Status</dt>
+            <dd>
+              {statusPill(pick(kn, 'status'))} · v{pick(kn, 'versionNumber') || '1'}
+            </dd>
+            <dt>Type / practice area</dt>
+            <dd>
+              {pick(kn, 'knowledgeType') || '—'} · {pick(kn, 'practiceArea') || '—'}
+            </dd>
+            <dt>Jurisdiction / authority</dt>
+            <dd>
+              {pick(kn, 'jurisdiction') || '—'} · {pick(kn, 'authorityLevel') || '—'}
+            </dd>
+            <dt>Owner / reviewer / approver</dt>
+            <dd>
+              {pick(kn, 'owner') || '—'} · {pick(kn, 'reviewer') || '—'} · {pick(kn, 'approver') || '—'}
+            </dd>
+            <dt>Source</dt>
+            <dd>
+              {pick(kn, 'sourceReference') || pick(kn, 'source') || '—'}
+              {String(kn['privileged']) === 'true' ? ' · 🔒 privileged' : ''}
+            </dd>
+            {pick(kn, 'supersededById') && (
+              <>
+                <dt>Superseded by</dt>
+                <dd className="muted">{pick(kn, 'supersededById').slice(0, 12)}</dd>
+              </>
+            )}
+          </dl>
+          {pick(kn, 'summary') && <p className="muted">{pick(kn, 'summary')}</p>}
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+          <h4 className="drawer-sub">Editorial lifecycle</h4>
+          <p className="muted" style={{ fontSize: 11, margin: '0 0 4px' }}>
+            create → submit → review → <strong>approve (a DISTINCT approver — SoD server-side)</strong> →
+            publish. A published version is immutable.
+          </p>
+          <div className="action-row">
+            <ActionButton
+              label="Submit"
+              allowed={/draft|changes_requested|rejected/.test(status) && can('legaldocs.knowledge.submit')}
+              onRun={() => run(api.submitKnowledge(id, ev, tenant), 'Submitted for review.')}
+            />
+            <ActionButton
+              label="Review"
+              allowed={/submitted|in_review/.test(status) && can('legaldocs.knowledge.review')}
+              onRun={() => run(api.reviewKnowledge(id, ev, tenant), 'Marked reviewed.')}
+            />
+            <ActionButton
+              label="Request changes"
+              needsReason
+              allowed={/submitted|in_review/.test(status) && can('legaldocs.knowledge.review')}
+              onRun={(reason) =>
+                run(api.requestKnowledgeChanges(id, ev, reason ?? '', tenant), 'Changes requested.')
+              }
+            />
+            <ActionButton
+              label="Approve"
+              allowed={/submitted|in_review|reviewed/.test(status) && can('legaldocs.knowledge.approve')}
+              onRun={() => run(api.approveKnowledge(id, ev, tenant), 'Approved (SoD: a distinct approver).')}
+            />
+            <ActionButton
+              label="Publish"
+              allowed={status === 'approved' && can('legaldocs.knowledge.publish')}
+              onRun={() => run(api.publishKnowledge(id, ev, tenant), 'Published (immutable).')}
+            />
+            <ActionButton
+              label="Withdraw"
+              danger
+              needsReason
+              allowed={!terminal && can('legaldocs.knowledge.withdraw')}
+              onRun={(reason) => run(api.withdrawKnowledge(id, ev, reason ?? '', tenant), 'Withdrawn.')}
+            />
+          </div>
+
+          <h4 className="drawer-sub">Review history</h4>
+          <ul className="timeline">
+            {reviews.map((rv, i) => (
+              <li key={pick(rv, 'id') || i}>
+                <span className="t-head">{pick(rv, 'decision') || pick(rv, 'reviewType') || 'Review'}</span>{' '}
+                <span className="muted">
+                  {pick(rv, 'reviewer') || pick(rv, 'actor') || ''} · {pick(rv, 'reason') || ''}
+                </span>
+              </li>
+            ))}
+            {reviews.length === 0 && <li className="muted">No review history.</li>}
+          </ul>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function LegalDocsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [tab, setTab] = useState<'knowledge' | 'templates' | 'authorities' | 'precedents'>('knowledge');
+  const [nonce, setNonce] = useState(0);
+  const [status, setStatus] = useState('');
+  const [q, setQ] = useState('');
+  const [openK, setOpenK] = useState<api.Row | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [kType, setKType] = useState('guidance_note');
+  const [kTitle, setKTitle] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const knowledge = useRows(async () => {
+    const r = await api.getKnowledge(tenant, { status });
+    return { ...r, data: (r.data as { results?: api.Row[] } | null)?.results ?? [] };
+  }, [tenant, nonce, status, tab]);
+  const templates = useRows(async () => {
+    const r = await api.getTemplates(tenant);
+    return { ...r, data: (r.data as { templates?: api.Row[] } | null)?.templates ?? [] };
+  }, [tenant, nonce, tab]);
+  const authorities = useRows(async () => {
+    const r = await api.getAuthorities(tenant);
+    return { ...r, data: (r.data as { authorities?: api.Row[] } | null)?.authorities ?? [] };
+  }, [tenant, tab]);
+  const precedents = useRows(async () => {
+    const r = await api.getPrecedents(tenant);
+    return { ...r, data: (r.data as { precedents?: api.Row[] } | null)?.precedents ?? [] };
+  }, [tenant, tab]);
+  const ql = q.trim().toLowerCase();
+  const shownK = knowledge.rows.filter(
+    (k) =>
+      ql === '' ||
+      pick(k, 'title').toLowerCase().includes(ql) ||
+      pick(k, 'knowledgeNumber').toLowerCase().includes(ql),
+  );
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) setNonce((x) => x + 1);
+  };
+  const createK = async (): Promise<void> => {
+    const r = await api.createKnowledge({ knowledgeType: kType.trim(), title: kTitle.trim() }, tenant);
+    if (r.ok && r.data) {
+      setMsg({ ok: true, msg: 'Knowledge record created (draft).' });
+      setCreating(false);
+      setKTitle('');
+      setNonce((x) => x + 1);
+      setOpenK(r.data as api.Row);
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not create knowledge record.' });
+    }
+  };
+  const tabs: { id: typeof tab; label: string }[] = [
+    { id: 'knowledge', label: 'Knowledge Library' },
+    { id: 'templates', label: 'Templates' },
+    { id: 'authorities', label: 'Authorities' },
+    { id: 'precedents', label: 'Precedents' },
+  ];
+  return (
+    <>
+      <h1 className="page-title">Legal Documents</h1>
+      <p className="page-sub">
+        Legal knowledge + template library over the canonical m18 engine · synthetic staging data. Editorial
+        lifecycle is maker-checker (submit → review → approve → publish); a published version is immutable.
+        RBAC + tenant isolation + audit enforced server-side; no hard delete.
+      </p>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <div className="card">
+        <div className="run-picker">
+          {tabs.map((tb) => (
+            <button
+              key={tb.id}
+              className={`btn ${tab === tb.id ? '' : 'secondary'}`}
+              onClick={() => setTab(tb.id)}
+            >
+              {tb.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'knowledge' && (
+          <>
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="">All statuses</option>
+                {['draft', 'submitted', 'in_review', 'approved', 'published', 'superseded', 'withdrawn'].map(
+                  (s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ),
+                )}
+              </select>
+              <input value={q} placeholder="Search #/title…" onChange={(e) => setQ(e.target.value)} />
+              {can('legaldocs.knowledge.create') && !creating && (
+                <button className="btn" onClick={() => setCreating(true)}>
+                  New knowledge
+                </button>
+              )}
+              {creating && (
+                <>
+                  <input value={kType} placeholder="Type" onChange={(e) => setKType(e.target.value)} />
+                  <input value={kTitle} placeholder="Title" onChange={(e) => setKTitle(e.target.value)} />
+                  <button className="btn" disabled={kTitle.trim() === ''} onClick={createK}>
+                    Create
+                  </button>
+                  <button className="btn link" onClick={() => setCreating(false)}>
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+            {knowledge.loading ? (
+              <div className="loading">Loading knowledge…</div>
+            ) : shownK.length === 0 ? (
+              <div className="empty">No knowledge records.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ref</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Practice area</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shownK.map((k, i) => (
+                    <tr key={pick(k, 'id') || i}>
+                      <td className="muted">{pick(k, 'knowledgeNumber') || '—'}</td>
+                      <td>{pick(k, 'title')}</td>
+                      <td className="muted">{pick(k, 'knowledgeType')}</td>
+                      <td className="muted">{pick(k, 'practiceArea') || '—'}</td>
+                      <td>{statusPill(pick(k, 'status'))}</td>
+                      <td>
+                        <button className="btn link" onClick={() => setOpenK(k)}>
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        {tab === 'templates' &&
+          (templates.loading ? (
+            <div className="loading">Loading templates…</div>
+          ) : templates.rows.length === 0 ? (
+            <div className="empty">No templates.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Status</th>
+                  <th>Lifecycle</th>
+                </tr>
+              </thead>
+              <tbody>
+                {templates.rows.map((tp, i) => {
+                  const id = pick(tp, 'id');
+                  const ev = Number(tp['version'] ?? 1);
+                  const st = pick(tp, 'status').toLowerCase();
+                  return (
+                    <tr key={id || i}>
+                      <td className="muted">{pick(tp, 'templateCode') || '—'}</td>
+                      <td>{pick(tp, 'title')}</td>
+                      <td className="muted">{pick(tp, 'category') || '—'}</td>
+                      <td>{statusPill(pick(tp, 'status'))}</td>
+                      <td>
+                        <div className="action-row">
+                          <ActionButton
+                            label="Submit"
+                            allowed={/draft/.test(st) && can('legaldocs.template.manage')}
+                            onRun={() => run(api.submitTemplate(id, ev, tenant), 'Template submitted.')}
+                          />
+                          <ActionButton
+                            label="Approve"
+                            allowed={/submitted/.test(st) && can('legaldocs.template.approve')}
+                            onRun={() => run(api.approveTemplate(id, ev, tenant), 'Template approved (SoD).')}
+                          />
+                          <ActionButton
+                            label="Publish"
+                            allowed={/approved/.test(st) && can('legaldocs.template.publish')}
+                            onRun={() => run(api.publishTemplate(id, ev, tenant), 'Template published.')}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ))}
+
+        {tab === 'authorities' &&
+          (authorities.loading ? (
+            <div className="loading">Loading authorities…</div>
+          ) : authorities.rows.length === 0 ? (
+            <div className="empty">No authorities.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Citation</th>
+                  <th>Title</th>
+                  <th>Type</th>
+                  <th>Jurisdiction</th>
+                  <th>Treatment</th>
+                </tr>
+              </thead>
+              <tbody>
+                {authorities.rows.map((a, i) => (
+                  <tr key={pick(a, 'id') || i}>
+                    <td className="muted">{pick(a, 'citation') || '—'}</td>
+                    <td>{pick(a, 'title')}</td>
+                    <td className="muted">{pick(a, 'authorityType') || '—'}</td>
+                    <td className="muted">{pick(a, 'jurisdiction') || '—'}</td>
+                    <td>{statusPill(pick(a, 'treatment') || pick(a, 'status'))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ))}
+
+        {tab === 'precedents' &&
+          (precedents.loading ? (
+            <div className="loading">Loading precedents…</div>
+          ) : precedents.rows.length === 0 ? (
+            <div className="empty">No precedents.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Court</th>
+                  <th>Jurisdiction</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {precedents.rows.map((p, i) => (
+                  <tr key={pick(p, 'id') || i}>
+                    <td>{pick(p, 'title')}</td>
+                    <td className="muted">{pick(p, 'court') || '—'}</td>
+                    <td className="muted">{pick(p, 'jurisdiction') || '—'}</td>
+                    <td>{statusPill(pick(p, 'status'))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ))}
+      </div>
+      {openK && (
+        <KnowledgeDrawer
+          item={openK}
+          tenant={tenant}
+          perms={perms}
+          onClose={() => setOpenK(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
 // ---------- Legal → Matters (M14) — operational legal-matter workspace over the CANONICAL m14-legal engine.
 // No second legal engine, no hard delete (open/assign/resolve/close/reopen/archive/escalate are governed
 // transitions). A matter can be created from an M13 case via the canonical from-case conversion (server-backed
@@ -5831,6 +6261,7 @@ const NAV = [
   { id: 'compliance-privacy', label: 'Privacy & security', icon: '🔒', group: 'Compliance' },
   { id: 'legal-cases', label: 'Cases', icon: '⚖', group: 'Legal' },
   { id: 'legal-matters', label: 'Matters', icon: '§', group: 'Legal' },
+  { id: 'legal-documents', label: 'Legal Documents', icon: '📚', group: 'Legal' },
   { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
   { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
@@ -5863,7 +6294,7 @@ const FINANCE_READ_PERMS = [
 // entitlement would need to be seeded per tenant first, and gating on an unseeded capability would hide the
 // group for everyone (fail closed). Switch to entitlement-gating once `legal_services` is seeded (see the
 // web-completeness doc).
-const LEGAL_READ_PERMS = ['cases.case.read', 'legal.matter.read'];
+const LEGAL_READ_PERMS = ['cases.case.read', 'legal.matter.read', 'legaldocs.knowledge.read'];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
 // entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
@@ -6095,6 +6526,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'compliance-privacy' && <PrivacySecurityWorkspace tenant={tenant} perms={perms} />}
         {route === 'legal-cases' && <CasesWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'legal-matters' && <MattersWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
+        {route === 'legal-documents' && <LegalDocsWorkspace tenant={tenant} perms={perms} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}
