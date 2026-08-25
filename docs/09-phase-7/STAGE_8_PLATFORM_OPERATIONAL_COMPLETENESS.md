@@ -34,12 +34,12 @@
 | m09-docs | Documents/records | ✅ | none | AMBER | P2 | no document UI |
 | m10-report | (intended reporting) | ❌ README only | none | RED | P1(hygiene) | **obsolete** → m32-analytics |
 | m11-ai | (intended AI) | ❌ README only | none | RED | P1(hygiene) | **obsolete** → m24-m29 |
-| m12-feedback | Feedback management | ✅ | none | AMBER | P2 | no feedback UI |
+| m12-feedback | Feedback management | ✅ | **Customer Service → Feedback Management** | GREEN(FMS slice) | P2 | capture→classify→assign/escalate→resolution(maker-checker)→confirmation→rule-gated close + M13 case-handoff + analytics dashboard done; questionnaire/catalog admin not surfaced |
 | m13-case | Case management | ✅ | **Legal → Cases** | GREEN(case slice) | P2 | lifecycle+parties+activities+links done; decisions/settlements/tasks/investigation not surfaced; **`partyContactAccessed` PII audit now wired** |
 | m14-legal | Legal matters | ✅ | **Legal → Matters** | GREEN(matter slice) | P2 | matter lifecycle+positions/opinions/counsel/settlements(SoD)+from-case link done; court-events/pleadings/costs/appeal not surfaced; **`LEGAL_PARTY_CONTACT_ACCESSED` PII audit now wired** |
 | m15-recon | Bank reconciliation | ✅ | none (superseded by m20) | AMBER | P1 | full API, **zero web consumers** (Treasury runs on m20) |
 | m15a-matching | Deterministic matcher | ✅ (pure) | n/a | BLUE | — | internal engine |
-| m16-litigation | Litigation cases | ✅ | none | AMBER | P2 | no UI |
+| m16-litigation | Litigation cases | ✅ | **Legal → Litigation** | GREEN(proceeding slice) | P2 | proceeding lifecycle + filings(maker-checker) + hearings/service + from-matter link done; witnesses/exhibits/orders/bundles not surfaced; **`LITIGATION_PARTY_CONTACT_ACCESSED` PII audit now wired** |
 | m17-recovery | Debt recovery | ✅ | **Recovery vertical** | GREEN | — | (deep CRUD = PR3) |
 | m18-legaldocs | Legal knowledge library | ✅ | **Legal → Legal Documents** | GREEN(library slice) | P2 | knowledge editorial lifecycle (submit→review→approve→publish, SoD) + templates(maker-checker) + authorities/precedents read done; clauses/opinions/research/taxonomy-admin + m09 file link not surfaced |
 | m19-finance | GL accounts/periods/config | ✅ | **Finance → Fiscal Calendar (period controls)** | GREEN(calendar slice) | P2 | fiscal-year + period open/close/lock/reopen + history now operational; GL-account/config admin UI still pending |

@@ -38,12 +38,12 @@ pre-merge on their stacked branches.
 | m09-docs | Documents / records | none | **NOT WEB READY** |
 | m10-report | obsolete placeholder | none | FRAMEWORK ONLY (obsolete → m32) |
 | m11-ai | obsolete placeholder | none | FRAMEWORK ONLY (obsolete → m24-29) |
-| m12-feedback | Feedback management | none | **NOT WEB READY** |
+| m12-feedback | Feedback management | **Customer Service → Feedback Management** | **WEB READY WITH LIMITATION** (FMS lifecycle capture→classify→resolution(maker-checker)→confirmation→close + M13 case-handoff + analytics dashboard done; questionnaire/category/SLA-policy admin not surfaced) |
 | m13-case | Case management + decisions | **Legal → Cases** | **WEB READY WITH LIMITATION** (case lifecycle + parties + activities + links done; decisions/settlements/tasks/investigation not surfaced) |
 | m14-legal | Legal matters | **Legal → Matters** | **WEB READY WITH LIMITATION** (matter lifecycle + positions/opinions/counsel + settlements SoD + from-case link done; court-events/pleadings/costs/appeal not surfaced) |
 | m15-recon | Legacy bank recon | none (superseded by m20) | FRAMEWORK ONLY |
 | m15a-matching | Deterministic matcher | n/a (pure) | FRAMEWORK ONLY |
-| m16-litigation | Litigation proceedings | none (ref-links in Recovery only) | **NOT WEB READY** |
+| m16-litigation | Litigation proceedings | **Legal → Litigation** | **WEB READY WITH LIMITATION** (proceeding lifecycle + filings maker-checker + hearings/service + from-matter link done; witnesses/exhibits/orders/bundles not surfaced) |
 | m17-recovery | Debt recovery lifecycle | **Recovery + Recovery cases** | **WEB READY** |
 | m18-legaldocs | Legal knowledge library | **Legal → Legal Documents** | **WEB READY WITH LIMITATION** (knowledge editorial lifecycle + templates maker-checker + authorities/precedents read done; clauses/opinions/research/taxonomy admin + m09 file link not surfaced) |
 | m19-finance | Fiscal calendar / periods / entities | **Finance → Fiscal calendar** | **WEB READY WITH LIMITATION** (GL-account/chart/config admin not surfaced) |
@@ -73,10 +73,9 @@ pre-merge on their stacked branches.
 
 ## Summary counts (after M13)
 - **WEB READY**: m02-identity, m02-rbac, m17-recovery, m20-glrecon, m21-journal, m22-approval (6).
-- **WEB READY WITH LIMITATION**: m19-finance, m39-saas, m41-security, m13-case, m14-legal, **m18-legaldocs** (6).
-  (Plus, on their own open branches: m12-feedback, m16-litigation.)
-- **NOT WEB READY (genuine gaps)**: m08-notify, m09-docs, m28-executive-ai, m32-analytics (4)
-  (m12-feedback + m16-litigation are DONE on open branches, pending merge).
+- **WEB READY WITH LIMITATION**: m19-finance, m39-saas, m41-security, m13-case, m14-legal, **m16-litigation**,
+  **m12-feedback**, **m18-legaldocs** (8).
+- **NOT WEB READY (genuine gaps)**: m08-notify, m09-docs, m28-executive-ai, m32-analytics (4).
 - **FRAMEWORK ONLY**: the remaining 26 (kernel/infra/engine/AI-contract/obsolete).
 
 ## Global Stage-8 web-navigation smoke (current composed branch: main+M41 + M19 + M21 + M39 + M13)
@@ -104,10 +103,10 @@ reachability defect.
 
 ## Genuine web gaps — ranked for the next bounded PRs
 **P1 (high-value operational surfaces, full backends, zero UI):**
-1. **Legal cluster — COMPLETE**: m13-case + m14-legal on main; **m18-legaldocs (this PR)** = Legal → Legal
-   Documents; m16-litigation on its open branch. Once m16 + m18 merge, the Legal group is Cases + Matters +
-   Litigation + Legal Documents — the full legal workspace with case→matter→proceeding referral chain + knowledge
-   library. Next web P1 gaps: **m32-analytics**, **m28-executive-ai**; P2: m08-notify, m09-docs.
+1. **Legal cluster — COMPLETE**: m13-case + m14-legal + m16-litigation on main; **m18-legaldocs (this PR)** =
+   Legal → Legal Documents. The Legal group is now Cases + Matters + Litigation + Legal Documents — the full legal
+   workspace with the case→matter→proceeding referral chain plus the knowledge/template library. Next web P1 gaps:
+   **m32-analytics**, **m28-executive-ai**; P2: m08-notify, m09-docs.
 2. **m32-analytics** — reporting/dashboard (`analytics/definitions`, `analytics/runtime`); no UI at all.
 3. **m28-executive-ai** — executive copilot (`copilot/*`, full API); no entry point.
 

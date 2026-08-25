@@ -931,6 +931,201 @@ export const proposeSettlement = (
 export const approveSettlement = (sid: string, t?: string | null): Promise<ApiResult<Row>> =>
   call(`${LG}/settlements/${encodeURIComponent(sid)}/approve`, { method: 'POST', tenantId: t });
 
+// --- M12 Feedback Management (Customer Service) — canonical m12-feedback engine, reused (no second feedback
+// engine). The Aptic FMS model: capture → classify → assign/escalate → HOD resolution (submit → approve, a
+// DISTINCT approver = SoD) → customer confirmation → rule-gated close. Every mutation is permission-gated +
+// audited + carries expectedVersion where required; closure is gated server-side (customer confirmation etc.);
+// NO hard delete. Customer contact is redacted unless the caller holds feedback.customer_contact.read, and a
+// reveal is audited (FEEDBACK_CONTACT_ACCESSED) server-side. Serious feedback can hand off to an M13 case. ---
+const FB = '/feedback';
+export const getFeedbackRecords = (
+  t?: string | null,
+  filters?: Record<string, string>,
+): Promise<ApiResult<{ records: Row[] }>> => {
+  const qs = filters
+    ? '?' +
+      Object.entries(filters)
+        .filter(([, v]) => v !== '')
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&')
+    : '';
+  return call(`${FB}/records${qs}`, { tenantId: t });
+};
+export const getFeedbackRecord = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}`, { tenantId: t });
+export const getFeedbackAnalytics = (
+  dimension: string,
+  t?: string | null,
+): Promise<ApiResult<{ dimension: string; buckets: Row[] }>> =>
+  call(`${FB}/analytics?dimension=${encodeURIComponent(dimension)}`, { tenantId: t });
+export const createFeedback = (body: Record<string, unknown>, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FB}/records`, { method: 'POST', body, tenantId: t });
+const fbAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${FB}/records/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+export const captureFeedback = (
+  id: string,
+  ev: number,
+  body: { rating?: number; ratingScale?: number; narrative?: string; feedbackType?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'capture', { expectedVersion: ev, ...body }, t);
+export const classifyFeedback = (
+  id: string,
+  ev: number,
+  body: { sentiment: string; severity: string; category?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'classify', { expectedVersion: ev, ...body }, t);
+export const assignFeedback = (
+  id: string,
+  ev: number,
+  owner: string,
+  t?: string | null,
+  kind?: string,
+): Promise<ApiResult<Row>> =>
+  fbAction(id, 'assign', { expectedVersion: ev, owner, ...(kind ? { kind } : {}) }, t);
+export const escalateFeedback = (id: string, reason: string, t?: string | null): Promise<ApiResult<Row>> =>
+  fbAction(id, 'escalate', { reason }, t);
+export const submitResolution = (
+  id: string,
+  body: {
+    summary?: string;
+    resolutionType?: string;
+    rootCauseCategory?: string;
+    responseCustomerFacing?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'resolution', body, t);
+export const approveResolution = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}/resolution/approve`, { method: 'POST', tenantId: t });
+export const recordConfirmation = (
+  id: string,
+  ev: number,
+  satisfied: boolean,
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'confirmation', { expectedVersion: ev, satisfied }, t);
+export const closeFeedback = (
+  id: string,
+  ev: number,
+  t?: string | null,
+  waiveCustomerConfirmation = false,
+): Promise<ApiResult<Row>> =>
+  fbAction(
+    id,
+    'close',
+    { expectedVersion: ev, ...(waiveCustomerConfirmation ? { waiveCustomerConfirmation: true } : {}) },
+    t,
+  );
+export const reopenFeedback = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'reopen', { expectedVersion: ev, reason }, t);
+export const requestFeedbackCaseHandoff = (
+  id: string,
+  body: { recommendedCaseType?: string; summary?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'case-handoff', body, t);
+export const getFeedbackActivities = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ activities: Row[] }>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}/activities`, { tenantId: t });
+export const addFeedbackActivity = (
+  id: string,
+  body: { activityType: string; headline: string; description?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}/activities`, { method: 'POST', body, tenantId: t });
+export const getFeedbackResolution = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ resolution: Row | null }>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}/resolution`, { tenantId: t });
+export const getFeedbackSla = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}/sla`, { tenantId: t });
+
+// --- M16 Litigation — canonical m16-litigation engine, reused (no second litigation engine). Every mutation is
+// permission-gated + audited + carries expectedVersion where required; lifecycle is named POST actions
+// (assign/reassign/advance/conclude/close/reopen/archive/escalate) — NO hard delete. A proceeding is created
+// from an M14 matter via the canonical from-matter referral (server-backed sourceMatterId link). Filings are the
+// canonical maker-checker (submit -> review -> approve [distinct filing.approve] -> file; approver != submitter,
+// SoD server-side). Party CONTACT is redacted unless permitted; a reveal is audited
+// (LITIGATION_PARTY_CONTACT_ACCESSED). ---
+const LIT = '/litigation';
+export const getProceedings = (
+  t?: string | null,
+  filters?: Record<string, string>,
+): Promise<ApiResult<{ proceedings: Row[] }>> => {
+  const qs = filters
+    ? '?' +
+      Object.entries(filters)
+        .filter(([, v]) => v !== '')
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&')
+    : '';
+  return call(`${LIT}/proceedings${qs}`, { tenantId: t });
+};
+export const getProceeding = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}`, { tenantId: t });
+export const createProceeding = (
+  body: { proceedingTypeCode: string; title: string; [k: string]: unknown },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${LIT}/proceedings`, { method: 'POST', body, tenantId: t });
+export const proceedingFromMatter = (
+  body: { referralKey: string; sourceMatterId: string; proceedingTypeCode: string; title: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${LIT}/from-matter`, { method: 'POST', body, tenantId: t });
+const procAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${LIT}/proceedings/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+export const assignProceeding = (
+  id: string,
+  ev: number,
+  owner: string,
+  t?: string | null,
+  reassign = false,
+): Promise<ApiResult<Row>> =>
+  procAction(id, reassign ? 'reassign' : 'assign', { expectedVersion: ev, owner }, t);
+export const concludeProceeding = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  procAction(id, 'conclude', { expectedVersion: ev }, t);
+export const closeProceeding = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  procAction(id, 'close', { expectedVersion: ev }, t);
+export const reopenProceeding = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => procAction(id, 'reopen', { expectedVersion: ev, reason }, t);
+export const archiveProceeding = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  procAction(id, 'archive', { expectedVersion: ev }, t);
+export const escalateProceeding = (id: string, reason: string, t?: string | null): Promise<ApiResult<Row>> =>
+  procAction(id, 'escalate', { reason }, t);
+const pget = (id: string, sub: string, t?: string | null) =>
+  call<Record<string, Row[]>>(`${LIT}/proceedings/${encodeURIComponent(id)}/${sub}`, { tenantId: t });
+export const getProceedingParties = (id: string, t?: string | null) => pget(id, 'parties', t);
+export const getProceedingFilings = (id: string, t?: string | null) => pget(id, 'filings', t);
+export const getProceedingService = (id: string, t?: string | null) => pget(id, 'service', t);
+export const getProceedingAppearances = (id: string, t?: string | null) => pget(id, 'appearances', t);
+export const getProceedingWitnesses = (id: string, t?: string | null) => pget(id, 'witnesses', t);
+// Filings maker-checker: submit -> review -> approve (distinct litigation.filing.approve) -> file.
+export const submitFiling = (
+  id: string,
+  body: { filingType: string; filingRole: string; documentRef?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}/filings`, { method: 'POST', body, tenantId: t });
+const filingAction = (fid: string, action: string, ev: number, t?: string | null) =>
+  call<Row>(`${LIT}/filings/${encodeURIComponent(fid)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const reviewFiling = (fid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  filingAction(fid, 'review', ev, t);
+export const approveFiling = (fid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  filingAction(fid, 'approve', ev, t);
+export const fileFiling = (fid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  filingAction(fid, 'file', ev, t);
+
 // --- M18 Legal Documents (knowledge + template library) — canonical m18-legaldocs engine, reused (no second
 // document/knowledge engine, no second blob store — files live in m09 by reference). The editorial lifecycle is
 // maker-checker: create → submit → review/request-changes → approve (DISTINCT approver, SoD server-side) →
