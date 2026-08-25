@@ -13,6 +13,7 @@ import {
   MatterLegalService,
   FixedClock,
   M14_PERMISSIONS,
+  M14_AUDIT_CODES,
   ALL_M14_PERMISSIONS,
 } from '@finapp/m14-legal';
 
@@ -28,7 +29,8 @@ import {
 export default defineDbSpec('m14-services', async (ctx, t) => {
   const db = new PgDb({ pool: ctx.pool, appRole: ctx.appRole });
   const authz = new RbacAuthz();
-  const emitter = new M14Emitter(new RecordingAudit(), new RecordingOutbox());
+  const audit = new RecordingAudit();
+  const emitter = new M14Emitter(audit, new RecordingOutbox());
   const repo = new LegalRepository();
   const clock = new FixedClock(1_700_000_000_000);
   const catalog = new CatalogService(db, authz, emitter, repo);
@@ -178,6 +180,29 @@ export default defineDbSpec('m14-services', async (ctx, t) => {
     contactRef: '+254700000000',
     confidentiality: 'confidential',
   });
+  // PII contact-access audit (M14 fix): revealing a party's contact under legal.party_contact.read is a
+  // sensitive, auditable act — it emits LEGAL_PARTY_CONTACT_ACCESSED (matter id + count only; never the value).
+  audit.drain();
+  const revealed = await work.listParties(full, m0.id);
+  t.ok(revealed.canReadContact, 'a fully-permitted caller may read party contacts');
+  t.ok(
+    audit.entries.some((e) => e.code === M14_AUDIT_CODES.partyContactAccessed),
+    'revealing party contact emits LEGAL_PARTY_CONTACT_ACCESSED (audited PII access)',
+  );
+  const noContactCtx: RequestContext = {
+    tenantId: tenant,
+    userId: officer,
+    correlationId: cid(),
+    permissions: ALL_M14_PERMISSIONS.filter((p) => p !== M14_PERMISSIONS.partyContactRead),
+  };
+  audit.drain();
+  const redacted = await work.listParties(noContactCtx, m0.id);
+  t.ok(!redacted.canReadContact, 'a caller without legal.party_contact.read cannot read contacts');
+  t.ok(
+    !audit.entries.some((e) => e.code === M14_AUDIT_CODES.partyContactAccessed),
+    'no contact-access audit is emitted when contact is not revealed (no false PII audit)',
+  );
+
   await work.addActivity(full, officer, m0.id, {
     activityType: 'client_meeting',
     headline: 'Instruction meeting',
