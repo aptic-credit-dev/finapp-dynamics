@@ -931,6 +931,119 @@ export const proposeSettlement = (
 export const approveSettlement = (sid: string, t?: string | null): Promise<ApiResult<Row>> =>
   call(`${LG}/settlements/${encodeURIComponent(sid)}/approve`, { method: 'POST', tenantId: t });
 
+// --- M12 Feedback Management (Customer Service) — canonical m12-feedback engine, reused (no second feedback
+// engine). The Aptic FMS model: capture → classify → assign/escalate → HOD resolution (submit → approve, a
+// DISTINCT approver = SoD) → customer confirmation → rule-gated close. Every mutation is permission-gated +
+// audited + carries expectedVersion where required; closure is gated server-side (customer confirmation etc.);
+// NO hard delete. Customer contact is redacted unless the caller holds feedback.customer_contact.read, and a
+// reveal is audited (FEEDBACK_CONTACT_ACCESSED) server-side. Serious feedback can hand off to an M13 case. ---
+const FB = '/feedback';
+export const getFeedbackRecords = (
+  t?: string | null,
+  filters?: Record<string, string>,
+): Promise<ApiResult<{ records: Row[] }>> => {
+  const qs = filters
+    ? '?' +
+      Object.entries(filters)
+        .filter(([, v]) => v !== '')
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&')
+    : '';
+  return call(`${FB}/records${qs}`, { tenantId: t });
+};
+export const getFeedbackRecord = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}`, { tenantId: t });
+export const getFeedbackAnalytics = (
+  dimension: string,
+  t?: string | null,
+): Promise<ApiResult<{ dimension: string; buckets: Row[] }>> =>
+  call(`${FB}/analytics?dimension=${encodeURIComponent(dimension)}`, { tenantId: t });
+export const createFeedback = (body: Record<string, unknown>, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FB}/records`, { method: 'POST', body, tenantId: t });
+const fbAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${FB}/records/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+export const captureFeedback = (
+  id: string,
+  ev: number,
+  body: { rating?: number; ratingScale?: number; narrative?: string; feedbackType?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'capture', { expectedVersion: ev, ...body }, t);
+export const classifyFeedback = (
+  id: string,
+  ev: number,
+  body: { sentiment: string; severity: string; category?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'classify', { expectedVersion: ev, ...body }, t);
+export const assignFeedback = (
+  id: string,
+  ev: number,
+  owner: string,
+  t?: string | null,
+  kind?: string,
+): Promise<ApiResult<Row>> =>
+  fbAction(id, 'assign', { expectedVersion: ev, owner, ...(kind ? { kind } : {}) }, t);
+export const escalateFeedback = (id: string, reason: string, t?: string | null): Promise<ApiResult<Row>> =>
+  fbAction(id, 'escalate', { reason }, t);
+export const submitResolution = (
+  id: string,
+  body: {
+    summary?: string;
+    resolutionType?: string;
+    rootCauseCategory?: string;
+    responseCustomerFacing?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'resolution', body, t);
+export const approveResolution = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}/resolution/approve`, { method: 'POST', tenantId: t });
+export const recordConfirmation = (
+  id: string,
+  ev: number,
+  satisfied: boolean,
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'confirmation', { expectedVersion: ev, satisfied }, t);
+export const closeFeedback = (
+  id: string,
+  ev: number,
+  t?: string | null,
+  waiveCustomerConfirmation = false,
+): Promise<ApiResult<Row>> =>
+  fbAction(
+    id,
+    'close',
+    { expectedVersion: ev, ...(waiveCustomerConfirmation ? { waiveCustomerConfirmation: true } : {}) },
+    t,
+  );
+export const reopenFeedback = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'reopen', { expectedVersion: ev, reason }, t);
+export const requestFeedbackCaseHandoff = (
+  id: string,
+  body: { recommendedCaseType?: string; summary?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => fbAction(id, 'case-handoff', body, t);
+export const getFeedbackActivities = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ activities: Row[] }>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}/activities`, { tenantId: t });
+export const addFeedbackActivity = (
+  id: string,
+  body: { activityType: string; headline: string; description?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}/activities`, { method: 'POST', body, tenantId: t });
+export const getFeedbackResolution = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ resolution: Row | null }>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}/resolution`, { tenantId: t });
+export const getFeedbackSla = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FB}/records/${encodeURIComponent(id)}/sla`, { tenantId: t });
+
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
 // (RLS, no escape). Every write is a canonical permissioned + audited endpoint; the server is authoritative,

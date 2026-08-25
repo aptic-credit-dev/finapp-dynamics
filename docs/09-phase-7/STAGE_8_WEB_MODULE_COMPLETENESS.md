@@ -38,7 +38,7 @@ pre-merge on their stacked branches.
 | m09-docs | Documents / records | none | **NOT WEB READY** |
 | m10-report | obsolete placeholder | none | FRAMEWORK ONLY (obsolete → m32) |
 | m11-ai | obsolete placeholder | none | FRAMEWORK ONLY (obsolete → m24-29) |
-| m12-feedback | Feedback management | none | **NOT WEB READY** |
+| m12-feedback | Feedback management | **Customer Service → Feedback Management** | **WEB READY WITH LIMITATION** (FMS lifecycle capture→classify→resolution(maker-checker)→confirmation→close + M13 case-handoff + analytics dashboard done; questionnaire/category/SLA-policy admin not surfaced) |
 | m13-case | Case management + decisions | **Legal → Cases** | **WEB READY WITH LIMITATION** (case lifecycle + parties + activities + links done; decisions/settlements/tasks/investigation not surfaced) |
 | m14-legal | Legal matters | **Legal → Matters** | **WEB READY WITH LIMITATION** (matter lifecycle + positions/opinions/counsel + settlements SoD + from-case link done; court-events/pleadings/costs/appeal not surfaced) |
 | m15-recon | Legacy bank recon | none (superseded by m20) | FRAMEWORK ONLY |
@@ -73,8 +73,8 @@ pre-merge on their stacked branches.
 
 ## Summary counts (after M13)
 - **WEB READY**: m02-identity, m02-rbac, m17-recovery, m20-glrecon, m21-journal, m22-approval (6).
-- **WEB READY WITH LIMITATION**: m19-finance, m39-saas, m41-security, m13-case, **m14-legal** (5).
-- **NOT WEB READY (genuine gaps)**: m08-notify, m09-docs, m12-feedback, m16-litigation,
+- **WEB READY WITH LIMITATION**: m19-finance, m39-saas, m41-security, m13-case, m14-legal, **m12-feedback** (6).
+- **NOT WEB READY (genuine gaps)**: m08-notify, m09-docs, m16-litigation,
   m18-legaldocs, m28-executive-ai, m32-analytics (8).
 - **FRAMEWORK ONLY**: the remaining 26 (kernel/infra/engine/AI-contract/obsolete).
 

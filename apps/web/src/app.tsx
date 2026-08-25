@@ -2703,6 +2703,542 @@ function JournalsWorkspace({
   );
 }
 
+// ---------- Customer Service → Feedback Management (M12) — operational FMS workspace over the CANONICAL
+// m12-feedback engine. The Aptic model: capture → classify → assign/escalate → HOD resolution (submit → approve,
+// a DISTINCT approver = SoD) → customer confirmation → rule-gated close. No second feedback engine, no hard
+// delete. Verbatim customer narrative preserved. Customer contact redacted unless permitted (reveal audited
+// server-side). Serious feedback can hand off to an M13 case. ----------
+const sentimentPill = (s: string): JSX.Element => {
+  const v = (s || '').toLowerCase();
+  const cls = /positive/.test(v) ? 'ok' : /negative/.test(v) ? 'bad' : /neutral/.test(v) ? 'warn' : 'info';
+  return <span className={`pill ${cls}`}>{s || '—'}</span>;
+};
+
+function FeedbackDrawer({
+  recordId,
+  tenant,
+  perms,
+  actorId,
+  onClose,
+  onChanged,
+}: {
+  recordId: string;
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [f, setF] = useState<api.Row | null>(null);
+  const [acts, setActs] = useState<api.Row[]>([]);
+  const [sla, setSla] = useState<api.Row | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [owner, setOwner] = useState('');
+  const [rating, setRating] = useState('');
+  const [narrative, setNarrative] = useState('');
+  const [sentiment, setSentiment] = useState('negative');
+  const [severity, setSeverity] = useState('medium');
+  const [resText, setResText] = useState('');
+  useEffect(() => {
+    let live = true;
+    void api.getFeedbackRecord(recordId, tenant).then((r) => live && setF((r.data as api.Row) ?? null));
+    void api
+      .getFeedbackActivities(recordId, tenant)
+      .then((r) => live && setActs((r.data as { activities?: api.Row[] } | null)?.activities ?? []));
+    void api.getFeedbackSla(recordId, tenant).then((r) => live && setSla((r.data as api.Row) ?? null));
+    return () => {
+      live = false;
+    };
+  }, [recordId, tenant, nonce]);
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+  if (f === null)
+    return (
+      <div className="drawer-overlay" onClick={onClose} role="presentation">
+        <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog">
+          <div className="loading">Loading feedback…</div>
+        </aside>
+      </div>
+    );
+  const ev = Number(f['version'] ?? 1);
+  const status = pick(f, 'status').toLowerCase();
+  const resStatus = pick(f, 'resolutionStatus').toLowerCase();
+  const closed = pick(f, 'closureStatus').toLowerCase() === 'closed' || /closed/.test(status);
+  const confirmed = String(f['customerConfirmed']) === 'true';
+  const handoff = pick(f, 'caseHandoffStatus');
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Feedback">
+        <header className="drawer-head">
+          <h3>
+            {pick(f, 'code') || 'Feedback'} — {sentimentPill(pick(f, 'sentiment'))}
+          </h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Status</dt>
+            <dd>
+              {statusPill(pick(f, 'status'))}
+              {resStatus && ` · resolution ${resStatus}`}
+              {confirmed ? ' · ✓ customer confirmed' : ''}
+            </dd>
+            <dt>Customer</dt>
+            <dd>
+              {pick(f, 'customerRef') || '—'}{' '}
+              <span className="muted">
+                {pick(f, 'customerContact') ? `· ${pick(f, 'customerContact')}` : '· contact redacted'}
+              </span>
+            </dd>
+            <dt>Product / channel</dt>
+            <dd>
+              {pick(f, 'product') || '—'} · {pick(f, 'channel') || '—'} · {pick(f, 'feedbackType') || '—'}
+            </dd>
+            <dt>Branch / RO</dt>
+            <dd>
+              {pick(f, 'branch') || '—'} · {pick(f, 'responsibleOfficer') || '—'}
+            </dd>
+            <dt>Rating / severity</dt>
+            <dd>
+              {pick(f, 'rating') || '—'}
+              {pick(f, 'ratingScale') ? `/${pick(f, 'ratingScale')}` : ''} · {pick(f, 'severity') || '—'}
+            </dd>
+            <dt>Owner / SLA</dt>
+            <dd>
+              {pick(f, 'currentOwner') || 'unassigned'} ·{' '}
+              {sla
+                ? `${pick(sla, 'state') || pick(sla, 'status') || 'sla'}${String(sla['breached']) === 'true' ? ' ⚠ BREACHED' : ''}`
+                : pick(f, 'slaPolicyCode') || 'no SLA'}
+            </dd>
+          </dl>
+          {pick(f, 'narrative') && (
+            <div className="card" style={{ padding: '8px 12px', margin: '6px 0' }}>
+              <span className="muted" style={{ fontSize: 11 }}>
+                VERBATIM CUSTOMER FEEDBACK
+              </span>
+              <div>{pick(f, 'narrative')}</div>
+            </div>
+          )}
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+          <h4 className="drawer-sub">Workflow</h4>
+          <div className="action-row">
+            <ActionButton
+              label="Capture"
+              allowed={!closed && can('feedback.record.capture')}
+              onRun={() =>
+                run(
+                  api.captureFeedback(
+                    recordId,
+                    ev,
+                    {
+                      ...(rating.trim() ? { rating: Number(rating.trim()) } : {}),
+                      ...(narrative.trim() ? { narrative: narrative.trim() } : {}),
+                    },
+                    tenant,
+                  ),
+                  'Feedback captured.',
+                )
+              }
+            />
+            <ActionButton
+              label="Classify"
+              allowed={!closed && can('feedback.record.classify')}
+              onRun={() =>
+                run(
+                  api.classifyFeedback(recordId, ev, { sentiment, severity }, tenant),
+                  'Feedback classified.',
+                )
+              }
+            />
+            <ActionButton
+              label="Escalate to HOD"
+              needsReason
+              allowed={!closed && can('feedback.escalation.trigger')}
+              onRun={(reason) =>
+                run(api.escalateFeedback(recordId, reason ?? '', tenant), 'Escalated to HOD.')
+              }
+            />
+            <ActionButton
+              label="Approve resolution"
+              allowed={resStatus === 'submitted' && can('feedback.resolution.approve')}
+              onRun={() =>
+                run(api.approveResolution(recordId, tenant), 'Resolution approved (SoD: not the submitter).')
+              }
+            />
+            <ActionButton
+              label="Customer confirmed"
+              allowed={(resStatus === 'approved' || !closed) && can('feedback.confirmation.record')}
+              onRun={() =>
+                run(api.recordConfirmation(recordId, ev, true, tenant), 'Customer confirmation recorded.')
+              }
+            />
+            <ActionButton
+              label="Close"
+              allowed={!closed && can('feedback.record.close')}
+              onRun={() => run(api.closeFeedback(recordId, ev, tenant), 'Feedback closed (rule-gated).')}
+            />
+            <ActionButton
+              label="Reopen"
+              needsReason
+              allowed={closed && can('feedback.record.reopen')}
+              onRun={(reason) =>
+                run(api.reopenFeedback(recordId, ev, reason ?? '', tenant), 'Feedback reopened.')
+              }
+            />
+          </div>
+          <p className="muted" style={{ fontSize: 11, margin: '4px 0' }}>
+            Closure is rule-gated server-side (e.g. a negative case needs an approved resolution + customer
+            confirmation). A blocked close returns the unmet requirement.
+          </p>
+
+          {!closed && (can('feedback.record.capture') || can('feedback.record.classify')) && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <input
+                style={{ width: 70 }}
+                value={rating}
+                placeholder="Rating"
+                onChange={(e) => setRating(e.target.value)}
+              />
+              <select value={sentiment} onChange={(e) => setSentiment(e.target.value)}>
+                {['positive', 'neutral', 'negative'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <select value={severity} onChange={(e) => setSeverity(e.target.value)}>
+                {['low', 'medium', 'high', 'critical'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input
+                style={{ flex: 1 }}
+                value={narrative}
+                placeholder="Customer comments (verbatim)"
+                onChange={(e) => setNarrative(e.target.value)}
+              />
+            </div>
+          )}
+
+          {!closed && can('feedback.assignment.manage') && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={owner}
+                placeholder="Assign to (actor id)"
+                onChange={(e) => setOwner(e.target.value)}
+              />
+              <button
+                className="btn"
+                disabled={owner.trim() === ''}
+                onClick={() =>
+                  void run(api.assignFeedback(recordId, ev, owner.trim(), tenant), 'Feedback assigned.').then(
+                    () => setOwner(''),
+                  )
+                }
+              >
+                Assign
+              </button>
+              <button
+                className="btn secondary"
+                onClick={() => void run(api.assignFeedback(recordId, ev, actorId, tenant), 'Assigned to me.')}
+              >
+                Take ownership
+              </button>
+            </div>
+          )}
+
+          {!closed && can('feedback.resolution.submit') && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                style={{ flex: 1 }}
+                value={resText}
+                placeholder="HOD resolution / root cause / action taken"
+                onChange={(e) => setResText(e.target.value)}
+              />
+              <button
+                className="btn"
+                onClick={() =>
+                  void run(
+                    api.submitResolution(
+                      recordId,
+                      { summary: resText.trim() || 'Resolution (synthetic)' },
+                      tenant,
+                    ),
+                    'Resolution submitted (awaiting a distinct approver).',
+                  ).then(() => setResText(''))
+                }
+              >
+                Submit resolution
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Activity timeline</h4>
+          <ul className="timeline">
+            {acts.map((a, i) => (
+              <li key={pick(a, 'id') || i}>
+                <span className="t-head">{pick(a, 'headline') || pick(a, 'activityType')}</span>{' '}
+                <span className="muted">{pick(a, 'status')}</span>
+              </li>
+            ))}
+            {acts.length === 0 && <li className="muted">No activities.</li>}
+          </ul>
+
+          <h4 className="drawer-sub">Case management</h4>
+          <div className="linkrow">
+            {handoff && handoff.toLowerCase() !== 'none' ? (
+              <span className="pill info">M13 case handoff: {handoff}</span>
+            ) : can('feedback.case_handoff.request') && !closed ? (
+              <button
+                className="btn secondary sm"
+                onClick={() =>
+                  void run(
+                    api.requestFeedbackCaseHandoff(
+                      recordId,
+                      { summary: 'Serious feedback — escalate to case' },
+                      tenant,
+                    ),
+                    'Case handoff requested (M13).',
+                  )
+                }
+              >
+                Hand off to a case (M13)
+              </button>
+            ) : (
+              <span className="muted">No case link.</span>
+            )}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function FeedbackWorkspace({
+  tenant,
+  perms,
+  actorId,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [nonce, setNonce] = useState(0);
+  const [status, setStatus] = useState('');
+  const [sentiment, setSentiment] = useState('');
+  const [product, setProduct] = useState('');
+  const [q, setQ] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [cust, setCust] = useState('');
+  const [prod, setProd] = useState('');
+  const [narr, setNarr] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const records = useRows(async () => {
+    const r = await api.getFeedbackRecords(tenant, { status, sentiment, product });
+    return { ...r, data: (r.data as { records?: api.Row[] } | null)?.records ?? [] };
+  }, [tenant, nonce, status, sentiment, product]);
+  // canonical aggregate counts (no fabrication) — from the m12 analytics endpoint.
+  const [bySentiment, setBySentiment] = useState<Record<string, number>>({});
+  const [byStatus, setByStatus] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let live = true;
+    const load = (dim: string, set: (m: Record<string, number>) => void): void => {
+      void api.getFeedbackAnalytics(dim, tenant).then((r) => {
+        if (!live) return;
+        const b = (r.data as { buckets?: api.Row[] } | null)?.buckets ?? [];
+        const m: Record<string, number> = {};
+        b.forEach(
+          (x) =>
+            (m[pick(x, 'key').toLowerCase() || pick(x, 'bucket').toLowerCase()] = Number(
+              pick(x, 'count') || 0,
+            )),
+        );
+        set(m);
+      });
+    };
+    load('sentiment', setBySentiment);
+    load('status', setByStatus);
+    return () => {
+      live = false;
+    };
+  }, [tenant, nonce]);
+  const ql = q.trim().toLowerCase();
+  const shown = records.rows.filter(
+    (r) =>
+      ql === '' ||
+      pick(r, 'code').toLowerCase().includes(ql) ||
+      pick(r, 'customerRef').toLowerCase().includes(ql),
+  );
+  const sum = (m: Record<string, number>): number => Object.values(m).reduce((a, b) => a + b, 0);
+  const tiles = [
+    { k: 'Total feedback', v: sum(byStatus) || records.rows.length },
+    { k: 'Positive', v: bySentiment['positive'] ?? 0 },
+    { k: 'Negative', v: bySentiment['negative'] ?? 0 },
+    { k: 'Open', v: (byStatus['open'] ?? 0) + (byStatus['in_progress'] ?? 0) + (byStatus['assigned'] ?? 0) },
+    { k: 'Closed', v: byStatus['closed'] ?? 0 },
+  ];
+  const createFb = async (): Promise<void> => {
+    const r = await api.createFeedback(
+      {
+        ...(cust.trim() ? { customerRef: cust.trim() } : {}),
+        ...(prod.trim() ? { product: prod.trim() } : {}),
+        ...(narr.trim() ? { narrative: narr.trim() } : {}),
+        channel: 'phone',
+      },
+      tenant,
+    );
+    if (r.ok && r.data) {
+      setMsg({ ok: true, msg: 'Feedback record created.' });
+      setCreating(false);
+      setCust('');
+      setProd('');
+      setNarr('');
+      setNonce((x) => x + 1);
+      setOpenId(pick(r.data as api.Row, 'id'));
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not create feedback.' });
+    }
+  };
+  return (
+    <>
+      <h1 className="page-title">Feedback Management</h1>
+      <p className="page-sub">
+        Customer feedback over the canonical m12 engine · synthetic staging data. Capture → classify →
+        assign/escalate → HOD resolution (maker-checker) → customer confirmation → rule-gated close. RBAC +
+        tenant isolation + audit enforced server-side; customer contacts redacted unless permitted; no hard
+        delete.
+      </p>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <div className="tiles">
+        {tiles.map((t) => (
+          <div className="tile" key={t.k}>
+            <div className="k">{t.k}</div>
+            <div className="v">{t.v}</div>
+          </div>
+        ))}
+      </div>
+      <div className="card">
+        <header>
+          <h3>Feedback queue</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            {['new', 'captured', 'assigned', 'in_progress', 'resolved', 'closed', 'reopened'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <select value={sentiment} onChange={(e) => setSentiment(e.target.value)}>
+            <option value="">All sentiment</option>
+            {['positive', 'neutral', 'negative'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <input
+            value={product}
+            placeholder="Product"
+            onChange={(e) => setProduct(e.target.value)}
+            style={{ width: 120 }}
+          />
+          <input value={q} placeholder="Search #/customer…" onChange={(e) => setQ(e.target.value)} />
+          {can('feedback.record.create') && !creating && (
+            <button className="btn" onClick={() => setCreating(true)}>
+              New feedback
+            </button>
+          )}
+          {creating && (
+            <>
+              <input value={cust} placeholder="Customer ref" onChange={(e) => setCust(e.target.value)} />
+              <input value={prod} placeholder="Product" onChange={(e) => setProd(e.target.value)} />
+              <input
+                value={narr}
+                placeholder="Comments"
+                onChange={(e) => setNarr(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button className="btn" onClick={createFb}>
+                Create
+              </button>
+              <button className="btn link" onClick={() => setCreating(false)}>
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+        {records.loading ? (
+          <div className="loading">Loading feedback…</div>
+        ) : records.error ? (
+          <div className="empty">Could not load feedback ({records.error}).</div>
+        ) : shown.length === 0 ? (
+          <div className="empty">No feedback matches.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Ref</th>
+                <th>Customer</th>
+                <th>Product</th>
+                <th>Sentiment</th>
+                <th>Status</th>
+                <th>Owner</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r, i) => (
+                <tr key={pick(r, 'id') || i}>
+                  <td className="muted">{pick(r, 'code') || '—'}</td>
+                  <td className="muted">{pick(r, 'customerRef') || '—'}</td>
+                  <td className="muted">{pick(r, 'product') || '—'}</td>
+                  <td>{sentimentPill(pick(r, 'sentiment'))}</td>
+                  <td>{statusPill(pick(r, 'status'))}</td>
+                  <td className="muted">{pick(r, 'currentOwner') || 'unassigned'}</td>
+                  <td>
+                    <button className="btn link" onClick={() => setOpenId(pick(r, 'id'))}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {openId && (
+        <FeedbackDrawer
+          recordId={openId}
+          tenant={tenant}
+          perms={perms}
+          actorId={actorId}
+          onClose={() => setOpenId(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
 // ---------- Legal → Matters (M14) — operational legal-matter workspace over the CANONICAL m14-legal engine.
 // No second legal engine, no hard delete (open/assign/resolve/close/reopen/archive/escalate are governed
 // transitions). A matter can be created from an M13 case via the canonical from-case conversion (server-backed
@@ -5829,6 +6365,7 @@ const NAV = [
   { id: 'compliance', label: 'Compliance', icon: '❖', group: 'Compliance' },
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
   { id: 'compliance-privacy', label: 'Privacy & security', icon: '🔒', group: 'Compliance' },
+  { id: 'feedback', label: 'Feedback Management', icon: '💬', group: 'Customer Service' },
   { id: 'legal-cases', label: 'Cases', icon: '⚖', group: 'Legal' },
   { id: 'legal-matters', label: 'Matters', icon: '§', group: 'Legal' },
   { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
@@ -5864,6 +6401,9 @@ const FINANCE_READ_PERMS = [
 // group for everyone (fail closed). Switch to entitlement-gating once `legal_services` is seeded (see the
 // web-completeness doc).
 const LEGAL_READ_PERMS = ['cases.case.read', 'legal.matter.read'];
+
+// Customer Service (m12 feedback management) is a daily operational workspace — RBAC-gated on feedback read.
+const CS_READ_PERMS = ['feedback.record.read', 'feedback.queue.read'];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
 // entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
@@ -6022,6 +6562,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
     if (g === 'Approvals') return perms.has('approvals.request.read');
     if (g === 'Finance') return FINANCE_READ_PERMS.some((p) => perms.has(p));
     if (g === 'Legal') return LEGAL_READ_PERMS.some((p) => perms.has(p));
+    if (g === 'Customer Service') return CS_READ_PERMS.some((p) => perms.has(p));
     const cap = GROUP_ENTITLEMENT[g];
     if (!cap) return true; // Overview always
     return entitled?.[cap] === true;
@@ -6093,6 +6634,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} perms={perms} />}
         {route === 'compliance-privacy' && <PrivacySecurityWorkspace tenant={tenant} perms={perms} />}
+        {route === 'feedback' && <FeedbackWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'legal-cases' && <CasesWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'legal-matters' && <MattersWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
