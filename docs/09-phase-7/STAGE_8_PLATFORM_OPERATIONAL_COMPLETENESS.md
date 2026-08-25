@@ -39,7 +39,7 @@
 | m14-legal | Legal matters | ✅ | **Legal → Matters** | GREEN(matter slice) | P2 | matter lifecycle+positions/opinions/counsel/settlements(SoD)+from-case link done; court-events/pleadings/costs/appeal not surfaced; **`LEGAL_PARTY_CONTACT_ACCESSED` PII audit now wired** |
 | m15-recon | Bank reconciliation | ✅ | none (superseded by m20) | AMBER | P1 | full API, **zero web consumers** (Treasury runs on m20) |
 | m15a-matching | Deterministic matcher | ✅ (pure) | n/a | BLUE | — | internal engine |
-| m16-litigation | Litigation cases | ✅ | none | AMBER | P2 | no UI |
+| m16-litigation | Litigation cases | ✅ | **Legal → Litigation** | GREEN(proceeding slice) | P2 | proceeding lifecycle + filings(maker-checker) + hearings/service + from-matter link done; witnesses/exhibits/orders/bundles not surfaced; **`LITIGATION_PARTY_CONTACT_ACCESSED` PII audit now wired** |
 | m17-recovery | Debt recovery | ✅ | **Recovery vertical** | GREEN | — | (deep CRUD = PR3) |
 | m18-legaldocs | Legal knowledge library | ✅ | none | AMBER | P2 | no UI |
 | m19-finance | GL accounts/periods/config | ✅ | **Finance → Fiscal Calendar (period controls)** | GREEN(calendar slice) | P2 | fiscal-year + period open/close/lock/reopen + history now operational; GL-account/config admin UI still pending |
