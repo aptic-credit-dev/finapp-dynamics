@@ -45,7 +45,7 @@ pre-merge on their stacked branches.
 | m15a-matching | Deterministic matcher | n/a (pure) | FRAMEWORK ONLY |
 | m16-litigation | Litigation proceedings | **Legal → Litigation** | **WEB READY WITH LIMITATION** (proceeding lifecycle + filings maker-checker + hearings/service + from-matter link done; witnesses/exhibits/orders/bundles not surfaced) |
 | m17-recovery | Debt recovery lifecycle | **Recovery + Recovery cases** | **WEB READY** |
-| m18-legaldocs | Legal knowledge library | none | **NOT WEB READY** |
+| m18-legaldocs | Legal knowledge library | **Legal → Legal Documents** | **WEB READY WITH LIMITATION** (knowledge editorial lifecycle + templates maker-checker + authorities/precedents read done; clauses/opinions/research/taxonomy admin + m09 file link not surfaced) |
 | m19-finance | Fiscal calendar / periods / entities | **Finance → Fiscal calendar** | **WEB READY WITH LIMITATION** (GL-account/chart/config admin not surfaced) |
 | m20-glrecon | Bank↔GL reconciliation | **Treasury (recon/accounts/exceptions/reports)** | **WEB READY** |
 | m21-journal | Draft journal + posting engine | **Finance → Journals** | **WEB READY** |
@@ -74,8 +74,8 @@ pre-merge on their stacked branches.
 ## Summary counts (after M13)
 - **WEB READY**: m02-identity, m02-rbac, m17-recovery, m20-glrecon, m21-journal, m22-approval (6).
 - **WEB READY WITH LIMITATION**: m19-finance, m39-saas, m41-security, m13-case, m14-legal, **m16-litigation**,
-  **m12-feedback** (7).
-- **NOT WEB READY (genuine gaps)**: m08-notify, m09-docs, m18-legaldocs, m28-executive-ai, m32-analytics (5).
+  **m12-feedback**, **m18-legaldocs** (8).
+- **NOT WEB READY (genuine gaps)**: m08-notify, m09-docs, m28-executive-ai, m32-analytics (4).
 - **FRAMEWORK ONLY**: the remaining 26 (kernel/infra/engine/AI-contract/obsolete).
 
 ## Global Stage-8 web-navigation smoke (current composed branch: main+M41 + M19 + M21 + M39 + M13)
@@ -103,9 +103,10 @@ reachability defect.
 
 ## Genuine web gaps — ranked for the next bounded PRs
 **P1 (high-value operational surfaces, full backends, zero UI):**
-1. **Legal cluster — m13-case + m14-legal + m16-litigation DONE** (Legal → Cases + Matters + Litigation).
-   Remaining: **m18-legaldocs** — one backend (`legaldocs/*`, a legal knowledge library) to complete the Legal
-   group. Case/Matter/Proceeding details render truthful cross-module link chips end-to-end (case→matter→proceeding).
+1. **Legal cluster — COMPLETE**: m13-case + m14-legal + m16-litigation on main; **m18-legaldocs (this PR)** =
+   Legal → Legal Documents. The Legal group is now Cases + Matters + Litigation + Legal Documents — the full legal
+   workspace with the case→matter→proceeding referral chain plus the knowledge/template library. Next web P1 gaps:
+   **m32-analytics**, **m28-executive-ai**; P2: m08-notify, m09-docs.
 2. **m32-analytics** — reporting/dashboard (`analytics/definitions`, `analytics/runtime`); no UI at all.
 3. **m28-executive-ai** — executive copilot (`copilot/*`, full API); no entry point.
 

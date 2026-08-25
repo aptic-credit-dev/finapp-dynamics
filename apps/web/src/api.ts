@@ -1126,6 +1126,80 @@ export const approveFiling = (fid: string, ev: number, t?: string | null): Promi
 export const fileFiling = (fid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
   filingAction(fid, 'file', ev, t);
 
+// --- M18 Legal Documents (knowledge + template library) — canonical m18-legaldocs engine, reused (no second
+// document/knowledge engine, no second blob store — files live in m09 by reference). The editorial lifecycle is
+// maker-checker: create → submit → review/request-changes → approve (DISTINCT approver, SoD server-side) →
+// publish → supersede/withdraw. Every mutation is permission-gated + audited + carries expectedVersion; a
+// published version is immutable (content hash frozen). A list view never returns privileged content (ADR-076). ---
+const LD = '/legaldocs';
+export const getKnowledge = (
+  t?: string | null,
+  filters?: Record<string, string>,
+): Promise<ApiResult<{ results: Row[] }>> => {
+  const qs = filters
+    ? '?' +
+      Object.entries(filters)
+        .filter(([, v]) => v !== '')
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&')
+    : '';
+  return call(`${LD}/knowledge${qs}`, { tenantId: t });
+};
+export const getKnowledgeItem = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LD}/knowledge/${encodeURIComponent(id)}`, { tenantId: t });
+export const createKnowledge = (
+  body: { knowledgeType: string; title: string; [k: string]: unknown },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${LD}/knowledge`, { method: 'POST', body, tenantId: t });
+const knAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${LD}/knowledge/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+export const submitKnowledge = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  knAction(id, 'submit', { expectedVersion: ev }, t);
+export const reviewKnowledge = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  knAction(id, 'review', { expectedVersion: ev }, t);
+export const requestKnowledgeChanges = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => knAction(id, 'request-changes', { expectedVersion: ev, reason }, t);
+export const approveKnowledge = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  knAction(id, 'approve', { expectedVersion: ev }, t);
+export const publishKnowledge = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  knAction(id, 'publish', { expectedVersion: ev }, t);
+export const withdrawKnowledge = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => knAction(id, 'withdraw', { expectedVersion: ev, reason }, t);
+export const getKnowledgeReviews = (id: string, t?: string | null): Promise<ApiResult<{ reviews: Row[] }>> =>
+  call(`${LD}/knowledge/${encodeURIComponent(id)}/reviews`, { tenantId: t });
+// Templates (maker-checker: submit → approve [templateApprove, SoD] → publish → withdraw/supersede).
+export const getTemplates = (t?: string | null): Promise<ApiResult<{ templates: Row[] }>> =>
+  call(`${LD}/templates`, { tenantId: t });
+export const getTemplate = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LD}/templates/${encodeURIComponent(id)}`, { tenantId: t });
+const tplAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${LD}/templates/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+export const submitTemplate = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  tplAction(id, 'submit', { expectedVersion: ev }, t);
+export const approveTemplate = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  tplAction(id, 'approve', { expectedVersion: ev }, t);
+export const publishTemplate = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  tplAction(id, 'publish', { expectedVersion: ev }, t);
+export const withdrawTemplate = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => tplAction(id, 'withdraw', { expectedVersion: ev, reason }, t);
+// Read-only legal registries.
+export const getAuthorities = (t?: string | null): Promise<ApiResult<{ authorities: Row[] }>> =>
+  call(`${LD}/authorities`, { tenantId: t });
+export const getPrecedents = (t?: string | null): Promise<ApiResult<{ precedents: Row[] }>> =>
+  call(`${LD}/precedents`, { tenantId: t });
+
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
 // (RLS, no escape). Every write is a canonical permissioned + audited endpoint; the server is authoritative,

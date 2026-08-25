@@ -41,7 +41,7 @@
 | m15a-matching | Deterministic matcher | ✅ (pure) | n/a | BLUE | — | internal engine |
 | m16-litigation | Litigation cases | ✅ | **Legal → Litigation** | GREEN(proceeding slice) | P2 | proceeding lifecycle + filings(maker-checker) + hearings/service + from-matter link done; witnesses/exhibits/orders/bundles not surfaced; **`LITIGATION_PARTY_CONTACT_ACCESSED` PII audit now wired** |
 | m17-recovery | Debt recovery | ✅ | **Recovery vertical** | GREEN | — | (deep CRUD = PR3) |
-| m18-legaldocs | Legal knowledge library | ✅ | none | AMBER | P2 | no UI |
+| m18-legaldocs | Legal knowledge library | ✅ | **Legal → Legal Documents** | GREEN(library slice) | P2 | knowledge editorial lifecycle (submit→review→approve→publish, SoD) + templates(maker-checker) + authorities/precedents read done; clauses/opinions/research/taxonomy-admin + m09 file link not surfaced |
 | m19-finance | GL accounts/periods/config | ✅ | **Finance → Fiscal Calendar (period controls)** | GREEN(calendar slice) | P2 | fiscal-year + period open/close/lock/reopen + history now operational; GL-account/config admin UI still pending |
 | m20-glrecon | Bank↔GL reconciliation | ✅ | **Treasury vertical (+PR2 actions)** | GREEN | — | — |
 | m21-journal | Draft journal engine | ✅ | **Finance → Journals workspace (draft→submit→posting→authorize)** | GREEN(workspace slice) | P2 | posting-result is evidence-only; external core-post deferred (m23/m33) |
