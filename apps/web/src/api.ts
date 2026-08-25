@@ -822,6 +822,115 @@ export const getCaseRelationships = (
 ): Promise<ApiResult<{ relationships: Row[] }>> =>
   call(`${CS}/${encodeURIComponent(id)}/relationships`, { tenantId: t });
 
+// --- M14 Legal Matters — canonical m14-legal engine, reused (no second legal engine). Every mutation is
+// permission-gated + audited + carries expectedVersion where required; lifecycle is named POST actions
+// (open/assign/reassign/resolve/close/reopen/archive/escalate) — NO hard delete. A matter can be created from an
+// M13 case via the canonical from-case conversion (server-backed sourceCaseId link). Settlements are the
+// canonical maker-checker (proposer != approver, SoD server-side). Party CONTACT is redacted unless the caller
+// holds legal.party_contact.read, and a genuine reveal is audited (LEGAL_PARTY_CONTACT_ACCESSED). ---
+const LG = '/legal';
+export const getMatters = (
+  t?: string | null,
+  filters?: Record<string, string>,
+): Promise<ApiResult<{ matters: Row[] }>> => {
+  const qs = filters
+    ? '?' +
+      Object.entries(filters)
+        .filter(([, v]) => v !== '')
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&')
+    : '';
+  return call(`${LG}/matters${qs}`, { tenantId: t });
+};
+export const getMatter = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}`, { tenantId: t });
+export const createMatter = (
+  body: { matterTypeCode: string; title: string; [k: string]: unknown },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${LG}/matters`, { method: 'POST', body, tenantId: t });
+export const matterFromCase = (
+  body: { sourceCaseId: string; matterTypeCode: string; title: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${LG}/from-case`, { method: 'POST', body, tenantId: t });
+const matterAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${LG}/matters/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+export const openMatter = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  matterAction(id, 'open', { expectedVersion: ev }, t);
+export const assignMatter = (
+  id: string,
+  ev: number,
+  owner: string,
+  t?: string | null,
+  reassign = false,
+): Promise<ApiResult<Row>> =>
+  matterAction(id, reassign ? 'reassign' : 'assign', { expectedVersion: ev, owner }, t);
+export const resolveMatter = (
+  id: string,
+  ev: number,
+  t?: string | null,
+  summary?: string,
+): Promise<ApiResult<Row>> =>
+  matterAction(id, 'resolve', { expectedVersion: ev, ...(summary ? { summary } : {}) }, t);
+export const closeMatter = (
+  id: string,
+  ev: number,
+  t?: string | null,
+  summary?: string,
+): Promise<ApiResult<Row>> =>
+  matterAction(id, 'close', { expectedVersion: ev, ...(summary ? { summary } : {}) }, t);
+export const reopenMatter = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => matterAction(id, 'reopen', { expectedVersion: ev, reason }, t);
+export const archiveMatter = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  matterAction(id, 'archive', { expectedVersion: ev }, t);
+export const escalateMatter = (id: string, reason: string, t?: string | null): Promise<ApiResult<Row>> =>
+  matterAction(id, 'escalate', { reason }, t);
+const mget = (id: string, sub: string, t?: string | null) =>
+  call<Row[] | Record<string, Row[]>>(`${LG}/matters/${encodeURIComponent(id)}/${sub}`, { tenantId: t });
+export const getMatterParties = (id: string, t?: string | null) => mget(id, 'parties', t);
+export const getMatterActivities = (id: string, t?: string | null) => mget(id, 'activities', t);
+export const getMatterPositions = (id: string, t?: string | null) => mget(id, 'positions', t);
+export const getMatterOpinions = (id: string, t?: string | null) => mget(id, 'opinions', t);
+export const getMatterCounsel = (id: string, t?: string | null) => mget(id, 'counsel', t);
+export const getMatterDeadlines = (id: string, t?: string | null) => mget(id, 'deadlines', t);
+export const getMatterSettlements = (id: string, t?: string | null) => mget(id, 'settlements', t);
+export const getMatterRelationships = (id: string, t?: string | null) => mget(id, 'relationships', t);
+export const addMatterActivity = (
+  id: string,
+  body: { activityType: string; headline: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/activities`, { method: 'POST', body, tenantId: t });
+export const addMatterPosition = (
+  id: string,
+  body: { positionType?: string; summary: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/positions`, { method: 'POST', body, tenantId: t });
+export const addMatterOpinion = (
+  id: string,
+  body: { opinionType?: string; riskRating?: string; documentRef?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/opinions`, { method: 'POST', body, tenantId: t });
+export const addMatterCounsel = (
+  id: string,
+  body: { lawFirmRef?: string; advocateRef?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/counsel`, { method: 'POST', body, tenantId: t });
+export const proposeSettlement = (
+  id: string,
+  body: { proposal?: string; amountMinor?: number; monetaryTerms?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/settlements`, { method: 'POST', body, tenantId: t });
+export const approveSettlement = (sid: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LG}/settlements/${encodeURIComponent(sid)}/approve`, { method: 'POST', tenantId: t });
+
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
 // (RLS, no escape). Every write is a canonical permissioned + audited endpoint; the server is authoritative,

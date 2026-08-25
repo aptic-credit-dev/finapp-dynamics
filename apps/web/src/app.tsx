@@ -2703,6 +2703,584 @@ function JournalsWorkspace({
   );
 }
 
+// ---------- Legal → Matters (M14) — operational legal-matter workspace over the CANONICAL m14-legal engine.
+// No second legal engine, no hard delete (open/assign/resolve/close/reopen/archive/escalate are governed
+// transitions). A matter can be created from an M13 case via the canonical from-case conversion (server-backed
+// sourceCaseId link — never a duplicated case). Settlements are the canonical maker-checker (proposer != approver,
+// SoD server-side). Party CONTACT is redacted unless permitted, and a reveal is audited. Links to m16 litigation
+// are shown truthfully as references. ----------
+const MATTER_LINKS: { field: string; label: string }[] = [
+  { field: 'sourceCaseId', label: 'Originating case (m13)' },
+  { field: 'courtReference', label: 'Litigation (m16)' },
+];
+
+function MatterDrawer({
+  matterId,
+  tenant,
+  perms,
+  actorId,
+  onClose,
+  onChanged,
+}: {
+  matterId: string;
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [m, setM] = useState<api.Row | null>(null);
+  const [positions, setPositions] = useState<api.Row[]>([]);
+  const [opinions, setOpinions] = useState<api.Row[]>([]);
+  const [counsel, setCounsel] = useState<api.Row[]>([]);
+  const [acts, setActs] = useState<api.Row[]>([]);
+  const [settlements, setSettlements] = useState<api.Row[]>([]);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [owner, setOwner] = useState('');
+  const [posText, setPosText] = useState('');
+  const [opText, setOpText] = useState('');
+  const [firmRef, setFirmRef] = useState('');
+  const [actHead, setActHead] = useState('');
+  const grab = (r: api.ApiResult<unknown>, key: string): api.Row[] =>
+    ((r.data as Record<string, api.Row[]> | null)?.[key] ?? []) as api.Row[];
+  useEffect(() => {
+    let live = true;
+    void api.getMatter(matterId, tenant).then((r) => live && setM((r.data as api.Row) ?? null));
+    void api.getMatterPositions(matterId, tenant).then((r) => live && setPositions(grab(r, 'positions')));
+    void api.getMatterOpinions(matterId, tenant).then((r) => live && setOpinions(grab(r, 'opinions')));
+    void api.getMatterCounsel(matterId, tenant).then((r) => live && setCounsel(grab(r, 'counsel')));
+    void api.getMatterActivities(matterId, tenant).then((r) => live && setActs(grab(r, 'activities')));
+    void api
+      .getMatterSettlements(matterId, tenant)
+      .then((r) => live && setSettlements(grab(r, 'settlements')));
+    return () => {
+      live = false;
+    };
+  }, [matterId, tenant, nonce]);
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+  if (m === null)
+    return (
+      <div className="drawer-overlay" onClick={onClose} role="presentation">
+        <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog">
+          <div className="loading">Loading matter…</div>
+        </aside>
+      </div>
+    );
+  const status = pick(m, 'status').toLowerCase();
+  const ev = Number(m['version'] ?? 1);
+  const terminal = /closed|archived/.test(status);
+  const hasOwner = pick(m, 'currentOwner') !== '';
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Matter">
+        <header className="drawer-head">
+          <h3>
+            {pick(m, 'matterNumber') || 'Matter'} — {pick(m, 'title')}
+          </h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Status</dt>
+            <dd>
+              {statusPill(pick(m, 'status'))} {pick(m, 'currentStage') && `· ${pick(m, 'currentStage')}`}
+            </dd>
+            <dt>Type / jurisdiction</dt>
+            <dd>
+              {pick(m, 'matterTypeCode') || '—'} · {pick(m, 'jurisdiction') || '—'}
+            </dd>
+            <dt>Owner / team</dt>
+            <dd>
+              {pick(m, 'currentOwner') || 'unassigned'} · {pick(m, 'legalTeam') || '—'}
+            </dd>
+            <dt>Priority / risk</dt>
+            <dd>
+              {pick(m, 'priority') || '—'} / {pick(m, 'legalRisk') || '—'}
+            </dd>
+            <dt>SLA</dt>
+            <dd>
+              {pick(m, 'slaPolicyCode') || '—'}
+              {String(m['legalHold']) === 'true' ? ' · ⚖ legal hold' : ''}
+              {String(m['privileged']) === 'true' ? ' · 🔒 privileged' : ''}
+            </dd>
+          </dl>
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+          <h4 className="drawer-sub">Actions</h4>
+          <div className="action-row">
+            <ActionButton
+              label="Open"
+              allowed={/draft|registered|new|intake/.test(status) && can('legal.matter.open')}
+              onRun={() => run(api.openMatter(matterId, ev, tenant), 'Matter opened.')}
+            />
+            <ActionButton
+              label="Resolve"
+              allowed={!terminal && status !== 'resolved' && can('legal.matter.resolve')}
+              onRun={() => run(api.resolveMatter(matterId, ev, tenant), 'Matter resolved.')}
+            />
+            <ActionButton
+              label="Close"
+              allowed={(status === 'resolved' || !terminal) && can('legal.matter.close')}
+              onRun={() => run(api.closeMatter(matterId, ev, tenant), 'Matter closed.')}
+            />
+            <ActionButton
+              label="Reopen"
+              needsReason
+              allowed={(status === 'resolved' || status === 'closed') && can('legal.matter.reopen')}
+              onRun={(reason) =>
+                run(api.reopenMatter(matterId, ev, reason ?? '', tenant), 'Matter reopened.')
+              }
+            />
+            <ActionButton
+              label="Archive"
+              danger
+              allowed={status === 'closed' && can('legal.matter.archive')}
+              onRun={() => run(api.archiveMatter(matterId, ev, tenant), 'Matter archived.')}
+            />
+            <ActionButton
+              label="Escalate"
+              needsReason
+              allowed={!terminal && can('legal.matter.update')}
+              onRun={(reason) =>
+                run(api.escalateMatter(matterId, reason ?? '', tenant), 'Escalation triggered.')
+              }
+            />
+          </div>
+          {!terminal && can('legal.matter.assign') && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={owner}
+                placeholder={hasOwner ? 'Reassign to (actor id)' : 'Assign to (actor id)'}
+                onChange={(e) => setOwner(e.target.value)}
+              />
+              <button
+                className="btn"
+                disabled={owner.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.assignMatter(matterId, ev, owner.trim(), tenant, hasOwner),
+                    hasOwner ? 'Matter reassigned.' : 'Matter assigned.',
+                  ).then(() => setOwner(''))
+                }
+              >
+                {hasOwner ? 'Reassign' : 'Assign'}
+              </button>
+              <button
+                className="btn secondary"
+                onClick={() =>
+                  void run(api.assignMatter(matterId, ev, actorId, tenant, hasOwner), 'Assigned to me.')
+                }
+              >
+                Take ownership
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Legal positions</h4>
+          <ul className="timeline">
+            {positions.map((p, i) => (
+              <li key={pick(p, 'id') || i}>
+                <span className="t-head">{pick(p, 'summary') || pick(p, 'positionType') || 'Position'}</span>{' '}
+                <span className="muted">{pick(p, 'approvalStatus') || pick(p, 'status') || ''}</span>
+              </li>
+            ))}
+            {positions.length === 0 && <li className="muted">No positions.</li>}
+          </ul>
+          {can('legal.position.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={posText}
+                placeholder="Position summary"
+                onChange={(e) => setPosText(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn"
+                disabled={posText.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.addMatterPosition(matterId, { summary: posText.trim() }, tenant),
+                    'Position added.',
+                  ).then(() => setPosText(''))
+                }
+              >
+                Add position
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Legal opinions</h4>
+          <ul className="timeline">
+            {opinions.map((o, i) => (
+              <li key={pick(o, 'id') || i}>
+                <span className="t-head">{pick(o, 'opinionType') || 'Opinion'}</span>{' '}
+                <span className="muted">
+                  {pick(o, 'riskRating') && `risk ${pick(o, 'riskRating')} · `}
+                  {pick(o, 'approvalStatus') || 'recorded'}
+                </span>
+              </li>
+            ))}
+            {opinions.length === 0 && <li className="muted">No opinions.</li>}
+          </ul>
+          {can('legal.opinion.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={opText}
+                placeholder="Opinion type (e.g. merits)"
+                onChange={(e) => setOpText(e.target.value)}
+              />
+              <button
+                className="btn"
+                disabled={opText.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.addMatterOpinion(matterId, { opinionType: opText.trim() }, tenant),
+                    'Opinion recorded.',
+                  ).then(() => setOpText(''))
+                }
+              >
+                Add opinion
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">External counsel</h4>
+          <ul className="timeline">
+            {counsel.map((c, i) => (
+              <li key={pick(c, 'id') || i}>
+                <span className="t-head">{pick(c, 'lawFirmRef') || 'Counsel'}</span>{' '}
+                <span className="muted">
+                  {pick(c, 'advocateRef')} · {pick(c, 'status')}
+                </span>
+              </li>
+            ))}
+            {counsel.length === 0 && <li className="muted">No counsel assigned.</li>}
+          </ul>
+          {can('legal.external_counsel.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={firmRef}
+                placeholder="Law firm ref"
+                onChange={(e) => setFirmRef(e.target.value)}
+              />
+              <button
+                className="btn"
+                disabled={firmRef.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.addMatterCounsel(matterId, { lawFirmRef: firmRef.trim() }, tenant),
+                    'Counsel assigned.',
+                  ).then(() => setFirmRef(''))
+                }
+              >
+                Assign counsel
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Settlements (maker-checker)</h4>
+          <p className="muted" style={{ fontSize: 11, margin: '0 0 4px' }}>
+            A settlement needs a DISTINCT approver (proposer ≠ approver, SoD enforced server-side).
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Proposal</th>
+                <th className="num">Amount</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {settlements.map((st, i) => {
+                const sid = pick(st, 'id');
+                const sstatus = pick(st, 'approvalStatus') || pick(st, 'status');
+                return (
+                  <tr key={sid || i}>
+                    <td>{pick(st, 'proposal') || '—'}</td>
+                    <td className="num">{fmtMinor(pick(st, 'amountMinor'))}</td>
+                    <td>{statusPill(sstatus)}</td>
+                    <td>
+                      <ActionButton
+                        label="Approve"
+                        allowed={
+                          /proposed|pending|submitted/.test(sstatus.toLowerCase()) &&
+                          can('legal.settlement.approve')
+                        }
+                        onRun={() =>
+                          run(
+                            api.approveSettlement(sid, tenant),
+                            'Settlement approved (SoD: not the proposer).',
+                          )
+                        }
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+              {settlements.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="muted">
+                    No settlements.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {can('legal.settlement.submit') && !terminal && (
+            <button
+              className="btn secondary"
+              onClick={() =>
+                void run(
+                  api.proposeSettlement(matterId, { proposal: 'Proposed settlement (synthetic)' }, tenant),
+                  'Settlement proposed (awaiting a distinct approver).',
+                )
+              }
+            >
+              Propose settlement
+            </button>
+          )}
+
+          <h4 className="drawer-sub">Activity timeline</h4>
+          <ul className="timeline">
+            {acts.map((a, i) => (
+              <li key={pick(a, 'id') || i}>
+                <span className="t-head">{pick(a, 'headline') || pick(a, 'activityType')}</span>{' '}
+                <span className="muted">{pick(a, 'status')}</span>
+              </li>
+            ))}
+            {acts.length === 0 && <li className="muted">No activities.</li>}
+          </ul>
+          {can('legal.activity.create') && !terminal && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={actHead}
+                placeholder="Activity headline"
+                onChange={(e) => setActHead(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn"
+                disabled={actHead.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.addMatterActivity(
+                      matterId,
+                      { activityType: 'note', headline: actHead.trim() },
+                      tenant,
+                    ),
+                    'Activity added.',
+                  ).then(() => setActHead(''))
+                }
+              >
+                Add
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Cross-module links</h4>
+          <div className="linkrow">
+            {MATTER_LINKS.filter((l) => pick(m, l.field) !== '').map((l) => (
+              <span key={l.field} className="pill info">
+                {l.label}: {pick(m, l.field).slice(0, 12)}
+                {l.field === 'courtReference' ? ' — litigation workspace coming next' : ''}
+              </span>
+            ))}
+            {MATTER_LINKS.every((l) => pick(m, l.field) === '') && (
+              <span className="muted">No linked case / litigation.</span>
+            )}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function MattersWorkspace({
+  tenant,
+  perms,
+  actorId,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [nonce, setNonce] = useState(0);
+  const [status, setStatus] = useState('');
+  const [q, setQ] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [creating, setCreating] = useState<'' | 'new' | 'from-case'>('');
+  const [typeCode, setTypeCode] = useState('');
+  const [title, setTitle] = useState('');
+  const [caseId, setCaseId] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const matters = useRows(async () => {
+    const r = await api.getMatters(tenant, { status });
+    return { ...r, data: (r.data as { matters?: api.Row[] } | null)?.matters ?? [] };
+  }, [tenant, nonce, status]);
+  const ql = q.trim().toLowerCase();
+  const shown = matters.rows.filter(
+    (m) =>
+      ql === '' ||
+      pick(m, 'title').toLowerCase().includes(ql) ||
+      pick(m, 'matterNumber').toLowerCase().includes(ql),
+  );
+  const create = async (): Promise<void> => {
+    const r =
+      creating === 'from-case'
+        ? await api.matterFromCase(
+            { sourceCaseId: caseId.trim(), matterTypeCode: typeCode.trim(), title: title.trim() },
+            tenant,
+          )
+        : await api.createMatter({ matterTypeCode: typeCode.trim(), title: title.trim() }, tenant);
+    if (r.ok && r.data) {
+      const row = (r.data as { matter?: api.Row } | null)?.matter ?? (r.data as api.Row);
+      setMsg({
+        ok: true,
+        msg: creating === 'from-case' ? 'Matter opened from case (server-backed link).' : 'Matter created.',
+      });
+      setCreating('');
+      setTypeCode('');
+      setTitle('');
+      setCaseId('');
+      setNonce((x) => x + 1);
+      setOpenId(pick(row, 'id'));
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not create matter (a published matter type is required).' });
+    }
+  };
+  return (
+    <>
+      <h1 className="page-title">Legal matters</h1>
+      <p className="page-sub">
+        Legal-matter management over the canonical m14 engine · synthetic staging data. A matter can be opened
+        from an m13 case (server-backed link). RBAC + tenant isolation + audit enforced server-side; party
+        contacts redacted unless permitted; settlements are maker-checker; no hard delete.
+      </p>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <div className="card">
+        <header>
+          <h3>Matters</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            {['draft', 'open', 'assigned', 'resolved', 'closed', 'archived'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <input value={q} placeholder="Search #/title…" onChange={(e) => setQ(e.target.value)} />
+          {can('legal.matter.create') && creating === '' && (
+            <button className="btn" onClick={() => setCreating('new')}>
+              New matter
+            </button>
+          )}
+          {can('legal.conversion.accept') && creating === '' && (
+            <button className="btn secondary" onClick={() => setCreating('from-case')}>
+              From case
+            </button>
+          )}
+          {creating !== '' && (
+            <>
+              {creating === 'from-case' && (
+                <input
+                  value={caseId}
+                  placeholder="Source case id"
+                  onChange={(e) => setCaseId(e.target.value)}
+                />
+              )}
+              <input
+                value={typeCode}
+                placeholder="Matter type code"
+                onChange={(e) => setTypeCode(e.target.value)}
+              />
+              <input value={title} placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
+              <button
+                className="btn"
+                disabled={
+                  typeCode.trim() === '' ||
+                  title.trim() === '' ||
+                  (creating === 'from-case' && caseId.trim() === '')
+                }
+                onClick={create}
+              >
+                {creating === 'from-case' ? 'Open from case' : 'Create'}
+              </button>
+              <button className="btn link" onClick={() => setCreating('')}>
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+        {matters.loading ? (
+          <div className="loading">Loading matters…</div>
+        ) : matters.error ? (
+          <div className="empty">Could not load matters ({matters.error}).</div>
+        ) : shown.length === 0 ? (
+          <div className="empty">No matters match.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Matter #</th>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Jurisdiction</th>
+                <th>Status</th>
+                <th>Owner</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((m, i) => (
+                <tr key={pick(m, 'id') || i}>
+                  <td className="muted">{pick(m, 'matterNumber') || '—'}</td>
+                  <td>{pick(m, 'title')}</td>
+                  <td className="muted">{pick(m, 'matterTypeCode')}</td>
+                  <td className="muted">{pick(m, 'jurisdiction') || '—'}</td>
+                  <td>{statusPill(pick(m, 'status'))}</td>
+                  <td className="muted">{pick(m, 'currentOwner') || 'unassigned'}</td>
+                  <td>
+                    <button className="btn link" onClick={() => setOpenId(pick(m, 'id'))}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {openId && (
+        <MatterDrawer
+          matterId={openId}
+          tenant={tenant}
+          perms={perms}
+          actorId={actorId}
+          onClose={() => setOpenId(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
 // ---------- Legal → Cases (M13) — operational case workspace over the CANONICAL m13-case engine. No second case
 // engine, no hard delete (open/triage/assign/resolve/close/reopen/archive/escalate are governed transitions).
 // Party CONTACT details are redacted server-side unless the caller holds cases.party_contact.read, and a genuine
@@ -5252,6 +5830,7 @@ const NAV = [
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
   { id: 'compliance-privacy', label: 'Privacy & security', icon: '🔒', group: 'Compliance' },
   { id: 'legal-cases', label: 'Cases', icon: '⚖', group: 'Legal' },
+  { id: 'legal-matters', label: 'Matters', icon: '§', group: 'Legal' },
   { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
   { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
@@ -5284,7 +5863,7 @@ const FINANCE_READ_PERMS = [
 // entitlement would need to be seeded per tenant first, and gating on an unseeded capability would hide the
 // group for everyone (fail closed). Switch to entitlement-gating once `legal_services` is seeded (see the
 // web-completeness doc).
-const LEGAL_READ_PERMS = ['cases.case.read'];
+const LEGAL_READ_PERMS = ['cases.case.read', 'legal.matter.read'];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
 // entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
@@ -5515,6 +6094,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} perms={perms} />}
         {route === 'compliance-privacy' && <PrivacySecurityWorkspace tenant={tenant} perms={perms} />}
         {route === 'legal-cases' && <CasesWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
+        {route === 'legal-matters' && <MattersWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}

@@ -148,8 +148,23 @@ export class MatterWorkService {
   ): Promise<{ parties: PartyRow[]; canReadContact: boolean }> {
     await this.authz.require(ctx, M14_PERMISSIONS.partyRead);
     const canReadContact = await this.authz.can(ctx, M14_PERMISSIONS.partyContactRead);
-    const parties = await this.db.withTenant(ctx, (tx) => this.repo.listParties(tx, matterId));
-    return { parties, canReadContact };
+    return this.db.withTenant(ctx, async (tx) => {
+      const parties = await this.repo.listParties(tx, matterId);
+      // Contact VALUES never enter events/audit — but ACCESS to protected contact data is itself auditable.
+      // Emit LEGAL_PARTY_CONTACT_ACCESSED ONLY when contact is actually revealed (the caller holds
+      // legal.party_contact.read AND ≥1 party exposes a non-null contact ref) — never for non-sensitive party
+      // metadata, and carrying only the matter id + a count, never the contact value.
+      const revealedCount = canReadContact ? parties.filter((p) => p.contact_ref !== null).length : 0;
+      if (revealedCount > 0) {
+        await this.emitter.recordAudit(tx, ctx, {
+          code: M14_AUDIT_CODES.partyContactAccessed,
+          entityType: 'legal_matter',
+          entityId: matterId,
+          detail: { revealedCount },
+        });
+      }
+      return { parties, canReadContact };
+    });
   }
 
   // --- activities (incl. correspondence) --------------------------------------------------------
