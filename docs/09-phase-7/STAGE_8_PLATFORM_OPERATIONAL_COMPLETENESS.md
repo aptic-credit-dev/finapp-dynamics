@@ -34,7 +34,7 @@
 | m09-docs | Documents/records | ✅ | none | AMBER | P2 | no document UI |
 | m10-report | (intended reporting) | ❌ README only | none | RED | P1(hygiene) | **obsolete** → m32-analytics |
 | m11-ai | (intended AI) | ❌ README only | none | RED | P1(hygiene) | **obsolete** → m24-m29 |
-| m12-feedback | Feedback management | ✅ | none | AMBER | P2 | no feedback UI |
+| m12-feedback | Feedback management | ✅ | **Customer Service → Feedback Management** | GREEN(FMS slice) | P2 | capture→classify→assign/escalate→resolution(maker-checker)→confirmation→rule-gated close + M13 case-handoff + analytics dashboard done; questionnaire/catalog admin not surfaced |
 | m13-case | Case management | ✅ | **Legal → Cases** | GREEN(case slice) | P2 | lifecycle+parties+activities+links done; decisions/settlements/tasks/investigation not surfaced; **`partyContactAccessed` PII audit now wired** |
 | m14-legal | Legal matters | ✅ | **Legal → Matters** | GREEN(matter slice) | P2 | matter lifecycle+positions/opinions/counsel/settlements(SoD)+from-case link done; court-events/pleadings/costs/appeal not surfaced; **`LEGAL_PARTY_CONTACT_ACCESSED` PII audit now wired** |
 | m15-recon | Bank reconciliation | ✅ | none (superseded by m20) | AMBER | P1 | full API, **zero web consumers** (Treasury runs on m20) |
