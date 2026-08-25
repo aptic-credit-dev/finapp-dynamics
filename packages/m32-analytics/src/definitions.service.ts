@@ -561,6 +561,22 @@ export class AnalyticsMetricService {
     await this.authz.require(ctx, M32_PERMISSIONS.metricRead);
     return this.db.withTenant(ctx, (tx) => this.repo.getMetric(tx, id));
   }
+  /** Metrics of a dataset (any state) — read-model for the reporting workspace. */
+  async listMetrics(
+    ctx: RequestContext,
+    datasetId: string,
+    page?: { limit?: number; offset?: number },
+  ): Promise<MetricRow[]> {
+    await this.authz.require(ctx, M32_PERMISSIONS.metricRead);
+    const { limit, offset } = clampPage(page?.limit, page?.offset);
+    return this.db.withTenant(ctx, (tx) => this.repo.listMetrics(tx, datasetId, limit, offset));
+  }
+  /** Published metrics across datasets (the ones a query can run against). */
+  async listPublishedMetrics(ctx: RequestContext, limit?: number): Promise<MetricRow[]> {
+    await this.authz.require(ctx, M32_PERMISSIONS.metricRead);
+    const { limit: lim } = clampPage(limit, 0);
+    return this.db.withTenant(ctx, (tx) => this.repo.listPublishedMetrics(tx, lim));
+  }
 }
 
 export class AnalyticsReportService {
@@ -809,5 +825,10 @@ export class AnalyticsReportService {
   async getReport(ctx: RequestContext, id: string): Promise<ReportRow | null> {
     await this.authz.require(ctx, M32_PERMISSIONS.reportRead);
     return this.db.withTenant(ctx, (tx) => this.repo.getReport(tx, id));
+  }
+  async listReports(ctx: RequestContext, page?: { limit?: number; offset?: number }): Promise<ReportRow[]> {
+    await this.authz.require(ctx, M32_PERMISSIONS.reportRead);
+    const { limit, offset } = clampPage(page?.limit, page?.offset);
+    return this.db.withTenant(ctx, (tx) => this.repo.listReports(tx, limit, offset));
   }
 }

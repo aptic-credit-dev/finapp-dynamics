@@ -69,6 +69,27 @@ export class AnalyticsDefinitionsController {
     return { datasets: rows.map(datasetView) };
   }
 
+  @Get('datasets/:id')
+  async getDataset(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'get analytics dataset (m32)');
+    const d = await this.datasets.getDataset(s.ctx, id);
+    return d === null ? { dataset: null } : datasetView(d);
+  }
+
+  @Get('datasets/:id/metrics')
+  async listDatasetMetrics(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list analytics metrics (m32)');
+    const rows = await this.metrics.listMetrics(s.ctx, id, {});
+    return { metrics: rows.map(metricView) };
+  }
+
+  @Get('metrics')
+  async listPublishedMetrics(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list published analytics metrics (m32)');
+    const rows = await this.metrics.listPublishedMetrics(s.ctx);
+    return { metrics: rows.map(metricView) };
+  }
+
   @Endpoint({
     permission: M32_PERMISSIONS.datasetManage,
     auditCode: M32_AUDIT_CODES.datasetUpdated,
@@ -223,5 +244,19 @@ export class AnalyticsDefinitionsController {
       requireVersion(b['expectedVersion'], s.correlationId),
     );
     return reportView(r);
+  }
+
+  @Get('reports')
+  async listReports(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list analytics reports (m32)');
+    const rows = await this.reports.listReports(s.ctx, {});
+    return { reports: rows.map(reportView) };
+  }
+
+  @Get('reports/:id')
+  async getReport(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'get analytics report (m32)');
+    const r = await this.reports.getReport(s.ctx, id);
+    return r === null ? { report: null } : reportView(r);
   }
 }

@@ -13,12 +13,14 @@ import {
   AnalyticsExportService,
   AnalyticsScheduleService,
   M32ExecutiveAnalyticsAdapter,
-  FixtureMaterializationSource,
   type MaterializationSourcePort,
 } from '@finapp/m32-analytics';
+import { FeedbackService } from '@finapp/m12-feedback';
 import { ActorModule } from '../actor/actor.module.ts';
+import { FeedbackModule } from '../feedback/feedback.module.ts';
 import { AnalyticsDefinitionsController } from './definitions.controller.ts';
 import { AnalyticsRuntimeController } from './runtime.controller.ts';
+import { FeedbackMaterializationSource, RoutingMaterializationSource } from './materialization-sources.ts';
 
 /**
  * `/api/v1/analytics` (m32). Governed reporting/analytics builder — datasets, metrics, reports, the governed semantic
@@ -30,7 +32,7 @@ import { AnalyticsRuntimeController } from './runtime.controller.ts';
 export const M32_MATERIALIZATION_SOURCE = Symbol.for('finapp.m32.materialization-source');
 
 @Module({
-  imports: [ActorModule],
+  imports: [ActorModule, FeedbackModule],
   controllers: [AnalyticsDefinitionsController, AnalyticsRuntimeController],
   providers: [
     { provide: AnalyticsRepository, useFactory: () => new AnalyticsRepository() },
@@ -39,7 +41,17 @@ export const M32_MATERIALIZATION_SOURCE = Symbol.for('finapp.m32.materialization
       inject: [AUDIT, OUTBOX],
       useFactory: (audit: Audit, outbox: Outbox<DomainEvent>) => new M32Emitter(audit, outbox),
     },
-    { provide: M32_MATERIALIZATION_SOURCE, useFactory: () => new FixtureMaterializationSource() },
+    {
+      // The materialization source ROUTES by dataset.source_module: a REAL adapter binds `m12-feedback` to the
+      // canonical feedback aggregate read seam (so a feedback dataset materializes genuine live counts); any other
+      // source falls back to the deterministic fixture double. No source module's private tables are ever read.
+      provide: M32_MATERIALIZATION_SOURCE,
+      inject: [FeedbackService],
+      useFactory: (feedback: FeedbackService) =>
+        new RoutingMaterializationSource({
+          'm12-feedback': new FeedbackMaterializationSource(feedback),
+        }),
+    },
     {
       provide: AnalyticsDatasetService,
       inject: [DB, AUTHZ, M32Emitter, AnalyticsRepository],
