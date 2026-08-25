@@ -1200,6 +1200,44 @@ export const getAuthorities = (t?: string | null): Promise<ApiResult<{ authoriti
 export const getPrecedents = (t?: string | null): Promise<ApiResult<{ precedents: Row[] }>> =>
   call(`${LD}/precedents`, { tenantId: t });
 
+// --- M32 Analytics / Reporting — canonical m32 analytics engine, reused (no second reporting/analytics engine).
+// All GOVERNED READS: datasets → metrics → reports are DEFINITION objects on a maker-checker publish lifecycle
+// (author → validate → review → publish; approver ≠ author; a published definition is immutable). The single
+// POST (`/query`) RUNS a published metric server-side and returns MATERIALIZED aggregates — no number is ever
+// computed in the browser. Reads are RLS-scoped + permission-gated (analytics.dataset.read / analytics.metric.read
+// / analytics.report.read / analytics.query.run) and audited server-side; this client adds no authorization. ---
+const AN = '/analytics';
+export const getDatasets = (t?: string | null): Promise<ApiResult<{ datasets: Row[] }>> =>
+  call(`${AN}/datasets`, { tenantId: t });
+export const getDataset = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${AN}/datasets/${encodeURIComponent(id)}`, { tenantId: t });
+export const getDatasetMetrics = (id: string, t?: string | null): Promise<ApiResult<{ metrics: Row[] }>> =>
+  call(`${AN}/datasets/${encodeURIComponent(id)}/metrics`, { tenantId: t });
+export const getPublishedMetrics = (t?: string | null): Promise<ApiResult<{ metrics: Row[] }>> =>
+  call(`${AN}/metrics`, { tenantId: t });
+export const getMetric = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${AN}/metrics/${encodeURIComponent(id)}`, { tenantId: t });
+export const getReports = (t?: string | null): Promise<ApiResult<{ reports: Row[] }>> =>
+  call(`${AN}/reports`, { tenantId: t });
+export const getReport = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${AN}/reports/${encodeURIComponent(id)}`, { tenantId: t });
+// The one POST is a GOVERNED READ of materialized aggregates: it RUNS a published metric (never posts, never
+// computes in the browser) and returns { metricKey, metricVersion, valueKind, lineageId, rows } for provenance.
+export const runAnalyticsQuery = (
+  metricKey: string,
+  t?: string | null,
+  opts?: { scope?: string; groupBy?: string[] },
+): Promise<ApiResult<Row>> =>
+  call(`${AN}/query`, {
+    method: 'POST',
+    body: {
+      metricKey,
+      ...(opts?.scope ? { scope: opts.scope } : {}),
+      ...(opts?.groupBy ? { groupBy: opts.groupBy } : {}),
+    },
+    tenantId: t,
+  });
+
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
 // (RLS, no escape). Every write is a canonical permissioned + audited endpoint; the server is authoritative,

@@ -4154,6 +4154,297 @@ function LegalDocsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
   );
 }
 
+// ---------- Analytics & Reporting (M32) — governed reporting over the CANONICAL m32 analytics engine. No second
+// analytics/reporting engine. Datasets → metrics → reports are DEFINITIONS on a maker-checker publish lifecycle
+// (author → validate → review → publish; approver ≠ author; a published definition is immutable). The Run-query
+// tab RUNS a published metric server-side and renders ONLY the materialized aggregates the API returns — no
+// number is computed in the browser. RBAC + tenant isolation + audit enforced server-side; reads are gated. ----
+function AnalyticsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [tab, setTab] = useState<'datasets' | 'metrics' | 'reports' | 'query'>('datasets');
+  const datasets = useRows(async () => {
+    const r = await api.getDatasets(tenant);
+    return { ...r, data: (r.data as { datasets?: api.Row[] } | null)?.datasets ?? [] };
+  }, [tenant, tab]);
+  const metrics = useRows(async () => {
+    const r = await api.getPublishedMetrics(tenant);
+    return { ...r, data: (r.data as { metrics?: api.Row[] } | null)?.metrics ?? [] };
+  }, [tenant, tab]);
+  const reports = useRows(async () => {
+    const r = await api.getReports(tenant);
+    return { ...r, data: (r.data as { reports?: api.Row[] } | null)?.reports ?? [] };
+  }, [tenant, tab]);
+  // Run-query state — the metric list drives the picker; a query RUNS a published metric server-side and we
+  // render ONLY what the API returns (rows + lineage). No number is ever computed in the browser.
+  const canRun = can('analytics.query.run');
+  const [metricKey, setMetricKey] = useState('');
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<api.Row | null>(null);
+  const [qErr, setQErr] = useState<string | null>(null);
+  const runQuery = async (): Promise<void> => {
+    if (metricKey === '') return;
+    setRunning(true);
+    setQErr(null);
+    setResult(null);
+    const r = await api.runAnalyticsQuery(metricKey, tenant);
+    if (r.ok && r.data) setResult(r.data as api.Row);
+    else setQErr(r.error ?? 'Query failed.');
+    setRunning(false);
+  };
+  const tabs: { id: typeof tab; label: string }[] = [
+    { id: 'datasets', label: 'Datasets' },
+    { id: 'metrics', label: 'Metrics' },
+    { id: 'reports', label: 'Reports' },
+    { id: 'query', label: 'Run query' },
+  ];
+  // Materialized rows come ONLY from the server's governed query result. `measure` is parsed to a number solely
+  // to size the bar; the raw string value is displayed verbatim (never rounded / recomputed).
+  const resultRows = result ? api.asRows((result as { rows?: unknown }).rows) : [];
+  const maxMeasure = resultRows.reduce((m, row) => {
+    const n = Number(pick(row, 'measure'));
+    return Number.isFinite(n) && n > m ? n : m;
+  }, 0);
+  return (
+    <>
+      <h1 className="page-title">Analytics &amp; Reports</h1>
+      <p className="page-sub">
+        Governed reporting over the canonical m32 analytics engine · synthetic staging data. Datasets →
+        metrics → reports follow a maker-checker publish lifecycle (author → validate → review → publish;
+        approver ≠ author; published definitions immutable). RBAC + tenant isolation + audit enforced
+        server-side.
+      </p>
+      <div className="ok-note" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}>
+        This workspace reads GOVERNED DEFINITIONS and MATERIALIZED aggregates. The Feedback dataset (source
+        m12-feedback) materializes REAL aggregates through the canonical feedback read seam; other datasets
+        are definition-only until their source adapters (m33) are wired. Numbers shown come only from the
+        server’s governed query — none are computed in the browser.
+      </div>
+      <div className="card">
+        <div className="run-picker">
+          {tabs.map((tb) => (
+            <button
+              key={tb.id}
+              className={`btn ${tab === tb.id ? '' : 'secondary'}`}
+              onClick={() => setTab(tb.id)}
+            >
+              {tb.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'datasets' &&
+          (datasets.loading ? (
+            <div className="loading">Loading datasets…</div>
+          ) : datasets.error ? (
+            <div className="empty">Could not load datasets ({datasets.error}).</div>
+          ) : datasets.rows.length === 0 ? (
+            <div className="empty">No datasets.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Source module</th>
+                  <th>Classification</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {datasets.rows.map((d, i) => (
+                  <tr key={pick(d, 'id') || i}>
+                    <td>{pick(d, 'name') || pick(d, 'datasetKey') || '—'}</td>
+                    <td className="muted">{pick(d, 'sourceModule') || '—'}</td>
+                    <td className="muted">{pick(d, 'classification') || '—'}</td>
+                    <td>{statusPill(pick(d, 'status'))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ))}
+
+        {tab === 'metrics' &&
+          (metrics.loading ? (
+            <div className="loading">Loading metrics…</div>
+          ) : metrics.error ? (
+            <div className="empty">Could not load metrics ({metrics.error}).</div>
+          ) : metrics.rows.length === 0 ? (
+            <div className="empty">No published metrics.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Metric key</th>
+                  <th>Name</th>
+                  <th>Aggregation</th>
+                  <th>Value kind</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metrics.rows.map((m, i) => (
+                  <tr key={pick(m, 'id') || i}>
+                    <td className="muted">{pick(m, 'metricKey') || '—'}</td>
+                    <td>{pick(m, 'name') || '—'}</td>
+                    <td className="muted">{pick(m, 'aggregation') || '—'}</td>
+                    <td className="muted">{pick(m, 'valueKind') || '—'}</td>
+                    <td>{statusPill(pick(m, 'state'))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ))}
+
+        {tab === 'reports' &&
+          (reports.loading ? (
+            <div className="loading">Loading reports…</div>
+          ) : reports.error ? (
+            <div className="empty">Could not load reports ({reports.error}).</div>
+          ) : reports.rows.length === 0 ? (
+            <div className="empty">No reports.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Report key</th>
+                  <th>Name</th>
+                  <th>Kind</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.rows.map((r, i) => (
+                  <tr key={pick(r, 'id') || i}>
+                    <td className="muted">{pick(r, 'reportKey') || '—'}</td>
+                    <td>{pick(r, 'name') || '—'}</td>
+                    <td className="muted">{pick(r, 'kind') || '—'}</td>
+                    <td>{statusPill(pick(r, 'state'))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ))}
+
+        {tab === 'query' && (
+          <>
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={metricKey} onChange={(e) => setMetricKey(e.target.value)}>
+                <option value="">Select a published metric…</option>
+                {metrics.rows.map((m, i) => {
+                  const key = pick(m, 'metricKey');
+                  return (
+                    <option key={pick(m, 'id') || key || i} value={key}>
+                      {key ? `${key} — ${pick(m, 'name') || key}` : pick(m, 'name')}
+                    </option>
+                  );
+                })}
+              </select>
+              <button
+                className="btn"
+                disabled={!canRun || metricKey === '' || running}
+                title={canRun ? undefined : 'Requires analytics.query.run'}
+                onClick={runQuery}
+              >
+                {running ? 'Running…' : 'Run'}
+              </button>
+            </div>
+            {!canRun && (
+              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                You lack analytics.query.run — running a governed query is disabled.
+              </div>
+            )}
+            {qErr && <div className="error">{qErr}</div>}
+            {result && (
+              <>
+                <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                  Provenance · metric {pick(result, 'metricKey') || '—'} v
+                  {pick(result, 'metricVersion') || '—'} · lineage {pick(result, 'lineageId') || '—'} · value
+                  kind {pick(result, 'valueKind') || '—'}
+                </p>
+                {resultRows.length === 0 ? (
+                  <div className="empty">No materialized rows yet (run a materialization first).</div>
+                ) : (
+                  <>
+                    <div style={{ margin: '12px 0' }}>
+                      {resultRows.map((row, i) => {
+                        const label = pick(row, 'dimensionValue') || '—';
+                        const raw = pick(row, 'measure');
+                        const currency = pick(row, 'currency');
+                        const n = Number(raw);
+                        const width =
+                          maxMeasure > 0 && Number.isFinite(n) ? Math.max(0, (n / maxMeasure) * 100) : 0;
+                        return (
+                          <div
+                            key={i}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}
+                          >
+                            <div
+                              style={{
+                                width: 180,
+                                fontSize: 12,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={label}
+                            >
+                              {label}
+                            </div>
+                            <div
+                              style={{
+                                flex: 1,
+                                background: 'var(--line)',
+                                borderRadius: 4,
+                                height: 14,
+                                minWidth: 60,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: `${width}%`,
+                                  background: 'var(--brand)',
+                                  height: '100%',
+                                  borderRadius: 4,
+                                }}
+                              />
+                            </div>
+                            <div style={{ width: 140, fontSize: 12, textAlign: 'right' }}>
+                              {raw || '—'}
+                              {currency ? ` ${currency}` : ''}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Dimension value</th>
+                          <th>Measure</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resultRows.map((row, i) => (
+                          <tr key={i}>
+                            <td>{pick(row, 'dimensionValue') || '—'}</td>
+                            <td className="muted">
+                              {pick(row, 'measure') || '—'}
+                              {pick(row, 'currency') ? ` ${pick(row, 'currency')}` : ''}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ---------- Legal → Matters (M14) — operational legal-matter workspace over the CANONICAL m14-legal engine.
 // No second legal engine, no hard delete (open/assign/resolve/close/reopen/archive/escalate are governed
 // transitions). A matter can be created from an M13 case via the canonical from-case conversion (server-backed
@@ -7285,6 +7576,7 @@ const NAV = [
   { id: 'legal-matters', label: 'Matters', icon: '§', group: 'Legal' },
   { id: 'legal-litigation', label: 'Litigation', icon: '⚑', group: 'Legal' },
   { id: 'legal-documents', label: 'Legal Documents', icon: '📚', group: 'Legal' },
+  { id: 'analytics', label: 'Analytics & Reports', icon: '📊', group: 'Reporting' },
   { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
   { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
@@ -7326,6 +7618,15 @@ const LEGAL_READ_PERMS = [
 
 // Customer Service (m12 feedback management) is a daily operational workspace — RBAC-gated on feedback read.
 const CS_READ_PERMS = ['feedback.record.read', 'feedback.queue.read'];
+
+// Reporting (m32 analytics/reporting) is a platform reporting capability — RBAC-gated on any analytics read
+// (dataset/metric/report definitions or running a governed query), not entitlement-gated.
+const REPORTING_READ_PERMS = [
+  'analytics.dataset.read',
+  'analytics.metric.read',
+  'analytics.report.read',
+  'analytics.query.run',
+];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
 // entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
@@ -7485,6 +7786,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
     if (g === 'Finance') return FINANCE_READ_PERMS.some((p) => perms.has(p));
     if (g === 'Legal') return LEGAL_READ_PERMS.some((p) => perms.has(p));
     if (g === 'Customer Service') return CS_READ_PERMS.some((p) => perms.has(p));
+    if (g === 'Reporting') return REPORTING_READ_PERMS.some((p) => perms.has(p));
     const cap = GROUP_ENTITLEMENT[g];
     if (!cap) return true; // Overview always
     return entitled?.[cap] === true;
@@ -7563,6 +7865,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
           <LitigationWorkspace tenant={tenant} perms={perms} actorId={actorId} />
         )}
         {route === 'legal-documents' && <LegalDocsWorkspace tenant={tenant} perms={perms} />}
+        {route === 'analytics' && <AnalyticsWorkspace tenant={tenant} perms={perms} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}
