@@ -2703,6 +2703,491 @@ function JournalsWorkspace({
   );
 }
 
+// ---------- Legal → Litigation (M16) — operational litigation workspace over the CANONICAL m16-litigation
+// engine. No second litigation engine, no hard delete (assign/advance/conclude/close/reopen/archive are governed
+// transitions). A proceeding is created from an M14 matter via the canonical from-matter referral (server-backed
+// sourceMatterId link — never a duplicated matter). Filings are the canonical maker-checker (submit → review →
+// approve [distinct litigation.filing.approve] → file; approver != submitter, SoD server-side). Party CONTACT is
+// redacted unless permitted, and a reveal is audited. ----------
+function LitFilingRow({
+  filing,
+  tenant,
+  perms,
+  run,
+}: {
+  filing: api.Row;
+  tenant: string | null;
+  perms: Set<string>;
+  run: (p: Promise<api.ApiResult<api.Row>>, ok: string) => Promise<void>;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const fid = pick(filing, 'id');
+  const ev = Number(filing['version'] ?? 1);
+  const st = pick(filing, 'status').toLowerCase();
+  return (
+    <tr>
+      <td className="muted">{pick(filing, 'filingType') || '—'}</td>
+      <td>{statusPill(pick(filing, 'status'))}</td>
+      <td>
+        <div className="action-row">
+          <ActionButton
+            label="Review"
+            allowed={/draft|submitted/.test(st) && can('litigation.filing.manage')}
+            onRun={() => run(api.reviewFiling(fid, ev, tenant), 'Filing reviewed.')}
+          />
+          <ActionButton
+            label="Approve"
+            allowed={/reviewed/.test(st) && can('litigation.filing.approve')}
+            onRun={() => run(api.approveFiling(fid, ev, tenant), 'Filing approved (SoD: not the submitter).')}
+          />
+          <ActionButton
+            label="File"
+            allowed={/approved/.test(st) && can('litigation.filing.manage')}
+            onRun={() => run(api.fileFiling(fid, ev, tenant), 'Filing filed with the registry.')}
+          />
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function ProceedingDrawer({
+  proceedingId,
+  tenant,
+  perms,
+  actorId,
+  onClose,
+  onChanged,
+}: {
+  proceedingId: string;
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [p, setP] = useState<api.Row | null>(null);
+  const [filings, setFilings] = useState<api.Row[]>([]);
+  const [appearances, setAppearances] = useState<api.Row[]>([]);
+  const [service, setService] = useState<api.Row[]>([]);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [owner, setOwner] = useState('');
+  const grab = (r: api.ApiResult<unknown>, key: string): api.Row[] =>
+    ((r.data as Record<string, api.Row[]> | null)?.[key] ?? []) as api.Row[];
+  useEffect(() => {
+    let live = true;
+    void api.getProceeding(proceedingId, tenant).then((r) => live && setP((r.data as api.Row) ?? null));
+    void api.getProceedingFilings(proceedingId, tenant).then((r) => live && setFilings(grab(r, 'filings')));
+    void api
+      .getProceedingAppearances(proceedingId, tenant)
+      .then((r) => live && setAppearances(grab(r, 'appearances')));
+    void api.getProceedingService(proceedingId, tenant).then((r) => live && setService(grab(r, 'service')));
+    return () => {
+      live = false;
+    };
+  }, [proceedingId, tenant, nonce]);
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  const run = async (pr: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await pr;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+  if (p === null)
+    return (
+      <div className="drawer-overlay" onClick={onClose} role="presentation">
+        <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog">
+          <div className="loading">Loading proceeding…</div>
+        </aside>
+      </div>
+    );
+  const status = pick(p, 'status').toLowerCase();
+  const ev = Number(p['version'] ?? 1);
+  const terminal = /closed|archived/.test(status);
+  const concluded = status === 'concluded';
+  const hasOwner = pick(p, 'legalOwner') !== '';
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside
+        className="drawer wide"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Proceeding"
+      >
+        <header className="drawer-head">
+          <h3>
+            {pick(p, 'proceedingNumber') || 'Proceeding'} — {pick(p, 'title')}
+          </h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Status</dt>
+            <dd>
+              {statusPill(pick(p, 'status'))}{' '}
+              {pick(p, 'proceduralStage') && `· ${pick(p, 'proceduralStage')}`}
+            </dd>
+            <dt>Forum / court</dt>
+            <dd>
+              {pick(p, 'forum') || '—'} · {pick(p, 'court') || pick(p, 'jurisdiction') || '—'}
+            </dd>
+            <dt>Type / case no.</dt>
+            <dd>
+              {pick(p, 'proceedingTypeCode') || '—'} · {pick(p, 'externalCaseNumber') || '—'}
+            </dd>
+            <dt>Owner / team</dt>
+            <dd>
+              {pick(p, 'legalOwner') || 'unassigned'} · {pick(p, 'litigationTeam') || '—'}
+            </dd>
+            <dt>Priority / risk</dt>
+            <dd>
+              {pick(p, 'priority') || '—'} / {pick(p, 'litigationRisk') || '—'}
+              {String(p['legalHold']) === 'true' ? ' · ⚖ legal hold' : ''}
+              {String(p['privileged']) === 'true' ? ' · 🔒 privileged' : ''}
+            </dd>
+          </dl>
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+          <h4 className="drawer-sub">Actions</h4>
+          <div className="action-row">
+            <ActionButton
+              label="Conclude"
+              allowed={!terminal && !concluded && can('litigation.proceeding.conclude')}
+              onRun={() => run(api.concludeProceeding(proceedingId, ev, tenant), 'Proceeding concluded.')}
+            />
+            <ActionButton
+              label="Close"
+              allowed={(concluded || !terminal) && can('litigation.proceeding.close')}
+              onRun={() => run(api.closeProceeding(proceedingId, ev, tenant), 'Proceeding closed.')}
+            />
+            <ActionButton
+              label="Reopen"
+              needsReason
+              allowed={(concluded || status === 'closed') && can('litigation.proceeding.reopen')}
+              onRun={(reason) =>
+                run(api.reopenProceeding(proceedingId, ev, reason ?? '', tenant), 'Proceeding reopened.')
+              }
+            />
+            <ActionButton
+              label="Archive"
+              danger
+              allowed={status === 'closed' && can('litigation.proceeding.archive')}
+              onRun={() => run(api.archiveProceeding(proceedingId, ev, tenant), 'Proceeding archived.')}
+            />
+            <ActionButton
+              label="Escalate"
+              needsReason
+              allowed={!terminal && can('litigation.proceeding.update')}
+              onRun={(reason) =>
+                run(api.escalateProceeding(proceedingId, reason ?? '', tenant), 'Escalation triggered.')
+              }
+            />
+          </div>
+          {!terminal && can('litigation.proceeding.assign') && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={owner}
+                placeholder={hasOwner ? 'Reassign to (actor id)' : 'Assign to (actor id)'}
+                onChange={(e) => setOwner(e.target.value)}
+              />
+              <button
+                className="btn"
+                disabled={owner.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.assignProceeding(proceedingId, ev, owner.trim(), tenant, hasOwner),
+                    hasOwner ? 'Proceeding reassigned.' : 'Proceeding assigned.',
+                  ).then(() => setOwner(''))
+                }
+              >
+                {hasOwner ? 'Reassign' : 'Assign'}
+              </button>
+              <button
+                className="btn secondary"
+                onClick={() =>
+                  void run(
+                    api.assignProceeding(proceedingId, ev, actorId, tenant, hasOwner),
+                    'Assigned to me.',
+                  )
+                }
+              >
+                Take ownership
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Filings (maker-checker)</h4>
+          <p className="muted" style={{ fontSize: 11, margin: '0 0 4px' }}>
+            submit → review → <strong>approve (a DISTINCT approver — SoD server-side)</strong> → file.
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filings.map((f, i) => (
+                <LitFilingRow key={pick(f, 'id') || i} filing={f} tenant={tenant} perms={perms} run={run} />
+              ))}
+              {filings.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="muted">
+                    No filings.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {can('litigation.filing.manage') && !terminal && (
+            <button
+              className="btn secondary"
+              onClick={() =>
+                void run(
+                  api.submitFiling(proceedingId, { filingType: 'pleading', filingRole: 'applicant' }, tenant),
+                  'Filing submitted (awaiting review → distinct approver).',
+                )
+              }
+            >
+              Submit filing
+            </button>
+          )}
+
+          <h4 className="drawer-sub">Hearings / appearances</h4>
+          <ul className="timeline">
+            {appearances.map((a, i) => (
+              <li key={pick(a, 'id') || i}>
+                <span className="t-head">
+                  {pick(a, 'appearanceType') || pick(a, 'hearingType') || 'Hearing'}
+                </span>{' '}
+                <span className="muted">
+                  {pick(a, 'scheduledAt') || pick(a, 'hearingDate') || ''} · {pick(a, 'status')}
+                </span>
+              </li>
+            ))}
+            {appearances.length === 0 && <li className="muted">No hearings scheduled.</li>}
+          </ul>
+
+          <h4 className="drawer-sub">Service of process</h4>
+          <ul className="timeline">
+            {service.map((sv, i) => (
+              <li key={pick(sv, 'id') || i}>
+                <span className="t-head">{pick(sv, 'serviceType') || pick(sv, 'method') || 'Service'}</span>{' '}
+                <span className="muted">{pick(sv, 'status')}</span>
+              </li>
+            ))}
+            {service.length === 0 && <li className="muted">No service records.</li>}
+          </ul>
+
+          <h4 className="drawer-sub">Cross-module links</h4>
+          <div className="linkrow">
+            {pick(p, 'sourceMatterId') !== '' ? (
+              <span className="pill info">
+                Originating matter (m14): {pick(p, 'sourceMatterId').slice(0, 12)}
+              </span>
+            ) : (
+              <span className="muted">No linked matter.</span>
+            )}
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function LitigationWorkspace({
+  tenant,
+  perms,
+  actorId,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [nonce, setNonce] = useState(0);
+  const [status, setStatus] = useState('');
+  const [q, setQ] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [creating, setCreating] = useState<'' | 'new' | 'from-matter'>('');
+  const [typeCode, setTypeCode] = useState('');
+  const [title, setTitle] = useState('');
+  const [matterId, setMatterId] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const proceedings = useRows(async () => {
+    const r = await api.getProceedings(tenant, { status });
+    return { ...r, data: (r.data as { proceedings?: api.Row[] } | null)?.proceedings ?? [] };
+  }, [tenant, nonce, status]);
+  const ql = q.trim().toLowerCase();
+  const shown = proceedings.rows.filter(
+    (p) =>
+      ql === '' ||
+      pick(p, 'title').toLowerCase().includes(ql) ||
+      pick(p, 'proceedingNumber').toLowerCase().includes(ql),
+  );
+  const create = async (): Promise<void> => {
+    const r =
+      creating === 'from-matter'
+        ? await api.proceedingFromMatter(
+            {
+              referralKey: 'ref-' + matterId.trim().slice(0, 8),
+              sourceMatterId: matterId.trim(),
+              proceedingTypeCode: typeCode.trim(),
+              title: title.trim(),
+            },
+            tenant,
+          )
+        : await api.createProceeding({ proceedingTypeCode: typeCode.trim(), title: title.trim() }, tenant);
+    if (r.ok && r.data) {
+      const row = (r.data as { proceeding?: api.Row } | null)?.proceeding ?? (r.data as api.Row);
+      setMsg({
+        ok: true,
+        msg:
+          creating === 'from-matter'
+            ? 'Proceeding opened from matter (server-backed link).'
+            : 'Proceeding created.',
+      });
+      setCreating('');
+      setTypeCode('');
+      setTitle('');
+      setMatterId('');
+      setNonce((x) => x + 1);
+      setOpenId(pick(row, 'id'));
+    } else {
+      setMsg({
+        ok: false,
+        msg: r.error ?? 'Could not create proceeding (a published proceeding type is required).',
+      });
+    }
+  };
+  return (
+    <>
+      <h1 className="page-title">Litigation</h1>
+      <p className="page-sub">
+        Litigation proceedings over the canonical m16 engine · synthetic staging data. A proceeding can be
+        opened from an m14 matter (server-backed link). Filings are maker-checker (submit → review → approve →
+        file, SoD server-side). RBAC + tenant isolation + audit enforced; party contacts redacted unless
+        permitted; no hard delete.
+      </p>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <div className="card">
+        <header>
+          <h3>Proceedings</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            {['filed', 'active', 'concluded', 'closed', 'archived'].map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <input value={q} placeholder="Search #/title…" onChange={(e) => setQ(e.target.value)} />
+          {can('litigation.proceeding.create') && creating === '' && (
+            <button className="btn" onClick={() => setCreating('new')}>
+              New proceeding
+            </button>
+          )}
+          {can('litigation.referral.accept') && creating === '' && (
+            <button className="btn secondary" onClick={() => setCreating('from-matter')}>
+              From matter
+            </button>
+          )}
+          {creating !== '' && (
+            <>
+              {creating === 'from-matter' && (
+                <input
+                  value={matterId}
+                  placeholder="Source matter id"
+                  onChange={(e) => setMatterId(e.target.value)}
+                />
+              )}
+              <input
+                value={typeCode}
+                placeholder="Proceeding type code"
+                onChange={(e) => setTypeCode(e.target.value)}
+              />
+              <input value={title} placeholder="Title" onChange={(e) => setTitle(e.target.value)} />
+              <button
+                className="btn"
+                disabled={
+                  typeCode.trim() === '' ||
+                  title.trim() === '' ||
+                  (creating === 'from-matter' && matterId.trim() === '')
+                }
+                onClick={create}
+              >
+                {creating === 'from-matter' ? 'Open from matter' : 'Create'}
+              </button>
+              <button className="btn link" onClick={() => setCreating('')}>
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+        {proceedings.loading ? (
+          <div className="loading">Loading proceedings…</div>
+        ) : proceedings.error ? (
+          <div className="empty">Could not load proceedings ({proceedings.error}).</div>
+        ) : shown.length === 0 ? (
+          <div className="empty">No proceedings match.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Proceeding #</th>
+                <th>Title</th>
+                <th>Forum</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Owner</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((p, i) => (
+                <tr key={pick(p, 'id') || i}>
+                  <td className="muted">{pick(p, 'proceedingNumber') || '—'}</td>
+                  <td>{pick(p, 'title')}</td>
+                  <td className="muted">{pick(p, 'forum') || '—'}</td>
+                  <td className="muted">{pick(p, 'proceedingTypeCode')}</td>
+                  <td>{statusPill(pick(p, 'status'))}</td>
+                  <td className="muted">{pick(p, 'legalOwner') || 'unassigned'}</td>
+                  <td>
+                    <button className="btn link" onClick={() => setOpenId(pick(p, 'id'))}>
+                      Open
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      {openId && (
+        <ProceedingDrawer
+          proceedingId={openId}
+          tenant={tenant}
+          perms={perms}
+          actorId={actorId}
+          onClose={() => setOpenId(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
 // ---------- Legal → Matters (M14) — operational legal-matter workspace over the CANONICAL m14-legal engine.
 // No second legal engine, no hard delete (open/assign/resolve/close/reopen/archive/escalate are governed
 // transitions). A matter can be created from an M13 case via the canonical from-case conversion (server-backed
@@ -5831,6 +6316,7 @@ const NAV = [
   { id: 'compliance-privacy', label: 'Privacy & security', icon: '🔒', group: 'Compliance' },
   { id: 'legal-cases', label: 'Cases', icon: '⚖', group: 'Legal' },
   { id: 'legal-matters', label: 'Matters', icon: '§', group: 'Legal' },
+  { id: 'legal-litigation', label: 'Litigation', icon: '⚑', group: 'Legal' },
   { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
   { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
@@ -5863,7 +6349,7 @@ const FINANCE_READ_PERMS = [
 // entitlement would need to be seeded per tenant first, and gating on an unseeded capability would hide the
 // group for everyone (fail closed). Switch to entitlement-gating once `legal_services` is seeded (see the
 // web-completeness doc).
-const LEGAL_READ_PERMS = ['cases.case.read', 'legal.matter.read'];
+const LEGAL_READ_PERMS = ['cases.case.read', 'legal.matter.read', 'litigation.proceeding.read'];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
 // entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
@@ -6095,6 +6581,9 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'compliance-privacy' && <PrivacySecurityWorkspace tenant={tenant} perms={perms} />}
         {route === 'legal-cases' && <CasesWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'legal-matters' && <MattersWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
+        {route === 'legal-litigation' && (
+          <LitigationWorkspace tenant={tenant} perms={perms} actorId={actorId} />
+        )}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}

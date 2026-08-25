@@ -12,6 +12,7 @@ import {
   LitigationWorkService,
   FixedClock,
   M16_PERMISSIONS,
+  M16_AUDIT_CODES,
   ALL_M16_PERMISSIONS,
 } from '@finapp/m16-litigation';
 
@@ -28,7 +29,8 @@ import {
 export default defineDbSpec('m16-services', async (ctx, t) => {
   const db = new PgDb({ pool: ctx.pool, appRole: ctx.appRole });
   const authz = new RbacAuthz();
-  const emitter = new M16Emitter(new RecordingAudit(), new RecordingOutbox());
+  const audit = new RecordingAudit();
+  const emitter = new M16Emitter(audit, new RecordingOutbox());
   const repo = new LitigationRepository();
   const clock = new FixedClock(1_700_000_000_000);
   const catalog = new CatalogService(db, authz, emitter, repo);
@@ -157,10 +159,22 @@ export default defineDbSpec('m16-services', async (ctx, t) => {
     contactRef: '+254700000000',
     confidentiality: 'confidential',
   });
+  // PII contact-access audit (M16 fix): revealing a party's contact under litigation.party_contact.read is a
+  // sensitive, auditable act — it emits LITIGATION_PARTY_CONTACT_ACCESSED (proceeding id + count; never the value).
+  audit.drain();
   const partiesPriv = await proceedings.listParties(full, p0.id);
   t.equal(partiesPriv.canReadContact, true, 'a caller with party_contact.read may read contacts');
+  t.ok(
+    audit.entries.some((e) => e.code === M16_AUDIT_CODES.partyContactAccessed),
+    'revealing party contact emits LITIGATION_PARTY_CONTACT_ACCESSED (audited PII access)',
+  );
+  audit.drain();
   const partiesRed = await proceedings.listParties(noContact, p0.id);
   t.equal(partiesRed.canReadContact, false, 'a caller without party_contact.read is flagged');
+  t.ok(
+    !audit.entries.some((e) => e.code === M16_AUDIT_CODES.partyContactAccessed),
+    'no contact-access audit is emitted when contact is not revealed (no false PII audit)',
+  );
   await proceedings.addClaim(full, officer, p0.id, {
     claimType: 'monetary',
     statement: 'Debt owed',
