@@ -75,7 +75,6 @@ const ver = (r) => Number(rec(r)?.version ?? 1);
 const CSO = 'stg_cso',
   HOD = 'stg_cs_hod',
   MGR = 'stg_cs_manager';
-const HOD_ID = '00000000-0000-4000-8000-0000000b0300';
 const CSO_ID = '00000000-0000-4000-8000-0000000b0100';
 
 async function existing() {
