@@ -257,7 +257,11 @@ export class AnalyticsQueryService implements AnalyticsEvidenceProvider {
             classification: metric.classification,
           },
           citation: {
-            sourceType: 'analytics_metric',
+            // 'metric' is the canonical cross-module citation source_type the consumer (m28 copilot) accepts
+            // (copilot_citation_source_ck: record|document|metric|aggregate|timeline|report). A published m32
+            // metric is exactly a 'metric' source; 'analytics_metric' is m32's internal entity name, not the
+            // shared citation vocabulary.
+            sourceType: 'metric',
             sourceModule: 'm32-analytics',
             recordRef: metric.id,
             documentRef: null,

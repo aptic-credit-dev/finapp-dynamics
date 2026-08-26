@@ -126,7 +126,51 @@ const PERSONAS = [
       'analytics.metric.read',
       'analytics.report.read',
       'analytics.query.run',
+      // executive copilot (read + ask + feedback; grounded evidence needs analytics.metric.read above)
+      'ai.copilot.read',
+      'ai.copilot.query',
+      'ai.copilot.feedback',
+      // the copilot delegates generation to the canonical m24 request pipeline (BY CONTRACT)
+      'ai.request.create',
+      'ai.request.read',
     ],
+  },
+  {
+    k: 'd',
+    login: 'stg_exec_viewer',
+    name: 'Executive Viewer (synthetic)',
+    code: 'exec_viewer',
+    risk: 'elevated',
+    perms: [
+      'ai.copilot.read',
+      'ai.copilot.query',
+      'ai.copilot.feedback',
+      'ai.copilot.export',
+      // copilot generation runs through the canonical m24 request pipeline (BY CONTRACT)
+      'ai.request.create',
+      'ai.request.read',
+      // grounded analytics evidence (else the m32 metric evidence masks out -> review_required, 0 citations)
+      'analytics.dataset.read',
+      'analytics.metric.read',
+      'analytics.report.read',
+      'analytics.query.run',
+    ],
+  },
+  {
+    k: 'e',
+    login: 'stg_copilot_config_author',
+    name: 'Copilot Config Author (synthetic)',
+    code: 'copilot_config_author',
+    risk: 'critical',
+    perms: ['ai.copilot.read', 'ai.copilot.configure'],
+  },
+  {
+    k: 'f',
+    login: 'stg_copilot_config_reviewer',
+    name: 'Copilot Config Reviewer (synthetic)',
+    code: 'copilot_config_reviewer',
+    risk: 'critical',
+    perms: ['ai.copilot.read', 'ai.copilot.configure'],
   },
   {
     k: 'a',
