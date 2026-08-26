@@ -34,8 +34,8 @@ pre-merge on their stacked branches.
 | m05-hub | obsolete placeholder | none | FRAMEWORK ONLY (obsolete → m30) |
 | m06-workflow | Workflow / SLA / outbox | none | FRAMEWORK ONLY |
 | m07-rules | Versioned rules engine | none | FRAMEWORK ONLY |
-| m08-notify | Notifications / escalation / inbox | none | **NOT WEB READY** |
-| m09-docs | Documents / records | none | **NOT WEB READY** |
+| m08-notify | Notifications / escalation / inbox | **Notifications inbox** | **WEB READY** (inbox read + one-way mark-read, preferences, delivery evidence, template viewer) |
+| m09-docs | Documents / records | **Documents workspace** | **WEB READY WITH LIMITATION** (metadata + governance — classification, legal hold, disposition maker-checker, versions, relationships, catalog — fully operational; byte upload/download is framework-only on staging, no object store bound) |
 | m10-report | obsolete placeholder | none | FRAMEWORK ONLY (obsolete → m32) |
 | m11-ai | obsolete placeholder | none | FRAMEWORK ONLY (obsolete → m24-29) |
 | m12-feedback | Feedback management | **Customer Service → Feedback Management** | **WEB READY WITH LIMITATION** (FMS lifecycle capture→classify→resolution(maker-checker)→confirmation→close + M13 case-handoff + analytics dashboard done; questionnaire/category/SLA-policy admin not surfaced) |
@@ -55,11 +55,11 @@ pre-merge on their stacked branches.
 | m25-operational-ai | Operational AI (recommend-only) | none | FRAMEWORK ONLY |
 | m26-legal-ai | Legal AI (recommend-only) | none | FRAMEWORK ONLY |
 | m27-finance-ai | Finance AI (no auto-post) | none | FRAMEWORK ONLY |
-| m28-executive-ai | Executive copilot (`/copilot`) | none | **NOT WEB READY** |
+| m28-executive-ai | Executive copilot (`/copilot`) | **Executive → Copilot** | **WEB READY** (grounded advisory: query→response+citations grounded in the live M32 Feedback adapter; read-only/no-execution boundary server-enforced) |
 | m29-ai-governance | AI governance / waivers | none (no controllers) | FRAMEWORK ONLY (unwired) |
 | m30-platform | Kernel / config / features | none | FRAMEWORK ONLY |
 | m31-studio | Design-time authoring | none | FRAMEWORK ONLY |
-| m32-analytics | Governed reporting (`/analytics`) | none | **NOT WEB READY** |
+| m32-analytics | Governed reporting (`/analytics`) | **Reporting → Analytics & Reports** | **WEB READY WITH LIMITATION** (datasets/metrics/reports + governed query with one REAL Feedback adapter live; other domains adapter-pending m33) |
 | m33-integration | Connector SDK | none | FRAMEWORK ONLY |
 | m34-marketplace | Connector marketplace | none | FRAMEWORK ONLY |
 | m35-devportal | Developer portal | none | FRAMEWORK ONLY (dev-facing) |
@@ -72,10 +72,10 @@ pre-merge on their stacked branches.
 | m42-certification | Certification programmes | none | FRAMEWORK ONLY |
 
 ## Summary counts (after M13)
-- **WEB READY**: m02-identity, m02-rbac, m17-recovery, m20-glrecon, m21-journal, m22-approval (6).
+- **WEB READY**: m02-identity, m02-rbac, m17-recovery, m20-glrecon, m21-journal, m22-approval, **m08-notify**, **m28-executive-ai** (8).
 - **WEB READY WITH LIMITATION**: m19-finance, m39-saas, m41-security, m13-case, m14-legal, **m16-litigation**,
-  **m12-feedback**, **m18-legaldocs** (8).
-- **NOT WEB READY (genuine gaps)**: m08-notify, m09-docs, m28-executive-ai, m32-analytics (4).
+  **m12-feedback**, **m18-legaldocs**, **m32-analytics**, **m09-docs** (10).
+- **NOT WEB READY (genuine gaps)**: NONE — every business-facing module now has a web surface (Stage-8 web-surfacing programme complete). Remaining follow-ups are admin/setup slices + real storage/adapter bindings, tracked per-module above.
 - **FRAMEWORK ONLY**: the remaining 26 (kernel/infra/engine/AI-contract/obsolete).
 
 ## Global Stage-8 web-navigation smoke (current composed branch: main+M41 + M19 + M21 + M39 + M13)
