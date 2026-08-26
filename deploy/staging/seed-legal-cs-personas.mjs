@@ -95,6 +95,10 @@ const PERSONAS = [
       'feedback.analytics.read',
       'feedback.case_handoff.read',
       'feedback.customer_contact.read',
+      // feedback SETUP catalogues (read-only nav persona may view the Feedback Setup surface)
+      'feedback.questionnaire.read',
+      'feedback.category.read',
+      'feedback.source.read',
       // legal cases
       'cases.case.read',
       'cases.activity.read',
