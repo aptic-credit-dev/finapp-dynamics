@@ -1238,6 +1238,72 @@ export const runAnalyticsQuery = (
     tenantId: t,
   });
 
+// --- M28 Executive Copilot — canonical m28 copilot governance surface (`/copilot`), reused (no second AI /
+// advisory engine). A grounded, READ-ONLY executive advisory: the copilot analyses, explains, CITES and
+// recommends — it NEVER approves, posts, closes, files, disburses or executes any controlled action
+// (server-enforced). Each query runs the governed m24 pipeline server-side; the ANSWER is stored by reference
+// (answerRef) and a response with no citations / below the confidence threshold is held as review_required —
+// never surfaced as a confident answer. Reads are RLS-scoped + permission-gated (ai.copilot.read /
+// ai.copilot.query / ai.copilot.feedback / ai.copilot.configure) and audited server-side; this client adds no
+// authorization of its own, and no answer or number is ever fabricated in the browser. ---
+const CP = '/copilot';
+export const createCopilotSession = (
+  t?: string | null,
+  body?: { scopeLevel?: string; subjectLabel?: string; classification?: string },
+): Promise<ApiResult<Row>> => call(`${CP}/sessions`, { method: 'POST', body: body ?? {}, tenantId: t });
+export const getCopilotSessions = (t?: string | null): Promise<ApiResult<{ sessions: Row[] }>> =>
+  call(`${CP}/sessions`, { tenantId: t });
+export const askCopilot = (
+  body: {
+    sessionId: string;
+    question: string;
+    intentClass?: string;
+    scopeLevel?: string;
+    classification?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<{ query: Row; response: Row | null }>> =>
+  call(`${CP}/queries`, { method: 'POST', body, tenantId: t });
+export const getCopilotQueries = (
+  t?: string | null,
+  sessionId?: string,
+): Promise<ApiResult<{ queries: Row[] }>> =>
+  call(`${CP}/queries${sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : ''}`, { tenantId: t });
+export const getCopilotQuery = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ query: Row; response: Row | null }>> =>
+  call(`${CP}/queries/${encodeURIComponent(id)}`, { tenantId: t });
+export const getCopilotResponse = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${CP}/queries/${encodeURIComponent(id)}/response`, { tenantId: t });
+export const getCopilotCitations = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ citations: Row[] }>> =>
+  call(`${CP}/queries/${encodeURIComponent(id)}/citations`, { tenantId: t });
+export const sendCopilotFeedback = (
+  responseId: string,
+  body: { rating: string; reasonCode?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CP}/responses/${encodeURIComponent(responseId)}/feedback`, { method: 'POST', body, tenantId: t });
+export const getCopilotConfig = (t?: string | null): Promise<ApiResult<{ config: Row[] }>> =>
+  call(`${CP}/config`, { tenantId: t });
+export const getCopilotCapabilities = (t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${CP}/capabilities`, { tenantId: t });
+export const createCopilotConfig = (
+  body: { name?: string; minConfidenceBps?: number; maxSources?: number },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${CP}/config`, { method: 'POST', body, tenantId: t });
+export const publishCopilotConfig = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${CP}/config/${encodeURIComponent(id)}/publish`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const exportCopilotQuery = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${CP}/queries/${encodeURIComponent(id)}/export`, { method: 'POST', tenantId: t });
+
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
 // (RLS, no escape). Every write is a canonical permissioned + audited endpoint; the server is authoritative,
