@@ -60,5 +60,8 @@ export const FEEDBACK_CLOCK = Symbol.for('finapp.m12.clock');
         new RecordsService(db, authz, emitter, repo, clock),
     },
   ],
+  // FeedbackService is exported so the m32 analytics module can bind its REAL feedback materialization source to
+  // this canonical, permission-gated aggregate read seam (FeedbackService.analytics) — never m12's private tables.
+  exports: [FeedbackService],
 })
 export class FeedbackModule {}

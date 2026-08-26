@@ -341,6 +341,13 @@ export class AnalyticsRepository {
     const { rows } = await tx.query<ReportRow>(`SELECT * FROM analytics_report WHERE id=$1`, [id]);
     return rows[0] ?? null;
   }
+  async listReports(tx: Tx, limit: number, offset: number): Promise<ReportRow[]> {
+    const { rows } = await tx.query<ReportRow>(
+      `SELECT * FROM analytics_report ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+    return rows;
+  }
   async updateReportState(
     tx: Tx,
     id: string,

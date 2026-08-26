@@ -198,4 +198,34 @@ export default defineDbSpec('m32-services', async (ctx, t) => {
     schedule.timer_ref === 'timerref:m06/abc' && schedule.notify_ref === 'notifyref:m08/def',
     'a schedule holds opaque m06 timer + m08 notify references (m32 owns no engine)',
   );
+
+  // --- read-model list methods for the reporting workspace (permission-gated, default-deny) -------
+  const readerCtx = ctxOf(userR, [
+    M32_PERMISSIONS.datasetRead,
+    M32_PERMISSIONS.metricRead,
+    M32_PERMISSIONS.reportRead,
+  ]);
+  t.ok(
+    (await datasets.listDatasets(readerCtx, {})).some((d) => d.id === dataset.id),
+    'listDatasets returns the defined dataset',
+  );
+  t.ok(
+    (await metrics.listMetrics(readerCtx, dataset.id, {})).some((m) => m.id === metric.id),
+    'listMetrics(byDataset) returns the metric',
+  );
+  t.ok(
+    (await metrics.listPublishedMetrics(readerCtx)).some((m) => m.id === metric.id),
+    'listPublishedMetrics returns the published metric',
+  );
+  t.ok(
+    (await reports.listReports(readerCtx, {})).some((r) => r.id === report.id),
+    'listReports returns the defined report',
+  );
+  let deniedList = false;
+  try {
+    await reports.listReports(ctxOf(userA, []), {});
+  } catch {
+    deniedList = true;
+  }
+  t.ok(deniedList, 'listReports default-denies a caller without analytics.report.read');
 });
