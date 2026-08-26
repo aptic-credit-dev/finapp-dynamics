@@ -96,6 +96,29 @@ and GL-reconciliation surfaces and follows the same repository→service→contr
 proven here, with strong maker-checker/SoD already in the finance engine (unlike M12 setup's single-permission
 config lifecycle).
 
+## M12 Feedback Setup — SoD governance gap (recorded, NOT changed in this PR)
+**Fact:** the current canonical M12 setup lifecycle uses **one `.manage` permission per config object**
+(`feedback.questionnaire.manage`, `feedback.sla_policy.manage`, `feedback.category.manage`,
+`feedback.source.manage`) and **does not enforce author ≠ approver**. The DRAFT→VALIDATED→PUBLISHED→ACTIVE
+transitions are a state machine one manage-holder drives; there is no distinct-approver step.
+
+Consequences honoured by this PR:
+- The Feedback Setup UI does **not** invent Config Author/Reviewer approval behaviour and does **not** claim
+  setup maker-checker exists. Read (`.read`) and write (`.manage`) are cleanly separated (an auditor may list
+  but not write), but that is least-privilege, **not** segregation of duties.
+- This is classified as a **backend governance gap / optional enhancement**, not a web-surface defect.
+- The M12 setup lifecycle is **unchanged** in this PR.
+
+### Proposed ADR (for a later, deliberate decision — do NOT implement until approved)
+**Maker-Checker for M12 Feedback Configuration.** Strongest candidates: **questionnaires** and **SLA policies**
+(changing them directly alters how feedback is collected, scored, escalated). **Categories** and **source
+systems** may also warrant it — a source activation change alters operational ingestion — but that is a business
+governance call, not an automatic technical addition. The ADR should decide: which config objects genuinely
+require maker-checker; the draft/review/publish/activate states; author ≠ approver enforcement; emergency
+override; audit events; `expectedVersion` rules; migration of existing ACTIVE config; and whether the canonical
+**M22** maker-checker engine is reused or M12 owns its own config SoD (reuse of M22 is strongly preferred — no
+second approval engine). No production GO implication; no code until the ADR/business decision is approved.
+
 ## Global Stage-8 web-navigation smoke (current composed branch: main+M41 + M19 + M21 + M39 + M13)
 Verified by source-level composition (nav item + route dispatch + api client wired + RBAC/entitlement gate). No
 BROKEN screens. Live browser run not executed (no live stack this turn — see "Staging visibility truth" below).
