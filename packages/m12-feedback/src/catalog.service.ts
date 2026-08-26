@@ -246,4 +246,24 @@ export class CatalogService {
     if (r === null) throw ProblemError.notFound('SLA policy not found.', ctx.correlationId);
     return r;
   }
+
+  // --- canonical read-only list surfaces (Feedback Setup workspace) ------------------------------
+  // Each is RLS-scoped (db.withTenant) and gated by the entity's read permission — never a `.manage`
+  // (write) grant. Categories/source systems gained dedicated read codes in migration 0003.
+  async listQuestionnaires(ctx: RequestContext): Promise<SpecRow[]> {
+    await this.authz.require(ctx, M12_PERMISSIONS.questionnaireRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listQuestionnaires(tx));
+  }
+  async listSlaPolicies(ctx: RequestContext): Promise<SpecRow[]> {
+    await this.authz.require(ctx, M12_PERMISSIONS.slaRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listSlaPolicies(tx));
+  }
+  async listCategories(ctx: RequestContext) {
+    await this.authz.require(ctx, M12_PERMISSIONS.categoryRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listCategories(tx));
+  }
+  async listSourceSystems(ctx: RequestContext) {
+    await this.authz.require(ctx, M12_PERMISSIONS.sourceRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listSourceSystems(tx));
+  }
 }

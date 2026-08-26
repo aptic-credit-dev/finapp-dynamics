@@ -1,5 +1,7 @@
 import type {
   SpecRow,
+  CategoryRow,
+  SourceSystemRow,
   FeedbackRow,
   QueueItemRow,
   ContactAttemptRow,
@@ -27,6 +29,27 @@ export function specView(row: SpecRow) {
     status: row.status,
     spec: row.spec,
     contentHash: row.content_hash,
+    version: row.version,
+  };
+}
+
+export function categoryView(row: CategoryRow) {
+  return {
+    code: row.code,
+    name: row.name,
+    defaultSentiment: row.default_sentiment,
+    active: row.active,
+    updatedAt: row.updated_at,
+    version: row.version,
+  };
+}
+
+export function sourceSystemView(row: SourceSystemRow) {
+  return {
+    code: row.code,
+    name: row.name,
+    active: row.active,
+    updatedAt: row.updated_at,
     version: row.version,
   };
 }
