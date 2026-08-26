@@ -14,7 +14,9 @@ import {
   CopilotResponseService,
   CopilotFeedbackService,
 } from '@finapp/m28-executive-ai';
+import { M32ExecutiveAnalyticsAdapter } from '@finapp/m32-analytics';
 import { ActorModule } from '../actor/actor.module.ts';
+import { AnalyticsModule } from '../analytics/analytics.module.ts';
 import { CopilotSessionsController } from './sessions.controller.ts';
 import { CopilotQueriesController } from './queries.controller.ts';
 import { CopilotFeedbackController } from './feedback.controller.ts';
@@ -30,12 +32,13 @@ const M28_SUMMARIES = Symbol.for('finapp.m28.summaries');
  * NO kernel token: `DB`, `AUTHZ`, `AUDIT` and `OUTBOX` come from the global `PlatformModule`; re-binding any here would
  * be a duplicate shared service. m28 owns NO outbox — the AI request/output lifecycle flows through the one m06 `OUTBOX`
  * via the M24 pipeline (`M24Emitter`), which the copilot consumes BY CONTRACT through `M24CopilotGateway` (routing/DLP/
- * confidence/citations live in m24, never duplicated/bypassed). The UNBUILT m32 analytics is deferred behind a
- * read-only port with deterministic doubles inside `ExecutiveSummaryService`. Every route authorizes an `ai.copilot.*`
+ * confidence/citations live in m24, never duplicated/bypassed). The analytics evidence port is now bound to the REAL
+ * `M32ExecutiveAnalyticsAdapter` (live, entitlement-masked, citation-bearing published metrics); the other cross-domain
+ * read ports remain deterministic doubles until their real read seams are wired. Every route authorizes an `ai.copilot.*`
  * permission (GAP-4 resolved) and audits under the shared `AI_` prefix. The copilot NEVER mutates a business record.
  */
 @Module({
-  imports: [ActorModule],
+  imports: [ActorModule, AnalyticsModule],
   controllers: [
     CopilotSessionsController,
     CopilotQueriesController,
@@ -53,7 +56,17 @@ const M28_SUMMARIES = Symbol.for('finapp.m28.summaries');
       useFactory: (db: Db, authz: Authz, audit: Audit, outbox: Outbox<DomainEvent>) =>
         new M24CopilotGateway(db, authz, new M24Emitter(audit, outbox), new AiRepository()),
     },
-    { provide: M28_SUMMARIES, useFactory: () => new ExecutiveSummaryService() },
+    {
+      // GROUND the copilot's analytics evidence in the REAL m32 adapter (not the fixture double): the executive
+      // summary service's analytics port is bound to M32ExecutiveAnalyticsAdapter (exported by AnalyticsModule),
+      // so an executive question resolves genuine, entitlement-masked, citation-bearing published-metric evidence —
+      // e.g. the live Feedback aggregates. All other cross-domain ports remain the deterministic doubles until their
+      // real read seams are wired (honestly adapter-pending). The copilot still never sees a value it isn't entitled
+      // to (RLS + entitlement masking), and still cannot mutate anything (read-only ports only).
+      provide: M28_SUMMARIES,
+      inject: [M32ExecutiveAnalyticsAdapter],
+      useFactory: (analytics: M32ExecutiveAnalyticsAdapter) => new ExecutiveSummaryService({ analytics }),
+    },
     {
       provide: CopilotConfigurationService,
       inject: [DB, AUTHZ, M28Emitter, ExecutiveAiRepository],
