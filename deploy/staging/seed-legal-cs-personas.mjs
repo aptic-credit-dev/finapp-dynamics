@@ -130,6 +130,9 @@ const PERSONAS = [
       'ai.copilot.read',
       'ai.copilot.query',
       'ai.copilot.feedback',
+      // the copilot delegates generation to the canonical m24 request pipeline (BY CONTRACT)
+      'ai.request.create',
+      'ai.request.read',
     ],
   },
   {
@@ -143,6 +146,9 @@ const PERSONAS = [
       'ai.copilot.query',
       'ai.copilot.feedback',
       'ai.copilot.export',
+      // copilot generation runs through the canonical m24 request pipeline (BY CONTRACT)
+      'ai.request.create',
+      'ai.request.read',
       // grounded analytics evidence (else the m32 metric evidence masks out -> review_required, 0 citations)
       'analytics.dataset.read',
       'analytics.metric.read',

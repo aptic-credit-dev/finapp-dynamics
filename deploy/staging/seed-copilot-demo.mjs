@@ -70,12 +70,15 @@ try {
   if (!s.ok) throw new Error(`session -> ${s.status} ${JSON.stringify(s.data)}`);
   const sessionId = s.data.id;
 
-  // 2. the demo question — executive_question draws the analytics evidence port (real m32 adapter)
+  // 2. the demo question — executive_question draws the analytics evidence port (real m32 adapter).
+  // The canonical m24 generation pipeline routes to an APPROVED provider/model (deterministic staging double).
   const q = await call('POST', '/copilot/queries', {
     sessionId,
     question: 'What are the main customer feedback issues right now?',
     intentClass: 'executive_question',
     scopeLevel: 'tenant',
+    ...(process.env.PROVIDER_ID ? { providerId: process.env.PROVIDER_ID } : {}),
+    ...(process.env.MODEL_ID ? { modelId: process.env.MODEL_ID } : {}),
   });
   if (!q.ok) throw new Error(`query -> ${q.status} ${JSON.stringify(q.data)}`);
   const query = q.data.query;
