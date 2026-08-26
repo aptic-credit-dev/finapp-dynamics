@@ -1357,6 +1357,122 @@ export const getNotifTemplateVersions = (
 ): Promise<ApiResult<{ versions: Row[] }>> =>
   call(`${NT}/templates/${encodeURIComponent(id)}/versions`, { tenantId: t });
 
+// --- M09 Documents — canonical m09-docs engine, reused (no second document / content store). Metadata +
+// governance (classification, legal hold, retention/disposition maker-checker with SoD, immutable versions,
+// relationships, per-document access grants, the type/retention CATALOG) are REAL and server-enforced: reads are
+// RLS-scoped + permission-gated (documents.document.read etc.) and every mutation is audited + carries
+// expectedVersion where required. Byte UPLOAD/DOWNLOAD is FRAMEWORK-ONLY on staging (no object store bound):
+// `versions/:id/complete` fails closed and `versions/:id/download` returns not-found — so this client exposes the
+// `initiate` step + a download button but NEVER fabricates bytes or a scan result; the workspace surfaces the
+// storage limitation truthfully. Per-document grants are recorded + audited GOVERNANCE, not a read/download
+// boundary (denial = RBAC permission + tenant RLS). This client adds no authorization of its own. ---
+const DOC = '/documents';
+export const getDocuments = (
+  t?: string | null,
+  filters?: Record<string, string>,
+): Promise<ApiResult<{ documents: Row[] }>> => {
+  const qs = filters
+    ? '?' +
+      Object.entries(filters)
+        .filter(([, v]) => v !== '')
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&')
+    : '';
+  return call(`${DOC}/documents${qs}`, { tenantId: t });
+};
+export const getDocument = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DOC}/documents/${encodeURIComponent(id)}`, { tenantId: t });
+export const getDocumentVersions = (id: string, t?: string | null): Promise<ApiResult<{ versions: Row[] }>> =>
+  call(`${DOC}/documents/${encodeURIComponent(id)}/versions`, { tenantId: t });
+export const getVersionScans = (id: string, t?: string | null): Promise<ApiResult<{ scans: Row[] }>> =>
+  call(`${DOC}/versions/${encodeURIComponent(id)}/scans`, { tenantId: t });
+export const getDocumentRelationships = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ relationships: Row[] }>> =>
+  call(`${DOC}/documents/${encodeURIComponent(id)}/relationships`, { tenantId: t });
+export const getDocumentGrants = (id: string, t?: string | null): Promise<ApiResult<{ grants: Row[] }>> =>
+  call(`${DOC}/documents/${encodeURIComponent(id)}/grants`, { tenantId: t });
+export const getDocumentLegalHold = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ hold: Row | null }>> =>
+  call(`${DOC}/documents/${encodeURIComponent(id)}/legal-hold`, { tenantId: t });
+export const getDisposition = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DOC}/dispositions/${encodeURIComponent(id)}`, { tenantId: t });
+export const getDocTypes = (t?: string | null): Promise<ApiResult<{ types: Row[] }>> =>
+  call(`${DOC}/types`, { tenantId: t });
+export const getRetentionPolicies = (t?: string | null): Promise<ApiResult<{ retentionPolicies: Row[] }>> =>
+  call(`${DOC}/retention-policies`, { tenantId: t });
+export const createDocument = (body: Record<string, unknown>, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DOC}/documents`, { method: 'POST', body, tenantId: t });
+export const updateDocumentClassification = (
+  id: string,
+  ev: number,
+  classification: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${DOC}/documents/${encodeURIComponent(id)}/classification`, {
+    method: 'POST',
+    body: { expectedVersion: ev, classification },
+    tenantId: t,
+  });
+export const initiateDocVersion = (
+  id: string,
+  body: { filename: string; mediaType: string; changeSummary?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${DOC}/documents/${encodeURIComponent(id)}/versions/initiate`, {
+    method: 'POST',
+    body,
+    tenantId: t,
+  });
+export const archiveDocument = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DOC}/documents/${encodeURIComponent(id)}/archive`, { method: 'POST', tenantId: t });
+export const placeLegalHold = (id: string, reason: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DOC}/documents/${encodeURIComponent(id)}/legal-holds`, {
+    method: 'POST',
+    body: { reason },
+    tenantId: t,
+  });
+export const releaseLegalHold = (holdId: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DOC}/legal-holds/${encodeURIComponent(holdId)}/release`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const requestDisposition = (
+  id: string,
+  action: string,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${DOC}/documents/${encodeURIComponent(id)}/dispositions`, {
+    method: 'POST',
+    body: { action, reason },
+    tenantId: t,
+  });
+export const approveDisposition = (dispId: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DOC}/dispositions/${encodeURIComponent(dispId)}/approve`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const executeDisposition = (dispId: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DOC}/dispositions/${encodeURIComponent(dispId)}/execute`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const addDocumentRelationship = (
+  body: { fromDocumentId: string; toDocumentId: string; relationshipType: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${DOC}/relationships`, { method: 'POST', body, tenantId: t });
+// Byte transfer is framework-only on staging: this POSTs the server-mediated download authorization, which fails
+// closed (no stored object) — the workspace surfaces the returned error as a storage limitation, never a file.
+export const downloadDocumentVersion = (versionId: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DOC}/versions/${encodeURIComponent(versionId)}/download`, { method: 'POST', tenantId: t });
+
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
 // (RLS, no escape). Every write is a canonical permissioned + audited endpoint; the server is authoritative,

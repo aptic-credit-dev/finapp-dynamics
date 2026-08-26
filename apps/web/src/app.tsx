@@ -4588,6 +4588,760 @@ function NotificationsWorkspace({
   );
 }
 
+// ---------- Documents (M09) — governed document + records surface over the CANONICAL m09-docs engine. No second
+// document/content store. Metadata + GOVERNANCE are REAL and server-enforced: classification (downgrade needs
+// platform authority), legal hold, retention/disposition on a maker-checker lifecycle (a DISTINCT approver — SoD
+// server-side; disposal is blocked while a hold is active), immutable versions (content hash + size + scan
+// status), relationships, and per-document access grants (recorded + audited governance — NOT a read/download
+// boundary; denial = RBAC permission + tenant RLS). Byte UPLOAD/DOWNLOAD is FRAMEWORK-ONLY on staging (no object
+// store bound): the workspace exposes the `initiate` step + a download button but surfaces the storage limitation
+// truthfully — it NEVER fabricates bytes or a scan result. RBAC + tenant isolation + audit enforced server-side;
+// reads are permission-gated; only what the API returns is rendered. ----------
+const DOC_CLASSIFICATIONS = ['public', 'internal', 'confidential', 'restricted'];
+const DOC_STATUSES = ['draft', 'active', 'superseded', 'archived', 'withdrawn', 'disposed'];
+// A version holds real bytes only once COMMITTED (pending has no stored object) — download applies to these.
+const isCommittedVersion = (status: string): boolean =>
+  /committed|active|superseded/.test(status.toLowerCase());
+
+function DocumentsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const [tab, setTab] = useState<'documents' | 'catalog'>('documents');
+  const [nonce, setNonce] = useState(0);
+  const [code, setCode] = useState('');
+  const [type, setType] = useState('');
+  const [status, setStatus] = useState('');
+  const [classification, setClassification] = useState('');
+  const [openDoc, setOpenDoc] = useState<api.Row | null>(null);
+
+  const documents = useRows(async () => {
+    const r = await api.getDocuments(tenant, { code, type, status, classification });
+    return { ...r, data: (r.data as { documents?: api.Row[] } | null)?.documents ?? [] };
+  }, [tenant, nonce, code, type, status, classification]);
+
+  const types = useRows(async () => {
+    const r = await api.getDocTypes(tenant);
+    return { ...r, data: (r.data as { types?: api.Row[] } | null)?.types ?? [] };
+  }, [tenant, tab]);
+  const policies = useRows(async () => {
+    const r = await api.getRetentionPolicies(tenant);
+    return { ...r, data: (r.data as { retentionPolicies?: api.Row[] } | null)?.retentionPolicies ?? [] };
+  }, [tenant, tab]);
+
+  const tabs: { id: typeof tab; label: string }[] = [
+    { id: 'documents', label: 'Documents' },
+    { id: 'catalog', label: 'Catalog' },
+  ];
+
+  return (
+    <>
+      <h1 className="page-title">Documents</h1>
+      <p className="page-sub">
+        Enterprise documents + records over the canonical m09 engine · synthetic staging data. Documents span
+        Legal, Recovery, Finance, Compliance and Feedback. RBAC + tenant isolation + audit enforced
+        server-side; no hard delete (a document archives, then disposes under maker-checker control).
+      </p>
+      <div className="ok-note" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}>
+        Document metadata + governance (classification, legal hold, retention/disposition maker-checker,
+        version integrity, relationships) are fully operational and server-enforced. Byte upload/download is
+        FRAMEWORK-ONLY on staging (no object store bound) — the workspace shows integrity metadata (content
+        hash/size/scan status) but does not transfer file bytes; a deployment binds a real storage adapter.
+        RBAC + tenant isolation + audit enforced server-side.
+      </div>
+      <div className="card">
+        <div className="run-picker">
+          {tabs.map((tb) => (
+            <button
+              key={tb.id}
+              className={`btn ${tab === tb.id ? '' : 'secondary'}`}
+              onClick={() => setTab(tb.id)}
+            >
+              {tb.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'documents' && (
+          <>
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+              <input value={code} placeholder="Search code…" onChange={(e) => setCode(e.target.value)} />
+              <input value={type} placeholder="Type…" onChange={(e) => setType(e.target.value)} />
+              <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="">All statuses</option>
+                {DOC_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <select value={classification} onChange={(e) => setClassification(e.target.value)}>
+                <option value="">All classifications</option>
+                {DOC_CLASSIFICATIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {documents.loading ? (
+              <div className="loading">Loading documents…</div>
+            ) : documents.error ? (
+              <div className="empty">Could not load documents ({documents.error}).</div>
+            ) : documents.rows.length === 0 ? (
+              <div className="empty">No documents.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Classification</th>
+                    <th>Status</th>
+                    <th>Legal hold</th>
+                    <th>Disposition</th>
+                    <th>Version</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {documents.rows.map((d, i) => (
+                    <tr key={pick(d, 'id') || i}>
+                      <td className="muted">{pick(d, 'code') || '—'}</td>
+                      <td>{pick(d, 'title') || '—'}</td>
+                      <td className="muted">{pick(d, 'documentType') || '—'}</td>
+                      <td>{statusPill(pick(d, 'classification'))}</td>
+                      <td>{statusPill(pick(d, 'status'))}</td>
+                      <td>{d['legalHold'] === true ? '📌 On hold' : '—'}</td>
+                      <td className="muted">{pick(d, 'dispositionStatus') || '—'}</td>
+                      <td className="muted">v{pick(d, 'currentVersionNumber') || '0'}</td>
+                      <td>
+                        <button className="btn link" onClick={() => setOpenDoc(d)}>
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        {tab === 'catalog' && (
+          <>
+            <div className="ok-note" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}>
+              Read-only viewer. Document types and retention policies are authored and published through a
+              privileged maker-checker admin flow (draft → validate → publish → activate; a published spec is
+              immutable) — that write flow is not exposed here.
+            </div>
+            <h4 className="drawer-sub">Document types</h4>
+            {types.loading ? (
+              <div className="loading">Loading document types…</div>
+            ) : types.error ? (
+              <div className="empty">Could not load document types ({types.error}).</div>
+            ) : types.rows.length === 0 ? (
+              <div className="empty">No document types.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Scope</th>
+                    <th>Status</th>
+                    <th>Version</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {types.rows.map((t, i) => (
+                    <tr key={pick(t, 'id') || i}>
+                      <td className="muted">{pick(t, 'code') || '—'}</td>
+                      <td>{pick(t, 'name') || '—'}</td>
+                      <td className="muted">{pick(t, 'scope') || '—'}</td>
+                      <td>{statusPill(pick(t, 'status'))}</td>
+                      <td className="muted">v{pick(t, 'versionNumber') || '1'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <h4 className="drawer-sub">Retention policies</h4>
+            {policies.loading ? (
+              <div className="loading">Loading retention policies…</div>
+            ) : policies.error ? (
+              <div className="empty">Could not load retention policies ({policies.error}).</div>
+            ) : policies.rows.length === 0 ? (
+              <div className="empty">No retention policies.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Scope</th>
+                    <th>Status</th>
+                    <th>Version</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {policies.rows.map((p, i) => (
+                    <tr key={pick(p, 'id') || i}>
+                      <td className="muted">{pick(p, 'code') || '—'}</td>
+                      <td>{pick(p, 'name') || '—'}</td>
+                      <td className="muted">{pick(p, 'scope') || '—'}</td>
+                      <td>{statusPill(pick(p, 'status'))}</td>
+                      <td className="muted">v{pick(p, 'versionNumber') || '1'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+      </div>
+      {openDoc && (
+        <DocumentDrawer
+          doc={openDoc}
+          tenant={tenant}
+          perms={perms}
+          onClose={() => setOpenDoc(null)}
+          onChanged={() => setNonce((x) => x + 1)}
+        />
+      )}
+    </>
+  );
+}
+
+function DocumentDrawer({
+  doc,
+  tenant,
+  perms,
+  onClose,
+  onChanged,
+}: {
+  doc: api.Row;
+  tenant: string | null;
+  perms: Set<string>;
+  onClose: () => void;
+  onChanged: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const id = pick(doc, 'id');
+  const [d, setD] = useState<api.Row | null>(null);
+  const [versions, setVersions] = useState<api.Row[]>([]);
+  const [hold, setHold] = useState<api.Row | null>(null);
+  const [relationships, setRelationships] = useState<api.Row[]>([]);
+  const [grants, setGrants] = useState<api.Row[]>([]);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  // Byte transfer is framework-only on staging — a per-version note carries the TRUTHFUL result of a download
+  // authorization (a not-found / storage error), never an implied file.
+  const [dlNote, setDlNote] = useState<Record<string, string>>({});
+  // A disposition id is known only once one is requested/approved in-session (there is no list-by-document read),
+  // so approve/execute act on the disposition returned by the request — held here.
+  const [disp, setDisp] = useState<api.Row | null>(null);
+  const canGrants = can('documents.access.read');
+
+  useEffect(() => {
+    let live = true;
+    void api.getDocument(id, tenant).then((r) => live && setD((r.data as api.Row) ?? doc));
+    void api
+      .getDocumentVersions(id, tenant)
+      .then((r) => live && setVersions((r.data as { versions?: api.Row[] } | null)?.versions ?? []));
+    void api
+      .getDocumentLegalHold(id, tenant)
+      .then((r) => live && setHold((r.data as { hold?: api.Row | null } | null)?.hold ?? null));
+    void api
+      .getDocumentRelationships(id, tenant)
+      .then(
+        (r) =>
+          live && setRelationships((r.data as { relationships?: api.Row[] } | null)?.relationships ?? []),
+      );
+    if (canGrants)
+      void api
+        .getDocumentGrants(id, tenant)
+        .then((r) => live && setGrants((r.data as { grants?: api.Row[] } | null)?.grants ?? []));
+    return () => {
+      live = false;
+    };
+  }, [id, tenant, nonce, doc, canGrants]);
+
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) refresh();
+  };
+
+  const cur = d ?? doc;
+  const ev = Number(cur['version'] ?? 1);
+  const status = pick(cur, 'status').toLowerCase();
+  const onHold =
+    cur['legalHold'] === true || (hold !== null && pick(hold, 'status').toLowerCase() === 'active');
+  const origin = [pick(cur, 'originModule'), pick(cur, 'originEntityType'), pick(cur, 'originEntityId')]
+    .filter(Boolean)
+    .join(' · ');
+
+  // Classification change (downgrade requires platform authority server-side).
+  const [newClass, setNewClass] = useState('');
+  const changeClass = async (): Promise<void> => {
+    if (newClass === '') return;
+    await run(
+      api.updateDocumentClassification(id, ev, newClass, tenant),
+      'Classification updated (a downgrade requires platform authority — server-enforced).',
+    );
+    setNewClass('');
+  };
+
+  // Initiate a new version (framework-only: completing the upload needs a real storage adapter).
+  const [initiating, setInitiating] = useState(false);
+  const [fn, setFn] = useState('');
+  const [mt, setMt] = useState('');
+  const [cs, setCs] = useState('');
+  const [pendingVersion, setPendingVersion] = useState<api.Row | null>(null);
+  const initiate = async (): Promise<void> => {
+    const r = await api.initiateDocVersion(
+      id,
+      { filename: fn.trim(), mediaType: mt.trim(), changeSummary: cs.trim() },
+      tenant,
+    );
+    if (r.ok && r.data) {
+      const v = ((r.data as api.Row)['version'] as api.Row | undefined) ?? (r.data as api.Row);
+      setPendingVersion(v);
+      setMsg({
+        ok: true,
+        msg: 'Version initiated (pending). Completing it requires a real storage upload — framework-only on staging.',
+      });
+      setInitiating(false);
+      setFn('');
+      setMt('');
+      setCs('');
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not initiate version.' });
+    }
+  };
+
+  // Disposition request (blocked while a legal hold is active — the server returns 409).
+  const [reqDisp, setReqDisp] = useState(false);
+  const [dispAction, setDispAction] = useState('destroy');
+  const [dispReason, setDispReason] = useState('');
+  const requestDisp = async (): Promise<void> => {
+    const r = await api.requestDisposition(id, dispAction.trim(), dispReason.trim(), tenant);
+    if (r.ok && r.data) {
+      setDisp(r.data as api.Row);
+      setMsg({ ok: true, msg: 'Disposition requested (pending review — a DISTINCT approver decides, SoD).' });
+      setReqDisp(false);
+      setDispReason('');
+      refresh();
+    } else {
+      setMsg({
+        ok: false,
+        msg: r.error ?? 'Could not request disposition (an active legal hold blocks it).',
+      });
+    }
+  };
+
+  // Add a relationship to another document (by id).
+  const [relOpen, setRelOpen] = useState(false);
+  const [relTo, setRelTo] = useState('');
+  const [relType, setRelType] = useState('references');
+  const addRel = async (): Promise<void> => {
+    const r = await api.addDocumentRelationship(
+      { fromDocumentId: id, toDocumentId: relTo.trim(), relationshipType: relType.trim() },
+      tenant,
+    );
+    setMsg(r.ok ? { ok: true, msg: 'Relationship added.' } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) {
+      setRelOpen(false);
+      setRelTo('');
+      refresh();
+    }
+  };
+
+  const download = async (versionId: string): Promise<void> => {
+    const r = await api.downloadDocumentVersion(versionId, tenant);
+    // Storage is framework-only on staging: this fails closed. Surface the truthful result — never a file.
+    setDlNote((m) => ({
+      ...m,
+      [versionId]: r.ok
+        ? 'Download authorized server-side, but byte materialization requires a real storage adapter (framework-only on staging).'
+        : `Byte transfer unavailable — ${r.error ?? 'no stored object'} (framework-only storage on staging).`,
+    }));
+  };
+
+  const dispId = disp ? pick(disp, 'id') : '';
+  const dispEv = disp ? Number(disp['version'] ?? 1) : 1;
+  const dispStatus = (disp ? pick(disp, 'status') : pick(cur, 'dispositionStatus')).toLowerCase();
+
+  return (
+    <div className="drawer-overlay" onClick={onClose} role="presentation">
+      <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Document">
+        <header className="drawer-head">
+          <h3>
+            {pick(cur, 'code') || 'Document'} — {pick(cur, 'title')}
+          </h3>
+          <button className="btn secondary" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <div className="drawer-body">
+          <dl className="kv">
+            <dt>Status</dt>
+            <dd>
+              {statusPill(pick(cur, 'status'))} · v{pick(cur, 'currentVersionNumber') || '0'}
+            </dd>
+            <dt>Classification / sensitivity</dt>
+            <dd>
+              {statusPill(pick(cur, 'classification'))} · {pick(cur, 'sensitivity') || '—'}
+            </dd>
+            <dt>Type</dt>
+            <dd className="muted">{pick(cur, 'documentType') || '—'}</dd>
+            <dt>Owner / custodian</dt>
+            <dd className="muted">
+              {pick(cur, 'ownerId') || '—'} · {pick(cur, 'custodianId') || '—'}
+            </dd>
+            <dt>Legal hold</dt>
+            <dd>{onHold ? '📌 On hold' : '—'}</dd>
+            <dt>Disposition</dt>
+            <dd className="muted">
+              {pick(cur, 'dispositionStatus') || '—'}
+              {pick(cur, 'earliestDispositionAt') ? ` · eligible ${pick(cur, 'earliestDispositionAt')}` : ''}
+            </dd>
+            <dt>Retention policy</dt>
+            <dd className="muted">{pick(cur, 'retentionPolicyCode') || '—'}</dd>
+            <dt>Effective / expires</dt>
+            <dd className="muted">
+              {pick(cur, 'effectiveAt') || '—'} · {pick(cur, 'expiresAt') || '—'}
+            </dd>
+            {origin && (
+              <>
+                <dt>Origin</dt>
+                <dd>
+                  <span className="pill info">🔗 {origin}</span>
+                </dd>
+              </>
+            )}
+          </dl>
+          {pick(cur, 'description') && <p className="muted">{pick(cur, 'description')}</p>}
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+          <h4 className="drawer-sub">Classification</h4>
+          <p className="muted" style={{ fontSize: 11, margin: '0 0 4px' }}>
+            Change classification (needs documents.document.update_metadata). A DOWNGRADE to a less-sensitive
+            level additionally requires platform authority (documents.platform.administer) — server-enforced.
+          </p>
+          {can('documents.document.update_metadata') ? (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={newClass} onChange={(e) => setNewClass(e.target.value)}>
+                <option value="">Select classification…</option>
+                {DOC_CLASSIFICATIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <button className="btn secondary sm" disabled={newClass === ''} onClick={changeClass}>
+                Change
+              </button>
+            </div>
+          ) : (
+            <p className="muted" style={{ fontSize: 12 }}>
+              You do not hold documents.document.update_metadata.
+            </p>
+          )}
+
+          <h4 className="drawer-sub">Versions</h4>
+          <p className="muted" style={{ fontSize: 11, margin: '0 0 4px' }}>
+            Versions are immutable once committed; the view carries integrity metadata (content hash + size +
+            scan status). Byte transfer is framework-only on staging — download surfaces the storage
+            limitation.
+          </p>
+          {can('documents.document.upload_version') && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {!initiating ? (
+                <button className="btn secondary sm" onClick={() => setInitiating(true)}>
+                  Initiate new version
+                </button>
+              ) : (
+                <>
+                  <input value={fn} placeholder="Filename" onChange={(e) => setFn(e.target.value)} />
+                  <input value={mt} placeholder="Media type" onChange={(e) => setMt(e.target.value)} />
+                  <input value={cs} placeholder="Change summary" onChange={(e) => setCs(e.target.value)} />
+                  <button
+                    className="btn sm"
+                    disabled={fn.trim() === '' || mt.trim() === ''}
+                    onClick={initiate}
+                  >
+                    Initiate
+                  </button>
+                  <button className="btn link sm" onClick={() => setInitiating(false)}>
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {pendingVersion && (
+            <div className="ok-note" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}>
+              Pending version v{pick(pendingVersion, 'versionNumber') || '?'} (
+              {pick(pendingVersion, 'filename')}) created. Completing it requires a real storage upload —
+              framework-only on staging, so no bytes are stored and no scan runs.
+            </div>
+          )}
+          {versions.length === 0 ? (
+            <p className="muted">No versions.</p>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Status</th>
+                  <th>Filename</th>
+                  <th>Media type</th>
+                  <th>Size</th>
+                  <th>Hash</th>
+                  <th>Scan</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {versions.map((v, i) => {
+                  const vid = pick(v, 'id');
+                  const committed = isCommittedVersion(pick(v, 'status'));
+                  const hash = pick(v, 'contentHash');
+                  return (
+                    <Fragment key={vid || i}>
+                      <tr>
+                        <td className="muted">v{pick(v, 'versionNumber') || '—'}</td>
+                        <td>{statusPill(pick(v, 'status'))}</td>
+                        <td className="muted">{pick(v, 'filename') || '—'}</td>
+                        <td className="muted">{pick(v, 'mediaType') || '—'}</td>
+                        <td className="muted">{pick(v, 'byteSize') || '—'}</td>
+                        <td className="muted" title={hash}>
+                          {hash ? hash.slice(0, 12) + '…' : '—'}
+                        </td>
+                        <td>{statusPill(pick(v, 'scanStatus'))}</td>
+                        <td>
+                          {committed && can('documents.document.download') && (
+                            <button className="btn secondary sm" onClick={() => void download(vid)}>
+                              Download
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                      {dlNote[vid] && (
+                        <tr>
+                          <td colSpan={8} className="muted" style={{ fontSize: 12 }}>
+                            {dlNote[vid]}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          <h4 className="drawer-sub">Legal hold</h4>
+          <p className="muted" style={{ fontSize: 11, margin: '0 0 4px' }}>
+            An active legal hold blocks disposition (server-enforced). Placing / releasing a hold needs
+            documents.legal_hold.manage.
+          </p>
+          <div className="kv" style={{ marginBottom: 6 }}>
+            <span className="muted">
+              {hold
+                ? `${pick(hold, 'status')} — ${pick(hold, 'reason') || 'no reason recorded'}`
+                : 'No active hold.'}
+            </span>
+          </div>
+          <div className="action-row">
+            {!onHold && (
+              <ActionButton
+                label="Place hold"
+                needsReason
+                allowed={can('documents.legal_hold.manage')}
+                onRun={(reason) => run(api.placeLegalHold(id, reason ?? '', tenant), 'Legal hold placed.')}
+              />
+            )}
+            {onHold && hold && (
+              <ActionButton
+                label="Release hold"
+                danger
+                allowed={can('documents.legal_hold.manage')}
+                onRun={() =>
+                  run(
+                    api.releaseLegalHold(pick(hold, 'id'), Number(hold['version'] ?? 1), tenant),
+                    'Legal hold released.',
+                  )
+                }
+              />
+            )}
+          </div>
+
+          <h4 className="drawer-sub">Disposition</h4>
+          <p className="muted" style={{ fontSize: 11, margin: '0 0 4px' }}>
+            Retention disposition is maker-checker: request →{' '}
+            <strong>approve (a DISTINCT approver — SoD server-side)</strong> → execute. It is blocked while a
+            legal hold is active (the server returns 409). Current: {dispStatus || '—'}.
+          </p>
+          {can('documents.disposition.request') && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {!reqDisp ? (
+                <button
+                  className="btn secondary sm"
+                  disabled={onHold}
+                  title={onHold ? 'Blocked by an active legal hold' : undefined}
+                  onClick={() => setReqDisp(true)}
+                >
+                  Request disposition
+                </button>
+              ) : (
+                <>
+                  <input
+                    value={dispAction}
+                    placeholder="Action (e.g. destroy)"
+                    onChange={(e) => setDispAction(e.target.value)}
+                  />
+                  <input
+                    value={dispReason}
+                    placeholder="Reason"
+                    onChange={(e) => setDispReason(e.target.value)}
+                  />
+                  <button
+                    className="btn sm"
+                    disabled={dispAction.trim() === '' || dispReason.trim() === ''}
+                    onClick={requestDisp}
+                  >
+                    Submit request
+                  </button>
+                  <button className="btn link sm" onClick={() => setReqDisp(false)}>
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {dispId && (
+            <div className="action-row" style={{ marginTop: 6 }}>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Disposition {dispId.slice(0, 12)} · {statusPill(pick(disp ?? {}, 'status'))}
+              </span>
+              <ActionButton
+                label="Approve"
+                allowed={can('documents.disposition.approve')}
+                onRun={() =>
+                  run(
+                    api.approveDisposition(dispId, dispEv, tenant),
+                    'Disposition approved (SoD: a distinct approver).',
+                  )
+                }
+              />
+              <ActionButton
+                label="Execute"
+                danger
+                allowed={can('documents.disposition.execute')}
+                onRun={() =>
+                  run(api.executeDisposition(dispId, dispEv, tenant), 'Disposition executed (tombstoned).')
+                }
+              />
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Relationships</h4>
+          {can('documents.relationship.manage') && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              {!relOpen ? (
+                <button className="btn secondary sm" onClick={() => setRelOpen(true)}>
+                  Add relationship
+                </button>
+              ) : (
+                <>
+                  <input
+                    value={relTo}
+                    placeholder="To document id"
+                    onChange={(e) => setRelTo(e.target.value)}
+                  />
+                  <input value={relType} placeholder="Type" onChange={(e) => setRelType(e.target.value)} />
+                  <button className="btn sm" disabled={relTo.trim() === ''} onClick={addRel}>
+                    Add
+                  </button>
+                  <button className="btn link sm" onClick={() => setRelOpen(false)}>
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          <ul className="timeline">
+            {relationships.map((r, i) => {
+              const outbound = pick(r, 'fromDocumentId') === id;
+              const other = outbound ? pick(r, 'toDocumentId') : pick(r, 'fromDocumentId');
+              return (
+                <li key={pick(r, 'id') || i}>
+                  <span className="t-head">{pick(r, 'relationshipType') || 'related'}</span>{' '}
+                  <span className="muted">
+                    {outbound ? '→' : '←'} {other.slice(0, 12)} · {pick(r, 'status')}
+                  </span>
+                </li>
+              );
+            })}
+            {relationships.length === 0 && <li className="muted">No relationships.</li>}
+          </ul>
+
+          {canGrants && (
+            <>
+              <h4 className="drawer-sub">Access grants</h4>
+              <p className="muted" style={{ fontSize: 11, margin: '0 0 4px' }}>
+                Recorded + audited GOVERNANCE. Grants supplement M02 RBAC; they are not themselves the
+                read/download boundary — access denial is enforced by RBAC permission + tenant RLS
+                server-side.
+              </p>
+              {grants.length === 0 ? (
+                <p className="muted">No grants.</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Grantee kind</th>
+                      <th>Grantee</th>
+                      <th>Access level</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {grants.map((g, i) => (
+                      <tr key={pick(g, 'id') || i}>
+                        <td className="muted">{pick(g, 'granteeKind') || '—'}</td>
+                        <td className="muted">{pick(g, 'granteeRef') || '—'}</td>
+                        <td>{statusPill(pick(g, 'accessLevel'))}</td>
+                        <td>{statusPill(pick(g, 'status'))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+
+          <h4 className="drawer-sub">Lifecycle</h4>
+          <div className="action-row">
+            <ActionButton
+              label="Archive"
+              danger
+              allowed={can('documents.document.archive') && !/archived|withdrawn|disposed/.test(status)}
+              onRun={() => run(api.archiveDocument(id, tenant), 'Document archived.')}
+            />
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 // ---------- Analytics & Reporting (M32) — governed reporting over the CANONICAL m32 analytics engine. No second
 // analytics/reporting engine. Datasets → metrics → reports are DEFINITIONS on a maker-checker publish lifecycle
 // (author → validate → review → publish; approver ≠ author; a published definition is immutable). The Run-query
@@ -8483,6 +9237,7 @@ function ApprovalsInbox({ tenant, perms }: { tenant: string | null; perms: Set<s
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▚', group: 'Overview' },
   { id: 'notifications', label: 'Notifications', icon: '🔔', group: 'Notifications' },
+  { id: 'documents', label: 'Documents', icon: '📄', group: 'Documents' },
   { id: 'reconciliation', label: 'Reconciliation', icon: '⇄', group: 'Treasury' },
   { id: 'accounts', label: 'Bank accounts', icon: '🏦', group: 'Treasury' },
   { id: 'exceptions', label: 'Exceptions', icon: '!', group: 'Treasury' },
@@ -8561,6 +9316,10 @@ const COPILOT_READ_PERMS = ['ai.copilot.read', 'ai.copilot.query'];
 // RBAC-gated on any notifications read (inbox or preference), not entitlement-gated: everyone with a workspace
 // receives governed notifications, and security/legal categories reach them regardless of preferences.
 const NOTIFICATIONS_READ_PERMS = ['notifications.inbox.view', 'notifications.preference.view'];
+
+// Documents (m09) is a platform document/governance surface spanning verticals (Legal/Recovery/Finance/
+// Compliance/Feedback), so it is its OWN top-level group — RBAC-gated on document read, not entitlement-gated.
+const DOCUMENTS_READ_PERMS = ['documents.document.read'];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
 // entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
@@ -8723,6 +9482,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
     if (g === 'Reporting') return REPORTING_READ_PERMS.some((p) => perms.has(p));
     if (g === 'Executive') return COPILOT_READ_PERMS.some((p) => perms.has(p));
     if (g === 'Notifications') return NOTIFICATIONS_READ_PERMS.some((p) => perms.has(p));
+    if (g === 'Documents') return DOCUMENTS_READ_PERMS.some((p) => perms.has(p));
     const cap = GROUP_ENTITLEMENT[g];
     if (!cap) return true; // Overview always
     return entitled?.[cap] === true;
@@ -8776,6 +9536,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
       <main className="main">
         {route === 'dashboard' && <Dashboard tenant={tenant} />}
         {route === 'notifications' && <NotificationsWorkspace tenant={tenant} perms={perms} />}
+        {route === 'documents' && <DocumentsWorkspace tenant={tenant} perms={perms} />}
         {route === 'reconciliation' && <Reconciliation tenant={tenant} perms={perms} />}
         {route === 'accounts' && (
           <>
