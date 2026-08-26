@@ -17,17 +17,11 @@ import {
   type MaterializationRequest,
   type MaterializationRow,
 } from '@finapp/m32-analytics';
-import { FeedbackService } from '@finapp/m12-feedback';
+import type { FeedbackService } from '@finapp/m12-feedback';
 
 /** The seven governed feedback dimensions m12 exposes through `FeedbackService.analytics`. */
 type FeedbackDimension =
-  | 'product'
-  | 'branch'
-  | 'department'
-  | 'sentiment'
-  | 'severity'
-  | 'category'
-  | 'status';
+  'product' | 'branch' | 'department' | 'sentiment' | 'severity' | 'category' | 'status';
 const FEEDBACK_DIMENSIONS: readonly FeedbackDimension[] = [
   'product',
   'branch',
@@ -92,10 +86,7 @@ export class RoutingMaterializationSource implements MaterializationSourcePort {
     this.bySource = new Map(Object.entries(adapters));
     this.fallback = fallback;
   }
-  computeAggregate(
-    ctx: RequestContext,
-    req: MaterializationRequest,
-  ): Promise<readonly MaterializationRow[]> {
+  computeAggregate(ctx: RequestContext, req: MaterializationRequest): Promise<readonly MaterializationRow[]> {
     const adapter = this.bySource.get(req.sourceModule) ?? this.fallback;
     return adapter.computeAggregate(ctx, req);
   }
