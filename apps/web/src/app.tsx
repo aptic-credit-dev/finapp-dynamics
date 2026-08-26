@@ -3239,6 +3239,654 @@ function FeedbackWorkspace({
   );
 }
 
+// ---------- Customer Service → Feedback Setup (M12 config) — the CANONICAL setup/configuration surface
+// (questionnaires, categories, SLA policies, source systems) for the SAME m12 feedback engine reused by the
+// operational queue above. NOT a second engine, and NOT the operational workspace (that stays a separate nav
+// item — both remain visible). Config lifecycle is a single-permission state machine
+// (DRAFT→VALIDATED→PUBLISHED→ACTIVE) driven by one `.manage` holder — there is NO maker≠checker on setup (unlike
+// operational resolution). There is no draft UPDATE endpoint: editing while mutable = a NEW version (POST the
+// same code → fresh DRAFT). Source systems hold NO credentials/secrets. SLA windows/thresholds and statuses are
+// rendered verbatim from the server — never computed in React. The UI only hides what the caller may not do; the
+// server (M02 RBAC) stays authoritative (a hidden action still 403s). ----------
+const QUESTIONNAIRE_TEMPLATE = `{
+  "schemaVersion": 1,
+  "questions": [
+    { "key": "overall", "prompt": "How satisfied were you overall?", "type": "scale", "required": true, "scale": 5 },
+    { "key": "recommend", "prompt": "Would you recommend us?", "type": "boolean", "required": false },
+    { "key": "comments", "prompt": "Any additional comments?", "type": "text", "required": false }
+  ]
+}`;
+const SLA_POLICY_TEMPLATE = `{
+  "schemaVersion": 1,
+  "ackMinutes": 60,
+  "assignMinutes": 120,
+  "responseMinutes": 240,
+  "resolutionMinutes": 1440,
+  "closureMinutes": 2880,
+  "warnThresholdPct": 80
+}`;
+
+function FeedbackSetupWorkspace({
+  tenant,
+  perms,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [tab, setTab] = useState<'questionnaires' | 'categories' | 'sla' | 'sources'>('questionnaires');
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  // lists (canonical server reads; refreshed via nonce after any write)
+  const questionnaires = useRows(async () => {
+    const r = await api.getFeedbackQuestionnaires(tenant);
+    return { ...r, data: r.data?.questionnaires ?? [] };
+  }, [tenant, nonce]);
+  const slaPolicies = useRows(async () => {
+    const r = await api.getFeedbackSlaPolicies(tenant);
+    return { ...r, data: r.data?.slaPolicies ?? [] };
+  }, [tenant, nonce]);
+  const categories = useRows(async () => {
+    const r = await api.getFeedbackCategories(tenant);
+    return { ...r, data: r.data?.categories ?? [] };
+  }, [tenant, nonce]);
+  const sources = useRows(async () => {
+    const r = await api.getFeedbackSourceSystems(tenant);
+    return { ...r, data: r.data?.sourceSystems ?? [] };
+  }, [tenant, nonce]);
+
+  const refresh = (): void => setNonce((x) => x + 1);
+
+  // ---- Questionnaire / SLA shared spec state (detail + create) ----
+  const [openSpec, setOpenSpec] = useState<api.SpecView | null>(null);
+  const [openKind, setOpenKind] = useState<'questionnaire' | 'sla' | null>(null);
+  const openDetail = async (kind: 'questionnaire' | 'sla', id: string): Promise<void> => {
+    setMsg(null);
+    const r =
+      kind === 'questionnaire'
+        ? await api.getFeedbackQuestionnaire(id, tenant)
+        : await api.getFeedbackSlaPolicy(id, tenant);
+    if (r.ok && r.data) {
+      setOpenKind(kind);
+      setOpenSpec(r.data);
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not load spec.' });
+    }
+  };
+  // Lifecycle POST returns the NEW version — capture it so a chained action uses the fresh expectedVersion.
+  // A 409 (stale version) surfaces the server message and refreshes the list; the caller re-opens for latest.
+  const runLifecycle = async (p: Promise<api.ApiResult<api.SpecView>>, okMsg: string): Promise<void> => {
+    const r = await p;
+    if (r.ok && r.data) {
+      setMsg({ ok: true, msg: okMsg });
+      setOpenSpec(r.data);
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Action failed.' });
+      if (r.status === 409) {
+        refresh();
+        setOpenSpec(null);
+        setOpenKind(null);
+      }
+    }
+  };
+
+  // create-spec form (shared shape for questionnaire + sla, differing only in template + endpoint)
+  const [creating, setCreating] = useState<'questionnaire' | 'sla' | null>(null);
+  const [cCode, setCCode] = useState('');
+  const [cName, setCName] = useState('');
+  const [cScope, setCScope] = useState('');
+  const [cSpec, setCSpec] = useState('');
+  const startCreate = (kind: 'questionnaire' | 'sla', sameCode?: string): void => {
+    setCreating(kind);
+    setCCode(sameCode ?? '');
+    setCName('');
+    setCScope('');
+    setCSpec(kind === 'questionnaire' ? QUESTIONNAIRE_TEMPLATE : SLA_POLICY_TEMPLATE);
+    setMsg(
+      sameCode
+        ? { ok: true, msg: `New version of ${sameCode}: submit to create a fresh DRAFT (no in-place edit).` }
+        : null,
+    );
+  };
+  const submitCreate = async (): Promise<void> => {
+    if (creating === null) return;
+    const code = cCode.trim();
+    const name = cName.trim();
+    if (code === '' || name === '') {
+      setMsg({ ok: false, msg: 'Code and name are required.' });
+      return;
+    }
+    let parsed: api.Row;
+    try {
+      parsed = JSON.parse(cSpec) as api.Row;
+    } catch {
+      setMsg({ ok: false, msg: 'Spec is not valid JSON.' });
+      return;
+    }
+    // The server rejects unless spec.code === top-level code — mirror it (and name/schemaVersion) explicitly.
+    const spec: api.Row = { schemaVersion: 1, ...parsed, code, name };
+    const body = { code, name, ...(cScope.trim() ? { scope: cScope.trim() } : {}), spec };
+    const r =
+      creating === 'questionnaire'
+        ? await api.createFeedbackQuestionnaire(body, tenant)
+        : await api.createFeedbackSlaPolicy(body, tenant);
+    if (r.ok && r.data) {
+      setMsg({
+        ok: true,
+        msg: `${creating === 'questionnaire' ? 'Questionnaire' : 'SLA policy'} DRAFT created (v${r.data.versionNumber}).`,
+      });
+      setCreating(null);
+      refresh();
+      setOpenKind(creating);
+      setOpenSpec(r.data);
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not create spec.' });
+    }
+  };
+
+  // ---- Category upsert form ----
+  const [catCode, setCatCode] = useState('');
+  const [catName, setCatName] = useState('');
+  const [catSentiment, setCatSentiment] = useState('');
+  const [catActive, setCatActive] = useState(true);
+  const submitCategory = async (): Promise<void> => {
+    const code = catCode.trim();
+    const name = catName.trim();
+    if (code === '' || name === '') {
+      setMsg({ ok: false, msg: 'Category code and name are required.' });
+      return;
+    }
+    const r = await api.setFeedbackCategory(
+      {
+        code,
+        name,
+        ...(catSentiment.trim() ? { defaultSentiment: catSentiment.trim() } : {}),
+        active: catActive,
+      },
+      tenant,
+    );
+    if (r.ok) {
+      setMsg({ ok: true, msg: `Category ${code} saved.` });
+      setCatCode('');
+      setCatName('');
+      setCatSentiment('');
+      setCatActive(true);
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not save category.' });
+    }
+  };
+
+  // ---- Source system upsert form (NO credentials — none exist server-side) ----
+  const [srcCode, setSrcCode] = useState('');
+  const [srcName, setSrcName] = useState('');
+  const [srcActive, setSrcActive] = useState(true);
+  const submitSource = async (): Promise<void> => {
+    const code = srcCode.trim();
+    const name = srcName.trim();
+    if (code === '' || name === '') {
+      setMsg({ ok: false, msg: 'Source code and name are required.' });
+      return;
+    }
+    const r = await api.setFeedbackSource({ code, name, active: srcActive }, tenant);
+    if (r.ok) {
+      setMsg({ ok: true, msg: `Source system ${code} saved.` });
+      setSrcCode('');
+      setSrcName('');
+      setSrcActive(true);
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not save source system.' });
+    }
+  };
+
+  const tabs: { id: typeof tab; label: string }[] = [
+    { id: 'questionnaires', label: 'Questionnaires' },
+    { id: 'categories', label: 'Categories' },
+    { id: 'sla', label: 'SLA policies' },
+    { id: 'sources', label: 'Source systems' },
+  ];
+
+  // lifecycle buttons for the open spec (DRAFT→Validate, VALIDATED→Publish, PUBLISHED→Activate). Single
+  // `.manage` permission — no distinct approver on config.
+  const specButtons = (managePerm: string): JSX.Element | null => {
+    if (openSpec === null || openKind === null) return null;
+    if (!can(managePerm)) return null;
+    const st = openSpec.status.toUpperCase();
+    const id = openSpec.id;
+    const ev = openSpec.version;
+    const lc = openKind === 'questionnaire' ? api.questionnaireLifecycle : api.slaPolicyLifecycle;
+    return (
+      <div className="action-row">
+        <ActionButton
+          label="Validate"
+          allowed={st === 'DRAFT'}
+          onRun={() => runLifecycle(lc(id, 'validate', ev, tenant), 'Validated.')}
+        />
+        <ActionButton
+          label="Publish"
+          allowed={st === 'VALIDATED'}
+          onRun={() => runLifecycle(lc(id, 'publish', ev, tenant), 'Published.')}
+        />
+        <ActionButton
+          label="Activate"
+          allowed={st === 'PUBLISHED'}
+          onRun={() => runLifecycle(lc(id, 'activate', ev, tenant), 'Activated.')}
+        />
+        <ActionButton
+          label="New version"
+          allowed={true}
+          onRun={async () => startCreate(openKind, openSpec.code)}
+        />
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <h1 className="page-title">Feedback Setup</h1>
+      <p className="page-sub">
+        Configuration for the canonical m12 feedback engine · synthetic staging data. Questionnaires and SLA
+        policies use a single-permission lifecycle (DRAFT → VALIDATED → PUBLISHED → ACTIVE) — one manage
+        holder drives it; there is no distinct-approver step on config. Editing a mutable spec means creating
+        a new version (same code). SLA windows are shown exactly as the server returns them (never recomputed
+        here). RBAC + tenant isolation + audit enforced server-side.
+      </p>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <div className="card">
+        <div className="run-picker">
+          {tabs.map((tb) => (
+            <button
+              key={tb.id}
+              className={`btn ${tab === tb.id ? '' : 'secondary'}`}
+              onClick={() => {
+                setTab(tb.id);
+                setOpenSpec(null);
+                setOpenKind(null);
+                setCreating(null);
+                setMsg(null);
+              }}
+            >
+              {tb.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'questionnaires' && (
+          <>
+            {can('feedback.questionnaire.manage') && creating !== 'questionnaire' && (
+              <div className="run-picker" style={{ gap: 6 }}>
+                <button className="btn" onClick={() => startCreate('questionnaire')}>
+                  New questionnaire
+                </button>
+              </div>
+            )}
+            {creating === 'questionnaire' && (
+              <div className="card" style={{ padding: '8px 12px', margin: '6px 0' }}>
+                <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  <input value={cCode} placeholder="Code" onChange={(e) => setCCode(e.target.value)} />
+                  <input value={cName} placeholder="Name" onChange={(e) => setCName(e.target.value)} />
+                  <input
+                    value={cScope}
+                    placeholder="Scope (optional)"
+                    onChange={(e) => setCScope(e.target.value)}
+                  />
+                </div>
+                <textarea
+                  value={cSpec}
+                  onChange={(e) => setCSpec(e.target.value)}
+                  spellCheck={false}
+                  style={{
+                    width: '100%',
+                    minHeight: 160,
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    marginTop: 6,
+                  }}
+                />
+                <p className="muted" style={{ fontSize: 11, margin: '4px 0' }}>
+                  spec.code / spec.name / schemaVersion are set automatically from the fields above (the
+                  server rejects a spec whose code ≠ the code field). Submitting the same code again creates a
+                  new DRAFT version — there is no in-place edit.
+                </p>
+                <div className="run-picker" style={{ gap: 6 }}>
+                  <button className="btn" onClick={submitCreate}>
+                    Create DRAFT
+                  </button>
+                  <button className="btn link" onClick={() => setCreating(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            {questionnaires.loading ? (
+              <div className="loading">Loading questionnaires…</div>
+            ) : questionnaires.error ? (
+              <div className="empty">Could not load questionnaires ({questionnaires.error}).</div>
+            ) : questionnaires.rows.length === 0 ? (
+              <div className="empty">No questionnaires configured.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Version</th>
+                    <th>Name</th>
+                    <th>Scope</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {questionnaires.rows.map((r, i) => (
+                    <tr key={pick(r, 'id') || i}>
+                      <td className="muted">{pick(r, 'code') || '—'}</td>
+                      <td className="muted">v{pick(r, 'versionNumber') || '—'}</td>
+                      <td>{pick(r, 'name') || '—'}</td>
+                      <td className="muted">{pick(r, 'scope') || '—'}</td>
+                      <td>{statusPill(pick(r, 'status'))}</td>
+                      <td>
+                        <button
+                          className="btn link"
+                          onClick={() => void openDetail('questionnaire', pick(r, 'id'))}
+                        >
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {openKind === 'questionnaire' && openSpec && (
+              <div className="card" style={{ padding: '8px 12px', margin: '8px 0' }}>
+                <header>
+                  <h3>
+                    {openSpec.code} · v{openSpec.versionNumber} — {openSpec.name}{' '}
+                    {statusPill(openSpec.status)}
+                  </h3>
+                  <button
+                    className="btn link sm"
+                    onClick={() => {
+                      setOpenSpec(null);
+                      setOpenKind(null);
+                    }}
+                  >
+                    Close
+                  </button>
+                </header>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Key</th>
+                      <th>Prompt</th>
+                      <th>Type</th>
+                      <th>Required</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {((openSpec.spec['questions'] as api.Row[] | undefined) ?? []).map((qn, i) => (
+                      <tr key={pick(qn, 'key') || i}>
+                        <td className="muted">{pick(qn, 'key') || '—'}</td>
+                        <td>{pick(qn, 'prompt') || '—'}</td>
+                        <td className="muted">{pick(qn, 'type') || '—'}</td>
+                        <td className="muted">{String(qn['required']) === 'true' ? 'yes' : 'no'}</td>
+                      </tr>
+                    ))}
+                    {((openSpec.spec['questions'] as api.Row[] | undefined) ?? []).length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="muted">
+                          No questions in this spec.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+                {specButtons('feedback.questionnaire.manage')}
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === 'categories' && (
+          <>
+            {can('feedback.category.manage') && (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input value={catCode} placeholder="Code" onChange={(e) => setCatCode(e.target.value)} />
+                <input value={catName} placeholder="Name" onChange={(e) => setCatName(e.target.value)} />
+                <input
+                  value={catSentiment}
+                  placeholder="Default sentiment (optional)"
+                  onChange={(e) => setCatSentiment(e.target.value)}
+                />
+                <label className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <input
+                    type="checkbox"
+                    checked={catActive}
+                    onChange={(e) => setCatActive(e.target.checked)}
+                  />
+                  active
+                </label>
+                <button className="btn" onClick={submitCategory}>
+                  Save category
+                </button>
+              </div>
+            )}
+            {can('feedback.category.manage') && (
+              <p className="muted" style={{ fontSize: 11, margin: '4px 0' }}>
+                Categories are upserted by code — re-submit the same code to edit (including toggling active).
+              </p>
+            )}
+            {categories.loading ? (
+              <div className="loading">Loading categories…</div>
+            ) : categories.error ? (
+              <div className="empty">Could not load categories ({categories.error}).</div>
+            ) : categories.rows.length === 0 ? (
+              <div className="empty">No categories configured.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Default sentiment</th>
+                    <th>Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.rows.map((r, i) => (
+                    <tr key={pick(r, 'code') || i}>
+                      <td className="muted">{pick(r, 'code') || '—'}</td>
+                      <td>{pick(r, 'name') || '—'}</td>
+                      <td>{sentimentPill(pick(r, 'defaultSentiment'))}</td>
+                      <td className="muted">{String(r['active']) === 'true' ? 'yes' : 'no'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        {tab === 'sla' && (
+          <>
+            {can('feedback.sla_policy.manage') && creating !== 'sla' && (
+              <div className="run-picker" style={{ gap: 6 }}>
+                <button className="btn" onClick={() => startCreate('sla')}>
+                  New SLA policy
+                </button>
+              </div>
+            )}
+            {creating === 'sla' && (
+              <div className="card" style={{ padding: '8px 12px', margin: '6px 0' }}>
+                <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  <input value={cCode} placeholder="Code" onChange={(e) => setCCode(e.target.value)} />
+                  <input value={cName} placeholder="Name" onChange={(e) => setCName(e.target.value)} />
+                  <input
+                    value={cScope}
+                    placeholder="Scope (optional)"
+                    onChange={(e) => setCScope(e.target.value)}
+                  />
+                </div>
+                <textarea
+                  value={cSpec}
+                  onChange={(e) => setCSpec(e.target.value)}
+                  spellCheck={false}
+                  style={{
+                    width: '100%',
+                    minHeight: 160,
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    marginTop: 6,
+                  }}
+                />
+                <p className="muted" style={{ fontSize: 11, margin: '4px 0' }}>
+                  spec.code / spec.name / schemaVersion are set automatically from the fields above. Windows
+                  are stored verbatim and rendered from the server — the UI never computes them. Submitting
+                  the same code creates a new DRAFT version.
+                </p>
+                <div className="run-picker" style={{ gap: 6 }}>
+                  <button className="btn" onClick={submitCreate}>
+                    Create DRAFT
+                  </button>
+                  <button className="btn link" onClick={() => setCreating(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            {slaPolicies.loading ? (
+              <div className="loading">Loading SLA policies…</div>
+            ) : slaPolicies.error ? (
+              <div className="empty">Could not load SLA policies ({slaPolicies.error}).</div>
+            ) : slaPolicies.rows.length === 0 ? (
+              <div className="empty">No SLA policies configured.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Version</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slaPolicies.rows.map((r, i) => (
+                    <tr key={pick(r, 'id') || i}>
+                      <td className="muted">{pick(r, 'code') || '—'}</td>
+                      <td className="muted">v{pick(r, 'versionNumber') || '—'}</td>
+                      <td>{pick(r, 'name') || '—'}</td>
+                      <td>{statusPill(pick(r, 'status'))}</td>
+                      <td>
+                        <button className="btn link" onClick={() => void openDetail('sla', pick(r, 'id'))}>
+                          Open
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {openKind === 'sla' && openSpec && (
+              <div className="card" style={{ padding: '8px 12px', margin: '8px 0' }}>
+                <header>
+                  <h3>
+                    {openSpec.code} · v{openSpec.versionNumber} — {openSpec.name}{' '}
+                    {statusPill(openSpec.status)}
+                  </h3>
+                  <button
+                    className="btn link sm"
+                    onClick={() => {
+                      setOpenSpec(null);
+                      setOpenKind(null);
+                    }}
+                  >
+                    Close
+                  </button>
+                </header>
+                <dl className="kv">
+                  <dt>Acknowledge (min)</dt>
+                  <dd>{pick(openSpec.spec, 'ackMinutes') || '—'}</dd>
+                  <dt>Assign (min)</dt>
+                  <dd>{pick(openSpec.spec, 'assignMinutes') || '—'}</dd>
+                  <dt>Response (min)</dt>
+                  <dd>{pick(openSpec.spec, 'responseMinutes') || '—'}</dd>
+                  <dt>Resolution (min)</dt>
+                  <dd>{pick(openSpec.spec, 'resolutionMinutes') || '—'}</dd>
+                  <dt>Closure (min)</dt>
+                  <dd>{pick(openSpec.spec, 'closureMinutes') || '—'}</dd>
+                  <dt>Warn threshold (%)</dt>
+                  <dd>{pick(openSpec.spec, 'warnThresholdPct') || '—'}</dd>
+                </dl>
+                <p className="muted" style={{ fontSize: 11, margin: '4px 0' }}>
+                  Canonical windows shown exactly as the server stores them — not recomputed in the browser.
+                </p>
+                {specButtons('feedback.sla_policy.manage')}
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === 'sources' && (
+          <>
+            {can('feedback.source.manage') && (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input value={srcCode} placeholder="Code" onChange={(e) => setSrcCode(e.target.value)} />
+                <input value={srcName} placeholder="Name" onChange={(e) => setSrcName(e.target.value)} />
+                <label className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <input
+                    type="checkbox"
+                    checked={srcActive}
+                    onChange={(e) => setSrcActive(e.target.checked)}
+                  />
+                  active
+                </label>
+                <button className="btn" onClick={submitSource}>
+                  Save source
+                </button>
+              </div>
+            )}
+            <p className="muted" style={{ fontSize: 11, margin: '4px 0' }}>
+              Source systems here hold NO credentials or connection secrets — only {'{ code, name, active }'}.
+              Connection secrets (if any) live in the secrets service, never in this config surface.
+            </p>
+            {sources.loading ? (
+              <div className="loading">Loading source systems…</div>
+            ) : sources.error ? (
+              <div className="empty">Could not load source systems ({sources.error}).</div>
+            ) : sources.rows.length === 0 ? (
+              <div className="empty">No source systems configured.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sources.rows.map((r, i) => (
+                    <tr key={pick(r, 'code') || i}>
+                      <td className="muted">{pick(r, 'code') || '—'}</td>
+                      <td>{pick(r, 'name') || '—'}</td>
+                      <td className="muted">{String(r['active']) === 'true' ? 'yes' : 'no'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ---------- Legal → Litigation (M16) — operational litigation workspace over the CANONICAL m16-litigation
 // engine. No second litigation engine, no hard delete (assign/advance/conclude/close/reopen/archive are governed
 // transitions). A proceeding is created from an M14 matter via the canonical from-matter referral (server-backed
@@ -9250,6 +9898,7 @@ const NAV = [
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
   { id: 'compliance-privacy', label: 'Privacy & security', icon: '🔒', group: 'Compliance' },
   { id: 'feedback', label: 'Feedback Management', icon: '💬', group: 'Customer Service' },
+  { id: 'feedback-setup', label: 'Feedback Setup', icon: '⚙', group: 'Customer Service' },
   { id: 'legal-cases', label: 'Cases', icon: '⚖', group: 'Legal' },
   { id: 'legal-matters', label: 'Matters', icon: '§', group: 'Legal' },
   { id: 'legal-litigation', label: 'Litigation', icon: '⚑', group: 'Legal' },
@@ -9296,7 +9945,14 @@ const LEGAL_READ_PERMS = [
 ];
 
 // Customer Service (m12 feedback management) is a daily operational workspace — RBAC-gated on feedback read.
-const CS_READ_PERMS = ['feedback.record.read', 'feedback.queue.read'];
+const CS_READ_PERMS = [
+  'feedback.record.read',
+  'feedback.queue.read',
+  'feedback.questionnaire.read',
+  'feedback.sla.read',
+  'feedback.category.read',
+  'feedback.source.read',
+];
 
 // Reporting (m32 analytics/reporting) is a platform reporting capability — RBAC-gated on any analytics read
 // (dataset/metric/report definitions or running a governed query), not entitlement-gated.
@@ -9557,6 +10213,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} perms={perms} />}
         {route === 'compliance-privacy' && <PrivacySecurityWorkspace tenant={tenant} perms={perms} />}
         {route === 'feedback' && <FeedbackWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
+        {route === 'feedback-setup' && <FeedbackSetupWorkspace tenant={tenant} perms={perms} />}
         {route === 'legal-cases' && <CasesWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'legal-matters' && <MattersWorkspace tenant={tenant} perms={perms} actorId={actorId} />}
         {route === 'legal-litigation' && (
