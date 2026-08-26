@@ -31,7 +31,8 @@ const ADMIN = '00000000-0000-4000-8000-0000000000a1';
 
 // Distinct base from seed-personas.mjs (which uses …0000000000{slot}{n}); here …0000000b0{k}0{s}.
 const S = { id: '0', acc: '1', role: '2', asg: '3' };
-const uid = (kind, k) => `00000000-0000-4000-8000-0000000b0${k}0${S[kind]}`;
+// base defaults to 0b (the original 16 slots 0..f); notify personas use base 0c so they never collide.
+const uid = (kind, k, base = '0b') => `00000000-0000-4000-8000-000000${base}0${k}0${S[kind]}`;
 
 const PERSONAS = [
   {
@@ -133,6 +134,15 @@ const PERSONAS = [
       // the copilot delegates generation to the canonical m24 request pipeline (BY CONTRACT)
       'ai.request.create',
       'ai.request.read',
+      // notifications (inbox read + one-way mark-read, preferences, delivery/request/template read)
+      'notifications.inbox.view',
+      'notifications.inbox.manage',
+      'notifications.preference.view',
+      'notifications.preference.update',
+      'notifications.request.view',
+      'notifications.delivery.view',
+      'notifications.template.view',
+      'notifications.escalation.view',
     ],
   },
   {
@@ -401,6 +411,52 @@ const PERSONAS = [
       'legaldocs.template.publish',
     ],
   },
+  // --- M08 Notifications (base 0c) ---
+  {
+    k: '1',
+    base: '0c',
+    login: 'stg_notify_user',
+    name: 'Notifications User (synthetic)',
+    code: 'notify_user',
+    risk: 'normal',
+    perms: [
+      'notifications.inbox.view',
+      'notifications.inbox.manage',
+      'notifications.preference.view',
+      'notifications.preference.update',
+      'notifications.delivery.view',
+    ],
+  },
+  {
+    k: '2',
+    base: '0c',
+    login: 'stg_notify_author',
+    name: 'Notifications Template Author (synthetic)',
+    code: 'notify_author',
+    risk: 'elevated',
+    perms: [
+      'notifications.template.view',
+      'notifications.template.author',
+      'notifications.template.validate',
+      'notifications.request.view',
+      'notifications.request.create',
+      'notifications.delivery.view',
+    ],
+  },
+  {
+    k: '3',
+    base: '0c',
+    login: 'stg_notify_publisher',
+    name: 'Notifications Template Publisher (synthetic)',
+    code: 'notify_publisher',
+    risk: 'critical',
+    perms: [
+      'notifications.template.view',
+      'notifications.template.publish',
+      'notifications.template.activate',
+      'notifications.template.retire',
+    ],
+  },
 ];
 
 const pool = new pg.Pool({ connectionString: url });
@@ -430,10 +486,10 @@ try {
   const out = [];
   await q(`SET app.tenant_id = '${T1}'`);
   for (const p of PERSONAS) {
-    const idId = uid('id', p.k),
-      accId = uid('acc', p.k),
-      roleId = uid('role', p.k),
-      asgId = uid('asg', p.k);
+    const idId = uid('id', p.k, p.base),
+      accId = uid('acc', p.k, p.base),
+      roleId = uid('role', p.k, p.base),
+      asgId = uid('asg', p.k, p.base);
     const email = `${p.login}@staging.local`;
     await q(
       `INSERT INTO identities (id, identity_type, display_name, primary_email, primary_email_norm, status,
