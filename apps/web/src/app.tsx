@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import * as api from './api.ts';
 
 // ---------- helpers ----------
@@ -4154,6 +4154,440 @@ function LegalDocsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
   );
 }
 
+// ---------- Notifications (M08) — governed notification surface over the CANONICAL m08 notification engine. No
+// second notification / delivery engine. The in-app INBOX is a READ + a one-way mark-read (no hard delete);
+// email/SMS/webhook are DELIVERY-TRACKED (append-only attempt evidence, never mutated) and retry/cancel are
+// governed transitions carrying the request version. security/legal categories are mandatory and BYPASS
+// preferences (server-enforced). Templates are a viewer here — authoring/publish is a privileged maker-checker
+// admin flow, not built as write UI. RBAC + tenant isolation + audit enforced server-side; nothing is
+// fabricated in the browser — only what the API returns is rendered. ----------
+function NotificationsWorkspace({
+  tenant,
+  perms,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [tab, setTab] = useState<'inbox' | 'preferences' | 'delivery' | 'templates'>('inbox');
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const refresh = (): void => setNonce((x) => x + 1);
+  const report = (r: api.ApiResult<api.Row>, okMsg: string): void => {
+    if (r.ok) {
+      setMsg({ ok: true, msg: okMsg });
+      refresh();
+    } else setMsg({ ok: false, msg: r.error ?? 'Action failed.' });
+  };
+
+  // Inbox — the governed in-app feed. Status filter is server-side (all / unread / read / archived).
+  const [inboxStatus, setInboxStatus] = useState('all');
+  const inbox = useRows(async () => {
+    const r = await api.getInbox(tenant, inboxStatus === 'all' ? undefined : inboxStatus);
+    return { ...r, data: (r.data as { inbox?: api.Row[] } | null)?.inbox ?? [] };
+  }, [tenant, nonce, inboxStatus]);
+
+  const preferences = useRows(async () => {
+    const r = await api.getNotifPreferences(tenant);
+    return { ...r, data: (r.data as { preferences?: api.Row[] } | null)?.preferences ?? [] };
+  }, [tenant, nonce]);
+
+  const requests = useRows(async () => {
+    const r = await api.getNotifRequests(tenant);
+    return { ...r, data: (r.data as { requests?: api.Row[] } | null)?.requests ?? [] };
+  }, [tenant, nonce]);
+
+  const templates = useRows(async () => {
+    const r = await api.getNotifTemplates(tenant);
+    return { ...r, data: (r.data as { templates?: api.Row[] } | null)?.templates ?? [] };
+  }, [tenant, nonce]);
+
+  // Delivery sub-panel: the selected request's append-only attempt evidence, loaded on demand.
+  const [openReqId, setOpenReqId] = useState<string | null>(null);
+  const deliveries = useRows(async () => {
+    if (!openReqId) return { ok: true, status: 200, data: [] as api.Row[], error: null };
+    const r = await api.getNotifDeliveries(openReqId, tenant);
+    return { ...r, data: (r.data as { deliveries?: api.Row[] } | null)?.deliveries ?? [] };
+  }, [tenant, openReqId, nonce]);
+
+  // Template versions sub-panel: the selected template's version history (read-only).
+  const [openTplId, setOpenTplId] = useState<string | null>(null);
+  const versions = useRows(async () => {
+    if (!openTplId) return { ok: true, status: 200, data: [] as api.Row[], error: null };
+    const r = await api.getNotifTemplateVersions(openTplId, tenant);
+    return { ...r, data: (r.data as { versions?: api.Row[] } | null)?.versions ?? [] };
+  }, [tenant, openTplId, nonce]);
+
+  const setPref = async (
+    channel: string,
+    patch: { optIn?: boolean; suppressed?: boolean },
+  ): Promise<void> => {
+    const r = await api.updateNotifPreference({ channel, ...patch }, tenant);
+    report(r, 'Preference updated.');
+  };
+
+  const tabs: { id: typeof tab; label: string }[] = [
+    { id: 'inbox', label: 'Inbox' },
+    { id: 'preferences', label: 'Preferences' },
+    { id: 'delivery', label: 'Delivery' },
+    { id: 'templates', label: 'Templates' },
+  ];
+
+  return (
+    <>
+      <h1 className="page-title">Notifications</h1>
+      <p className="page-sub">
+        Notifications over the canonical m08 engine · synthetic staging data. The in-app INBOX is read +
+        one-way mark-read (no hard delete). Email/SMS/webhook are delivery-tracked (append-only evidence).
+        security/legal categories are mandatory and bypass preferences. RBAC + tenant isolation + audit
+        enforced server-side.
+      </p>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <div className="card">
+        <div className="run-picker">
+          {tabs.map((tb) => (
+            <button
+              key={tb.id}
+              className={`btn ${tab === tb.id ? '' : 'secondary'}`}
+              onClick={() => setTab(tb.id)}
+            >
+              {tb.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'inbox' && (
+          <>
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+              <select value={inboxStatus} onChange={(e) => setInboxStatus(e.target.value)}>
+                {['all', 'unread', 'read', 'archived'].map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {inbox.loading ? (
+              <div className="loading">Loading inbox…</div>
+            ) : inbox.error ? (
+              <div className="empty">Could not load inbox ({inbox.error}).</div>
+            ) : inbox.rows.length === 0 ? (
+              <div className="empty">No notifications.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Severity</th>
+                    <th>Title</th>
+                    <th>Origin</th>
+                    <th>Status</th>
+                    <th>Delivered</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inbox.rows.map((n, i) => {
+                    const status = pick(n, 'status').toLowerCase();
+                    const unread = status !== 'read' && status !== 'archived';
+                    const origin = [pick(n, 'originModule'), pick(n, 'originEntityType')]
+                      .filter(Boolean)
+                      .join(' · ');
+                    return (
+                      <tr key={pick(n, 'id') || i}>
+                        <td>{statusPill(pick(n, 'severity'))}</td>
+                        <td>
+                          <div>{pick(n, 'title') || '—'}</div>
+                          {pick(n, 'body') && (
+                            <div className="muted" style={{ fontSize: 12 }}>
+                              {pick(n, 'body')}
+                            </div>
+                          )}
+                        </td>
+                        <td className="muted">{origin || '—'}</td>
+                        <td>{statusPill(pick(n, 'status'))}</td>
+                        <td className="muted">{pick(n, 'deliveredAt') || '—'}</td>
+                        <td>
+                          {unread && (
+                            <ActionButton
+                              label="Mark read"
+                              allowed={can('notifications.inbox.manage')}
+                              onRun={async () => {
+                                const r = await api.markInboxRead(
+                                  pick(n, 'id'),
+                                  Number(n['version'] ?? 1),
+                                  tenant,
+                                );
+                                report(r, 'Notification marked read.');
+                              }}
+                            />
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        {tab === 'preferences' &&
+          (preferences.loading ? (
+            <div className="loading">Loading preferences…</div>
+          ) : preferences.error ? (
+            <div className="empty">Could not load preferences ({preferences.error}).</div>
+          ) : preferences.rows.length === 0 ? (
+            <div className="empty">No preferences.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th>Opt-in</th>
+                  <th>Suppressed</th>
+                  <th>Quiet hours</th>
+                  {can('notifications.preference.update') && <th></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {preferences.rows.map((p, i) => {
+                  const channel = pick(p, 'channel');
+                  const optIn = p['optIn'] === true;
+                  const suppressed = p['suppressed'] === true;
+                  const qh = p['quietHours'];
+                  return (
+                    <tr key={pick(p, 'id') || i}>
+                      <td>{channel || '—'}</td>
+                      <td>{statusPill(optIn ? 'opted-in' : 'opted-out')}</td>
+                      <td>{statusPill(suppressed ? 'suppressed' : 'active')}</td>
+                      <td className="muted">
+                        {qh === null || qh === undefined || qh === '' ? '—' : JSON.stringify(qh)}
+                      </td>
+                      {can('notifications.preference.update') && (
+                        <td>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            <button
+                              className="btn secondary sm"
+                              disabled={!channel}
+                              onClick={() => void setPref(channel, { optIn: !optIn })}
+                            >
+                              {optIn ? 'Opt out' : 'Opt in'}
+                            </button>
+                            <button
+                              className="btn secondary sm"
+                              disabled={!channel}
+                              onClick={() => void setPref(channel, { suppressed: !suppressed })}
+                            >
+                              {suppressed ? 'Unsuppress' : 'Suppress'}
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ))}
+
+        {tab === 'delivery' &&
+          (requests.loading ? (
+            <div className="loading">Loading delivery requests…</div>
+          ) : requests.error ? (
+            <div className="empty">Could not load delivery requests ({requests.error}).</div>
+          ) : requests.rows.length === 0 ? (
+            <div className="empty">No delivery requests.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th>Category</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>Attempts</th>
+                  <th>Last error</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {requests.rows.map((rq, i) => {
+                  const id = pick(rq, 'id');
+                  const version = Number(rq['version'] ?? 1);
+                  const open = openReqId === id;
+                  return (
+                    <Fragment key={id || i}>
+                      <tr>
+                        <td>{pick(rq, 'channel') || '—'}</td>
+                        <td className="muted">{pick(rq, 'category') || '—'}</td>
+                        <td className="muted">{pick(rq, 'priority') || '—'}</td>
+                        <td>{statusPill(pick(rq, 'status'))}</td>
+                        <td className="muted">
+                          {pick(rq, 'attemptCount') || '0'}/{pick(rq, 'maxAttempts') || '—'}
+                        </td>
+                        <td className="muted">{pick(rq, 'lastErrorCategory') || '—'}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            <button
+                              className="btn secondary sm"
+                              onClick={() => setOpenReqId(open ? null : id)}
+                            >
+                              {open ? 'Hide' : 'View'}
+                            </button>
+                            <ActionButton
+                              label="Retry"
+                              allowed={can('notifications.request.retry')}
+                              onRun={async () => {
+                                const r = await api.retryNotifRequest(id, version, tenant);
+                                report(r, 'Delivery retry queued.');
+                              }}
+                            />
+                            <ActionButton
+                              label="Cancel"
+                              danger
+                              allowed={can('notifications.request.cancel')}
+                              onRun={async () => {
+                                const r = await api.cancelNotifRequest(id, version, tenant);
+                                report(r, 'Delivery request cancelled.');
+                              }}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                      {open && (
+                        <tr>
+                          <td colSpan={7} style={{ background: 'var(--line)' }}>
+                            {deliveries.loading ? (
+                              <div className="loading">Loading delivery attempts…</div>
+                            ) : deliveries.error ? (
+                              <div className="empty">Could not load attempts ({deliveries.error}).</div>
+                            ) : deliveries.rows.length === 0 ? (
+                              <div className="empty">No delivery attempts yet.</div>
+                            ) : (
+                              <table>
+                                <thead>
+                                  <tr>
+                                    <th>Attempt #</th>
+                                    <th>Provider</th>
+                                    <th>Outcome</th>
+                                    <th>Error category</th>
+                                    <th>Started</th>
+                                    <th>Completed</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {deliveries.rows.map((d, j) => (
+                                    <tr key={pick(d, 'id') || j}>
+                                      <td className="muted">{pick(d, 'attemptNumber') || '—'}</td>
+                                      <td className="muted">{pick(d, 'providerCode') || '—'}</td>
+                                      <td>{statusPill(pick(d, 'outcome'))}</td>
+                                      <td className="muted">{pick(d, 'errorCategory') || '—'}</td>
+                                      <td className="muted">{pick(d, 'startedAt') || '—'}</td>
+                                      <td className="muted">{pick(d, 'completedAt') || '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          ))}
+
+        {tab === 'templates' &&
+          (templates.loading ? (
+            <div className="loading">Loading templates…</div>
+          ) : templates.error ? (
+            <div className="empty">Could not load templates ({templates.error}).</div>
+          ) : templates.rows.length === 0 ? (
+            <div className="empty">No templates.</div>
+          ) : (
+            <>
+              <div className="ok-note" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}>
+                Read-only viewer. Template authoring and publish is a privileged maker-checker admin flow
+                (approver ≠ author; a published version is immutable) — it is not exposed here.
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>Name</th>
+                    <th>Channel</th>
+                    <th>Scope</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {templates.rows.map((t, i) => {
+                    const id = pick(t, 'id');
+                    const open = openTplId === id;
+                    return (
+                      <Fragment key={id || i}>
+                        <tr>
+                          <td className="muted">{pick(t, 'key') || '—'}</td>
+                          <td>{pick(t, 'name') || '—'}</td>
+                          <td className="muted">{pick(t, 'channel') || '—'}</td>
+                          <td className="muted">{pick(t, 'scope') || '—'}</td>
+                          <td>{statusPill(pick(t, 'status'))}</td>
+                          <td>
+                            <button
+                              className="btn secondary sm"
+                              onClick={() => setOpenTplId(open ? null : id)}
+                            >
+                              {open ? 'Hide' : 'Versions'}
+                            </button>
+                          </td>
+                        </tr>
+                        {open && (
+                          <tr>
+                            <td colSpan={6} style={{ background: 'var(--line)' }}>
+                              {versions.loading ? (
+                                <div className="loading">Loading versions…</div>
+                              ) : versions.error ? (
+                                <div className="empty">Could not load versions ({versions.error}).</div>
+                              ) : versions.rows.length === 0 ? (
+                                <div className="empty">No versions.</div>
+                              ) : (
+                                <table>
+                                  <thead>
+                                    <tr>
+                                      <th>Version #</th>
+                                      <th>Status</th>
+                                      <th>Notes</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {versions.rows.map((v, j) => (
+                                      <tr key={pick(v, 'id') || j}>
+                                        <td className="muted">{pick(v, 'versionNumber') || '—'}</td>
+                                        <td>{statusPill(pick(v, 'status'))}</td>
+                                        <td className="muted">{pick(v, 'notes') || '—'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </>
+          ))}
+      </div>
+    </>
+  );
+}
+
 // ---------- Analytics & Reporting (M32) — governed reporting over the CANONICAL m32 analytics engine. No second
 // analytics/reporting engine. Datasets → metrics → reports are DEFINITIONS on a maker-checker publish lifecycle
 // (author → validate → review → publish; approver ≠ author; a published definition is immutable). The Run-query
@@ -8048,6 +8482,7 @@ function ApprovalsInbox({ tenant, perms }: { tenant: string | null; perms: Set<s
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▚', group: 'Overview' },
+  { id: 'notifications', label: 'Notifications', icon: '🔔', group: 'Notifications' },
   { id: 'reconciliation', label: 'Reconciliation', icon: '⇄', group: 'Treasury' },
   { id: 'accounts', label: 'Bank accounts', icon: '🏦', group: 'Treasury' },
   { id: 'exceptions', label: 'Exceptions', icon: '!', group: 'Treasury' },
@@ -8121,6 +8556,11 @@ const REPORTING_READ_PERMS = [
 // to anyone who may read or ask the copilot). Not entitlement-gated; the AI no-execution boundary is enforced
 // server-side regardless.
 const COPILOT_READ_PERMS = ['ai.copilot.read', 'ai.copilot.query'];
+
+// Notifications (m08) is a platform operational surface — the in-app inbox + delivery evidence + preferences.
+// RBAC-gated on any notifications read (inbox or preference), not entitlement-gated: everyone with a workspace
+// receives governed notifications, and security/legal categories reach them regardless of preferences.
+const NOTIFICATIONS_READ_PERMS = ['notifications.inbox.view', 'notifications.preference.view'];
 
 // 6F entitlement gating (ADR-135): each Stage-8 vertical GROUP is available only if the selected tenant is
 // entitled to its capability. The "Overview" group is always available. Entitlement decides AVAILABILITY;
@@ -8282,6 +8722,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
     if (g === 'Customer Service') return CS_READ_PERMS.some((p) => perms.has(p));
     if (g === 'Reporting') return REPORTING_READ_PERMS.some((p) => perms.has(p));
     if (g === 'Executive') return COPILOT_READ_PERMS.some((p) => perms.has(p));
+    if (g === 'Notifications') return NOTIFICATIONS_READ_PERMS.some((p) => perms.has(p));
     const cap = GROUP_ENTITLEMENT[g];
     if (!cap) return true; // Overview always
     return entitled?.[cap] === true;
@@ -8334,6 +8775,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
       </header>
       <main className="main">
         {route === 'dashboard' && <Dashboard tenant={tenant} />}
+        {route === 'notifications' && <NotificationsWorkspace tenant={tenant} perms={perms} />}
         {route === 'reconciliation' && <Reconciliation tenant={tenant} perms={perms} />}
         {route === 'accounts' && (
           <>

@@ -1304,6 +1304,59 @@ export const publishCopilotConfig = (id: string, ev: number, t?: string | null):
 export const exportCopilotQuery = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
   call(`${CP}/queries/${encodeURIComponent(id)}/export`, { method: 'POST', tenantId: t });
 
+// --- M08 Notifications — canonical m08 notification engine, reused (no second notification / delivery engine).
+// The in-app INBOX is a governed READ + a one-way mark-read (no hard delete). Email/SMS/webhook are
+// DELIVERY-TRACKED: a request fans out to append-only delivery attempts (evidence — never mutated), and
+// retry/cancel are governed transitions carrying the mandatory `expectedVersion` (optimistic concurrency).
+// security/legal categories are mandatory and BYPASS preferences (server-enforced). Reads are RLS-scoped +
+// permission-gated (notifications.inbox.view / notifications.inbox.manage / notifications.preference.view /
+// notifications.preference.update / notifications.request.read / notifications.request.retry /
+// notifications.request.cancel / notifications.template.read) and audited server-side; this client adds no
+// authorization of its own, and no notification is ever fabricated in the browser. ---
+const NT = '/notifications';
+export const getInbox = (t?: string | null, status?: string): Promise<ApiResult<{ inbox: Row[] }>> =>
+  call(`${NT}/inbox${status ? `?status=${encodeURIComponent(status)}` : ''}`, { tenantId: t });
+export const markInboxRead = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${NT}/inbox/${encodeURIComponent(id)}/read`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const getNotifPreferences = (t?: string | null): Promise<ApiResult<{ preferences: Row[] }>> =>
+  call(`${NT}/preferences`, { tenantId: t });
+export const updateNotifPreference = (
+  body: { channel: string; optIn?: boolean; suppressed?: boolean; quietHours?: unknown },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${NT}/preferences`, { method: 'POST', body, tenantId: t });
+export const getNotifRequests = (t?: string | null): Promise<ApiResult<{ requests: Row[] }>> =>
+  call(`${NT}/requests`, { tenantId: t });
+export const getNotifRequest = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${NT}/requests/${encodeURIComponent(id)}`, { tenantId: t });
+export const getNotifDeliveries = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ deliveries: Row[] }>> =>
+  call(`${NT}/requests/${encodeURIComponent(id)}/deliveries`, { tenantId: t });
+export const retryNotifRequest = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${NT}/requests/${encodeURIComponent(id)}/retry`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const cancelNotifRequest = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${NT}/requests/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const getNotifTemplates = (t?: string | null): Promise<ApiResult<{ templates: Row[] }>> =>
+  call(`${NT}/templates`, { tenantId: t });
+export const getNotifTemplateVersions = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ versions: Row[] }>> =>
+  call(`${NT}/templates/${encodeURIComponent(id)}/versions`, { tenantId: t });
+
 // --- administration: users & access (reuses the CANONICAL m02 identity / rbac APIs — NO second identity
 // engine). Identities + accounts are GLOBAL resources; memberships, roles and assignments are TENANT-scoped
 // (RLS, no escape). Every write is a canonical permissioned + audited endpoint; the server is authoritative,
