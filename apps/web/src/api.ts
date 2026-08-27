@@ -158,6 +158,42 @@ export const changeSubscriptionPlan = (
   t?: string | null,
 ): Promise<ApiResult<Row>> => subAction(id, 'change-plan', { version: ver, planId, planVersionId }, t);
 
+// --- M39 plan-version authoring — canonical m39-saas engine, reused (no second SaaS engine). A version is
+// authored while DRAFT (perm saas.plan.manage / saas.quota.manage), validated, then PUBLISHED. Publish is REAL
+// maker-checker: the logged-in publisher is the APPROVER (perm saas.plan.publish); the body carries
+// `requestedBy` = the AUTHOR's identity id; the server enforces approver ≠ requestedBy (DB CHECK) — self-approval
+// is rejected. Published versions are immutable (DB trigger); no hard delete. Money is minor units (never float).
+export const definePlanVersion = (
+  planId: string,
+  body: { versionNo: number; currency?: string; baseAmountMinor?: number; billingInterval?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${SA}/plans/${encodeURIComponent(planId)}/versions`, { method: 'POST', body, tenantId: t });
+export const addPlanEntitlement = (
+  versionId: string,
+  body: { capabilityKey: string; allowance?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${SA}/versions/${encodeURIComponent(versionId)}/entitlements`, { method: 'POST', body, tenantId: t });
+export const addQuotaPolicy = (
+  versionId: string,
+  body: { capabilityKey: string; meterKey: string; limitHard: number; period?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${SA}/versions/${encodeURIComponent(versionId)}/quota-policies`, {
+    method: 'POST',
+    body,
+    tenantId: t,
+  });
+export const validatePlanVersion = (versionId: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${SA}/versions/${encodeURIComponent(versionId)}/validate`, { method: 'POST', body: {}, tenantId: t });
+export const publishPlanVersion = (
+  versionId: string,
+  body: { version: number; requestedBy: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${SA}/versions/${encodeURIComponent(versionId)}/publish`, { method: 'POST', body, tenantId: t });
+
 // --- reconciliation (reuses the existing gl-reconciliation API; no duplicate engine) ---
 export type Row = Record<string, unknown>;
 const R = '/gl-reconciliation';

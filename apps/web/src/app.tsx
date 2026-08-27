@@ -9002,18 +9002,249 @@ const VERTICAL_CAPS: { key: string; label: string }[] = [
   { key: 'regulatory_compliance', label: 'Regulatory compliance' },
 ];
 
+// Draft-only authoring panel (perm saas.plan.manage) — add entitlements / quota policies to an UNpublished
+// version, then validate. capabilityKey is a select of the vertical caps plus a free-text ("Custom…") option.
+// Published versions are immutable, so this renders only for drafts. `run` returns the ApiResult so a successful
+// write can clear the form; it also bumps the drawer's refresh nonce.
+function VersionAuthoring({
+  version,
+  tenant,
+  can,
+  run,
+}: {
+  version: api.Row;
+  tenant: string | null;
+  can: (p: string) => boolean;
+  run: (p: Promise<api.ApiResult<api.Row>>, ok: string) => Promise<api.ApiResult<api.Row>>;
+}): JSX.Element {
+  const vid = pick(version, 'id');
+  const [entCap, setEntCap] = useState(VERTICAL_CAPS[0].key);
+  const [entCapCustom, setEntCapCustom] = useState('');
+  const [allowance, setAllowance] = useState('');
+  const entKey = entCap === '__custom' ? entCapCustom.trim() : entCap;
+  const [qCap, setQCap] = useState(VERTICAL_CAPS[0].key);
+  const [qCapCustom, setQCapCustom] = useState('');
+  const [meterKey, setMeterKey] = useState('');
+  const [limitHard, setLimitHard] = useState('');
+  const [period, setPeriod] = useState('month');
+  const qKey = qCap === '__custom' ? qCapCustom.trim() : qCap;
+  const capOptions = (
+    <>
+      {VERTICAL_CAPS.map((c) => (
+        <option key={c.key} value={c.key}>
+          {c.label}
+        </option>
+      ))}
+      <option value="__custom">Custom…</option>
+    </>
+  );
+  return (
+    <div style={{ borderTop: '1px solid var(--border, #333)', marginTop: 6, paddingTop: 6 }}>
+      <h5 style={{ margin: '0 0 4px' }}>Add entitlement</h5>
+      <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <select value={entCap} onChange={(e) => setEntCap(e.target.value)}>
+          {capOptions}
+        </select>
+        {entCap === '__custom' && (
+          <input
+            value={entCapCustom}
+            placeholder="capabilityKey"
+            onChange={(e) => setEntCapCustom(e.target.value)}
+          />
+        )}
+        <input
+          value={allowance}
+          placeholder="allowance (optional)"
+          onChange={(e) => setAllowance(e.target.value)}
+        />
+        <button
+          className="btn sm"
+          disabled={entKey === ''}
+          onClick={() =>
+            void run(
+              api.addPlanEntitlement(
+                vid,
+                { capabilityKey: entKey, ...(allowance.trim() ? { allowance: allowance.trim() } : {}) },
+                tenant,
+              ),
+              'Entitlement added to draft.',
+            ).then((r) => {
+              if (r.ok) {
+                setAllowance('');
+                setEntCapCustom('');
+              }
+            })
+          }
+        >
+          Add entitlement
+        </button>
+      </div>
+      {can('saas.quota.manage') && (
+        <>
+          <h5 style={{ margin: '8px 0 4px' }}>Add quota policy</h5>
+          <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+            <select value={qCap} onChange={(e) => setQCap(e.target.value)}>
+              {capOptions}
+            </select>
+            {qCap === '__custom' && (
+              <input
+                value={qCapCustom}
+                placeholder="capabilityKey"
+                onChange={(e) => setQCapCustom(e.target.value)}
+              />
+            )}
+            <input value={meterKey} placeholder="meterKey" onChange={(e) => setMeterKey(e.target.value)} />
+            <input
+              value={limitHard}
+              type="number"
+              placeholder="limit (hard)"
+              onChange={(e) => setLimitHard(e.target.value)}
+            />
+            <input value={period} placeholder="period" onChange={(e) => setPeriod(e.target.value)} />
+            <button
+              className="btn sm"
+              disabled={qKey === '' || meterKey.trim() === '' || limitHard.trim() === ''}
+              onClick={() =>
+                void run(
+                  api.addQuotaPolicy(
+                    vid,
+                    {
+                      capabilityKey: qKey,
+                      meterKey: meterKey.trim(),
+                      limitHard: Number(limitHard),
+                      ...(period.trim() ? { period: period.trim() } : {}),
+                    },
+                    tenant,
+                  ),
+                  'Quota policy added to draft.',
+                ).then((r) => {
+                  if (r.ok) {
+                    setMeterKey('');
+                    setLimitHard('');
+                    setQCapCustom('');
+                  }
+                })
+              }
+            >
+              Add quota policy
+            </button>
+          </div>
+        </>
+      )}
+      <div className="action-row" style={{ marginTop: 8 }}>
+        <ActionButton
+          label="Validate"
+          allowed={true}
+          onRun={() => run(api.validatePlanVersion(vid, tenant), 'Validation run.').then(() => undefined)}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Publish (REAL maker-checker) — rendered only on a draft that has passed validation, gated on
+// saas.plan.publish. The logged-in publisher is the APPROVER; the body carries requestedBy = the AUTHOR's
+// identity id and `version` = the row's optimistic-concurrency version. The self (actorId) option is disabled as
+// a client-side hint, but the SERVER's approver ≠ requestedBy CHECK is authoritative — its rejection message is
+// surfaced verbatim via `run`.
+function PublishDialog({
+  version,
+  tenant,
+  actorId,
+  identities,
+  run,
+}: {
+  version: api.Row;
+  tenant: string | null;
+  actorId: string;
+  identities: api.Row[];
+  run: (p: Promise<api.ApiResult<api.Row>>, ok: string) => Promise<api.ApiResult<api.Row>>;
+}): JSX.Element {
+  const [armed, setArmed] = useState(false);
+  const [reqBy, setReqBy] = useState('');
+  const [busy, setBusy] = useState(false);
+  const expected = Number(version['version'] ?? 0);
+  if (!armed)
+    return (
+      <button className="btn sm" onClick={() => setArmed(true)}>
+        Publish…
+      </button>
+    );
+  const go = async (): Promise<void> => {
+    if (reqBy === '') return;
+    setBusy(true);
+    const r = await run(
+      api.publishPlanVersion(pick(version, 'id'), { version: expected, requestedBy: reqBy }, tenant),
+      'Version published (immutable).',
+    );
+    setBusy(false);
+    if (r.ok) {
+      setArmed(false);
+      setReqBy('');
+    }
+  };
+  return (
+    <div style={{ borderTop: '1px solid var(--border, #333)', marginTop: 6, paddingTop: 6 }}>
+      <p className="muted" style={{ fontSize: 12, margin: '0 0 4px' }}>
+        <strong>Maker-checker:</strong> the author (requested-by) must be a different person than you, the
+        approver — the server rejects self-approval.
+      </p>
+      <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+        <select value={reqBy} onChange={(e) => setReqBy(e.target.value)}>
+          <option value="">Requested by (author)…</option>
+          {identities.map((idn, i) => {
+            const iid = pick(idn, 'id');
+            const self = actorId !== '' && iid === actorId;
+            return (
+              <option key={iid || i} value={iid} disabled={self}>
+                {pick(idn, 'displayName', 'name', 'fullName', 'email', 'id') || iid}
+                {self ? ' (you — cannot self-approve)' : ''}
+              </option>
+            );
+          })}
+        </select>
+        <button className="btn primary sm" disabled={busy || reqBy === ''} onClick={() => void go()}>
+          {busy ? '…' : 'Confirm publish'}
+        </button>
+        <button
+          className="btn link sm"
+          onClick={() => {
+            setArmed(false);
+            setReqBy('');
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PlanVersionsDrawer({
   plan,
   tenant,
+  perms,
+  actorId,
   onClose,
 }: {
   plan: api.Row;
   tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
   onClose: () => void;
 }): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
   const planId = pick(plan, 'id');
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   const [versions, setVersions] = useState<api.Row[] | null>(null);
   const [ents, setEnts] = useState<Record<string, api.Row[]>>({});
+  const [identities, setIdentities] = useState<api.Row[]>([]);
+  // New-draft-version form (perm saas.plan.manage).
+  const [newVer, setNewVer] = useState('');
+  const [newCurrency, setNewCurrency] = useState('');
+  const [newAmount, setNewAmount] = useState('');
+  const [newInterval, setNewInterval] = useState('month');
   useEffect(() => {
     let live = true;
     setVersions(null);
@@ -9031,7 +9262,49 @@ function PlanVersionsDrawer({
     return () => {
       live = false;
     };
-  }, [planId, tenant]);
+  }, [planId, tenant, nonce]);
+  // Identity registry for the publish requested-by picker — only the publisher persona needs it.
+  useEffect(() => {
+    let live = true;
+    if (!can('saas.plan.publish') || !tenant) {
+      setIdentities([]);
+      return;
+    }
+    void api.listIdentities(tenant).then((r) => {
+      if (live) setIdentities(r.ok ? api.asRows(r.data) : []);
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant]);
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<api.ApiResult<api.Row>> => {
+    const r = await p;
+    setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+    if (r.ok) setNonce((x) => x + 1);
+    return r;
+  };
+  const nextVer =
+    versions && versions.length > 0 ? Math.max(...versions.map((v) => Number(v['versionNo'] ?? 0))) + 1 : 1;
+  const createVersion = (): void => {
+    const body: {
+      versionNo: number;
+      currency?: string;
+      baseAmountMinor?: number;
+      billingInterval?: string;
+    } = { versionNo: Number(newVer !== '' ? newVer : nextVer) };
+    if (newCurrency.trim()) body.currency = newCurrency.trim();
+    if (newAmount.trim() !== '') body.baseAmountMinor = Number(newAmount);
+    if (newInterval.trim()) body.billingInterval = newInterval.trim();
+    void run(api.definePlanVersion(planId, body, tenant), 'Draft version created.').then((r) => {
+      if (r.ok) {
+        setNewVer('');
+        setNewCurrency('');
+        setNewAmount('');
+        setNewInterval('month');
+      }
+    });
+  };
   return (
     <div className="drawer-overlay" onClick={onClose} role="presentation">
       <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Plan versions">
@@ -9042,6 +9315,7 @@ function PlanVersionsDrawer({
           </button>
         </header>
         <div className="drawer-body">
+          {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
           <dl className="kv">
             <dt>Plan key</dt>
             <dd>{pick(plan, 'planKey')}</dd>
@@ -9050,50 +9324,104 @@ function PlanVersionsDrawer({
             <dt>Current version</dt>
             <dd>{pick(plan, 'currentVersionNo') || '—'}</dd>
           </dl>
+          <p className="muted" style={{ fontSize: 11 }}>
+            Lifecycle: draft → published (immutable) → retired. Authored while draft, then validated, then
+            published (maker-checker). No hard delete.
+          </p>
+          {can('saas.plan.manage') && (
+            <div className="card" style={{ marginBottom: 8 }}>
+              <h5 style={{ margin: '0 0 6px' }}>New draft version</h5>
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  value={newVer}
+                  type="number"
+                  placeholder={`Version no (next ${nextVer})`}
+                  onChange={(e) => setNewVer(e.target.value)}
+                />
+                <input
+                  value={newCurrency}
+                  placeholder="Currency (e.g. USD)"
+                  onChange={(e) => setNewCurrency(e.target.value)}
+                />
+                <input
+                  value={newAmount}
+                  type="number"
+                  placeholder="Base amount (minor units)"
+                  onChange={(e) => setNewAmount(e.target.value)}
+                />
+                <input
+                  value={newInterval}
+                  placeholder="Billing interval"
+                  onChange={(e) => setNewInterval(e.target.value)}
+                />
+                <button className="btn sm" onClick={createVersion}>
+                  Create version
+                </button>
+              </div>
+              <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+                Amounts are integer minor units (e.g. 1999 = 19.99 — never a float).
+              </p>
+            </div>
+          )}
           <h4 className="drawer-sub">Versions</h4>
           {versions === null ? (
             <div className="loading">Loading…</div>
           ) : versions.length === 0 ? (
             <div className="empty">No versions yet.</div>
           ) : (
-            versions.map((v, i) => (
-              <div className="card" key={pick(v, 'id') || i} style={{ marginBottom: 8 }}>
-                <header>
-                  <h3>
-                    v{pick(v, 'versionNo')} · {fmtMinor(pick(v, 'baseAmountMinor'))} {pick(v, 'currency')}
-                  </h3>
-                  {statusPill(pick(v, 'state'))}
-                </header>
-                <p className="muted" style={{ fontSize: 12, margin: '2px 0' }}>
-                  Billing {pick(v, 'billingInterval') || '—'} · validation{' '}
-                  {String(v['validationPassed']) === 'true' ? '✓' : '—'} ·{' '}
-                  {String(v['state']).toLowerCase() === 'published' ? 'immutable (published)' : 'draft'}
-                </p>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Capability</th>
-                      <th>Allowance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(ents[pick(v, 'id')] ?? []).map((e, j) => (
-                      <tr key={pick(e, 'id') || j}>
-                        <td className="muted">{pick(e, 'capabilityKey')}</td>
-                        <td>{pick(e, 'allowance')}</td>
-                      </tr>
-                    ))}
-                    {(ents[pick(v, 'id')] ?? []).length === 0 && (
+            versions.map((v, i) => {
+              const isDraft = String(v['state']).toLowerCase() === 'draft';
+              const validated = String(v['validationPassed']) === 'true';
+              return (
+                <div className="card" key={pick(v, 'id') || i} style={{ marginBottom: 8 }}>
+                  <header>
+                    <h3>
+                      v{pick(v, 'versionNo')} · {fmtMinor(pick(v, 'baseAmountMinor'))} {pick(v, 'currency')}
+                    </h3>
+                    {statusPill(pick(v, 'state'))}
+                  </header>
+                  <p className="muted" style={{ fontSize: 12, margin: '2px 0' }}>
+                    Billing {pick(v, 'billingInterval') || '—'} · validation {validated ? '✓' : '—'} ·{' '}
+                    {isDraft ? 'draft' : 'immutable (published)'}
+                  </p>
+                  <table>
+                    <thead>
                       <tr>
-                        <td colSpan={2} className="muted">
-                          No entitlements in this version.
-                        </td>
+                        <th>Capability</th>
+                        <th>Allowance</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ))
+                    </thead>
+                    <tbody>
+                      {(ents[pick(v, 'id')] ?? []).map((e, j) => (
+                        <tr key={pick(e, 'id') || j}>
+                          <td className="muted">{pick(e, 'capabilityKey')}</td>
+                          <td>{pick(e, 'allowance')}</td>
+                        </tr>
+                      ))}
+                      {(ents[pick(v, 'id')] ?? []).length === 0 && (
+                        <tr>
+                          <td colSpan={2} className="muted">
+                            No entitlements in this version.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                  {isDraft && can('saas.plan.manage') && (
+                    <VersionAuthoring version={v} tenant={tenant} can={can} run={run} />
+                  )}
+                  {isDraft && validated && can('saas.plan.publish') && (
+                    <PublishDialog
+                      version={v}
+                      tenant={tenant}
+                      actorId={actorId}
+                      identities={identities}
+                      run={run}
+                    />
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </aside>
@@ -9101,12 +9429,119 @@ function PlanVersionsDrawer({
   );
 }
 
+// Change-plan (perm saas.subscription.manage) — move a subscription onto a target plan's PUBLISHED version.
+// Target versions are loaded on demand for the chosen plan and filtered to `published` (a draft is not a valid
+// commercial target). Carries the subscription's optimistic-concurrency `version`. onResult surfaces the server
+// message + refreshes the parent list.
+function ChangePlanControl({
+  sub,
+  tenant,
+  plans,
+  onResult,
+}: {
+  sub: api.Row;
+  tenant: string | null;
+  plans: api.Row[];
+  onResult: (r: api.ApiResult<api.Row>) => void;
+}): JSX.Element {
+  const [armed, setArmed] = useState(false);
+  const [planId, setPlanId] = useState('');
+  const [vid, setVid] = useState('');
+  const [versions, setVersions] = useState<api.Row[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!planId) {
+      setVersions(null);
+      setVid('');
+      return;
+    }
+    let live = true;
+    setVersions(null);
+    setVid('');
+    void api.getPlanVersions(planId, tenant).then((r) => {
+      if (!live) return;
+      const vs = ((r.data as { versions?: api.Row[] } | null)?.versions ?? []).filter(
+        (v) => String(v['state']).toLowerCase() === 'published',
+      );
+      setVersions(vs);
+    });
+    return () => {
+      live = false;
+    };
+  }, [planId, tenant]);
+  const reset = (): void => {
+    setArmed(false);
+    setPlanId('');
+    setVid('');
+  };
+  if (!armed)
+    return (
+      <button className="btn secondary sm" onClick={() => setArmed(true)}>
+        Change plan
+      </button>
+    );
+  const go = async (): Promise<void> => {
+    if (planId === '' || vid === '') return;
+    setBusy(true);
+    const r = await api.changeSubscriptionPlan(
+      pick(sub, 'id'),
+      Number(sub['version'] ?? 1),
+      planId,
+      vid,
+      tenant,
+    );
+    setBusy(false);
+    onResult(r);
+    if (r.ok) reset();
+  };
+  return (
+    <span className="confirm-inline" style={{ flexWrap: 'wrap', gap: 6 }}>
+      <select value={planId} onChange={(e) => setPlanId(e.target.value)}>
+        <option value="">Target plan…</option>
+        {plans.map((p, i) => (
+          <option key={pick(p, 'id') || i} value={pick(p, 'id')}>
+            {pick(p, 'name', 'planKey')}
+          </option>
+        ))}
+      </select>
+      <select value={vid} onChange={(e) => setVid(e.target.value)} disabled={!planId || versions === null}>
+        <option value="">
+          {versions === null
+            ? planId
+              ? 'Loading…'
+              : 'Published version…'
+            : versions.length === 0
+              ? 'No published versions'
+              : 'Published version…'}
+        </option>
+        {(versions ?? []).map((v, i) => (
+          <option key={pick(v, 'id') || i} value={pick(v, 'id')}>
+            v{pick(v, 'versionNo')} · {fmtMinor(pick(v, 'baseAmountMinor'))} {pick(v, 'currency')}
+          </option>
+        ))}
+      </select>
+      <button
+        className="btn primary sm"
+        disabled={busy || planId === '' || vid === ''}
+        onClick={() => void go()}
+      >
+        {busy ? '…' : 'Confirm change'}
+      </button>
+      <button className="btn link sm" onClick={reset}>
+        Cancel
+      </button>
+    </span>
+  );
+}
+
 function PlansSubscriptionsAdmin({
   tenant,
   perms,
+  actorId,
 }: {
   tenant: string | null;
   perms: Set<string>;
+  actorId: string;
 }): JSX.Element {
   const can = (p: string): boolean => perms.has(p);
   const [tab, setTab] = useState<'plans' | 'subscriptions' | 'entitlements'>('plans');
@@ -9139,10 +9574,14 @@ function PlansSubscriptionsAdmin({
   }, [tenant, nonce]);
   const [planKey, setPlanKey] = useState('');
   const [planName, setPlanName] = useState('');
-  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
-    const r = await p;
+  // Surface the SERVER's message verbatim (call() extracts detail/message) — so a maker-checker / SoD rejection
+  // reads as the server's reason, not a generic error. Bump the refresh nonce on success.
+  const applyResult = (r: api.ApiResult<api.Row>, ok: string): void => {
     setMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
     if (r.ok) setNonce((x) => x + 1);
+  };
+  const run = async (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> => {
+    applyResult(await p, ok);
   };
   const tabs: { id: typeof tab; label: string }[] = [
     { id: 'plans', label: 'Plans' },
@@ -9155,7 +9594,9 @@ function PlansSubscriptionsAdmin({
       <p className="page-sub">
         Commercial catalogue + subscriptions over the canonical m39 engine · synthetic staging data.
         Entitlement (subscription) decides module <strong>availability</strong>; M02 RBAC still governs
-        actions inside a module. RBAC + tenant isolation enforced server-side; no hard delete.
+        actions inside a module. RBAC + tenant isolation enforced server-side; no hard delete. Plan versions
+        are <strong>immutable once published</strong> (lifecycle only); publishing is genuine maker-checker —
+        the author (requested-by) must differ from you, the approver (enforced server-side).
       </p>
       {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
       <div className="card">
@@ -9287,6 +9728,16 @@ function PlansSubscriptionsAdmin({
                               run(api.cancelSubscription(id, ver, tenant), 'Subscription cancelled.')
                             }
                           />
+                          {m && st !== 'cancelled' && (
+                            <ChangePlanControl
+                              sub={sub}
+                              tenant={tenant}
+                              plans={plans.rows}
+                              onResult={(r) =>
+                                applyResult(r, 'Subscription moved to the selected plan version.')
+                              }
+                            />
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -9330,7 +9781,15 @@ function PlansSubscriptionsAdmin({
           </>
         )}
       </div>
-      {openPlan && <PlanVersionsDrawer plan={openPlan} tenant={tenant} onClose={() => setOpenPlan(null)} />}
+      {openPlan && (
+        <PlanVersionsDrawer
+          plan={openPlan}
+          tenant={tenant}
+          perms={perms}
+          actorId={actorId}
+          onClose={() => setOpenPlan(null)}
+        />
+      )}
     </>
   );
 }
@@ -10971,7 +11430,9 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-assignments' && <AccessAdmin tenant={tenant} perms={perms} />}
-        {route === 'admin-billing' && <PlansSubscriptionsAdmin tenant={tenant} perms={perms} />}
+        {route === 'admin-billing' && (
+          <PlansSubscriptionsAdmin tenant={tenant} perms={perms} actorId={actorId} />
+        )}
       </main>
     </div>
   );
