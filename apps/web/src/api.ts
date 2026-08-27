@@ -706,6 +706,86 @@ export const lockPeriod = (id: string, ev: number, t?: string | null): Promise<A
 export const reopenPeriod = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
   periodAction(id, 'reopen', ev, t);
 
+// --- M19 finance CONFIGURATION — the canonical finance MASTER-DATA surface (`/api/v1/finance`): GL accounts
+// (Chart of Accounts), account types, currencies. Reuses the same m19 services (no second finance engine); every
+// read is RLS-scoped + permission-gated, every write is permission-gated + audited + carries expectedVersion
+// where a lifecycle needs it. There is NO maker-checker on m19 config — a single .manage / .create / .activate
+// holder drives it (unlike operational posting) — and NO hard delete: an account ARCHIVES by status, a currency
+// DEACTIVATES; master-data history is preserved (accounts expose an append-only history). m19 carries NO monetary
+// amounts (ADR-007) and FX/tax rates are exact-decimal STRINGS — never coerced to a float. ---
+export const getAccountTypes = (t?: string | null): Promise<ApiResult<Row[] | { accountTypes?: Row[] }>> =>
+  call(`${FIN}/account-types`, { tenantId: t });
+export const createAccountType = (
+  body: { code: string; name: string; accountClass: string; normalSide?: string; description?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${FIN}/account-types`, { method: 'POST', body, tenantId: t });
+export const getCurrencies = (
+  t?: string | null,
+  status?: string,
+): Promise<ApiResult<Row[] | { currencies?: Row[] }>> =>
+  call(`${FIN}/currencies${status ? `?status=${encodeURIComponent(status)}` : ''}`, { tenantId: t });
+export const createCurrency = (
+  body: { code: string; name: string; minorUnits?: number; symbol?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${FIN}/currencies`, { method: 'POST', body, tenantId: t });
+export const deactivateCurrency = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FIN}/currencies/${encodeURIComponent(id)}/deactivate`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+// GL accounts — entityId is REQUIRED on the list (else 400); status filters (draft/active/inactive/archived).
+export const getFinanceAccounts = (
+  entityId: string,
+  t?: string | null,
+  status?: string,
+): Promise<ApiResult<Row[] | { accounts?: Row[] }>> =>
+  call(
+    `${FIN}/accounts?entityId=${encodeURIComponent(entityId)}${
+      status ? `&status=${encodeURIComponent(status)}` : ''
+    }`,
+    { tenantId: t },
+  );
+export const getFinanceAccount = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${FIN}/accounts/${encodeURIComponent(id)}`, { tenantId: t });
+export const getFinanceAccountHistory = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { history?: Row[] }>> =>
+  call(`${FIN}/accounts/${encodeURIComponent(id)}/history`, { tenantId: t });
+export const createFinanceAccount = (
+  body: {
+    entityId: string;
+    accountTypeId: string;
+    code: string;
+    name: string;
+    parentAccountId?: string;
+    currencyId?: string;
+    description?: string;
+    postable?: boolean;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${FIN}/accounts`, { method: 'POST', body, tenantId: t });
+// Edit mutable fields — the caller assembles the body (it must include expectedVersion for optimistic concurrency).
+export const updateFinanceAccount = (
+  id: string,
+  body: Record<string, unknown>,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${FIN}/accounts/${encodeURIComponent(id)}`, { method: 'POST', body, tenantId: t });
+// Lifecycle (draft → active ↔ inactive → archived) — each carries ONLY expectedVersion; there is NO hard delete.
+export const accountLifecycle = (
+  id: string,
+  action: 'activate' | 'deactivate' | 'archive',
+  ev: number,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${FIN}/accounts/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+
 // --- privacy / DLP / security-incident READ MODEL (m41) — closes the write-only backend gap. These are
 // canonical RLS-scoped, permission-gated GET endpoints (privacy.policy.read / security.dlp.read); NO mutation is
 // added here (the writes stay where they are). DLP findings are auto-generated append-only evidence (read-only);
