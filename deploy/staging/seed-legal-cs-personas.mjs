@@ -671,6 +671,75 @@ const PERSONAS = [
     // Holds NO finance permission — only a harmless inbox read. Finance Configuration must 403 for this persona.
     perms: ['notifications.inbox.view'],
   },
+  // --- M39 SaaS / Plans & Subscriptions personas (base 10 — hex, after 0f) ----------------------
+  // M39 plan-version PUBLISH is a REAL maker-checker: saas.plan.manage (author) is a DISTINCT permission from
+  // saas.plan.publish (approver), and the backend enforces approver≠requestedBy (DB CHECK). So — unlike M12/M19
+  // setup — we DO seed distinct author + publisher identities to exercise genuine author≠approver SoD.
+  {
+    k: '1',
+    base: '10',
+    login: 'stg_saas_plan_author',
+    name: 'SaaS Plan Author — defines plans/versions/entitlements/quota, validates (synthetic)',
+    code: 'saas_plan_author',
+    risk: 'critical',
+    // Author drives draft authoring + validate; CANNOT publish (no saas.plan.publish) — SoD maker side.
+    perms: ['saas.plan.read', 'saas.plan.manage', 'saas.quota.manage'],
+  },
+  {
+    k: '2',
+    base: '10',
+    login: 'stg_saas_plan_publisher',
+    name: 'SaaS Plan Publisher — independent approver who publishes a version (synthetic)',
+    code: 'saas_plan_publisher',
+    risk: 'critical',
+    // Publisher approves+publishes a validated version, passing the AUTHOR as requestedBy; the server refuses if
+    // the approver equals the requester (author≠approver). Holds publish but NOT manage — SoD checker side.
+    perms: ['saas.plan.read', 'saas.plan.publish'],
+  },
+  {
+    k: '3',
+    base: '10',
+    login: 'stg_saas_subscription_manager',
+    name: 'SaaS Subscription Manager — create/activate/change-plan subscriptions (synthetic)',
+    code: 'saas_subscription_manager',
+    risk: 'critical',
+    perms: ['saas.plan.read', 'saas.subscription.read', 'saas.subscription.manage'],
+  },
+  {
+    k: '4',
+    base: '10',
+    login: 'stg_saas_override_approver',
+    name: 'SaaS Override Approver — applies commercial overrides (maker-checker) (synthetic)',
+    code: 'saas_override_approver',
+    risk: 'critical',
+    // Applies an override passing a DISTINCT requester identity; DB CHECK enforces approved_by≠requested_by.
+    // (Override apply/read UI ships in the follow-up reads PR; the persona is seeded now for that flow.)
+    perms: ['saas.plan.read', 'saas.subscription.read', 'saas.override.administer'],
+  },
+  {
+    k: '5',
+    base: '10',
+    login: 'stg_saas_auditor',
+    name: 'SaaS Auditor — read-only plans/subscriptions/entitlements/usage/quota (synthetic)',
+    code: 'saas_auditor',
+    risk: 'normal',
+    perms: [
+      'saas.plan.read',
+      'saas.subscription.read',
+      'saas.entitlement.read',
+      'saas.usage.read',
+      'saas.quota.read',
+    ],
+  },
+  {
+    k: '6',
+    base: '10',
+    login: 'stg_saas_restricted',
+    name: 'SaaS Restricted — no saas access, proves fail-closed (synthetic)',
+    code: 'saas_restricted',
+    risk: 'normal',
+    perms: ['notifications.inbox.view'],
+  },
 ];
 
 const pool = new pg.Pool({ connectionString: url });
