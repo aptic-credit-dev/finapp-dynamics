@@ -111,7 +111,8 @@ namespaces:
              "feedback.resolution.submit", "feedback.resolution.approve", "feedback.confirmation.record",
              "feedback.sla.read", "feedback.sla.manage", "feedback.escalation.read",
              "feedback.escalation.trigger", "feedback.questionnaire.read", "feedback.questionnaire.manage",
-             "feedback.category.manage", "feedback.sla_policy.manage", "feedback.source.manage",
+             "feedback.category.read", "feedback.category.manage", "feedback.sla_policy.manage",
+             "feedback.source.read", "feedback.source.manage",
              "feedback.source.ingest", "feedback.case_handoff.read", "feedback.case_handoff.request",
              "feedback.analytics.read", "feedback.analytics.export", "feedback.customer_contact.read",
              "feedback.platform.administer"]}

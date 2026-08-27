@@ -95,6 +95,10 @@ const PERSONAS = [
       'feedback.analytics.read',
       'feedback.case_handoff.read',
       'feedback.customer_contact.read',
+      // feedback SETUP catalogues (read-only nav persona may view the Feedback Setup surface)
+      'feedback.questionnaire.read',
+      'feedback.category.read',
+      'feedback.source.read',
       // legal cases
       'cases.case.read',
       'cases.activity.read',
@@ -524,6 +528,57 @@ const PERSONAS = [
       'documents.disposition.approve',
       'documents.disposition.execute',
     ],
+  },
+  // --- M12 Feedback SETUP / CONFIGURATION personas (base 0e) ------------------------------------
+  // HONEST SoD NOTE: the canonical m12 config lifecycle uses a SINGLE `.manage` permission per object
+  // (questionnaire / sla_policy / category / source) with NO approval step — there is no author-vs-approver
+  // segregation for setup (unlike operational feedback resolution, which DOES have maker-checker). So we do
+  // NOT fabricate a "Config Author who cannot self-approve" + "distinct Config Reviewer" pair — the backend
+  // cannot enforce it. Instead: one Config Manager who drives DRAFT→VALIDATED→PUBLISHED→ACTIVE, and a
+  // read-only Auditor who can inspect ALL setup with ZERO write grant (the least-privilege win added by
+  // migration 0003's read codes). The Restricted persona proves fail-closed (no feedback perms → no setup).
+  {
+    k: '1',
+    base: '0e',
+    login: 'stg_feedback_config_manager',
+    name: 'Feedback Config Manager — questionnaire/category/SLA/source setup (synthetic)',
+    code: 'feedback_config_manager',
+    risk: 'critical',
+    perms: [
+      'feedback.questionnaire.read',
+      'feedback.questionnaire.manage',
+      'feedback.sla.read',
+      'feedback.sla_policy.manage',
+      'feedback.category.read',
+      'feedback.category.manage',
+      'feedback.source.read',
+      'feedback.source.manage',
+    ],
+  },
+  {
+    k: '2',
+    base: '0e',
+    login: 'stg_feedback_auditor',
+    name: 'Feedback Setup Auditor — read-only config inspection (synthetic)',
+    code: 'feedback_auditor',
+    risk: 'normal',
+    perms: [
+      'feedback.questionnaire.read',
+      'feedback.sla.read',
+      'feedback.category.read',
+      'feedback.source.read',
+    ],
+  },
+  {
+    k: '3',
+    base: '0e',
+    login: 'stg_feedback_restricted',
+    name: 'Feedback Restricted — no config access, proves fail-closed (synthetic)',
+    code: 'feedback_restricted',
+    risk: 'normal',
+    // Deliberately holds NO feedback permission — only a harmless inbox read so the account can log in. The
+    // Feedback Setup nav must be HIDDEN and every setup route must 403 for this persona.
+    perms: ['notifications.inbox.view'],
   },
 ];
 

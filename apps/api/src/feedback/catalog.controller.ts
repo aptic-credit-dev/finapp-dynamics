@@ -3,7 +3,7 @@ import { Endpoint } from '@finapp/kernel';
 import { CatalogService, M12_AUDIT_CODES, M12_PERMISSIONS } from '@finapp/m12-feedback';
 import { ActorContextFactory } from '@finapp/m02-identity';
 import { requireString, requireTenantScope, requireVersion } from '../identity/http.ts';
-import { specView } from './views.ts';
+import { specView, categoryView, sourceSystemView } from './views.ts';
 
 /**
  * Feedback catalog — source systems, categories, questionnaires and SLA policies, under `/api/v1/feedback`.
@@ -52,6 +52,11 @@ export class FeedbackCatalogController {
     });
     return { ok: true };
   }
+  @Get('source-systems')
+  async listSources(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list source systems (m12)');
+    return { sourceSystems: (await this.service.listSourceSystems(s.ctx)).map(sourceSystemView) };
+  }
 
   @Endpoint({
     permission: M12_PERMISSIONS.categoryManage,
@@ -68,6 +73,11 @@ export class FeedbackCatalogController {
       active: b.active !== false,
     });
     return { ok: true };
+  }
+  @Get('categories')
+  async listCategories(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list categories (m12)');
+    return { categories: (await this.service.listCategories(s.ctx)).map(categoryView) };
   }
 
   @Endpoint({
@@ -137,6 +147,11 @@ export class FeedbackCatalogController {
         requireVersion(b.expectedVersion, s.correlationId),
       ),
     );
+  }
+  @Get('questionnaires')
+  async listQuestionnaires(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list questionnaires (m12)');
+    return { questionnaires: (await this.service.listQuestionnaires(s.ctx)).map(specView) };
   }
   @Get('questionnaires/:id')
   async getQ(@Param('id') id: string, @Headers() h: Record<string, string>) {
@@ -211,6 +226,11 @@ export class FeedbackCatalogController {
         requireVersion(b.expectedVersion, s.correlationId),
       ),
     );
+  }
+  @Get('sla-policies')
+  async listSlaPolicies(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list sla policies (m12)');
+    return { slaPolicies: (await this.service.listSlaPolicies(s.ctx)).map(specView) };
   }
   @Get('sla-policies/:id')
   async getSla(@Param('id') id: string, @Headers() h: Record<string, string>) {

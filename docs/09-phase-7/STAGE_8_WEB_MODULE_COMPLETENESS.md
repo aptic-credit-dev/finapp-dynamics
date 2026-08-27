@@ -38,7 +38,7 @@ pre-merge on their stacked branches.
 | m09-docs | Documents / records | **Documents workspace** | **WEB READY WITH LIMITATION** (metadata + governance — classification, legal hold, disposition maker-checker, versions, relationships, catalog — fully operational; byte upload/download is framework-only on staging, no object store bound) |
 | m10-report | obsolete placeholder | none | FRAMEWORK ONLY (obsolete → m32) |
 | m11-ai | obsolete placeholder | none | FRAMEWORK ONLY (obsolete → m24-29) |
-| m12-feedback | Feedback management | **Customer Service → Feedback Management** | **WEB READY WITH LIMITATION** (FMS lifecycle capture→classify→resolution(maker-checker)→confirmation→close + M13 case-handoff + analytics dashboard done; questionnaire/category/SLA-policy admin not surfaced) |
+| m12-feedback | Feedback management + setup | **Customer Service → Feedback Management + Feedback Setup** | **WEB READY** (operational FMS lifecycle capture→classify→resolution(maker-checker)→confirmation→close + M13 case-handoff + analytics dashboard; **Feedback Setup** admin now surfaces questionnaire/category/SLA-policy/source-system lifecycle with RLS-scoped list routes + read/manage separation. Honest backend notes, NOT web gaps: config lifecycle uses a single `.manage` per object — no maker-checker SoD for setup; category is not runtime-enforced in classify (free-text). Source-system UI exposes no credentials — none are modelled) |
 | m13-case | Case management + decisions | **Legal → Cases** | **WEB READY WITH LIMITATION** (case lifecycle + parties + activities + links done; decisions/settlements/tasks/investigation not surfaced) |
 | m14-legal | Legal matters | **Legal → Matters** | **WEB READY WITH LIMITATION** (matter lifecycle + positions/opinions/counsel + settlements SoD + from-case link done; court-events/pleadings/costs/appeal not surfaced) |
 | m15-recon | Legacy bank recon | none (superseded by m20) | FRAMEWORK ONLY |
@@ -71,12 +71,53 @@ pre-merge on their stacked branches.
 | m41-security | Secrets / privacy / DLP / GRC | **Compliance (GRC) + Privacy & security (on main, #157)** | **WEB READY WITH LIMITATION** (secrets lifecycle admin not surfaced) |
 | m42-certification | Certification programmes | none | FRAMEWORK ONLY |
 
-## Summary counts (after M13)
-- **WEB READY**: m02-identity, m02-rbac, m17-recovery, m20-glrecon, m21-journal, m22-approval, **m08-notify**, **m28-executive-ai** (8).
+## Summary counts (after M12 Feedback Setup)
+- **WEB READY**: m02-identity, m02-rbac, m17-recovery, m20-glrecon, m21-journal, m22-approval, **m08-notify**, **m28-executive-ai**, **m12-feedback** (9).
 - **WEB READY WITH LIMITATION**: m19-finance, m39-saas, m41-security, m13-case, m14-legal, **m16-litigation**,
-  **m12-feedback**, **m18-legaldocs**, **m32-analytics**, **m09-docs** (10).
+  **m18-legaldocs**, **m32-analytics**, **m09-docs** (9).
 - **NOT WEB READY (genuine gaps)**: NONE — every business-facing module now has a web surface (Stage-8 web-surfacing programme complete). Remaining follow-ups are admin/setup slices + real storage/adapter bindings, tracked per-module above.
 - **FRAMEWORK ONLY**: the remaining 26 (kernel/infra/engine/AI-contract/obsolete).
+
+## Next admin/setup surface — ranked recommendation (after M12 Feedback Setup)
+The web-surfacing programme is complete; remaining work is admin/setup slices behind already-WEB-READY modules.
+Ranked by user value × backend-readiness × isolation risk:
+1. **M19 Finance config (GL account / chart-of-accounts admin)** — highest value: Journals + GL-recon are live
+   but the chart of accounts / posting config has no authoring UI, so account setup is API-only today. Backend
+   is real and RLS-scoped; adds a Finance → Accounts setup surface. **Recommended next.**
+2. **M39 plan authoring (version create → publish lifecycle)** — Plans & Subscriptions lists exist but new plan
+   versions can't be authored in the UI. Bounded lifecycle mirroring the M12 setup pattern; low risk.
+3. **M41 secrets lifecycle admin** — sensitive: must surface metadata/rotation state ONLY, never secret material
+   (mirror the credential-free discipline used for feedback source systems). Needs careful redaction review.
+4. **Deeper legal admin** (M14 court-events/pleadings, M16 witnesses/exhibits/orders, M18 clauses/taxonomy) —
+   several WITH-LIMITATION legal modules; individually smaller, collectively large. Sequence after finance.
+
+Recommendation: take **M19 Finance config** next — it unblocks real account setup for the already-live Journals
+and GL-reconciliation surfaces and follows the same repository→service→controller→bounded-DTO list-route pattern
+proven here, with strong maker-checker/SoD already in the finance engine (unlike M12 setup's single-permission
+config lifecycle).
+
+## M12 Feedback Setup — SoD governance gap (recorded, NOT changed in this PR)
+**Fact:** the current canonical M12 setup lifecycle uses **one `.manage` permission per config object**
+(`feedback.questionnaire.manage`, `feedback.sla_policy.manage`, `feedback.category.manage`,
+`feedback.source.manage`) and **does not enforce author ≠ approver**. The DRAFT→VALIDATED→PUBLISHED→ACTIVE
+transitions are a state machine one manage-holder drives; there is no distinct-approver step.
+
+Consequences honoured by this PR:
+- The Feedback Setup UI does **not** invent Config Author/Reviewer approval behaviour and does **not** claim
+  setup maker-checker exists. Read (`.read`) and write (`.manage`) are cleanly separated (an auditor may list
+  but not write), but that is least-privilege, **not** segregation of duties.
+- This is classified as a **backend governance gap / optional enhancement**, not a web-surface defect.
+- The M12 setup lifecycle is **unchanged** in this PR.
+
+### Proposed ADR (for a later, deliberate decision — do NOT implement until approved)
+**Maker-Checker for M12 Feedback Configuration.** Strongest candidates: **questionnaires** and **SLA policies**
+(changing them directly alters how feedback is collected, scored, escalated). **Categories** and **source
+systems** may also warrant it — a source activation change alters operational ingestion — but that is a business
+governance call, not an automatic technical addition. The ADR should decide: which config objects genuinely
+require maker-checker; the draft/review/publish/activate states; author ≠ approver enforcement; emergency
+override; audit events; `expectedVersion` rules; migration of existing ACTIVE config; and whether the canonical
+**M22** maker-checker engine is reused or M12 owns its own config SoD (reuse of M22 is strongly preferred — no
+second approval engine). No production GO implication; no code until the ADR/business decision is approved.
 
 ## Global Stage-8 web-navigation smoke (current composed branch: main+M41 + M19 + M21 + M39 + M13)
 Verified by source-level composition (nav item + route dispatch + api client wired + RBAC/entitlement gate). No

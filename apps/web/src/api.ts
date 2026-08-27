@@ -1044,6 +1044,95 @@ export const getFeedbackResolution = (
 export const getFeedbackSla = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
   call(`${FB}/records/${encodeURIComponent(id)}/sla`, { tenantId: t });
 
+// --- M12 Feedback SETUP / CONFIGURATION (Customer Service) — the CANONICAL config surface (questionnaires, SLA
+// policies, categories, source systems) for the SAME m12 engine reused above (no second feedback engine). Config
+// lifecycle is a single-permission state machine (DRAFT→VALIDATED→PUBLISHED→ACTIVE) driven by one .manage holder
+// — NO maker≠checker on setup (unlike operational resolution). Spec rows carry an optimistic-lock `version`; each
+// lifecycle POST returns the new version, so chain reads. There is NO draft UPDATE endpoint — "editing while
+// mutable" is a new POST with the same `code` (produces a fresh DRAFT versionNumber). Source systems hold NO
+// credentials/secrets — the API exposes only {code,name,active,updatedAt,version}. All server-authoritative
+// (RBAC + tenant isolation + audit); the UI never computes SLA windows/statuses. ---
+export interface SpecView {
+  id: string;
+  code: string;
+  versionNumber: number;
+  name: string;
+  scope: string;
+  status: string; // DRAFT | VALIDATED | PUBLISHED | ACTIVE | RETIRED | ARCHIVED
+  spec: Row;
+  contentHash: string;
+  version: number; // optimistic-lock version
+}
+export interface CategoryView {
+  code: string;
+  name: string;
+  defaultSentiment: string;
+  active: boolean;
+  updatedAt: string;
+  version: number;
+}
+export interface SourceSystemView {
+  code: string;
+  name: string;
+  active: boolean;
+  updatedAt: string;
+  version: number;
+}
+export type SpecLifecycleAction = 'validate' | 'publish' | 'activate';
+export const getFeedbackQuestionnaires = (
+  t?: string | null,
+): Promise<ApiResult<{ questionnaires: SpecView[] }>> => call(`${FB}/questionnaires`, { tenantId: t });
+export const getFeedbackQuestionnaire = (id: string, t?: string | null): Promise<ApiResult<SpecView>> =>
+  call(`${FB}/questionnaires/${encodeURIComponent(id)}`, { tenantId: t });
+export const getFeedbackSlaPolicies = (t?: string | null): Promise<ApiResult<{ slaPolicies: SpecView[] }>> =>
+  call(`${FB}/sla-policies`, { tenantId: t });
+export const getFeedbackSlaPolicy = (id: string, t?: string | null): Promise<ApiResult<SpecView>> =>
+  call(`${FB}/sla-policies/${encodeURIComponent(id)}`, { tenantId: t });
+export const getFeedbackCategories = (
+  t?: string | null,
+): Promise<ApiResult<{ categories: CategoryView[] }>> => call(`${FB}/categories`, { tenantId: t });
+export const getFeedbackSourceSystems = (
+  t?: string | null,
+): Promise<ApiResult<{ sourceSystems: SourceSystemView[] }>> => call(`${FB}/source-systems`, { tenantId: t });
+export const setFeedbackSource = (
+  body: { code: string; name: string; active?: boolean },
+  t?: string | null,
+): Promise<ApiResult<{ ok: true }>> => call(`${FB}/source-systems`, { method: 'POST', body, tenantId: t });
+export const setFeedbackCategory = (
+  body: { code: string; name: string; defaultSentiment?: string; active?: boolean },
+  t?: string | null,
+): Promise<ApiResult<{ ok: true }>> => call(`${FB}/categories`, { method: 'POST', body, tenantId: t });
+export const createFeedbackQuestionnaire = (
+  body: { code: string; name: string; scope?: string; spec: Row },
+  t?: string | null,
+): Promise<ApiResult<SpecView>> => call(`${FB}/questionnaires`, { method: 'POST', body, tenantId: t });
+export const questionnaireLifecycle = (
+  id: string,
+  action: SpecLifecycleAction,
+  expectedVersion: number,
+  t?: string | null,
+): Promise<ApiResult<SpecView>> =>
+  call(`${FB}/questionnaires/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion },
+    tenantId: t,
+  });
+export const createFeedbackSlaPolicy = (
+  body: { code: string; name: string; scope?: string; spec: Row },
+  t?: string | null,
+): Promise<ApiResult<SpecView>> => call(`${FB}/sla-policies`, { method: 'POST', body, tenantId: t });
+export const slaPolicyLifecycle = (
+  id: string,
+  action: SpecLifecycleAction,
+  expectedVersion: number,
+  t?: string | null,
+): Promise<ApiResult<SpecView>> =>
+  call(`${FB}/sla-policies/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion },
+    tenantId: t,
+  });
+
 // --- M16 Litigation — canonical m16-litigation engine, reused (no second litigation engine). Every mutation is
 // permission-gated + audited + carries expectedVersion where required; lifecycle is named POST actions
 // (assign/reassign/advance/conclude/close/reopen/archive/escalate) — NO hard delete. A proceeding is created

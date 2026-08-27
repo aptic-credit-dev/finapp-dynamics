@@ -20,6 +20,25 @@ export interface SpecRow {
   readonly version: number;
 }
 
+export interface CategoryRow {
+  readonly tenant_id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly default_sentiment: string | null;
+  readonly active: boolean;
+  readonly updated_at: string;
+  readonly version: number;
+}
+
+export interface SourceSystemRow {
+  readonly tenant_id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly active: boolean;
+  readonly updated_at: string;
+  readonly version: number;
+}
+
 export interface SourceTransactionRow {
   readonly tenant_id: string;
   readonly id: string;
@@ -231,6 +250,12 @@ export class FeedbackRepository {
     ]);
     return r.rows[0] ?? null;
   }
+  private async listSpecs(tx: Tx, table: string): Promise<SpecRow[]> {
+    const r = await tx.query<SpecRow>(
+      `SELECT ${SPEC_COLS} FROM ${table} ORDER BY code ASC, version_number DESC`,
+    );
+    return r.rows;
+  }
   private async updateSpecStatus(
     tx: Tx,
     table: string,
@@ -274,6 +299,9 @@ export class FeedbackRepository {
   findQuestionnaire(tx: Tx, id: string) {
     return this.findSpec(tx, 'feedback_questionnaire', id);
   }
+  listQuestionnaires(tx: Tx) {
+    return this.listSpecs(tx, 'feedback_questionnaire');
+  }
   findActiveQuestionnaire(tx: Tx, code: string) {
     return this.findActiveSpec(tx, 'feedback_questionnaire', code);
   }
@@ -312,6 +340,9 @@ export class FeedbackRepository {
   findSlaPolicy(tx: Tx, id: string) {
     return this.findSpec(tx, 'feedback_sla_policy', id);
   }
+  listSlaPolicies(tx: Tx) {
+    return this.listSpecs(tx, 'feedback_sla_policy');
+  }
   findActiveSlaPolicy(tx: Tx, code: string) {
     return this.findActiveSpec(tx, 'feedback_sla_policy', code);
   }
@@ -341,6 +372,12 @@ export class FeedbackRepository {
       [i.tenantId, i.code, i.name, i.active, i.by],
     );
   }
+  async listSourceSystems(tx: Tx): Promise<SourceSystemRow[]> {
+    const r = await tx.query<SourceSystemRow>(
+      `SELECT tenant_id, code, name, active, updated_at, version FROM feedback_source_system ORDER BY code ASC`,
+    );
+    return r.rows;
+  }
   async findSourceSystem(tx: Tx, code: string): Promise<{ code: string; active: boolean } | null> {
     const r = await tx.query<{ code: string; active: boolean }>(
       `SELECT code, active FROM feedback_source_system WHERE code=$1`,
@@ -363,6 +400,12 @@ export class FeedbackRepository {
       `INSERT INTO feedback_category (tenant_id, code, name, default_sentiment, active, created_by, updated_by) VALUES ($1,$2,$3,$4,$5,$6,$6) ON CONFLICT (tenant_id, code) DO UPDATE SET name=EXCLUDED.name, default_sentiment=EXCLUDED.default_sentiment, active=EXCLUDED.active, updated_by=EXCLUDED.updated_by, updated_at=now(), version=feedback_category.version+1`,
       [i.tenantId, i.code, i.name, i.defaultSentiment, i.active, i.by],
     );
+  }
+  async listCategories(tx: Tx): Promise<CategoryRow[]> {
+    const r = await tx.query<CategoryRow>(
+      `SELECT tenant_id, code, name, default_sentiment, active, updated_at, version FROM feedback_category ORDER BY code ASC`,
+    );
+    return r.rows;
   }
 
   // --- source transaction (ingestion) -----------------------------------------------------------

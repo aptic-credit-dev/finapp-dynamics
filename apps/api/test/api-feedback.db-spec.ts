@@ -224,6 +224,79 @@ export default defineDbSpec('api-feedback', async (ctx, t) => {
       body: { code: 'apticone', name: 'ApticOne', active: true },
     });
     await activateQuestionnaire(client, auth);
+    await client('POST', '/feedback/categories', {
+      headers: auth.headers,
+      body: { code: 'service', name: 'Service quality', defaultSentiment: 'neutral', active: true },
+    });
+
+    // --- Canonical read-only list routes (Feedback Setup) + read-permission gating ----------------
+    // The admin (all perms) sees every setup catalogue over its list route.
+    const qList = await client('GET', '/feedback/questionnaires', { headers: auth.headers });
+    t.equal(qList.status, 200, 'GET /feedback/questionnaires returns 200 for a permitted caller');
+    t.ok(
+      Array.isArray(qList.body['questionnaires']) &&
+        (qList.body['questionnaires'] as { code: string }[]).some((r) => r.code === 'loan_csat'),
+      'the questionnaire list includes the activated loan_csat spec',
+    );
+    const sList = await client('GET', '/feedback/sla-policies', { headers: auth.headers });
+    t.equal(sList.status, 200, 'GET /feedback/sla-policies returns 200 for a permitted caller');
+    const cList = await client('GET', '/feedback/categories', { headers: auth.headers });
+    t.ok(
+      cList.status === 200 &&
+        (cList.body['categories'] as { code: string }[]).some((r) => r.code === 'service'),
+      'GET /feedback/categories lists the seeded category',
+    );
+    const srcList = await client('GET', '/feedback/source-systems', { headers: auth.headers });
+    t.ok(
+      srcList.status === 200 &&
+        (srcList.body['sourceSystems'] as { code: string }[]).some((r) => r.code === 'apticone'),
+      'GET /feedback/source-systems lists the configured source (no secret material exposed)',
+    );
+
+    // A read-only auditor (the four .read codes only) may list every catalogue but write NOTHING.
+    const auditor = await seedActor(ctx, 'fbauditor');
+    await grantRole(ctx, auditor, [
+      'feedback.questionnaire.read',
+      'feedback.sla.read',
+      'feedback.category.read',
+      'feedback.source.read',
+    ]);
+    const auditAuth = await login(client, auditor);
+    for (const p of [
+      '/feedback/questionnaires',
+      '/feedback/sla-policies',
+      '/feedback/categories',
+      '/feedback/source-systems',
+    ]) {
+      const r = await client('GET', p, { headers: auditAuth.headers });
+      t.equal(r.status, 200, `a read-only auditor may GET ${p} (200)`);
+    }
+    const auditorWrite = await client('POST', '/feedback/categories', {
+      headers: auditAuth.headers,
+      body: { code: 'sneaky', name: 'Should fail', active: true },
+    });
+    t.equal(auditorWrite.status, 403, 'a read-only auditor cannot write a category (403 — read != manage)');
+
+    // The new read codes actually GATE: an actor without category.read/source.read is refused those lists,
+    // proving fail-closed (a .read grant for one entity does not leak the others).
+    const partial = await seedActor(ctx, 'fbpartial');
+    await grantRole(ctx, partial, ['feedback.questionnaire.read', 'feedback.sla.read']);
+    const partialAuth = await login(client, partial);
+    t.equal(
+      (await client('GET', '/feedback/questionnaires', { headers: partialAuth.headers })).status,
+      200,
+      'a questionnaire.read holder may list questionnaires (200)',
+    );
+    t.equal(
+      (await client('GET', '/feedback/categories', { headers: partialAuth.headers })).status,
+      403,
+      'without feedback.category.read the category list is refused (403 — the read code gates)',
+    );
+    t.equal(
+      (await client('GET', '/feedback/source-systems', { headers: partialAuth.headers })).status,
+      403,
+      'without feedback.source.read the source-system list is refused (403 — the read code gates)',
+    );
 
     // Ingest (idempotent) → claim → contact.
     const ing = await client('POST', '/feedback/ingest', {

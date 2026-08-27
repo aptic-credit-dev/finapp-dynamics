@@ -105,6 +105,8 @@ export type { Clock, NormalizedTransaction, SourceSystemAdapter } from './ports.
 export { FeedbackRepository } from './repository.ts';
 export type {
   SpecRow,
+  CategoryRow,
+  SourceSystemRow,
   SourceTransactionRow,
   FeedbackRow,
   QueueItemRow,
