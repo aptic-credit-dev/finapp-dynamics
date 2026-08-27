@@ -78,6 +78,44 @@ export interface UsageRow {
   readonly quantity: string;
   readonly period_key: string;
 }
+// Read-model rows for the admin read surfaces (usage / overrides / billing detail). Kept SEPARATE from the
+// write-path rows above so broadening a read DTO never changes an insert/update RETURNING contract. quantity /
+// quota_delta are exact integers emitted as text (never float). No secret/credential/raw-payload column exists.
+export interface UsageEventRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly capability_key: string;
+  readonly meter_key: string;
+  readonly quantity: string;
+  readonly period_key: string;
+  readonly source_ref: string | null;
+  readonly occurred_at: string;
+  readonly idempotency_key: string;
+}
+export interface OverrideRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly target_kind: string;
+  readonly capability_key: string;
+  readonly allowance: string | null;
+  readonly quota_delta: string | null;
+  readonly requested_by: string;
+  readonly approved_by: string;
+  readonly reason_code: string;
+  readonly valid_from: string;
+  readonly valid_to: string | null;
+}
+export interface BillingCycleDetailRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly subscription_id: string;
+  readonly status: string;
+  readonly version: number;
+  readonly cycle_start: string;
+  readonly cycle_end: string;
+  readonly next_renewal: string | null;
+  readonly provider_ref: string | null;
+}
 
 export class SaasRepository {
   // ---- plan (mutable aggregate) ----
@@ -385,6 +423,14 @@ export class SaasRepository {
   }
 
   // ---- override (append-only; maker-checker) ----
+  async listOverrides(tx: Tx, limit: number, offset: number): Promise<OverrideRow[]> {
+    const { rows } = await tx.query<OverrideRow>(
+      `SELECT tenant_id, id, target_kind, capability_key, allowance, quota_delta::text, requested_by, approved_by, reason_code, valid_from, valid_to
+         FROM saas_override ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+    return rows;
+  }
   async insertOverride(
     tx: Tx,
     o: {
@@ -479,6 +525,14 @@ export class SaasRepository {
   }
 
   // ---- usage event (append-only; idempotent) ----
+  async listUsageEvents(tx: Tx, limit: number, offset: number): Promise<UsageEventRow[]> {
+    const { rows } = await tx.query<UsageEventRow>(
+      `SELECT tenant_id, id, capability_key, meter_key, quantity::text, period_key, source_ref, occurred_at, idempotency_key
+         FROM saas_usage_event ORDER BY occurred_at DESC LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+    return rows;
+  }
   /** Insert a usage event; ON CONFLICT (idempotency_key) DO NOTHING. Returns the row iff it was newly inserted (counted once). */
   async insertUsageIfNew(
     tx: Tx,
@@ -551,6 +605,14 @@ export class SaasRepository {
       [id],
     );
     return rows[0] ?? null;
+  }
+  async listBillingCycles(tx: Tx, subscriptionId: string): Promise<BillingCycleDetailRow[]> {
+    const { rows } = await tx.query<BillingCycleDetailRow>(
+      `SELECT tenant_id, id, subscription_id, status, version, cycle_start, cycle_end, next_renewal, provider_ref
+         FROM saas_billing_cycle WHERE subscription_id=$1 ORDER BY cycle_start DESC`,
+      [subscriptionId],
+    );
+    return rows;
   }
   async updateBillingCycle(
     tx: Tx,

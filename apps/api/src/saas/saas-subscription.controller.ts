@@ -9,7 +9,13 @@ import {
 } from '@finapp/m39-saas';
 import { ActorContextFactory } from '@finapp/m02-identity';
 import { requireString, requireTenantScope, requireVersion } from '../identity/http.ts';
-import { subscriptionView, billingCycleView } from './views.ts';
+import {
+  subscriptionView,
+  billingCycleView,
+  usageView,
+  overrideView,
+  billingCycleDetailView,
+} from './views.ts';
 
 /**
  * Tenant SUBSCRIPTION lifecycle + QUOTA/USAGE + commercial OVERRIDE + BILLING-cycle metadata under `/api/v1/saas`. Lifecycle
@@ -74,6 +80,23 @@ export class SaasSubscriptionController {
     const s = await this.scoped(h, 'read subscription (m39)');
     const sub = await this.subs.getSubscription(s.ctx, id);
     return { subscription: sub ? subscriptionView(sub) : null };
+  }
+
+  // --- admin read models (usage / overrides / billing) — reads, permission enforced in-service, RLS-scoped ----
+  @Get('usage')
+  async listUsage(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list usage events (m39)');
+    return { usageEvents: (await this.quota.listUsageEvents(s.ctx)).map(usageView) };
+  }
+  @Get('overrides')
+  async listOverrides(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list overrides (m39)');
+    return { overrides: (await this.quota.listOverrides(s.ctx)).map(overrideView) };
+  }
+  @Get('subscriptions/:id/billing-cycles')
+  async listBillingCycles(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list billing cycles (m39)');
+    return { billingCycles: (await this.billing.listBillingCycles(s.ctx, id)).map(billingCycleDetailView) };
   }
 
   @Endpoint({

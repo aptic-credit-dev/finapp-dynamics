@@ -79,7 +79,10 @@ export type {
   QuotaPeriodRow,
   EntitlementRow,
   BillingCycleRow,
+  BillingCycleDetailRow,
   UsageRow,
+  UsageEventRow,
+  OverrideRow,
 } from './repository.ts';
 
 export { PlanService } from './plan.service.ts';
