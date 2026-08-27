@@ -683,7 +683,15 @@ const PERSONAS = [
     code: 'saas_plan_author',
     risk: 'critical',
     // Author drives draft authoring + validate; CANNOT publish (no saas.plan.publish) — SoD maker side.
-    perms: ['saas.plan.read', 'saas.plan.manage', 'saas.quota.manage'],
+    // Also holds quota.read + usage.record so the demo seed can provision a quota period and record usage
+    // evidence for the read-model tabs (usage is normally metered by the system; granted here for staging demo).
+    perms: [
+      'saas.plan.read',
+      'saas.plan.manage',
+      'saas.quota.manage',
+      'saas.quota.read',
+      'saas.usage.record',
+    ],
   },
   {
     k: '2',

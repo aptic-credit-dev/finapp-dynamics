@@ -161,7 +161,42 @@ try {
     activate = r.ok ? { state: r.data?.state } : { error: `${r.status} ${JSON.stringify(r.data)}` };
   }
 
-  // 5) prove the tenant is now entitled (self-check, any of the caps)
+  // 5) read-model data: usage (author), override (approver — maker-checker), billing cycle (subscription mgr)
+  //    so the Usage / Overrides / Billing admin tabs render real, governed data.
+  const readData = {};
+  // usage: provision a quota period then record a usage event (idempotent) for an entitled capability
+  await call(AUTHOR, 'POST', '/saas/quota', {
+    capabilityKey: 'treasury_reconciliation',
+    meterKey: 'api_calls',
+    periodKey: '2026-08',
+    limitHard: 1000,
+  });
+  const usage = await call(
+    AUTHOR,
+    'POST',
+    '/saas/usage',
+    { capabilityKey: 'treasury_reconciliation', meterKey: 'api_calls', periodKey: '2026-08', quantity: 5 },
+    { 'idempotency-key': 'seed-usage-t1-1' },
+  );
+  readData.usage = { status: usage.status, ok: usage.ok };
+  // override: the approver applies a commercial override passing the AUTHOR as requestedBy (approver≠requester)
+  const OVERRIDE = await login('stg_saas_override_approver');
+  const ov = await call(OVERRIDE, 'POST', '/saas/overrides', {
+    targetKind: 'entitlement',
+    capabilityKey: 'debt_recovery',
+    requestedBy: AUTHOR_ID,
+    reasonCode: 'promotional_grant',
+    allowance: 'included',
+  });
+  readData.override = { status: ov.status, ok: ov.ok };
+  // billing cycle: the subscription manager opens a cycle (metadata only; no settlement/journal)
+  const bc = await call(SUBMGR, 'POST', `/saas/subscriptions/${sub.id}/billing-cycles`, {
+    cycleStart: '2026-08-01',
+    cycleEnd: '2026-08-31',
+  });
+  readData.billingCycle = { status: bc.status, ok: bc.ok };
+
+  // 6) prove the tenant is now entitled (self-check, any of the caps)
   const checks = {};
   for (const cap of CAPS) {
     const r = await call(SUBMGR, 'GET', `/saas/entitlements/check?capabilityKey=${encodeURIComponent(cap)}`);
@@ -178,6 +213,7 @@ try {
         entitlements,
         publish: { status: publishRes.status, ok: publishRes.ok },
         subscription: { key: 'sub-growth-t1', id: sub.id, activate },
+        readData,
         entitlementChecks: checks,
       },
       null,
