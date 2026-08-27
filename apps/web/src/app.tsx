@@ -2139,6 +2139,702 @@ function FiscalCalendar({ tenant, perms }: { tenant: string | null; perms: Set<s
   );
 }
 
+// ---------- Finance → Finance Configuration (M19) — the canonical finance MASTER-DATA admin surface over the
+// SAME m19 engine as the fiscal calendar (no second finance engine). Adds what the calendar does not surface:
+// GL accounts (Chart of Accounts), account types, and currencies. Every mutation is a SINGLE-permission manage /
+// create / activate action — there is NO maker-checker on m19 config (unlike operational posting), and NO hard
+// delete (an account ARCHIVES by status, a currency DEACTIVATES; history is preserved). m19 carries no monetary
+// amounts; RBAC + tenant isolation + audit are enforced server-side (the UI only reflects what the API allows).
+function FinanceAccountDetail({
+  accountId,
+  tenant,
+  perms,
+  parentOptions,
+  currencies,
+  onChanged,
+  onClose,
+}: {
+  accountId: string;
+  tenant: string | null;
+  perms: Set<string>;
+  parentOptions: api.Row[];
+  currencies: api.Row[];
+  onChanged: () => void;
+  onClose: () => void;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [acct, setAcct] = useState<api.Row | null>(null);
+  const [history, setHistory] = useState<api.Row[]>([]);
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [eName, setEName] = useState('');
+  const [eDesc, setEDesc] = useState('');
+  const [eParent, setEParent] = useState('');
+  const [eCurrency, setECurrency] = useState('');
+  const [ePostable, setEPostable] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setEditing(false);
+    void api.getFinanceAccount(accountId, tenant).then((r) => live && setAcct((r.data as api.Row) ?? null));
+    void api.getFinanceAccountHistory(accountId, tenant).then((r) => live && setHistory(api.asRows(r.data)));
+    return () => {
+      live = false;
+    };
+  }, [accountId, tenant, nonce]);
+  const refresh = (): void => {
+    setNonce((x) => x + 1);
+    onChanged();
+  };
+  // A 409 (stale version) surfaces the API error and refreshes so the caller re-reads the current version.
+  const run = async (p: Promise<api.ApiResult<api.Row>>, okMsg: string): Promise<void> => {
+    const r = await p;
+    if (r.ok) {
+      setMsg({ ok: true, msg: okMsg });
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Action failed.' });
+      if (r.status === 409) refresh();
+    }
+  };
+  if (acct === null)
+    return (
+      <div className="card" style={{ padding: '8px 12px', margin: '8px 0' }}>
+        <div className="loading">Loading account…</div>
+      </div>
+    );
+  const ev = Number(acct['version'] ?? 1);
+  const status = pick(acct, 'status').toLowerCase();
+  const startEdit = (): void => {
+    setEName(pick(acct, 'name'));
+    setEDesc(pick(acct, 'description'));
+    setEParent(pick(acct, 'parentAccountId'));
+    setECurrency(pick(acct, 'currencyId'));
+    setEPostable(String(acct['postable']) === 'true');
+    setEditing(true);
+    setMsg(null);
+  };
+  const submitEdit = async (): Promise<void> => {
+    const body: Record<string, unknown> = {
+      expectedVersion: ev,
+      name: eName.trim(),
+      postable: ePostable,
+      ...(eDesc.trim() ? { description: eDesc.trim() } : {}),
+      ...(eParent ? { parentAccountId: eParent } : {}),
+      ...(eCurrency ? { currencyId: eCurrency } : {}),
+    };
+    await run(api.updateFinanceAccount(accountId, body, tenant), 'Account updated.').then(() =>
+      setEditing(false),
+    );
+  };
+  return (
+    <div className="card" style={{ padding: '8px 12px', margin: '8px 0' }}>
+      <header>
+        <h3>
+          {pick(acct, 'code')} — {pick(acct, 'name')} {statusPill(pick(acct, 'status'))}
+        </h3>
+        <button className="btn link sm" onClick={onClose}>
+          Close
+        </button>
+      </header>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <dl className="kv">
+        <dt>Code</dt>
+        <dd className="muted">{pick(acct, 'code') || '—'}</dd>
+        <dt>Name</dt>
+        <dd>{pick(acct, 'name') || '—'}</dd>
+        <dt>Description</dt>
+        <dd>{pick(acct, 'description') || '—'}</dd>
+        <dt>Postable</dt>
+        <dd>{String(acct['postable']) === 'true' ? 'yes' : 'no'}</dd>
+        <dt>Parent account</dt>
+        <dd className="muted">{pick(acct, 'parentAccountId') || '—'}</dd>
+        <dt>Currency</dt>
+        <dd className="muted">{pick(acct, 'currencyId') || '—'}</dd>
+        <dt>Version</dt>
+        <dd className="muted">v{ev}</dd>
+      </dl>
+      <div className="action-row">
+        <ActionButton
+          label="Activate"
+          allowed={(status === 'draft' || status === 'inactive') && can('finance.account.activate')}
+          onRun={() => run(api.accountLifecycle(accountId, 'activate', ev, tenant), 'Account activated.')}
+        />
+        <ActionButton
+          label="Deactivate"
+          allowed={status === 'active' && can('finance.account.deactivate')}
+          onRun={() => run(api.accountLifecycle(accountId, 'deactivate', ev, tenant), 'Account deactivated.')}
+        />
+        <ActionButton
+          label="Archive"
+          danger
+          allowed={(status === 'active' || status === 'inactive') && can('finance.account.archive')}
+          onRun={() => run(api.accountLifecycle(accountId, 'archive', ev, tenant), 'Account archived.')}
+        />
+        {can('finance.account.update') && status !== 'archived' && !editing && (
+          <button className="btn secondary sm" onClick={startEdit}>
+            Edit
+          </button>
+        )}
+      </div>
+      {editing && (
+        <div className="card" style={{ padding: '8px 12px', margin: '6px 0' }}>
+          <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+            <input value={eName} placeholder="Name" onChange={(e) => setEName(e.target.value)} />
+            <input
+              value={eDesc}
+              placeholder="Description (optional)"
+              onChange={(e) => setEDesc(e.target.value)}
+            />
+            <select value={eParent} onChange={(e) => setEParent(e.target.value)}>
+              <option value="">No parent</option>
+              {parentOptions
+                .filter((p) => pick(p, 'id') !== accountId)
+                .map((p) => (
+                  <option key={pick(p, 'id')} value={pick(p, 'id')}>
+                    {pick(p, 'code')} — {pick(p, 'name')}
+                  </option>
+                ))}
+            </select>
+            <select value={eCurrency} onChange={(e) => setECurrency(e.target.value)}>
+              <option value="">No currency</option>
+              {currencies.map((c) => (
+                <option key={pick(c, 'id')} value={pick(c, 'id')}>
+                  {pick(c, 'code')}
+                </option>
+              ))}
+            </select>
+            <label className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <input type="checkbox" checked={ePostable} onChange={(e) => setEPostable(e.target.checked)} />
+              postable
+            </label>
+            <button className="btn" disabled={eName.trim() === ''} onClick={submitEdit}>
+              Save changes
+            </button>
+            <button className="btn link" onClick={() => setEditing(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      <h4 className="drawer-sub">History</h4>
+      {history.length === 0 ? (
+        <div className="empty">No history yet.</div>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>From</th>
+              <th>To</th>
+              <th>When</th>
+            </tr>
+          </thead>
+          <tbody>
+            {history.map((h, i) => (
+              <tr key={pick(h, 'id') || i}>
+                <td className="muted">{pick(h, 'action', 'changeType', 'eventType') || '—'}</td>
+                <td className="muted">{pick(h, 'fromStatus', 'previousStatus') || '—'}</td>
+                <td className="muted">{pick(h, 'toStatus', 'newStatus', 'status') || '—'}</td>
+                <td className="muted">{pick(h, 'createdAt', 'occurredAt', 'at') || '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function FinanceConfigWorkspace({
+  tenant,
+  perms,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+}): JSX.Element {
+  const can = (p: string): boolean => perms.has(p);
+  const [tab, setTab] = useState<'accounts' | 'types' | 'currencies'>('accounts');
+  const [nonce, setNonce] = useState(0);
+  const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const refresh = (): void => setNonce((x) => x + 1);
+
+  // Reference lists — account types + active currencies feed the account form's selects; both refresh on write.
+  const entities = useRows(() => api.getFinanceEntities(tenant, 'active'), [tenant]);
+  const accountTypes = useRows(() => api.getAccountTypes(tenant), [tenant, nonce]);
+  const currencies = useRows(() => api.getCurrencies(tenant), [tenant, nonce]);
+  const typeById: Record<string, api.Row> = {};
+  accountTypes.rows.forEach((t) => (typeById[pick(t, 'id')] = t));
+
+  // ---- Chart of Accounts tab (entity picker → GL accounts for that entity) ----
+  const [entityId, setEntityId] = useState('');
+  const entityKey = entities.rows.map((e) => pick(e, 'id')).join(',');
+  useEffect(() => {
+    const first = entities.rows[0] ? pick(entities.rows[0], 'id') : '';
+    setEntityId((cur) => (entities.rows.some((e) => pick(e, 'id') === cur) ? cur : first));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityKey, tenant]);
+  const accounts = useRows(
+    () =>
+      entityId
+        ? api.getFinanceAccounts(entityId, tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [entityId, tenant, nonce],
+  );
+  const [openAcctId, setOpenAcctId] = useState<string | null>(null);
+
+  // New-account form
+  const [naOpen, setNaOpen] = useState(false);
+  const [naType, setNaType] = useState('');
+  const [naCode, setNaCode] = useState('');
+  const [naName, setNaName] = useState('');
+  const [naParent, setNaParent] = useState('');
+  const [naCurrency, setNaCurrency] = useState('');
+  const [naPostable, setNaPostable] = useState(true);
+  const resetNa = (): void => {
+    setNaType('');
+    setNaCode('');
+    setNaName('');
+    setNaParent('');
+    setNaCurrency('');
+    setNaPostable(true);
+  };
+  const submitNewAccount = async (): Promise<void> => {
+    if (naType === '' || naCode.trim() === '' || naName.trim() === '') {
+      setMsg({ ok: false, msg: 'Account type, code and name are required.' });
+      return;
+    }
+    const body = {
+      entityId,
+      accountTypeId: naType,
+      code: naCode.trim(),
+      name: naName.trim(),
+      postable: naPostable,
+      ...(naParent ? { parentAccountId: naParent } : {}),
+      ...(naCurrency ? { currencyId: naCurrency } : {}),
+    };
+    const r = await api.createFinanceAccount(body, tenant);
+    if (r.ok && r.data) {
+      setMsg({ ok: true, msg: `Account ${naCode.trim()} created (draft).` });
+      setNaOpen(false);
+      resetNa();
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not create account.' });
+    }
+  };
+
+  // New-account-type form
+  const [atCode, setAtCode] = useState('');
+  const [atName, setAtName] = useState('');
+  const [atClass, setAtClass] = useState('asset');
+  const [atSide, setAtSide] = useState('debit');
+  const [atDesc, setAtDesc] = useState('');
+  const submitAccountType = async (): Promise<void> => {
+    if (atCode.trim() === '' || atName.trim() === '') {
+      setMsg({ ok: false, msg: 'Account-type code and name are required.' });
+      return;
+    }
+    const r = await api.createAccountType(
+      {
+        code: atCode.trim(),
+        name: atName.trim(),
+        accountClass: atClass,
+        normalSide: atSide,
+        ...(atDesc.trim() ? { description: atDesc.trim() } : {}),
+      },
+      tenant,
+    );
+    if (r.ok && r.data) {
+      setMsg({ ok: true, msg: `Account type ${atCode.trim()} created.` });
+      setAtCode('');
+      setAtName('');
+      setAtDesc('');
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not create account type.' });
+    }
+  };
+
+  // New-currency form
+  const [cuCode, setCuCode] = useState('');
+  const [cuName, setCuName] = useState('');
+  const [cuMinor, setCuMinor] = useState('2');
+  const [cuSymbol, setCuSymbol] = useState('');
+  const submitCurrency = async (): Promise<void> => {
+    const code = cuCode.trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(code) || cuName.trim() === '') {
+      setMsg({ ok: false, msg: 'Currency code must be 3 letters, and name is required.' });
+      return;
+    }
+    const minor = cuMinor.trim();
+    const r = await api.createCurrency(
+      {
+        code,
+        name: cuName.trim(),
+        ...(/^\d+$/.test(minor) ? { minorUnits: Number(minor) } : {}),
+        ...(cuSymbol.trim() ? { symbol: cuSymbol.trim() } : {}),
+      },
+      tenant,
+    );
+    if (r.ok && r.data) {
+      setMsg({ ok: true, msg: `Currency ${code} created.` });
+      setCuCode('');
+      setCuName('');
+      setCuSymbol('');
+      setCuMinor('2');
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not create currency.' });
+    }
+  };
+  // Currency deactivate — single-permission lifecycle, no hard delete. 409 (stale) surfaces + refreshes.
+  const runCurrency = async (p: Promise<api.ApiResult<api.Row>>, okMsg: string): Promise<void> => {
+    const r = await p;
+    if (r.ok) {
+      setMsg({ ok: true, msg: okMsg });
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Action failed.' });
+      if (r.status === 409) refresh();
+    }
+  };
+
+  const tabs: { id: typeof tab; label: string }[] = [
+    { id: 'accounts', label: 'Chart of Accounts' },
+    { id: 'types', label: 'Account Types' },
+    { id: 'currencies', label: 'Currencies' },
+  ];
+  const classes = ['asset', 'liability', 'equity', 'income', 'expense'];
+
+  return (
+    <>
+      <h1 className="page-title">Finance Configuration</h1>
+      <p className="page-sub">
+        Finance master data over the canonical m19 engine · synthetic staging data. This is governed history —
+        there is NO hard delete: an account <strong>archives</strong> by status and a currency{' '}
+        <strong>deactivates</strong>. Config uses single-permission management (one manage / create / activate
+        holder) — there is no maker-checker on m19 configuration (unlike posting). RBAC + tenant isolation +
+        audit enforced server-side.
+      </p>
+      {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+      <div className="card">
+        <div className="run-picker">
+          {tabs.map((tb) => (
+            <button
+              key={tb.id}
+              className={`btn ${tab === tb.id ? '' : 'secondary'}`}
+              onClick={() => {
+                setTab(tb.id);
+                setOpenAcctId(null);
+                setNaOpen(false);
+                setMsg(null);
+              }}
+            >
+              {tb.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'accounts' && (
+          <>
+            <div className="run-picker">
+              <label>Accounting entity</label>
+              {entities.loading ? (
+                <span className="muted">Loading entities…</span>
+              ) : entities.rows.length === 0 ? (
+                <span className="muted">No accounting entities available.</span>
+              ) : (
+                <select
+                  value={entityId}
+                  onChange={(e) => {
+                    setEntityId(e.target.value);
+                    setOpenAcctId(null);
+                  }}
+                >
+                  {entities.rows.map((e) => (
+                    <option key={pick(e, 'id')} value={pick(e, 'id')}>
+                      {pick(e, 'code')} — {pick(e, 'name')}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {entityId !== '' && can('finance.account.create') && !naOpen && (
+              <div className="run-picker" style={{ gap: 6 }}>
+                <button className="btn" onClick={() => setNaOpen(true)}>
+                  New account
+                </button>
+              </div>
+            )}
+            {naOpen && (
+              <div className="card" style={{ padding: '8px 12px', margin: '6px 0' }}>
+                <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  <select value={naType} onChange={(e) => setNaType(e.target.value)}>
+                    <option value="">Account type…</option>
+                    {accountTypes.rows.map((t) => (
+                      <option key={pick(t, 'id')} value={pick(t, 'id')}>
+                        {pick(t, 'code')} — {pick(t, 'name')}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    style={{ width: 120 }}
+                    value={naCode}
+                    placeholder="Code"
+                    onChange={(e) => setNaCode(e.target.value)}
+                  />
+                  <input value={naName} placeholder="Name" onChange={(e) => setNaName(e.target.value)} />
+                  <select value={naParent} onChange={(e) => setNaParent(e.target.value)}>
+                    <option value="">No parent account</option>
+                    {accounts.rows.map((a) => (
+                      <option key={pick(a, 'id')} value={pick(a, 'id')}>
+                        {pick(a, 'code')} — {pick(a, 'name')}
+                      </option>
+                    ))}
+                  </select>
+                  <select value={naCurrency} onChange={(e) => setNaCurrency(e.target.value)}>
+                    <option value="">No currency</option>
+                    {currencies.rows.map((c) => (
+                      <option key={pick(c, 'id')} value={pick(c, 'id')}>
+                        {pick(c, 'code')}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={naPostable}
+                      onChange={(e) => setNaPostable(e.target.checked)}
+                    />
+                    postable
+                  </label>
+                  <button className="btn" onClick={submitNewAccount}>
+                    Create account
+                  </button>
+                  <button
+                    className="btn link"
+                    onClick={() => {
+                      setNaOpen(false);
+                      resetNa();
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p className="muted" style={{ fontSize: 11, margin: '4px 0' }}>
+                  New accounts are created in DRAFT — activate them (and keep them postable) before they are
+                  valid journal targets. Only active + postable accounts appear in the journal line selector.
+                </p>
+              </div>
+            )}
+            {entityId === '' ? (
+              <div className="empty">Select an accounting entity to view its chart of accounts.</div>
+            ) : accounts.loading ? (
+              <div className="loading">Loading accounts…</div>
+            ) : accounts.error ? (
+              <div className="empty">Could not load accounts ({accounts.error}).</div>
+            ) : accounts.rows.length === 0 ? (
+              <div className="empty">No GL accounts for this entity yet.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th>Postable</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accounts.rows.map((a, i) => {
+                    const t = typeById[pick(a, 'accountTypeId')];
+                    return (
+                      <tr key={pick(a, 'id') || i}>
+                        <td className="muted">{pick(a, 'code') || '—'}</td>
+                        <td>{pick(a, 'name') || '—'}</td>
+                        <td className="muted">
+                          {t ? pick(t, 'accountClass') : pick(a, 'accountTypeId') || '—'}
+                        </td>
+                        <td className="muted">{String(a['postable']) === 'true' ? 'yes' : 'no'}</td>
+                        <td>{statusPill(pick(a, 'status'))}</td>
+                        <td>
+                          <button className="btn link" onClick={() => setOpenAcctId(pick(a, 'id'))}>
+                            Open
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+            {openAcctId && (
+              <FinanceAccountDetail
+                accountId={openAcctId}
+                tenant={tenant}
+                perms={perms}
+                parentOptions={accounts.rows}
+                currencies={currencies.rows}
+                onChanged={refresh}
+                onClose={() => setOpenAcctId(null)}
+              />
+            )}
+          </>
+        )}
+
+        {tab === 'types' && (
+          <>
+            {can('finance.account_type.manage') && (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  style={{ width: 120 }}
+                  value={atCode}
+                  placeholder="Code"
+                  onChange={(e) => setAtCode(e.target.value)}
+                />
+                <input value={atName} placeholder="Name" onChange={(e) => setAtName(e.target.value)} />
+                <select value={atClass} onChange={(e) => setAtClass(e.target.value)}>
+                  {classes.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <select value={atSide} onChange={(e) => setAtSide(e.target.value)}>
+                  <option value="debit">debit</option>
+                  <option value="credit">credit</option>
+                </select>
+                <input
+                  value={atDesc}
+                  placeholder="Description (optional)"
+                  onChange={(e) => setAtDesc(e.target.value)}
+                />
+                <button className="btn" onClick={submitAccountType}>
+                  New account type
+                </button>
+              </div>
+            )}
+            {accountTypes.loading ? (
+              <div className="loading">Loading account types…</div>
+            ) : accountTypes.error ? (
+              <div className="empty">Could not load account types ({accountTypes.error}).</div>
+            ) : accountTypes.rows.length === 0 ? (
+              <div className="empty">No account types configured.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th>Normal side</th>
+                    <th>Active</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accountTypes.rows.map((r, i) => (
+                    <tr key={pick(r, 'id') || i}>
+                      <td className="muted">{pick(r, 'code') || '—'}</td>
+                      <td>{pick(r, 'name') || '—'}</td>
+                      <td className="muted">{pick(r, 'accountClass') || '—'}</td>
+                      <td className="muted">{pick(r, 'normalSide') || '—'}</td>
+                      <td className="muted">{String(r['active']) === 'true' ? 'yes' : 'no'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        {tab === 'currencies' && (
+          <>
+            {can('finance.currency.manage') && (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  style={{ width: 90 }}
+                  value={cuCode}
+                  placeholder="Code"
+                  maxLength={3}
+                  onChange={(e) => setCuCode(e.target.value.toUpperCase())}
+                />
+                <input value={cuName} placeholder="Name" onChange={(e) => setCuName(e.target.value)} />
+                <input
+                  style={{ width: 110 }}
+                  value={cuMinor}
+                  placeholder="Minor units"
+                  onChange={(e) => setCuMinor(e.target.value)}
+                />
+                <input
+                  style={{ width: 90 }}
+                  value={cuSymbol}
+                  placeholder="Symbol"
+                  onChange={(e) => setCuSymbol(e.target.value)}
+                />
+                <button className="btn" onClick={submitCurrency}>
+                  New currency
+                </button>
+              </div>
+            )}
+            {currencies.loading ? (
+              <div className="loading">Loading currencies…</div>
+            ) : currencies.error ? (
+              <div className="empty">Could not load currencies ({currencies.error}).</div>
+            ) : currencies.rows.length === 0 ? (
+              <div className="empty">No currencies configured.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th className="num">Minor units</th>
+                    <th>Symbol</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currencies.rows.map((r, i) => {
+                    const id = pick(r, 'id');
+                    const cev = Number(r['version'] ?? 1);
+                    const active = pick(r, 'status').toLowerCase() === 'active';
+                    return (
+                      <tr key={id || i}>
+                        <td className="muted">{pick(r, 'code') || '—'}</td>
+                        <td>{pick(r, 'name') || '—'}</td>
+                        <td className="num">{pick(r, 'minorUnits') || '—'}</td>
+                        <td className="muted">{pick(r, 'symbol') || '—'}</td>
+                        <td>{statusPill(pick(r, 'status'))}</td>
+                        <td>
+                          <ActionButton
+                            label="Deactivate"
+                            danger
+                            allowed={active && can('finance.currency.manage')}
+                            onRun={() =>
+                              runCurrency(
+                                api.deactivateCurrency(id, cev, tenant),
+                                `Currency ${pick(r, 'code')} deactivated.`,
+                              )
+                            }
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ---------- Finance → Journals & Posting (M21) — operational workspace over the CANONICAL m21 engine, with the
 // checker path routed through the CANONICAL m22 Approvals inbox (no second journal engine, no second approval
 // engine, no direct-post bypass, no reversal — none exists canonically). Amounts are INTEGER MINOR UNITS,
@@ -2171,6 +2867,10 @@ function JournalDraftDrawer({
   const [ldesc, setLdesc] = useState('');
   const [editLine, setEditLine] = useState<api.Row | null>(null);
   const [note, setNote] = useState('');
+  // Canonical GL-account options for the line selector — active + postable accounts of the draft's entity only
+  // (only those are valid journal targets). Empty (or a 403 for a persona without finance reads) falls back to
+  // the existing free-text account-ref input so the journal flow never breaks.
+  const [acctOptions, setAcctOptions] = useState<api.Row[]>([]);
   useEffect(() => {
     let live = true;
     void api.getJournalDraft(draftId, tenant).then((r) => {
@@ -2189,6 +2889,21 @@ function JournalDraftDrawer({
       live = false;
     };
   }, [draftId, tenant, nonce]);
+  const entityRef = draft ? pick(draft, 'entityRef') : '';
+  useEffect(() => {
+    let live = true;
+    if (!entityRef) {
+      setAcctOptions([]);
+      return;
+    }
+    void api.getFinanceAccounts(entityRef, tenant, 'active').then((r) => {
+      if (!live) return;
+      setAcctOptions(r.ok ? api.asRows(r.data).filter((a) => String(a['postable']) === 'true') : []);
+    });
+    return () => {
+      live = false;
+    };
+  }, [entityRef, tenant]);
   const refresh = (): void => {
     setNonce((x) => x + 1);
     onChanged();
@@ -2387,12 +3102,23 @@ function JournalDraftDrawer({
 
           {mutable && can('journals.line.manage') && (
             <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
-              <input
-                style={{ width: 120 }}
-                value={acct}
-                placeholder="Account ref"
-                onChange={(e) => setAcct(e.target.value)}
-              />
+              {acctOptions.length > 0 ? (
+                <select value={acct} onChange={(e) => setAcct(e.target.value)}>
+                  <option value="">Account…</option>
+                  {acctOptions.map((a) => (
+                    <option key={pick(a, 'id')} value={pick(a, 'id')}>
+                      {pick(a, 'code')} — {pick(a, 'name')}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  style={{ width: 120 }}
+                  value={acct}
+                  placeholder="Account ref"
+                  onChange={(e) => setAcct(e.target.value)}
+                />
+              )}
               <select value={dir} onChange={(e) => setDir(e.target.value === 'credit' ? 'credit' : 'debit')}>
                 <option value="debit">Debit</option>
                 <option value="credit">Credit</option>
@@ -2591,6 +3317,9 @@ function JournalsWorkspace({
   const can = (p: string): boolean => perms.has(p);
   const [nonce, setNonce] = useState(0);
   const drafts = useRows(() => api.getJournalDrafts(tenant), [tenant, nonce]);
+  // Canonical finance entity selector for the draft's entityRef. If the list is empty or the persona lacks
+  // finance reads (403 → empty), we fall back to the existing free-text input so the journal flow never breaks.
+  const entities = useRows(() => api.getFinanceEntities(tenant, 'active'), [tenant]);
   const [status, setStatus] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -2645,7 +3374,18 @@ function JournalsWorkspace({
           {creating && (
             <>
               <input value={desc} placeholder="Description" onChange={(e) => setDesc(e.target.value)} />
-              <input value={entity} placeholder="Entity ref" onChange={(e) => setEntity(e.target.value)} />
+              {entities.rows.length > 0 ? (
+                <select value={entity} onChange={(e) => setEntity(e.target.value)}>
+                  <option value="">Entity…</option>
+                  {entities.rows.map((en) => (
+                    <option key={pick(en, 'id')} value={pick(en, 'id')}>
+                      {pick(en, 'code')} — {pick(en, 'name')}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input value={entity} placeholder="Entity ref" onChange={(e) => setEntity(e.target.value)} />
+              )}
               <button className="btn" onClick={createDraft}>
                 Create
               </button>
@@ -9894,6 +10634,7 @@ const NAV = [
   { id: 'recovery-cases', label: 'Recovery cases', icon: '▤', group: 'Recovery' },
   { id: 'finance-calendar', label: 'Fiscal calendar', icon: '📅', group: 'Finance' },
   { id: 'finance-journals', label: 'Journals', icon: '📒', group: 'Finance' },
+  { id: 'finance-config', label: 'Finance Configuration', icon: '🧮', group: 'Finance' },
   { id: 'compliance', label: 'Compliance', icon: '❖', group: 'Compliance' },
   { id: 'compliance-register', label: 'Control register', icon: '▤', group: 'Compliance' },
   { id: 'compliance-privacy', label: 'Privacy & security', icon: '🔒', group: 'Compliance' },
@@ -9929,6 +10670,9 @@ const FINANCE_READ_PERMS = [
   'finance.period.read',
   'finance.fiscal_year.read',
   'finance.entity.read',
+  'finance.account.read',
+  'finance.account_type.read',
+  'finance.currency.read',
   'journals.draft.read',
 ];
 
@@ -10209,6 +10953,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'finance-journals' && (
           <JournalsWorkspace tenant={tenant} perms={perms} actorId={actorId} />
         )}
+        {route === 'finance-config' && <FinanceConfigWorkspace tenant={tenant} perms={perms} />}
         {route === 'compliance' && <ComplianceDashboard tenant={tenant} />}
         {route === 'compliance-register' && <ComplianceRegister tenant={tenant} perms={perms} />}
         {route === 'compliance-privacy' && <PrivacySecurityWorkspace tenant={tenant} perms={perms} />}
