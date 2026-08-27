@@ -7,7 +7,7 @@ import { defineDbSpec } from '@finapp/test-runner';
  * tenant_isolation policy; tenant isolation actually holds; the application role has NO DELETE anywhere and only
  * INSERT+SELECT on the three append-only ledgers (answers, contact attempts, assignment history); one-active
  * questionnaire/SLA-policy, single-winner queue claim, and the ingestion/handoff idempotency uniqueness hold; and
- * m12's 37 permissions are seeded with the privileged contact/platform set marked privileged.
+ * m12's 39 permissions are seeded with the privileged contact/platform set marked privileged.
  */
 const M12_TABLES = [
   'feedback_source_system',
@@ -63,12 +63,12 @@ export default defineDbSpec('m12-feedback', async (ctx, t) => {
     );
   });
 
-  // --- 37 permissions seeded, privileged set marked --------------------------------------------
+  // --- 39 permissions seeded, privileged set marked --------------------------------------------
   await ctx.asSuperuser(null, async (tx) => {
     const c = await tx.query<{ c: string }>(
       `SELECT count(*)::text AS c FROM permissions WHERE module='m12-feedback'`,
     );
-    t.equal(c.rows[0]?.c, '37', 'm12 seeds 37 permissions');
+    t.equal(c.rows[0]?.c, '39', 'm12 seeds 39 permissions');
     const priv = await tx.query<{ code: string }>(
       `SELECT code FROM permissions WHERE module='m12-feedback' AND privileged=true AND code IN ('feedback.customer_contact.read','feedback.platform.administer')`,
     );
