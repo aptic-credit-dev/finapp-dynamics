@@ -50,9 +50,9 @@ async function login(loginId) {
   jars.get(loginId).__csrf = b.csrfToken;
   return loginId;
 }
-async function call(loginId, m, p, body) {
+async function call(loginId, m, p, body, extra = {}) {
   const jar = jars.get(loginId);
-  const h = { 'x-tenant-id': T, cookie: ckh(loginId) };
+  const h = { 'x-tenant-id': T, cookie: ckh(loginId), ...extra };
   if (m !== 'GET') {
     h['content-type'] = 'application/json';
     h['x-csrf-token'] = jar.__csrf;
@@ -183,7 +183,11 @@ try {
   // 5) read-model data: usage (author), override (approver — maker-checker), billing cycle (subscription mgr)
   //    so the Usage / Overrides / Billing admin tabs render real, governed data.
   const readData = {};
-  // usage: provision a quota period then record a usage event (idempotent) for an entitled capability
+  const OVERRIDE = await login('stg_saas_override_approver');
+
+  // USAGE — provision a quota period, then record a usage event (idempotent via idempotency-key HEADER). A
+  // duplicate returns recorded:false (still 200). Then RE-READ /saas/usage and PROVE the row exists (never treat
+  // a bare status as success).
   await call(AUTHOR, 'POST', '/saas/quota', {
     capabilityKey: 'treasury_reconciliation',
     meterKey: 'api_calls',
@@ -197,16 +201,26 @@ try {
     { capabilityKey: 'treasury_reconciliation', meterKey: 'api_calls', periodKey: '2026-08', quantity: 5 },
     { 'idempotency-key': 'seed-usage-t1-1' },
   );
-  readData.usage = { status: usage.status, ok: usage.ok, note: 'idempotent (idempotency-key)' };
-  // override: apply ONE debt_recovery override (append-only). Idempotent: skip if one already exists (a rerun
-  // must not accumulate duplicate overrides). The approver passes the AUTHOR as requestedBy (approver≠requester).
-  const OVERRIDE = await login('stg_saas_override_approver');
-  const existingOv = arr((await call(OVERRIDE, 'GET', '/saas/overrides')).data, 'overrides').find(
-    (o) => o.capabilityKey === 'debt_recovery',
+  if (!usage.ok) throw new Error(`record usage -> ${usage.status} ${JSON.stringify(usage.data)}`);
+  const usageRead = await call(AUTHOR, 'GET', '/saas/usage');
+  const usagePresent = arr(usageRead.data, 'usageEvents').some(
+    (u) => u.capabilityKey === 'treasury_reconciliation' && u.meterKey === 'api_calls',
   );
-  if (existingOv) {
-    readData.override = { reused: true };
-  } else {
+  readData.usage = {
+    created: usage.data?.recorded === true,
+    reused: usage.data?.recorded === false,
+    readStatus: usageRead.status,
+    present: usagePresent,
+  };
+
+  // OVERRIDE — apply ONE debt_recovery override (append-only). Idempotent: skip if present. Approver passes the
+  // AUTHOR as requestedBy (approver≠requester). Then RE-READ /saas/overrides and prove presence.
+  const findOv = async () =>
+    arr((await call(OVERRIDE, 'GET', '/saas/overrides')).data, 'overrides').find(
+      (o) => o.capabilityKey === 'debt_recovery',
+    );
+  let ovRow = await findOv();
+  if (!ovRow) {
     const ov = await call(OVERRIDE, 'POST', '/saas/overrides', {
       targetKind: 'entitlement',
       capabilityKey: 'debt_recovery',
@@ -214,23 +228,30 @@ try {
       reasonCode: 'promotional_grant',
       allowance: 'included',
     });
-    readData.override = { status: ov.status, ok: ov.ok };
+    if (!ov.ok) throw new Error(`apply override -> ${ov.status} ${JSON.stringify(ov.data)}`);
+    ovRow = await findOv();
   }
-  // billing cycle: open ONE cycle (metadata only; no settlement). UNIQUE (tenant, subscription, cycle_start) —
-  // idempotent: skip if a cycle already starts in this window (a rerun must not conflict).
-  const existingBc = arr(
-    (await call(SUBMGR, 'GET', `/saas/subscriptions/${sub.id}/billing-cycles`)).data,
-    'billingCycles',
-  ).find((c) => String(c.cycleStart).slice(0, 7) === '2026-08');
-  if (existingBc) {
-    readData.billingCycle = { reused: true };
-  } else {
+  const overridePresent = !!ovRow && ovRow.approvedBy !== ovRow.requestedBy;
+  readData.override = { present: overridePresent, requesterNotApprover: overridePresent };
+
+  // BILLING — open ONE cycle (metadata only; no settlement). UNIQUE (tenant, subscription, cycle_start) —
+  // idempotent: skip if a cycle already starts in this window. Then RE-READ and prove presence.
+  const findBc = async () =>
+    arr(
+      (await call(SUBMGR, 'GET', `/saas/subscriptions/${sub.id}/billing-cycles`)).data,
+      'billingCycles',
+    ).find((c) => String(c.cycleStart).slice(0, 7) === '2026-08');
+  let bcRow = await findBc();
+  if (!bcRow) {
     const bc = await call(SUBMGR, 'POST', `/saas/subscriptions/${sub.id}/billing-cycles`, {
       cycleStart: '2026-08-01',
       cycleEnd: '2026-08-31',
     });
-    readData.billingCycle = { status: bc.status, ok: bc.ok };
+    if (!bc.ok) throw new Error(`open billing cycle -> ${bc.status} ${JSON.stringify(bc.data)}`);
+    bcRow = await findBc();
   }
+  const billingPresent = !!bcRow;
+  readData.billingCycle = { present: billingPresent, status: bcRow?.status };
 
   // 6) DETERMINISTIC SELF-CHECK — the seed must establish published version -> active subscription -> effective
   //    entitlement, or FAIL LOUDLY (never report ok on a partial state).
@@ -245,9 +266,18 @@ try {
   const subActive = String(finalSub?.state).toLowerCase() === 'active';
   const allEntitled = CAPS.every((c) => checks[c] === true);
   const authorIsDistinct = AUTHOR_ID !== PUBLISHER_ID;
-  if (versionState !== 'published' || !subActive || !allEntitled || !authorIsDistinct) {
+  // Presence of the read-model rows is part of the deterministic check — fail loudly, never on bare status.
+  if (
+    versionState !== 'published' ||
+    !subActive ||
+    !allEntitled ||
+    !authorIsDistinct ||
+    !usagePresent ||
+    !overridePresent ||
+    !billingPresent
+  ) {
     throw new Error(
-      `seed self-check failed: versionState=${versionState} subActive=${subActive} entitled=${JSON.stringify(checks)} authorDistinct=${authorIsDistinct}`,
+      `seed self-check failed: versionState=${versionState} subActive=${subActive} entitled=${JSON.stringify(checks)} authorDistinct=${authorIsDistinct} usage=${usagePresent} override=${overridePresent} billing=${billingPresent}`,
     );
   }
 
