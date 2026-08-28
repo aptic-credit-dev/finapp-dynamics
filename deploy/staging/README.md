@@ -40,6 +40,22 @@ node deploy/staging/bootstrap-synthetic.mjs      # DATABASE_URL points at the st
 node deploy/staging/validate-staging.mjs         # DATABASE_URL app-role reachable; optional API_BASE_URL for HTTP checks
 ```
 
+### M41 Secrets & Keys (Phase 1) — read-only admin console
+
+```
+# personas (adds stg_restricted etc.) then the M41 security-admin persona + synthetic secret metadata:
+docker compose exec -T -e LOGIN_PW api node --input-type=module < deploy/staging/seed-personas.mjs
+docker compose exec -T -e LOGIN_PW api node --input-type=module < deploy/staging/seed-security-demo.mjs
+# API acceptance (read-only; metadata-only; writes stay fail-closed for the read persona):
+docker compose exec -T -e LOGIN_PW api node --input-type=module < deploy/staging/m41-security-accept.mjs
+```
+
+`seed-security-demo.mjs` adds the bounded `stg_security_auditor` persona (only `security.secret.read`) and
+SYNTHETIC secret/key **metadata** — opaque `secretref:` pointers + approved algorithm ids, version/rotation
+history and maker-checker reveal-grant evidence. There is **zero** secret value anywhere. `m41-security-accept.mjs`
+proves the console is reachable, permission-gated, tenant-isolated and metadata-only, and that the deferred
+Phase-2 writes (define/rotate/reveal/destroy) stay 403 for the read persona.
+
 ## Security defaults (fail-closed)
 
 - No hardcoded passwords in any committed file — `env.staging.example` holds placeholders only.

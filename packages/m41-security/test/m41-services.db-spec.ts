@@ -276,4 +276,95 @@ export default defineDbSpec('m41-services', async (ctx, t) => {
     gov.getIncident(otherCtx([M41_PERMISSIONS.dlpRead]), soc.id),
     'cross-tenant incident detail-by-id fails closed (RLS => not found)',
   );
+
+  // --- SECRETS READ MODEL (Phase 1 admin console: detail / version history / reveal-grant history / provider
+  // status). Gated on security.secret.read, RLS-isolated, METADATA ONLY. `secret` above was defined -> activated ->
+  // rotated -> revoked -> destroyed, so it carries a multi-version rotation history + a reveal grant; a fresh active
+  // secret exercises the available provider path. Every returned object is asserted to carry NO material field. ----
+  const secretReadCtx = ctxOf(userR, [M41_PERMISSIONS.secretRead]);
+  const MATERIAL_KEYS = [
+    'value',
+    'plaintext',
+    'decryptedValue',
+    'keyMaterial',
+    'material',
+    'token',
+    'password',
+    'credential',
+    'privateKey',
+    'secretValue',
+    'ciphertext',
+  ];
+  const noMaterial = (o: object | null | undefined): boolean =>
+    o != null && !MATERIAL_KEYS.some((k) => k in (o as Record<string, unknown>));
+
+  const detail = await secretOk.getSecretDetail(secretReadCtx, secret.id);
+  t.ok(
+    detail?.secret_ref === 'secretref:vault/kv/sig' && typeof detail?.created_at === 'string',
+    'a secret detail is readable (opaque secret_ref + lifecycle timestamps)',
+  );
+  t.ok(noMaterial(detail), 'the secret detail row carries no secret-material field');
+
+  const secVersions = await secretOk.listSecretVersions(secretReadCtx, secret.id);
+  t.ok(secVersions.length >= 2, 'the version/rotation history is readable (>=2 versions after a rotation)');
+  t.ok(
+    secVersions.every((v) => noMaterial(v)),
+    'no secret version row carries any material (opaque provider_ref only)',
+  );
+
+  const secReveals = await secretOk.listReveals(secretReadCtx, secret.id);
+  t.ok(
+    secReveals.some((r) => r.approved_by !== r.requested_by),
+    'reveal-grant history is readable with maker-checker evidence (approver != requester)',
+  );
+  t.ok(
+    secReveals.every((r) => noMaterial(r)),
+    'no reveal row carries any material (grant metadata only)',
+  );
+
+  // provider status keyed by id: the available path (fixture provider) + the fail-closed path (unavailable provider).
+  const fresh = await secretOk.defineSecret(manageCtx, {
+    secretKey: 'sig2',
+    secretRef: 'secretref:vault/kv/sig2',
+    algorithm: 'aes-256-gcm',
+  });
+  await secretOk.activateSecret(rotateCtx, userA, fresh.id, fresh.version, { requestedBy: userR });
+  const statusOk = await secretOk.getSecretProviderStatus(secretReadCtx, fresh.id);
+  t.ok(
+    statusOk.available && statusOk.reasonCode === REASON_CODES.secretResolvable,
+    'provider status for an active secret with an available provider is Available (metadata only)',
+  );
+  t.ok(noMaterial(statusOk), 'provider status carries no material (only {available,reasonCode})');
+  const statusDown = await secretUnavail.getSecretProviderStatus(secretReadCtx, fresh.id);
+  t.ok(!statusDown.available, 'provider status fails closed when the provider is unavailable');
+
+  // permission gating — the secrets read model requires security.secret.read (fail closed), independent of any UI.
+  await t.rejects(secretOk.getSecretDetail(noPerm, secret.id), 'secret detail requires security.secret.read');
+  await t.rejects(
+    secretOk.listSecretVersions(noPerm, secret.id),
+    'version history requires security.secret.read',
+  );
+  await t.rejects(secretOk.listReveals(noPerm, secret.id), 'reveal history requires security.secret.read');
+  await t.rejects(
+    secretOk.getSecretProviderStatus(noPerm, secret.id),
+    'provider status requires security.secret.read',
+  );
+
+  // tenant isolation — another tenant (with the read grant) sees NONE of tenant-1's secret detail/versions/reveals.
+  const t2read = otherCtx([M41_PERMISSIONS.secretRead]);
+  t.equal(
+    await secretOk.getSecretDetail(t2read, secret.id),
+    null,
+    'cross-tenant secret detail is invisible (FORCE RLS => null)',
+  );
+  t.equal(
+    (await secretOk.listSecretVersions(t2read, secret.id)).length,
+    0,
+    'cross-tenant version history is empty (FORCE RLS)',
+  );
+  t.equal(
+    (await secretOk.listReveals(t2read, secret.id)).length,
+    0,
+    'cross-tenant reveal history is empty (FORCE RLS)',
+  );
 });
