@@ -9,6 +9,9 @@ import type {
   SubscriptionRow,
   QuotaPeriodRow,
   BillingCycleRow,
+  BillingCycleDetailRow,
+  UsageEventRow,
+  OverrideRow,
   EntitlementRow,
 } from '@finapp/m39-saas';
 
@@ -78,5 +81,51 @@ export function billingCycleView(b: BillingCycleRow) {
     subscriptionId: b.subscription_id,
     status: b.status,
     version: b.version,
+  };
+}
+
+// Usage evidence (append-only). quantity is an exact integer emitted as text. No raw payload/credential exists.
+export function usageView(u: UsageEventRow) {
+  return {
+    id: u.id,
+    capabilityKey: u.capability_key,
+    meterKey: u.meter_key,
+    quantity: u.quantity,
+    periodKey: u.period_key,
+    sourceRef: u.source_ref,
+    occurredAt: u.occurred_at,
+    idempotencyKey: u.idempotency_key,
+  };
+}
+
+// Commercial override (append-only, maker-checker). Exposes requester/approver/reason/validity — no secret.
+// quotaDelta is an exact integer as text (nullable). approvedBy is always a different identity than requestedBy.
+export function overrideView(o: OverrideRow) {
+  return {
+    id: o.id,
+    targetKind: o.target_kind,
+    capabilityKey: o.capability_key,
+    allowance: o.allowance,
+    quotaDelta: o.quota_delta,
+    requestedBy: o.requested_by,
+    approvedBy: o.approved_by,
+    reasonCode: o.reason_code,
+    validFrom: o.valid_from,
+    validTo: o.valid_to,
+  };
+}
+
+// Fuller billing-cycle read (metadata only). No amount is stored on the cycle (inherited from the plan version
+// at close). providerRef is an OPAQUE, framework-only external reference (no provider bound) — never a secret.
+export function billingCycleDetailView(b: BillingCycleDetailRow) {
+  return {
+    id: b.id,
+    subscriptionId: b.subscription_id,
+    status: b.status,
+    version: b.version,
+    cycleStart: b.cycle_start,
+    cycleEnd: b.cycle_end,
+    nextRenewal: b.next_renewal,
+    providerRef: b.provider_ref,
   };
 }

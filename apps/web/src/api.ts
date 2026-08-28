@@ -194,6 +194,23 @@ export const publishPlanVersion = (
 ): Promise<ApiResult<Row>> =>
   call(`${SA}/versions/${encodeURIComponent(versionId)}/publish`, { method: 'POST', body, tenantId: t });
 
+// --- M39 commercial READ surfaces — canonical m39-saas engine, reused (no second SaaS engine). Three
+// RLS-scoped, permission-gated GET read models; each unwraps its list envelope via asRows and returns the rows.
+// Usage events are APPEND-ONLY metered evidence — `quantity` is an exact integer STRING (never parsed to a
+// float, ADR-007). Overrides are REAL maker-checker (`approvedBy` ≠ `requestedBy`, server-enforced) and gated on
+// the privileged saas.override.administer (there is no saas.override.read). Billing cycles store NO amount (the
+// cycle amount is inherited from the plan version at close, not on the row) and carry only an OPAQUE,
+// framework-only `providerRef` — no billing provider is bound. Read-only: no create/apply/revoke here. ---
+const saasReadList = async (path: string, t?: string | null): Promise<ApiResult<Row[]>> => {
+  const r = await call<unknown>(`${SA}/${path}`, { tenantId: t });
+  return { ...r, data: r.ok ? asRows(r.data) : null };
+};
+export const getSaasUsage = (t?: string | null): Promise<ApiResult<Row[]>> => saasReadList('usage', t);
+export const getSaasOverrides = (t?: string | null): Promise<ApiResult<Row[]>> =>
+  saasReadList('overrides', t);
+export const getSaasBillingCycles = (subscriptionId: string, t?: string | null): Promise<ApiResult<Row[]>> =>
+  saasReadList(`subscriptions/${encodeURIComponent(subscriptionId)}/billing-cycles`, t);
+
 // --- reconciliation (reuses the existing gl-reconciliation API; no duplicate engine) ---
 export type Row = Record<string, unknown>;
 const R = '/gl-reconciliation';
@@ -1850,6 +1867,9 @@ export function asRows(data: unknown): Row[] {
     'buckets',
     'controls',
     'assessments',
+    'usageEvents',
+    'overrides',
+    'billingCycles',
   ]) {
     if (Array.isArray(d[k])) return d[k] as Row[];
   }

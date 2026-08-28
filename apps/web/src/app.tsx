@@ -9544,8 +9544,11 @@ function PlansSubscriptionsAdmin({
   actorId: string;
 }): JSX.Element {
   const can = (p: string): boolean => perms.has(p);
-  const [tab, setTab] = useState<'plans' | 'subscriptions' | 'entitlements'>('plans');
+  const [tab, setTab] = useState<
+    'plans' | 'subscriptions' | 'entitlements' | 'usage' | 'overrides' | 'billing'
+  >('plans');
   const [nonce, setNonce] = useState(0);
+  const [billingSubId, setBillingSubId] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   const [openPlan, setOpenPlan] = useState<api.Row | null>(null);
   const plans = useRows(async () => {
@@ -9572,6 +9575,20 @@ function PlansSubscriptionsAdmin({
       live = false;
     };
   }, [tenant, nonce]);
+  // Read-only M39 commercial surfaces — fetched only when their tab is active (an idle placeholder otherwise),
+  // so a privileged overrides read never fires unless the operator opens it. Each is RLS-scoped + permission-gated
+  // server-side; the UI only reflects what the API returns.
+  const idle = (): Promise<api.ApiResult<unknown>> =>
+    Promise.resolve({ ok: true, status: 200, data: [], error: null });
+  const usage = useRows(() => (tab === 'usage' ? api.getSaasUsage(tenant) : idle()), [tenant, nonce, tab]);
+  const overrides = useRows(
+    () => (tab === 'overrides' ? api.getSaasOverrides(tenant) : idle()),
+    [tenant, nonce, tab],
+  );
+  const billing = useRows(
+    () => (tab === 'billing' && billingSubId ? api.getSaasBillingCycles(billingSubId, tenant) : idle()),
+    [tenant, nonce, tab, billingSubId],
+  );
   const [planKey, setPlanKey] = useState('');
   const [planName, setPlanName] = useState('');
   // Surface the SERVER's message verbatim (call() extracts detail/message) — so a maker-checker / SoD rejection
@@ -9587,6 +9604,9 @@ function PlansSubscriptionsAdmin({
     { id: 'plans', label: 'Plans' },
     { id: 'subscriptions', label: 'Subscriptions' },
     { id: 'entitlements', label: 'Effective entitlements' },
+    ...(can('saas.usage.read') ? [{ id: 'usage' as const, label: 'Usage' }] : []),
+    ...(can('saas.override.administer') ? [{ id: 'overrides' as const, label: 'Overrides' }] : []),
+    ...(can('saas.subscription.read') ? [{ id: 'billing' as const, label: 'Billing' }] : []),
   ];
   return (
     <>
@@ -9778,6 +9798,147 @@ function PlansSubscriptionsAdmin({
                 ))}
               </tbody>
             </table>
+          </>
+        )}
+
+        {tab === 'usage' && (
+          <>
+            <p className="muted" style={{ fontSize: 12 }}>
+              Append-only metered usage evidence (canonical m39 usage ledger). Quantities are exact integers,
+              shown verbatim — never parsed to a float (ADR-007). Read-only: there is no edit or delete.
+            </p>
+            {usage.loading ? (
+              <div className="loading">Loading usage…</div>
+            ) : usage.error ? (
+              <div className="empty">Could not load ({usage.error}).</div>
+            ) : usage.rows.length === 0 ? (
+              <div className="empty">No usage events.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Capability</th>
+                    <th>Meter</th>
+                    <th className="num">Quantity</th>
+                    <th>Period</th>
+                    <th>Occurred</th>
+                    <th>Source ref</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usage.rows.map((r, i) => (
+                    <tr key={pick(r, 'id') || i}>
+                      <td className="muted">{pick(r, 'capabilityKey')}</td>
+                      <td className="muted">{pick(r, 'meterKey')}</td>
+                      <td className="num">{pick(r, 'quantity') || '—'}</td>
+                      <td className="muted">{pick(r, 'periodKey')}</td>
+                      <td className="muted">{pick(r, 'occurredAt').slice(0, 19).replace('T', ' ')}</td>
+                      <td className="muted">{pick(r, 'sourceRef') || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        {tab === 'overrides' && (
+          <>
+            <p className="muted" style={{ fontSize: 12 }}>
+              Maker-checker evidence: approver ≠ requester (server-enforced). Entitlement / quota overrides
+              with their reason code and validity window. Read-only — this view neither applies nor revokes
+              overrides.
+            </p>
+            {overrides.loading ? (
+              <div className="loading">Loading overrides…</div>
+            ) : overrides.error ? (
+              <div className="empty">Could not load ({overrides.error}).</div>
+            ) : overrides.rows.length === 0 ? (
+              <div className="empty">No overrides.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Target</th>
+                    <th>Capability</th>
+                    <th>Allowance / quota Δ</th>
+                    <th>Reason</th>
+                    <th>Requested by</th>
+                    <th>Approved by</th>
+                    <th>Validity</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overrides.rows.map((r, i) => (
+                    <tr key={pick(r, 'id') || i}>
+                      <td className="muted">{pick(r, 'targetKind')}</td>
+                      <td className="muted">{pick(r, 'capabilityKey')}</td>
+                      <td>
+                        {pick(r, 'allowance') || (pick(r, 'quotaDelta') ? `Δ ${pick(r, 'quotaDelta')}` : '—')}
+                      </td>
+                      <td className="muted">{pick(r, 'reasonCode') || '—'}</td>
+                      <td className="muted">{pick(r, 'requestedBy')}</td>
+                      <td className="muted">{pick(r, 'approvedBy')}</td>
+                      <td className="muted">
+                        {pick(r, 'validFrom').slice(0, 10) || '—'} → {pick(r, 'validTo').slice(0, 10) || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+
+        {tab === 'billing' && (
+          <>
+            <p className="muted" style={{ fontSize: 12 }}>
+              No amount is stored on the cycle (inherited from the plan version at close). providerRef is a
+              framework-only external reference — no billing provider is bound, so this is never a settled
+              payment. Read-only.
+            </p>
+            <div className="run-picker" style={{ gap: 6 }}>
+              <select value={billingSubId} onChange={(e) => setBillingSubId(e.target.value)}>
+                <option value="">Select a subscription…</option>
+                {subs.rows.map((s, i) => (
+                  <option key={pick(s, 'id') || i} value={pick(s, 'id')}>
+                    {pick(s, 'subscriptionKey') || pick(s, 'id').slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {billingSubId === '' ? (
+              <div className="empty">Select a subscription to view its billing cycles.</div>
+            ) : billing.loading ? (
+              <div className="loading">Loading billing cycles…</div>
+            ) : billing.error ? (
+              <div className="empty">Could not load ({billing.error}).</div>
+            ) : billing.rows.length === 0 ? (
+              <div className="empty">No billing cycles.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Cycle start</th>
+                    <th>Cycle end</th>
+                    <th>Next renewal</th>
+                    <th>Provider ref (framework-only)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {billing.rows.map((r, i) => (
+                    <tr key={pick(r, 'id') || i}>
+                      <td>{statusPill(pick(r, 'status'))}</td>
+                      <td className="muted">{pick(r, 'cycleStart').slice(0, 10) || '—'}</td>
+                      <td className="muted">{pick(r, 'cycleEnd').slice(0, 10) || '—'}</td>
+                      <td className="muted">{pick(r, 'nextRenewal').slice(0, 10) || '—'}</td>
+                      <td className="muted">{pick(r, 'providerRef') || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </>
         )}
       </div>

@@ -348,4 +348,66 @@ export default defineDbSpec('m39-services', async (ctx, t) => {
     0,
     'a different tenant sees NO plan versions (FORCE RLS isolation)',
   );
+
+  // --- READ MODELS (M39c: usage / overrides / billing reads for the admin UI) --------------------
+  // The write paths above produced a usage event, a maker-checker override and a billing cycle; prove the new
+  // reads return them, are permission-gated (usage.read / override.administer / subscription.read), and RLS-isolate.
+  const usageEvents = await quotaOn.listUsageEvents(ctxOf(author, [M39_PERMISSIONS.usageRead]));
+  t.ok(
+    usageEvents.some((u) => u.capability_key === CAP && u.meter_key === METER),
+    'usage events are readable (read model returns the recorded usage)',
+  );
+  await t.rejects(
+    quotaOn.listUsageEvents(ctxOf(author, [])),
+    'listing usage requires saas.usage.read (fail closed — the previously-dead permission is now enforced)',
+  );
+  t.equal(
+    (
+      await quotaOn.listUsageEvents({
+        ...ctxOf(randomUUID(), [M39_PERMISSIONS.usageRead]),
+        tenantId: randomUUID(),
+      })
+    ).length,
+    0,
+    'a different tenant sees NO usage events (FORCE RLS isolation)',
+  );
+
+  const overrides = await quotaOn.listOverrides(ctxOf(author, [M39_PERMISSIONS.overrideAdminister]));
+  t.ok(
+    overrides.some((o) => o.approved_by !== o.requested_by),
+    'overrides are readable and every one has approver != requester (maker-checker evidence)',
+  );
+  await t.rejects(
+    quotaOn.listOverrides(ctxOf(author, [])),
+    'listing overrides requires saas.override.administer (fail closed)',
+  );
+
+  const cycles = await billing.listBillingCycles(ctxOf(author, [M39_PERMISSIONS.subscriptionRead]), sub.id);
+  t.ok(
+    // The read model returns the timestamptz period boundaries as they come off the driver (Date at the repo
+    // layer; ISO strings once JSON-serialised at the HTTP edge — same family convention as usage.occurred_at /
+    // override.valid_from). Assert the boundaries round-trip to the instants we opened the cycle with, which is
+    // representation-agnostic, rather than pinning a serialisation type. No amount is stored on the cycle.
+    cycles.some(
+      (c) =>
+        c.subscription_id === sub.id &&
+        new Date(c.cycle_start).getTime() === Date.UTC(2026, 7, 1) &&
+        new Date(c.cycle_end).getTime() === Date.UTC(2026, 8, 1),
+    ),
+    'billing cycles are readable with period metadata (no amount stored on the cycle; provider_ref framework-only)',
+  );
+  await t.rejects(
+    billing.listBillingCycles(ctxOf(author, []), sub.id),
+    'listing billing cycles requires saas.subscription.read (fail closed)',
+  );
+  t.equal(
+    (
+      await billing.listBillingCycles(
+        { ...ctxOf(randomUUID(), [M39_PERMISSIONS.subscriptionRead]), tenantId: randomUUID() },
+        sub.id,
+      )
+    ).length,
+    0,
+    'a different tenant sees NO billing cycles (FORCE RLS isolation)',
+  );
 });

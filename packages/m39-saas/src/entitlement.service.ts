@@ -21,10 +21,11 @@ import {
   evaluateSodGate,
   isHumanActor,
   canReserve,
+  clampPage,
   REASON_CODES,
   type GateResult,
 } from './domain.ts';
-import { SaasRepository } from './repository.ts';
+import { SaasRepository, type UsageEventRow, type OverrideRow } from './repository.ts';
 import type { M39Emitter } from './emit.ts';
 import type { FeatureControlPort } from './ports.ts';
 
@@ -316,5 +317,21 @@ export class EntitlementQuotaService {
       });
       return { id: override.id };
     });
+  }
+
+  // --- read models (admin read surfaces) --------------------------------------------------------
+  /** List usage events (append-only evidence). RLS-scoped; gated by the read permission (first enforcer of the
+   * previously-declared saas.usage.read). Exposes meter/quantity(text)/period/source-ref/time only — no payload. */
+  async listUsageEvents(ctx: RequestContext, page?: number, size?: number): Promise<UsageEventRow[]> {
+    await this.authz.require(ctx, M39_PERMISSIONS.usageRead);
+    const { limit, offset } = clampPage(page, size);
+    return this.db.withTenant(ctx, (tx) => this.repo.listUsageEvents(tx, limit, offset));
+  }
+  /** List commercial overrides (append-only, maker-checker). Privileged — gated by saas.override.administer (no
+   * separate override.read code exists). Exposes requester/approver/reason/validity metadata only — no secret. */
+  async listOverrides(ctx: RequestContext, page?: number, size?: number): Promise<OverrideRow[]> {
+    await this.authz.require(ctx, M39_PERMISSIONS.overrideAdminister);
+    const { limit, offset } = clampPage(page, size);
+    return this.db.withTenant(ctx, (tx) => this.repo.listOverrides(tx, limit, offset));
   }
 }

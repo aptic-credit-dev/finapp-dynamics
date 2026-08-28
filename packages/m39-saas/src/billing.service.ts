@@ -9,7 +9,7 @@ import type { Authz, Db, RequestContext } from '@finapp/kernel';
 import { M39_PERMISSIONS } from './permissions.ts';
 import { M39_AUDIT_CODES } from './audit-codes.ts';
 import { notFound, versionConflict } from './errors.ts';
-import { SaasRepository, type BillingCycleRow } from './repository.ts';
+import { SaasRepository, type BillingCycleRow, type BillingCycleDetailRow } from './repository.ts';
 import type { M39Emitter } from './emit.ts';
 import type { BillingProviderPort } from './ports.ts';
 
@@ -105,5 +105,13 @@ export class BillingService {
       });
       return updated;
     });
+  }
+
+  /** List a subscription's billing cycles (metadata only — no settlement/amount is stored on the cycle; the cycle
+   * amount is inherited from the plan version at close time). RLS-scoped; gated by saas.subscription.read. The
+   * provider_ref is an OPAQUE, framework-only external reference (no provider is bound) — never a secret. */
+  async listBillingCycles(ctx: RequestContext, subscriptionId: string): Promise<BillingCycleDetailRow[]> {
+    await this.authz.require(ctx, M39_PERMISSIONS.subscriptionRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listBillingCycles(tx, subscriptionId));
   }
 }

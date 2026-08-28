@@ -683,7 +683,16 @@ const PERSONAS = [
     code: 'saas_plan_author',
     risk: 'critical',
     // Author drives draft authoring + validate; CANNOT publish (no saas.plan.publish) — SoD maker side.
-    perms: ['saas.plan.read', 'saas.plan.manage', 'saas.quota.manage'],
+    // Also holds quota.read + usage.record so the demo seed can provision a quota period and record usage
+    // evidence for the read-model tabs (usage is normally metered by the system; granted here for staging demo).
+    perms: [
+      'saas.plan.read',
+      'saas.plan.manage',
+      'saas.quota.manage',
+      'saas.quota.read',
+      'saas.usage.record',
+      'saas.usage.read',
+    ],
   },
   {
     k: '2',
@@ -802,14 +811,20 @@ try {
        ON CONFLICT (id) DO UPDATE SET status='active', name=EXCLUDED.name`,
       [roleId, T1, p.code, p.name, p.risk, ADMIN],
     );
-    const granted = await q(
+    // Idempotent grant: SELECT the codes that EXIST in the canonical catalogue, insert (skip already-granted).
+    await q(
       `INSERT INTO role_permissions (role_id, tenant_id, permission_code, granted_by)
        SELECT $1,$2,code,$3 FROM permissions WHERE code = ANY($4)
-       ON CONFLICT DO NOTHING RETURNING permission_code`,
+       ON CONFLICT DO NOTHING`,
       [roleId, T1, ADMIN, p.perms],
     );
     const heldNow = (await q(`SELECT count(*)::int c FROM role_permissions WHERE role_id=$1`, [roleId]))[0].c;
-    const missing = p.perms.filter((c) => !granted.find((g) => g.permission_code === c));
+    // "missing" = codes that do NOT exist in the canonical `permissions` catalogue — NOT codes that were merely
+    // already-granted on a rerun (the earlier RETURNING-based check falsely flagged those on every idempotent rerun).
+    const present = new Set(
+      (await q(`SELECT code FROM permissions WHERE code = ANY($1)`, [p.perms])).map((r) => r.code),
+    );
+    const missing = p.perms.filter((c) => !present.has(c));
     await q(
       `INSERT INTO role_assignments (tenant_id, id, membership_id, identity_id, role_id, scope_level, status, version, granted_by, granted_at)
        VALUES ($1,$2,$3,$4,$5,'tenant','active',1,$6,now())
