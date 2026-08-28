@@ -384,7 +384,16 @@ export default defineDbSpec('m39-services', async (ctx, t) => {
 
   const cycles = await billing.listBillingCycles(ctxOf(author, [M39_PERMISSIONS.subscriptionRead]), sub.id);
   t.ok(
-    cycles.some((c) => c.subscription_id === sub.id && typeof c.cycle_start === 'string'),
+    // The read model returns the timestamptz period boundaries as they come off the driver (Date at the repo
+    // layer; ISO strings once JSON-serialised at the HTTP edge — same family convention as usage.occurred_at /
+    // override.valid_from). Assert the boundaries round-trip to the instants we opened the cycle with, which is
+    // representation-agnostic, rather than pinning a serialisation type. No amount is stored on the cycle.
+    cycles.some(
+      (c) =>
+        c.subscription_id === sub.id &&
+        new Date(c.cycle_start).getTime() === Date.UTC(2026, 7, 1) &&
+        new Date(c.cycle_end).getTime() === Date.UTC(2026, 8, 1),
+    ),
     'billing cycles are readable with period metadata (no amount stored on the cycle; provider_ref framework-only)',
   );
   await t.rejects(
