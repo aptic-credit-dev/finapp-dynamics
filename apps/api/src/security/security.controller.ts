@@ -9,7 +9,17 @@ import {
 } from '@finapp/m41-security';
 import { ActorContextFactory } from '@finapp/m02-identity';
 import { requireString, requireTenantScope, requireVersion } from '../identity/http.ts';
-import { secretView, dlpPolicyView, dlpPolicyListView, dlpFindingView, incidentView } from './views.ts';
+import {
+  secretView,
+  secretDetailView,
+  secretVersionView,
+  revealView,
+  secretProviderStatusView,
+  dlpPolicyView,
+  dlpPolicyListView,
+  dlpFindingView,
+  incidentView,
+} from './views.ts';
 
 /**
  * Secrets / keys / reveal / DLP / SOC under `/api/v1/security`. Secret rotate/reveal/destroy are privileged maker-checker
@@ -65,6 +75,34 @@ export class SecurityController {
     const s = await this.scoped(h, 'browse secrets (m41)');
     const rows = await this.secrets.listSecrets(s.ctx);
     return { secrets: rows.map(secretView) };
+  }
+
+  // Read-only admin console (permission security.secret.read, enforced in-service; RLS-scoped; no @Endpoint — reads
+  // are not audited). Detail / rotation-version history / reveal-grant history / provider health — METADATA ONLY. No
+  // route here returns secret material, and there is NO secret-material download endpoint anywhere.
+  @Get('secrets/:id')
+  async getSecret(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'get secret (m41)');
+    const secret = await this.secrets.getSecretDetail(s.ctx, id);
+    return { secret: secret ? secretDetailView(secret) : null };
+  }
+
+  @Get('secrets/:id/versions')
+  async listSecretVersions(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list secret versions (m41)');
+    return { versions: (await this.secrets.listSecretVersions(s.ctx, id)).map(secretVersionView) };
+  }
+
+  @Get('secrets/:id/reveals')
+  async listSecretReveals(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list secret reveal grants (m41)');
+    return { reveals: (await this.secrets.listReveals(s.ctx, id)).map(revealView) };
+  }
+
+  @Get('secrets/:id/provider-status')
+  async getSecretProviderStatus(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'get secret provider status (m41)');
+    return secretProviderStatusView(await this.secrets.getSecretProviderStatus(s.ctx, id));
   }
 
   @Endpoint({

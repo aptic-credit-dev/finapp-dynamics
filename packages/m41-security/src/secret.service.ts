@@ -25,7 +25,14 @@ import {
   type GateResult,
   type SecretState,
 } from './domain.ts';
-import { SecurityRepository, type SecretRow, type SecretVersionRow } from './repository.ts';
+import {
+  SecurityRepository,
+  type SecretRow,
+  type SecretVersionRow,
+  type SecretDetailRow,
+  type SecretVersionListRow,
+  type RevealListRow,
+} from './repository.ts';
 import type { M41Emitter } from './emit.ts';
 import type { SecretProviderPort } from './ports.ts';
 
@@ -392,6 +399,42 @@ export class SecretService {
     await this.authz.require(ctx, M41_PERMISSIONS.secretRead);
     const { limit, offset } = clampPage(page, size);
     return this.db.withTenant(ctx, (tx) => this.repo.listSecrets(tx, limit, offset));
+  }
+
+  // ---- READ MODEL (admin console: detail / version history / reveal-grant history / provider status) ----
+  // All gated by security.secret.read (read-only; not audited; RLS-scoped). NONE returns any secret material — the
+  // underlying tables have no value/ciphertext/token column and the resolver returns availability metadata only.
+  async getSecretDetail(ctx: RequestContext, id: string): Promise<SecretDetailRow | null> {
+    await this.authz.require(ctx, M41_PERMISSIONS.secretRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.getSecretDetail(tx, id));
+  }
+  async listSecretVersions(ctx: RequestContext, secretId: string): Promise<SecretVersionListRow[]> {
+    await this.authz.require(ctx, M41_PERMISSIONS.secretRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listSecretVersions(tx, secretId));
+  }
+  /** Reveal-GRANT history (maker-checker evidence: requester/approver/purpose/expiry) — never any material. */
+  async listReveals(ctx: RequestContext, secretId: string): Promise<RevealListRow[]> {
+    await this.authz.require(ctx, M41_PERMISSIONS.secretRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listReveals(tx, secretId));
+  }
+  /**
+   * Provider health/status for a secret, keyed by id (the admin-console read counterpart of `resolveSecretMetadata`,
+   * which m30 consults by secretRef). Availability METADATA only — never a value; fail-closed for a missing/inactive
+   * secret or an unavailable provider. Gated by security.secret.read.
+   */
+  async getSecretProviderStatus(ctx: RequestContext, id: string): Promise<SecretMetadata> {
+    await this.authz.require(ctx, M41_PERMISSIONS.secretRead);
+    return this.db.withTenant(ctx, async (tx) => {
+      const secret = await this.repo.getSecret(tx, id);
+      if (!secret || secret.state !== 'active')
+        return { available: false, reasonCode: REASON_CODES.secretUnavailable };
+      const active = await this.repo.getActiveVersion(tx, secret.id);
+      if (!active) return { available: false, reasonCode: REASON_CODES.secretUnavailable };
+      const meta = await this.provider.resolveMetadata(ctx, active.provider_ref ?? '');
+      return meta.available
+        ? { available: true, reasonCode: REASON_CODES.secretResolvable }
+        : { available: false, reasonCode: meta.reasonCode };
+    });
   }
 
   // ---- helpers ----

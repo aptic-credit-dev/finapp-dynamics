@@ -74,6 +74,38 @@ export interface PrivacyClassificationRow {
   readonly version: number;
 }
 // ---- read-model row types (RLS-scoped list/detail projections; append-only entities are list-only) ----
+// A secret DETAIL projection: the aggregate metadata + its lifecycle timestamps. Still ZERO secret value — only the
+// opaque secret_ref + an approved algorithm id. Used by the read-only admin console (GET /security/secrets/:id).
+export interface SecretDetailRow extends SecretRow {
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+// A secret VERSION projection (rotation history). state/version_no/opaque provider_ref + lifecycle timestamps only —
+// there is NO material column on security_secret_version, so a version can never carry a value.
+export interface SecretVersionListRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly secret_id: string;
+  readonly version_no: number;
+  readonly state: string;
+  readonly provider_ref: string | null;
+  readonly activated_at: string | null;
+  readonly created_at: string;
+}
+// A REVEAL-GRANT projection (append-only maker-checker evidence). Requester/approver/purpose/expiry/status only — the
+// reveal records the GRANT, never any material (there is no material column on security_reveal).
+export interface RevealListRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly secret_id: string;
+  readonly requested_by: string;
+  readonly approved_by: string;
+  readonly purpose: string;
+  readonly reason_code: string | null;
+  readonly granted: boolean;
+  readonly expires_at: string | null;
+  readonly created_at: string;
+}
 export interface DlpPolicyListRow extends DlpPolicyRow {
   readonly scope: string;
   readonly created_at: string;
@@ -174,6 +206,26 @@ export class SecurityRepository {
     );
     return rows;
   }
+  // Read-only DETAIL projection (RLS-scoped): the aggregate metadata + lifecycle timestamps. No secret value.
+  async getSecretDetail(tx: Tx, id: string): Promise<SecretDetailRow | null> {
+    const { rows } = await tx.query<SecretDetailRow>(
+      `SELECT tenant_id, id, material_kind, scope, secret_key, secret_ref, algorithm, state, current_version_no, version,
+              created_at::text AS created_at, updated_at::text AS updated_at
+         FROM security_secret WHERE id=$1`,
+      [id],
+    );
+    return rows[0] ?? null;
+  }
+  // Read-only VERSION history (rotation timeline), oldest→newest. state/opaque provider_ref/timestamps only — no material.
+  async listSecretVersions(tx: Tx, secretId: string): Promise<SecretVersionListRow[]> {
+    const { rows } = await tx.query<SecretVersionListRow>(
+      `SELECT tenant_id, id, secret_id, version_no, state, provider_ref, activated_at::text AS activated_at,
+              created_at::text AS created_at
+         FROM security_secret_version WHERE secret_id=$1 ORDER BY version_no`,
+      [secretId],
+    );
+    return rows;
+  }
 
   // ---- secret version (mutable; one-active partial unique index; immutability trigger) ----
   async insertSecretVersion(
@@ -256,6 +308,17 @@ export class SecurityRepository {
       ],
     );
     return firstRow(rows, 'insertReveal');
+  }
+  // Read-only REVEAL-GRANT history for a secret (append-only maker-checker evidence), newest first. Requester/approver/
+  // purpose/expiry/status only — never any material (security_reveal has no material column).
+  async listReveals(tx: Tx, secretId: string): Promise<RevealListRow[]> {
+    const { rows } = await tx.query<RevealListRow>(
+      `SELECT tenant_id, id, secret_id, requested_by, approved_by, purpose, reason_code, granted,
+              expires_at::text AS expires_at, created_at::text AS created_at
+         FROM security_reveal WHERE secret_id=$1 ORDER BY created_at DESC`,
+      [secretId],
+    );
+    return rows;
   }
 
   // ---- dlp policy (mutable) + finding (append-only) ----

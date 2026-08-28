@@ -87,6 +87,9 @@ export { SecurityRepository } from './repository.ts';
 export type {
   SecretRow,
   SecretVersionRow,
+  SecretDetailRow,
+  SecretVersionListRow,
+  RevealListRow,
   DlpPolicyRow,
   DlpPolicyListRow,
   DlpFindingListRow,
