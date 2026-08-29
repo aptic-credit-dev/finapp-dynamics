@@ -426,8 +426,8 @@ export class SecretService {
     await this.authz.require(ctx, M41_PERMISSIONS.secretRead);
     return this.db.withTenant(ctx, async (tx) => {
       const secret = await this.repo.getSecret(tx, id);
-      if (!secret || secret.state !== 'active')
-        return { available: false, reasonCode: REASON_CODES.secretUnavailable };
+      if (!secret) return { available: false, reasonCode: REASON_CODES.secretUnavailable };
+      if (secret.state !== 'active') return { available: false, reasonCode: REASON_CODES.secretUnavailable };
       const active = await this.repo.getActiveVersion(tx, secret.id);
       if (!active) return { available: false, reasonCode: REASON_CODES.secretUnavailable };
       const meta = await this.provider.resolveMetadata(ctx, active.provider_ref ?? '');

@@ -300,7 +300,9 @@ export default defineDbSpec('m41-services', async (ctx, t) => {
 
   const detail = await secretOk.getSecretDetail(secretReadCtx, secret.id);
   t.ok(
-    detail?.secret_ref === 'secretref:vault/kv/sig' && typeof detail?.created_at === 'string',
+    detail !== null &&
+      detail.secret_ref === 'secretref:vault/kv/sig' &&
+      typeof detail.created_at === 'string',
     'a secret detail is readable (opaque secret_ref + lifecycle timestamps)',
   );
   t.ok(noMaterial(detail), 'the secret detail row carries no secret-material field');
