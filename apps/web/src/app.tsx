@@ -11242,6 +11242,276 @@ function ApprovalsInbox({ tenant, perms }: { tenant: string | null; perms: Set<s
   );
 }
 
+// ---- M41 Secrets & Keys admin console (Phase 1: READ-ONLY, metadata only) ---------------------------------------
+// A genuine administration console over the canonical m41 secret/key control plane: select a secret and inspect its
+// Overview | Versions | Reveal History with a provider health/status indicator. RLS + M02 RBAC are server-authoritative
+// (gated on security.secret.read; the server denies the read regardless of UI). NOTHING here shows secret material —
+// a secret exposes only its opaque secretRef, a version an opaque providerRef, a reveal only the maker-checker grant.
+// The privileged lifecycle WRITE actions (Define/Activate/Rotate/Revoke/Destroy/Request Reveal) are DEFERRED to Phase 2.
+function providerPill(status: { available: boolean; reasonCode: string } | null): JSX.Element {
+  if (status === null) return <span className="pill info">Provider status …</span>;
+  return status.available ? (
+    <span className="pill ok">Provider available</span>
+  ) : (
+    <span className="pill warn">Provider unavailable · {status.reasonCode || 'unavailable'}</span>
+  );
+}
+function SecretsKeysWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const canRead = perms.has('security.secret.read');
+  const secrets = useRows(
+    () =>
+      canRead ? api.getSecrets(tenant) : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canRead],
+  );
+  const [selected, setSelected] = useState<string | null>(null);
+  const [tab, setTab] = useState<'overview' | 'versions' | 'reveals'>('overview');
+  const [detail, setDetail] = useState<api.Row | null>(null);
+  const [status, setStatus] = useState<{ available: boolean; reasonCode: string } | null>(null);
+  // Detail + provider status for the selected secret (single-object endpoints — fetched directly). Fail-closed:
+  // an error simply leaves the panel empty; the server is the authority on both access and provider availability.
+  useEffect(() => {
+    let live = true;
+    setDetail(null);
+    setStatus(null);
+    if (!selected) return;
+    void api.getSecret(selected, tenant).then((r) => {
+      if (live && r.ok) setDetail((r.data?.secret ?? null) as api.Row | null);
+    });
+    void api.getSecretProviderStatus(selected, tenant).then((r) => {
+      if (live && r.ok && r.data)
+        setStatus({ available: r.data.available === true, reasonCode: str(r.data.reasonCode) });
+    });
+    return () => {
+      live = false;
+    };
+  }, [selected, tenant]);
+  const versions = useRows(
+    () =>
+      selected && tab === 'versions'
+        ? api.getSecretVersions(selected, tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [selected, tab, tenant],
+  );
+  const reveals = useRows(
+    () =>
+      selected && tab === 'reveals'
+        ? api.getSecretReveals(selected, tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [selected, tab, tenant],
+  );
+  if (!canRead) {
+    return (
+      <>
+        <h1 className="page-title">Secrets &amp; Keys</h1>
+        <div className="card">
+          <div className="empty">
+            Viewing secret/key administration needs <code>security.secret.read</code>. Your role does not hold
+            it — the server denies the read (this is not merely hidden UI).
+          </div>
+        </div>
+      </>
+    );
+  }
+  const meta = (k: string): string => (detail ? pick(detail, k) : '');
+  return (
+    <>
+      <h1 className="page-title">Secrets &amp; Keys</h1>
+      <p className="page-sub">
+        Read-only administration over the canonical m41 secret/key control plane · synthetic staging data. RLS
+        + RBAC enforced server-side. Metadata only — a secret exposes its opaque <code>secretRef</code>, never
+        any value. Lifecycle actions (rotate/reveal/destroy) arrive in Phase&nbsp;2.
+      </p>
+      <div className="split">
+        <div className="card" style={{ flex: '1 1 340px' }}>
+          <header>
+            <h3>Secrets &amp; keys</h3>
+            <span className="demo-note">SYNTHETIC</span>
+          </header>
+          {secrets.loading ? (
+            <div className="loading">Loading…</div>
+          ) : secrets.error ? (
+            <div className="empty">Could not load ({secrets.error}).</div>
+          ) : secrets.rows.length === 0 ? (
+            <div className="empty">No secrets. Seed synthetic metadata to populate this view.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Key</th>
+                  <th>Kind</th>
+                  <th>Algorithm</th>
+                  <th>State</th>
+                  <th>Ver</th>
+                </tr>
+              </thead>
+              <tbody>
+                {secrets.rows.map((r, i) => {
+                  const id = pick(r, 'id');
+                  return (
+                    <tr
+                      key={id || i}
+                      className={selected === id ? 'row-active' : ''}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
+                        setSelected(id);
+                        setTab('overview');
+                      }}
+                    >
+                      <td>{pick(r, 'secretKey') || '—'}</td>
+                      <td className="muted">{pick(r, 'materialKind')}</td>
+                      <td className="muted">{pick(r, 'algorithm') || '—'}</td>
+                      <td>{statusPill(pick(r, 'state'))}</td>
+                      <td className="muted">{pick(r, 'currentVersionNo')}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="card" style={{ flex: '2 1 460px' }}>
+          {!selected ? (
+            <div className="empty">Select a secret to inspect its metadata, versions and reveal history.</div>
+          ) : (
+            <>
+              <header>
+                <h3>{meta('secretKey') || 'Secret'}</h3>
+                {providerPill(status)}
+              </header>
+              <div className="run-picker">
+                {(
+                  [
+                    { id: 'overview', label: 'Overview' },
+                    { id: 'versions', label: 'Versions' },
+                    { id: 'reveals', label: 'Reveal History' },
+                  ] as { id: 'overview' | 'versions' | 'reveals'; label: string }[]
+                ).map((tb) => (
+                  <button
+                    key={tb.id}
+                    className={`btn ${tab === tb.id ? '' : 'secondary'}`}
+                    onClick={() => setTab(tb.id)}
+                  >
+                    {tb.label}
+                  </button>
+                ))}
+              </div>
+              {tab === 'overview' ? (
+                !detail ? (
+                  <div className="loading">Loading…</div>
+                ) : (
+                  <table>
+                    <tbody>
+                      <tr>
+                        <th>Secret key</th>
+                        <td>{meta('secretKey')}</td>
+                      </tr>
+                      <tr>
+                        <th>Secret ref (opaque)</th>
+                        <td className="muted">{meta('secretRef')}</td>
+                      </tr>
+                      <tr>
+                        <th>Material kind</th>
+                        <td>{meta('materialKind')}</td>
+                      </tr>
+                      <tr>
+                        <th>Algorithm</th>
+                        <td>{meta('algorithm') || '—'}</td>
+                      </tr>
+                      <tr>
+                        <th>Scope</th>
+                        <td>{meta('scope')}</td>
+                      </tr>
+                      <tr>
+                        <th>State</th>
+                        <td>{statusPill(meta('state'))}</td>
+                      </tr>
+                      <tr>
+                        <th>Current version</th>
+                        <td>{meta('currentVersionNo')}</td>
+                      </tr>
+                      <tr>
+                        <th>Created</th>
+                        <td className="muted">{meta('createdAt')}</td>
+                      </tr>
+                      <tr>
+                        <th>Updated</th>
+                        <td className="muted">{meta('updatedAt')}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )
+              ) : tab === 'versions' ? (
+                versions.loading ? (
+                  <div className="loading">Loading…</div>
+                ) : versions.rows.length === 0 ? (
+                  <div className="empty">No versions.</div>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Version</th>
+                        <th>State</th>
+                        <th>Provider ref (opaque)</th>
+                        <th>Activated</th>
+                        <th>Created</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {versions.rows.map((v, i) => (
+                        <tr key={pick(v, 'id') || i}>
+                          <td>{pick(v, 'versionNo')}</td>
+                          <td>{statusPill(pick(v, 'state'))}</td>
+                          <td className="muted">{pick(v, 'providerRef') || '—'}</td>
+                          <td className="muted">{pick(v, 'activatedAt') || '—'}</td>
+                          <td className="muted">{pick(v, 'createdAt')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              ) : reveals.loading ? (
+                <div className="loading">Loading…</div>
+              ) : reveals.rows.length === 0 ? (
+                <div className="empty">No reveal grants recorded.</div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Requested by</th>
+                      <th>Approved by</th>
+                      <th>Purpose</th>
+                      <th>Granted</th>
+                      <th>Expires</th>
+                      <th>When</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reveals.rows.map((r, i) => (
+                      <tr key={pick(r, 'id') || i}>
+                        <td className="muted">{pick(r, 'requestedBy')}</td>
+                        <td className="muted">{pick(r, 'approvedBy')}</td>
+                        <td>{pick(r, 'purpose')}</td>
+                        <td>{statusPill(pick(r, 'granted') === 'true' ? 'granted' : 'pending')}</td>
+                        <td className="muted">{pick(r, 'expiresAt') || '—'}</td>
+                        <td className="muted">{pick(r, 'createdAt')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <p className="page-sub" style={{ marginTop: 12 }}>
+                No secret value is ever shown or retrievable here. A reveal records only the maker-checker
+                grant; material (if a provider were bound) is delivered out-of-band and never enters this
+                surface.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▚', group: 'Overview' },
   { id: 'notifications', label: 'Notifications', icon: '🔔', group: 'Notifications' },
@@ -11271,6 +11541,7 @@ const NAV = [
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
   { id: 'admin-assignments', label: 'Access Assignments', icon: '🔑', group: 'Administration' },
   { id: 'admin-billing', label: 'Plans & Subscriptions', icon: '🧾', group: 'Administration' },
+  { id: 'admin-secrets', label: 'Secrets & Keys', icon: '🔐', group: 'Administration' },
 ];
 
 // The Administration group is NOT entitlement-gated (it is a platform capability, not a commercial vertical):
@@ -11282,6 +11553,9 @@ const ADMIN_READ_PERMS = [
   'rbac.assignment.view',
   'saas.plan.read',
   'saas.subscription.read',
+  // M41 Secrets & Keys is a platform SECURITY-administration capability (not a commercial vertical), so it is RBAC-
+  // gated here rather than entitlement-gated — a security auditor holding only security.secret.read sees this group.
+  'security.secret.read',
 ];
 
 // Finance (m19 fiscal calendar) is a platform finance-CONTROL capability, not a commercial vertical, so — like
@@ -11594,6 +11868,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'admin-billing' && (
           <PlansSubscriptionsAdmin tenant={tenant} perms={perms} actorId={actorId} />
         )}
+        {route === 'admin-secrets' && <SecretsKeysWorkspace tenant={tenant} perms={perms} />}
       </main>
     </div>
   );

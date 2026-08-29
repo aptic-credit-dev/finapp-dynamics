@@ -858,6 +858,31 @@ export const getDlpFindings = (t?: string | null): Promise<ApiResult<Row[] | { f
 export const getSecurityIncidents = (t?: string | null): Promise<ApiResult<Row[] | { incidents?: Row[] }>> =>
   call(`${SEC}/incidents`, { tenantId: t });
 
+// --- M41 Secrets & Keys admin READ MODEL (Phase 1) — canonical, RLS-scoped, permission-gated GET endpoints
+// (security.secret.read). METADATA ONLY: a secret exposes only its opaque secretRef + approved algorithm id +
+// lifecycle state; a version exposes an opaque providerRef; reveal history is maker-checker evidence (requester/
+// approver/purpose/expiry). NO endpoint returns secret material, and there is no reveal/download of a value here.
+// The lifecycle WRITE actions (define/activate/rotate/revoke/destroy/request-reveal) are deferred to Phase 2. ---
+export const getSecrets = (t?: string | null): Promise<ApiResult<Row[] | { secrets?: Row[] }>> =>
+  call(`${SEC}/secrets`, { tenantId: t });
+export const getSecret = (id: string, t?: string | null): Promise<ApiResult<{ secret?: Row | null }>> =>
+  call(`${SEC}/secrets/${encodeURIComponent(id)}`, { tenantId: t });
+export const getSecretVersions = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { versions?: Row[] }>> =>
+  call(`${SEC}/secrets/${encodeURIComponent(id)}/versions`, { tenantId: t });
+export const getSecretReveals = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { reveals?: Row[] }>> =>
+  call(`${SEC}/secrets/${encodeURIComponent(id)}/reveals`, { tenantId: t });
+export const getSecretProviderStatus = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ available?: boolean; reasonCode?: string }>> =>
+  call(`${SEC}/secrets/${encodeURIComponent(id)}/provider-status`, { tenantId: t });
+
 // --- M13 Case management (Legal workspace) — canonical m13-case engine, reused (no second case engine). Every
 // mutation is permission-gated + audited + carries expectedVersion where required; lifecycle is named POST
 // actions (open/triage/assign/reassign/resolve/close/reopen/archive/escalate) — there is NO hard delete. Party

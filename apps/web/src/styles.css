@@ -663,3 +663,16 @@ ul.timeline .t-head {
   font-family: ui-monospace, monospace;
   color: var(--ink);
 }
+/* Two-pane admin console layout (M41 Secrets & Keys): a master list beside a detail panel. Wraps on narrow widths. */
+.split {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.split > .card {
+  min-width: 0;
+}
+tr.row-active {
+  background: var(--info-bg);
+}
