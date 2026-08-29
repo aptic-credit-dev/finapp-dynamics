@@ -883,6 +883,50 @@ export const getSecretProviderStatus = (
 ): Promise<ApiResult<{ available?: boolean; reasonCode?: string }>> =>
   call(`${SEC}/secrets/${encodeURIComponent(id)}/provider-status`, { tenantId: t });
 
+// --- M41 Secrets & Keys LIFECYCLE (Phase 2) — canonical governed POST actions over the existing m41 service. The
+// server (M02 RBAC + M41 maker-checker/SoD + posture + optimistic version CAS) is AUTHORITATIVE; the UI only
+// orchestrates. `define` is creation (permission security.secret.manage; NOT maker-checker). activate/rotate/revoke/
+// destroy/reveal are maker-checker: the authenticated caller is the APPROVER and names a distinct human MAKER via
+// `requestedBy` (server enforces approver != requestedBy and human). activate/rotate/revoke/destroy carry the
+// optimistic `version` (409 on stale). NO endpoint returns secret material; a reveal records only the AUTHORIZATION
+// grant (reasonCode secret_provider_unavailable) and never a value — there is no decrypt/reveal-value path. ---
+export const defineSecret = (
+  body: { secretKey: string; secretRef: string; materialKind?: string; algorithm?: string; scope?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${SEC}/secrets`, { method: 'POST', body, tenantId: t });
+const secretLifecycle = (
+  id: string,
+  action: 'activate' | 'rotate' | 'revoke' | 'destroy',
+  version: number,
+  requestedBy: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${SEC}/secrets/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { version, requestedBy },
+    tenantId: t,
+  });
+export const activateSecret = (id: string, version: number, requestedBy: string, t?: string | null) =>
+  secretLifecycle(id, 'activate', version, requestedBy, t);
+export const rotateSecret = (id: string, version: number, requestedBy: string, t?: string | null) =>
+  secretLifecycle(id, 'rotate', version, requestedBy, t);
+export const revokeSecret = (id: string, version: number, requestedBy: string, t?: string | null) =>
+  secretLifecycle(id, 'revoke', version, requestedBy, t);
+export const destroySecret = (id: string, version: number, requestedBy: string, t?: string | null) =>
+  secretLifecycle(id, 'destroy', version, requestedBy, t);
+// Reveal is metadata/evidence only — records the AUTHORIZATION grant; returns { id, reasonCode }, never material.
+export const requestSecretReveal = (
+  id: string,
+  requestedBy: string,
+  purpose: string,
+  t?: string | null,
+): Promise<ApiResult<{ id?: string; reasonCode?: string }>> =>
+  call(`${SEC}/secrets/${encodeURIComponent(id)}/reveal`, {
+    method: 'POST',
+    body: { requestedBy, purpose },
+    tenantId: t,
+  });
+
 // --- M13 Case management (Legal workspace) — canonical m13-case engine, reused (no second case engine). Every
 // mutation is permission-gated + audited + carries expectedVersion where required; lifecycle is named POST
 // actions (open/triage/assign/reassign/resolve/close/reopen/archive/escalate) — there is NO hard delete. Party

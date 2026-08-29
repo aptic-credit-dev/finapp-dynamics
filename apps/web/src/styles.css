@@ -676,3 +676,88 @@ ul.timeline .t-head {
 tr.row-active {
   background: var(--info-bg);
 }
+/* M41 Secrets & Keys lifecycle (Phase 2) — governed action forms. Server (RBAC + maker-checker) stays authoritative. */
+.sk-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+.sk-banner.ok {
+  background: var(--ok-bg);
+  color: #065f46;
+}
+.sk-banner.err {
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.sk-form {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 12px;
+  background: #f8fafc;
+}
+.sk-form h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+.sk-field {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.sk-field > span {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.sk-field input[type='text'],
+.sk-field select {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 13px;
+}
+.sk-row {
+  display: flex;
+  gap: 12px;
+}
+.sk-row .sk-field {
+  flex: 1;
+}
+.sk-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.sk-confirm input {
+  margin-top: 3px;
+}
+.sk-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sk-note {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0 10px;
+}
+.sk-warn {
+  display: block;
+  color: var(--bad);
+  font-style: normal;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.btn.danger {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: #fff;
+}
