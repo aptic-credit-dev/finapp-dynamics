@@ -129,7 +129,7 @@ try {
   const id = def.data?.id;
   check(
     'officer A defines a secret (200, draft)',
-    def.status === 200 && def.data?.state === 'draft',
+    def.ok && def.data?.state === 'draft',
     `status=${def.status} state=${def.data?.state}`,
   );
   check(
@@ -171,7 +171,7 @@ try {
   );
   check(
     'officer B activates A’s request (maker-checker, 200 active)',
-    act.status === 200 && act.data?.state === 'active',
+    act.ok && act.data?.state === 'active',
     `status=${act.status} state=${act.data?.state}`,
   );
 
@@ -187,7 +187,7 @@ try {
   );
   check(
     'officer A rotates B’s request (200)',
-    rot.status === 200 && rot.data?.state === 'active',
+    rot.ok && rot.data?.state === 'active',
     `status=${rot.status}`,
   );
   check(
@@ -222,9 +222,7 @@ try {
   const revId = rev.data?.id;
   check(
     'reveal authorization recorded, returns NO material',
-    rev.status === 200 &&
-      rev.data?.reasonCode === 'secret_provider_unavailable' &&
-      forbiddenHits(rev.data).length === 0,
+    rev.ok && rev.data?.reasonCode === 'secret_provider_unavailable' && forbiddenHits(rev.data).length === 0,
     `status=${rev.status} reason=${rev.data?.reasonCode}`,
   );
   const revHist = record(await call(A, 'GET', `/security/secrets/${id}/reveals`));
@@ -245,7 +243,7 @@ try {
   );
   check(
     'officer A revokes B’s request (200 revoked)',
-    rvk.status === 200 && rvk.data?.state === 'revoked',
+    rvk.ok && rvk.data?.state === 'revoked',
     `status=${rvk.status} state=${rvk.data?.state}`,
   );
   const vRevoked = await curVersion(A, id);
@@ -254,7 +252,7 @@ try {
   );
   check(
     'officer B destroys A’s request (200 destroyed)',
-    dst.status === 200 && dst.data?.state === 'destroyed',
+    dst.ok && dst.data?.state === 'destroyed',
     `status=${dst.status} state=${dst.data?.state}`,
   );
   check(
