@@ -334,6 +334,6 @@ try {
   if (passed !== results.length) process.exit(1);
 } catch (e) {
   console.error('m41-lifecycle-accept failed:', e.message);
-  await pool.end().catch(() => {});
+  await pool.end().catch(() => undefined);
   process.exit(1);
 }
