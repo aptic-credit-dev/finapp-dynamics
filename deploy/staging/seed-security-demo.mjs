@@ -98,8 +98,8 @@ const SECRETS = [
   {
     id: sid('03'),
     materialKind: 'secret',
-    secretKey: 'staging/partner-api-token',
-    secretRef: 'secretref:staging/partner-api-token',
+    secretKey: 'staging/partner-integration',
+    secretRef: 'secretref:staging/partner-integration',
     algorithm: 'chacha20-poly1305',
     state: 'pending_approval',
     currentVersionNo: 0,
