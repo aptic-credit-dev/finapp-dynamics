@@ -11256,17 +11256,71 @@ function providerPill(status: { available: boolean; reasonCode: string } | null)
     <span className="pill warn">Provider unavailable · {status.reasonCode || 'unavailable'}</span>
   );
 }
-function SecretsKeysWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+// Approved algorithm identifiers (mirror of m41 domain APPROVED_ALGORITHMS) — the Define form offers only these; the
+// server re-validates. No home-grown crypto, no free-text algorithm.
+const SECRET_ALGORITHMS = ['aes-256-gcm', 'rsa-4096', 'ecdsa-p256', 'chacha20-poly1305', 'ed25519'];
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+type SecretActionId = 'define' | 'activate' | 'rotate' | 'revoke' | 'destroy' | 'reveal';
+const SECRET_ACTION_LABEL: Record<SecretActionId, string> = {
+  define: 'Define secret',
+  activate: 'Activate',
+  rotate: 'Rotate',
+  revoke: 'Revoke',
+  destroy: 'Destroy',
+  reveal: 'Request Reveal Authorization',
+};
+
+function SecretsKeysWorkspace({
+  tenant,
+  perms,
+  actorId,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+}): JSX.Element {
   const canRead = perms.has('security.secret.read');
+  // Per-action permissions. `define` = creation (security.secret.manage; NOT maker-checker). activate/rotate/revoke =
+  // security.secret.rotate; destroy = security.secret.destroy; reveal = security.secret.reveal (all maker-checker).
+  const canManage = perms.has('security.secret.manage');
+  const canRotate = perms.has('security.secret.rotate');
+  const canDestroy = perms.has('security.secret.destroy');
+  const canReveal = perms.has('security.secret.reveal');
+  const canActAtAll = canManage || canRotate || canDestroy || canReveal;
+  // Bump to force a reload of list + detail + versions + reveals after a governed action (so the new state + the
+  // audit/reveal evidence become visible immediately).
+  const [nonce, setNonce] = useState(0);
+  const refresh = (): void => setNonce((x) => x + 1);
   const secrets = useRows(
     () =>
       canRead ? api.getSecrets(tenant) : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
-    [tenant, canRead],
+    [tenant, canRead, nonce],
   );
   const [selected, setSelected] = useState<string | null>(null);
   const [tab, setTab] = useState<'overview' | 'versions' | 'reveals'>('overview');
   const [detail, setDetail] = useState<api.Row | null>(null);
   const [status, setStatus] = useState<{ available: boolean; reasonCode: string } | null>(null);
+  // Governed-action form state (a single active action at a time). The authenticated user is the APPROVER; `maker` is
+  // the distinct human requester (server enforces approver != maker + human). `confirmed` gates destructive actions.
+  const [action, setAction] = useState<SecretActionId | null>(null);
+  const [maker, setMaker] = useState('');
+  const [purpose, setPurpose] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [df, setDf] = useState({
+    secretKey: '',
+    secretRef: '',
+    materialKind: 'secret',
+    algorithm: 'aes-256-gcm',
+    scope: 'tenant',
+  });
+  const closeForm = (): void => {
+    setAction(null);
+    setMaker('');
+    setPurpose('');
+    setConfirmed(false);
+  };
   // Detail + provider status for the selected secret (single-object endpoints — fetched directly). Fail-closed:
   // an error simply leaves the panel empty; the server is the authority on both access and provider availability.
   useEffect(() => {
@@ -11284,20 +11338,20 @@ function SecretsKeysWorkspace({ tenant, perms }: { tenant: string | null; perms:
     return () => {
       live = false;
     };
-  }, [selected, tenant]);
+  }, [selected, tenant, nonce]);
   const versions = useRows(
     () =>
       selected && tab === 'versions'
         ? api.getSecretVersions(selected, tenant)
         : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
-    [selected, tab, tenant],
+    [selected, tab, tenant, nonce],
   );
   const reveals = useRows(
     () =>
       selected && tab === 'reveals'
         ? api.getSecretReveals(selected, tenant)
         : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
-    [selected, tab, tenant],
+    [selected, tab, tenant, nonce],
   );
   if (!canRead) {
     return (
@@ -11313,20 +11367,215 @@ function SecretsKeysWorkspace({ tenant, perms }: { tenant: string | null; perms:
     );
   }
   const meta = (k: string): string => (detail ? pick(detail, k) : '');
+  const st = meta('state');
+  const version = Number(meta('version')) || 0;
+  // State-aware availability (mirrors the canonical SECRET_TRANSITIONS; the server is authoritative). We never render
+  // a control for an impossible transition: destroy is only reachable from retired/revoked (revoke-before-destroy).
+  const allow = {
+    activate: canRotate && (st === 'draft' || st === 'pending_approval'),
+    rotate: canRotate && st === 'active',
+    revoke: canRotate && st !== 'revoked' && st !== 'destroyed',
+    destroy: canDestroy && (st === 'retired' || st === 'revoked'),
+    reveal: canReveal && st === 'active',
+  };
+  const detailActions = (['activate', 'rotate', 'revoke', 'destroy', 'reveal'] as const).filter(
+    (a) => allow[a],
+  );
+  const danger = action === 'revoke' || action === 'destroy';
+  const makerValid = UUID_RE.test(maker) && maker !== actorId;
+  const revealReady = action !== 'reveal' || purpose.trim() !== '';
+  const canSubmit =
+    !busy && makerValid && revealReady && (!danger || confirmed) && (action === 'reveal' || version > 0);
+
+  async function submitMakerChecker(): Promise<void> {
+    if (!selected || !action || action === 'define') return;
+    setBusy(true);
+    setMsg(null);
+    const r =
+      action === 'activate'
+        ? await api.activateSecret(selected, version, maker, tenant)
+        : action === 'rotate'
+          ? await api.rotateSecret(selected, version, maker, tenant)
+          : action === 'revoke'
+            ? await api.revokeSecret(selected, version, maker, tenant)
+            : action === 'destroy'
+              ? await api.destroySecret(selected, version, maker, tenant)
+              : await api.requestSecretReveal(selected, maker, purpose, tenant);
+    setBusy(false);
+    if (r.ok) {
+      setMsg({
+        kind: 'ok',
+        text:
+          action === 'reveal'
+            ? 'Reveal authorization recorded. No secret material is returned through Aptic Dynamics.'
+            : `${SECRET_ACTION_LABEL[action]} recorded under maker-checker (approver ≠ maker).`,
+      });
+      closeForm();
+      refresh();
+    } else if (r.status === 409) {
+      setMsg({
+        kind: 'err',
+        text: 'This secret changed since you loaded it (version conflict). The view has been refreshed — review the current state and retry.',
+      });
+      closeForm();
+      refresh();
+    } else {
+      setMsg({ kind: 'err', text: `Denied (HTTP ${r.status}): ${r.error ?? 'action not permitted'}` });
+    }
+  }
+  async function submitDefine(): Promise<void> {
+    setBusy(true);
+    setMsg(null);
+    const r = await api.defineSecret(
+      {
+        secretKey: df.secretKey,
+        secretRef: df.secretRef,
+        materialKind: df.materialKind,
+        algorithm: df.algorithm,
+        scope: df.scope,
+      },
+      tenant,
+    );
+    setBusy(false);
+    if (r.ok) {
+      setMsg({
+        kind: 'ok',
+        text: 'Secret defined (draft + pending version). Activate it under maker-checker to bring it into service.',
+      });
+      const newId = r.data ? pick(r.data as api.Row, 'id') : '';
+      setAction(null);
+      setDf({
+        secretKey: '',
+        secretRef: '',
+        materialKind: 'secret',
+        algorithm: 'aes-256-gcm',
+        scope: 'tenant',
+      });
+      if (newId) {
+        setSelected(newId);
+        setTab('overview');
+      }
+      refresh();
+    } else {
+      setMsg({ kind: 'err', text: `Denied (HTTP ${r.status}): ${r.error ?? 'not permitted'}` });
+    }
+  }
+  const makerField = (
+    <label className="sk-field">
+      <span>
+        Maker identity (administrative) — the human who requested this action. Must differ from you (
+        <code>{actorId ? `${actorId.slice(0, 8)}…` : 'you'}</code>). Server enforces separation of duties.
+      </span>
+      <input
+        type="text"
+        value={maker}
+        placeholder="requester identity UUID"
+        onChange={(e) => setMaker(e.target.value.trim())}
+      />
+      {maker !== '' && !UUID_RE.test(maker) ? (
+        <em className="sk-warn">Enter a valid identity UUID.</em>
+      ) : null}
+      {maker !== '' && maker === actorId ? (
+        <em className="sk-warn">You cannot approve your own request (self-approval is blocked).</em>
+      ) : null}
+    </label>
+  );
   return (
     <>
       <h1 className="page-title">Secrets &amp; Keys</h1>
       <p className="page-sub">
-        Read-only administration over the canonical m41 secret/key control plane · synthetic staging data. RLS
-        + RBAC enforced server-side. Metadata only — a secret exposes its opaque <code>secretRef</code>, never
-        any value. Lifecycle actions (rotate/reveal/destroy) arrive in Phase&nbsp;2.
+        Administration over the canonical m41 secret/key control plane · synthetic staging data. RLS + RBAC +
+        maker-checker enforced server-side. Metadata only — a secret exposes its opaque <code>secretRef</code>
+        , never any value; a reveal records only the authorization grant. Privileged lifecycle actions require
+        an independent human approver (you) and a distinct requester.
       </p>
+      {msg ? (
+        <div className={`sk-banner ${msg.kind}`} role="status">
+          {msg.text}
+          <button className="btn secondary" onClick={() => setMsg(null)}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
       <div className="split">
         <div className="card" style={{ flex: '1 1 340px' }}>
           <header>
             <h3>Secrets &amp; keys</h3>
-            <span className="demo-note">SYNTHETIC</span>
+            <span>
+              {canManage ? (
+                <button
+                  className="btn"
+                  style={{ marginRight: 8 }}
+                  onClick={() => {
+                    setAction('define');
+                    setMsg(null);
+                  }}
+                >
+                  Define secret
+                </button>
+              ) : null}
+              <span className="demo-note">SYNTHETIC</span>
+            </span>
           </header>
+          {action === 'define' ? (
+            <div className="sk-form">
+              <h4>Define secret (creation — not maker-checker)</h4>
+              <label className="sk-field">
+                <span>Secret key (logical name)</span>
+                <input
+                  type="text"
+                  value={df.secretKey}
+                  placeholder="staging/my-secret"
+                  onChange={(e) => setDf({ ...df, secretKey: e.target.value })}
+                />
+              </label>
+              <label className="sk-field">
+                <span>
+                  Secret reference (opaque <code>secretref:</code> pointer — never a value)
+                </span>
+                <input
+                  type="text"
+                  value={df.secretRef}
+                  placeholder="secretref:staging/my-secret"
+                  onChange={(e) => setDf({ ...df, secretRef: e.target.value })}
+                />
+              </label>
+              <div className="sk-row">
+                <label className="sk-field">
+                  <span>Material kind</span>
+                  <select
+                    value={df.materialKind}
+                    onChange={(e) => setDf({ ...df, materialKind: e.target.value })}
+                  >
+                    <option value="secret">secret</option>
+                    <option value="key">key</option>
+                  </select>
+                </label>
+                <label className="sk-field">
+                  <span>Algorithm (approved)</span>
+                  <select value={df.algorithm} onChange={(e) => setDf({ ...df, algorithm: e.target.value })}>
+                    {SECRET_ALGORITHMS.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="sk-actions">
+                <button
+                  className="btn"
+                  disabled={busy || df.secretKey.trim() === '' || !/^secretref:/.test(df.secretRef)}
+                  onClick={() => void submitDefine()}
+                >
+                  {busy ? 'Defining…' : 'Define'}
+                </button>
+                <button className="btn secondary" onClick={() => setAction(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
           {secrets.loading ? (
             <div className="loading">Loading…</div>
           ) : secrets.error ? (
@@ -11378,6 +11627,81 @@ function SecretsKeysWorkspace({ tenant, perms }: { tenant: string | null; perms:
                 <h3>{meta('secretKey') || 'Secret'}</h3>
                 {providerPill(status)}
               </header>
+              {canActAtAll && detailActions.length > 0 && action !== 'define' ? (
+                <div className="sk-actions" style={{ marginBottom: 10 }}>
+                  {detailActions.map((a) => (
+                    <button
+                      key={a}
+                      className={`btn ${a === 'revoke' || a === 'destroy' ? 'danger' : 'secondary'}`}
+                      onClick={() => {
+                        setAction(a);
+                        setMaker('');
+                        setPurpose('');
+                        setConfirmed(false);
+                        setMsg(null);
+                      }}
+                    >
+                      {SECRET_ACTION_LABEL[a]}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {action && action !== 'define' ? (
+                <div className="sk-form">
+                  <h4>
+                    {SECRET_ACTION_LABEL[action]} — you approve as an independent human; a distinct maker is
+                    required
+                  </h4>
+                  {makerField}
+                  {action === 'reveal' ? (
+                    <>
+                      <label className="sk-field">
+                        <span>Purpose (why the reveal is authorized — recorded as evidence)</span>
+                        <input
+                          type="text"
+                          value={purpose}
+                          placeholder="e.g. incident triage"
+                          onChange={(e) => setPurpose(e.target.value)}
+                        />
+                      </label>
+                      <p className="sk-note">
+                        This records a reveal <strong>authorization</strong> only. No secret material is
+                        viewed, copied or retrieved through Aptic Dynamics — a bound provider (none today)
+                        would deliver material out-of-band.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="sk-note">
+                      Carries the current version <code>{version}</code> for optimistic concurrency; a stale
+                      version is rejected (409) and the view refreshes.
+                    </p>
+                  )}
+                  {danger ? (
+                    <label className="sk-field sk-confirm">
+                      <input
+                        type="checkbox"
+                        checked={confirmed}
+                        onChange={(e) => setConfirmed(e.target.checked)}
+                      />
+                      <span>
+                        I confirm this {action === 'destroy' ? 'DESTROY' : 'REVOKE'} of{' '}
+                        <code>{meta('secretKey')}</code>
+                        {action === 'destroy'
+                          ? ' — the secret is crypto-destroyed via the provider; metadata + audit are retained (no hard delete).'
+                          : ' — the active version is revoked; this is a terminal control action.'}
+                      </span>
+                    </label>
+                  ) : null}
+                  <div className="sk-actions">
+                    <button className="btn" disabled={!canSubmit} onClick={() => void submitMakerChecker()}>
+                      {busy ? 'Submitting…' : SECRET_ACTION_LABEL[action]}
+                    </button>
+                    <button className="btn secondary" onClick={closeForm}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <div className="run-picker">
                 {(
                   [
@@ -11868,7 +12192,9 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'admin-billing' && (
           <PlansSubscriptionsAdmin tenant={tenant} perms={perms} actorId={actorId} />
         )}
-        {route === 'admin-secrets' && <SecretsKeysWorkspace tenant={tenant} perms={perms} />}
+        {route === 'admin-secrets' && (
+          <SecretsKeysWorkspace tenant={tenant} perms={perms} actorId={actorId} />
+        )}
       </main>
     </div>
   );
