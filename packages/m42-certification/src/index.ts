@@ -59,5 +59,5 @@ export {
   type ClosureRow,
 } from './repository.ts';
 export { M42Emitter } from './emit.ts';
-export { ProgrammeService } from './programme.service.ts';
+export { ProgrammeService, type SignoffListRow } from './programme.service.ts';
 export { DecisionService, type DecisionResult } from './decision.service.ts';

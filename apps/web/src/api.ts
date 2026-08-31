@@ -927,6 +927,51 @@ export const requestSecretReveal = (
     tenantId: t,
   });
 
+// --- M42 Certification EVIDENCE CONSOLE (Stage-8, READ-ONLY) — canonical, RLS-scoped, permission-gated GET
+// endpoints over /api/v1/platform-certification. Surfaces the governance evidence chain (programmes, assessments,
+// findings, waivers, readiness, sign-offs, closure) and the DERIVED decision PREVIEW (verdict + blockers) computed
+// SERVER-SIDE by evaluateCertificationDecision. There are DELIBERATELY NO mutating client functions here: issue-
+// decision, close-stage, approve-waiver and all evidence intake stay evidence/API-driven. The browser can NEVER
+// issue or select a GO/CONDITIONAL_GO/NO_GO — deny-by-default is preserved server-side. ---
+const CERT = '/platform-certification';
+export const getCertProgrammes = (t?: string | null): Promise<ApiResult<Row[] | { programmes?: Row[] }>> =>
+  call(`${CERT}/programmes`, { tenantId: t });
+export const getCertProgramme = (id: string, t?: string | null): Promise<ApiResult<Row | null>> =>
+  call(`${CERT}/programmes/${encodeURIComponent(id)}`, { tenantId: t });
+export const getCertAssessments = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { assessments?: Row[] }>> =>
+  call(`${CERT}/programmes/${encodeURIComponent(id)}/assessments`, { tenantId: t });
+export const getCertFindings = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { findings?: Row[] }>> =>
+  call(`${CERT}/programmes/${encodeURIComponent(id)}/findings`, { tenantId: t });
+export const getCertWaivers = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { waivers?: Row[] }>> =>
+  call(`${CERT}/programmes/${encodeURIComponent(id)}/waivers`, { tenantId: t });
+export const getCertReadiness = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { readiness?: Row[] }>> =>
+  call(`${CERT}/programmes/${encodeURIComponent(id)}/readiness`, { tenantId: t });
+export const getCertSignoffs = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<Row[] | { signoffs?: Row[] }>> =>
+  call(`${CERT}/programmes/${encodeURIComponent(id)}/signoffs`, { tenantId: t });
+export const getCertClosure = (id: string, t?: string | null): Promise<ApiResult<{ closure?: Row | null }>> =>
+  call(`${CERT}/programmes/${encodeURIComponent(id)}/closure`, { tenantId: t });
+// Derived verdict + blockers — server-computed preview ONLY (no state change, no GO issuance).
+export const getCertDecisionPreview = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ decision?: string; blockers?: string[]; reasonCode?: string }>> =>
+  call(`${CERT}/programmes/${encodeURIComponent(id)}/decision/preview`, { tenantId: t });
+
 // --- M13 Case management (Legal workspace) — canonical m13-case engine, reused (no second case engine). Every
 // mutation is permission-gated + audited + carries expectedVersion where required; lifecycle is named POST
 // actions (open/triage/assign/reassign/resolve/close/reopen/archive/escalate) — there is NO hard delete. Party

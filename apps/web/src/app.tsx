@@ -11836,6 +11836,408 @@ function SecretsKeysWorkspace({
   );
 }
 
+// ---- M42 Certification Evidence Console (Stage-8: READ-ONLY) ---------------------------------------------------
+// A management-level, read-only view of what gates production: the certification programme's evidence chain
+// (assessments matrix, findings, waivers, readiness, sign-offs, closure) and the DERIVED decision preview + blocker
+// list. The verdict is computed SERVER-SIDE (evaluateCertificationDecision) — the browser never issues, selects, or
+// influences GO/CONDITIONAL_GO/NO_GO. There are NO mutating controls here; all certification decisions remain
+// evidence/API-driven. Deny-by-default is preserved server-side.
+const CERT_MATRIX_DOMAINS = [
+  'm30',
+  'm31',
+  'm32',
+  'm33',
+  'm34',
+  'm35',
+  'm36',
+  'm37',
+  'm38',
+  'm39',
+  'm40',
+  'm41',
+];
+const CERT_MATRIX_ASPECTS = [
+  'architecture',
+  'security',
+  'tenancy_rls',
+  'sod_maker_checker',
+  'events_outbox',
+  'shared_service_boundaries',
+  'tests_ci',
+  'data_migration',
+];
+function verdictPill(decision: string): JSX.Element {
+  const d = (decision || '').toLowerCase();
+  const cls = d === 'go' ? 'ok' : d === 'conditional_go' ? 'warn' : d === 'no_go' ? 'bad' : 'info';
+  const label =
+    d === 'go' ? 'GO' : d === 'conditional_go' ? 'CONDITIONAL_GO' : d === 'no_go' ? 'NO_GO' : d || '—';
+  return <span className={`pill ${cls}`}>{label}</span>;
+}
+function CertificationConsole({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const canRead = perms.has('platform_certification.programme.read');
+  const programmes = useRows(
+    () =>
+      canRead
+        ? api.getCertProgrammes(tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canRead],
+  );
+  const [selected, setSelected] = useState<string | null>(null);
+  const [tab, setTab] = useState<
+    'preview' | 'assessments' | 'findings' | 'waivers' | 'readiness' | 'signoffs'
+  >('preview');
+  const [preview, setPreview] = useState<{ decision: string; blockers: string[]; reasonCode: string } | null>(
+    null,
+  );
+  const [closure, setClosure] = useState<api.Row | null>(null);
+  useEffect(() => {
+    let live = true;
+    setPreview(null);
+    setClosure(null);
+    if (!selected) return;
+    void api.getCertDecisionPreview(selected, tenant).then((r) => {
+      if (live && r.ok && r.data)
+        setPreview({
+          decision: str(r.data.decision),
+          blockers: Array.isArray(r.data.blockers) ? r.data.blockers.map(String) : [],
+          reasonCode: str(r.data.reasonCode),
+        });
+    });
+    void api.getCertClosure(selected, tenant).then((r) => {
+      if (live && r.ok) setClosure((r.data?.closure ?? null) as api.Row | null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [selected, tenant]);
+  const assessments = useRows(
+    () =>
+      selected
+        ? api.getCertAssessments(selected, tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [selected, tenant],
+  );
+  const tabRows = useRows(() => {
+    if (!selected) return Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>);
+    switch (tab) {
+      case 'findings':
+        return api.getCertFindings(selected, tenant);
+      case 'waivers':
+        return api.getCertWaivers(selected, tenant);
+      case 'readiness':
+        return api.getCertReadiness(selected, tenant);
+      case 'signoffs':
+        return api.getCertSignoffs(selected, tenant);
+      default:
+        return Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>);
+    }
+  }, [selected, tab, tenant]);
+  if (!canRead) {
+    return (
+      <>
+        <h1 className="page-title">Certification</h1>
+        <div className="card">
+          <div className="empty">
+            Viewing the certification evidence console needs{' '}
+            <code>platform_certification.programme.read</code>. Your role does not hold it — the server denies
+            the read.
+          </div>
+        </div>
+      </>
+    );
+  }
+  const selProg = selected ? programmes.rows.find((p) => pick(p, 'id') === selected) : null;
+  // Assessment status by domain|aspect for the matrix.
+  const cell = new Map<string, string>();
+  for (const a of assessments.rows)
+    cell.set(`${pick(a, 'domainKey')}|${pick(a, 'aspectKey')}`, pick(a, 'status'));
+  return (
+    <>
+      <h1 className="page-title">Certification</h1>
+      <p className="page-sub">
+        Read-only governance evidence over the canonical m42 certification control plane · synthetic staging
+        data. RLS + RBAC enforced server-side. The GO / CONDITIONAL_GO / NO_GO verdict is{' '}
+        <strong>derived server-side</strong> from recorded evidence — this console can never issue, select or
+        influence a decision. All certification decisions remain evidence/API-driven (deny-by-default).
+      </p>
+      <div className="split">
+        <div className="card" style={{ flex: '1 1 300px' }}>
+          <header>
+            <h3>Programmes</h3>
+            <span className="demo-note">SYNTHETIC</span>
+          </header>
+          {programmes.loading ? (
+            <div className="loading">Loading…</div>
+          ) : programmes.error ? (
+            <div className="empty">Could not load ({programmes.error}).</div>
+          ) : programmes.rows.length === 0 ? (
+            <div className="empty">No certification programmes.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Programme</th>
+                  <th>Stage</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {programmes.rows.map((p, i) => {
+                  const id = pick(p, 'id');
+                  return (
+                    <tr
+                      key={id || i}
+                      className={selected === id ? 'row-active' : ''}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
+                        setSelected(id);
+                        setTab('preview');
+                      }}
+                    >
+                      <td>{pick(p, 'title') || pick(p, 'programmeKey')}</td>
+                      <td className="muted">{pick(p, 'stageKey')}</td>
+                      <td>{statusPill(pick(p, 'state'))}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="card" style={{ flex: '2 1 520px' }}>
+          {!selected ? (
+            <div className="empty">
+              Select a programme to inspect its evidence chain and decision preview.
+            </div>
+          ) : (
+            <>
+              <header>
+                <h3>{selProg ? pick(selProg, 'title') : 'Programme'}</h3>
+                {preview ? verdictPill(preview.decision) : <span className="pill info">Preview …</span>}
+              </header>
+              <div className="run-picker">
+                {(
+                  [
+                    { id: 'preview', label: 'Decision Preview' },
+                    { id: 'assessments', label: 'Assessment Matrix' },
+                    { id: 'findings', label: 'Findings' },
+                    { id: 'waivers', label: 'Waivers' },
+                    { id: 'readiness', label: 'Readiness' },
+                    { id: 'signoffs', label: 'Sign-offs' },
+                  ] as { id: typeof tab; label: string }[]
+                ).map((tb) => (
+                  <button
+                    key={tb.id}
+                    className={`btn ${tab === tb.id ? '' : 'secondary'}`}
+                    onClick={() => setTab(tb.id)}
+                  >
+                    {tb.label}
+                  </button>
+                ))}
+              </div>
+              {tab === 'preview' ? (
+                !preview ? (
+                  <div className="loading">Deriving verdict…</div>
+                ) : (
+                  <>
+                    <div className="sk-banner warn" role="status" style={{ justifyContent: 'flex-start' }}>
+                      <strong>Preview only — this is not a production GO decision.</strong>&nbsp;The verdict
+                      is derived server-side from recorded evidence and is not issued here.
+                    </div>
+                    <table>
+                      <tbody>
+                        <tr>
+                          <th>Derived verdict</th>
+                          <td>{verdictPill(preview.decision)}</td>
+                        </tr>
+                        <tr>
+                          <th>Reason</th>
+                          <td className="muted">{preview.reasonCode || '—'}</td>
+                        </tr>
+                        <tr>
+                          <th>Programme state</th>
+                          <td>{selProg ? statusPill(pick(selProg, 'state')) : '—'}</td>
+                        </tr>
+                        <tr>
+                          <th>Last issued decision</th>
+                          <td className="muted">{selProg ? pick(selProg, 'lastDecision') || '—' : '—'}</td>
+                        </tr>
+                        <tr>
+                          <th>Closure artifact</th>
+                          <td className="muted">
+                            {closure ? `issued · ${pick(closure, 'decision')}` : 'none (stage not closed)'}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <h4 style={{ margin: '14px 0 6px' }}>
+                      Blockers preventing GO ({preview.blockers.length})
+                    </h4>
+                    {preview.blockers.length === 0 ? (
+                      <div className="empty">
+                        No blockers — all mandatory controls satisfied in the evidence.
+                      </div>
+                    ) : (
+                      <ul className="cert-blockers">
+                        {preview.blockers.map((b, i) => (
+                          <li key={i}>{b}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )
+              ) : tab === 'assessments' ? (
+                assessments.loading ? (
+                  <div className="loading">Loading…</div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="cert-matrix">
+                      <thead>
+                        <tr>
+                          <th>Domain \ Aspect</th>
+                          {CERT_MATRIX_ASPECTS.map((a) => (
+                            <th key={a} title={a}>
+                              {a.replace(/_/g, ' ')}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {CERT_MATRIX_DOMAINS.map((d) => (
+                          <tr key={d}>
+                            <td className="muted">{d}</td>
+                            {CERT_MATRIX_ASPECTS.map((a) => {
+                              const st = cell.get(`${d}|${a}`) || 'not_assessed';
+                              return <td key={a}>{statusPill(st)}</td>;
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : tab === 'findings' ? (
+                tabRows.loading ? (
+                  <div className="loading">Loading…</div>
+                ) : tabRows.rows.length === 0 ? (
+                  <div className="empty">No findings.</div>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Domain</th>
+                        <th>Aspect</th>
+                        <th>Severity</th>
+                        <th>Status</th>
+                        <th>Title</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tabRows.rows.map((f, i) => (
+                        <tr key={pick(f, 'id') || i}>
+                          <td className="muted">{pick(f, 'domainKey')}</td>
+                          <td className="muted">{pick(f, 'aspectKey') || '—'}</td>
+                          <td>{statusPill(pick(f, 'severity'))}</td>
+                          <td>{statusPill(pick(f, 'status'))}</td>
+                          <td>{pick(f, 'title')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              ) : tab === 'waivers' ? (
+                tabRows.loading ? (
+                  <div className="loading">Loading…</div>
+                ) : tabRows.rows.length === 0 ? (
+                  <div className="empty">No waivers.</div>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Finding</th>
+                        <th>Absolute</th>
+                        <th>State</th>
+                        <th>Valid to</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tabRows.rows.map((w, i) => (
+                        <tr key={pick(w, 'id') || i}>
+                          <td className="muted">{pick(w, 'findingId')}</td>
+                          <td>{pick(w, 'isAbsolute') === 'true' ? 'yes' : 'no'}</td>
+                          <td>{statusPill(pick(w, 'state'))}</td>
+                          <td className="muted">{pick(w, 'validTo') || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              ) : tab === 'readiness' ? (
+                tabRows.loading ? (
+                  <div className="loading">Loading…</div>
+                ) : tabRows.rows.length === 0 ? (
+                  <div className="empty">No readiness records.</div>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Kind</th>
+                        <th>Ref</th>
+                        <th>Result</th>
+                        <th>Signed off</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tabRows.rows.map((r, i) => (
+                        <tr key={pick(r, 'id') || i}>
+                          <td>{pick(r, 'kind')}</td>
+                          <td className="muted">{pick(r, 'refKey')}</td>
+                          <td>{statusPill(pick(r, 'result'))}</td>
+                          <td className="muted">{pick(r, 'signedOff') === 'true' ? 'yes' : 'no'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              ) : tabRows.loading ? (
+                <div className="loading">Loading…</div>
+              ) : tabRows.rows.length === 0 ? (
+                <div className="empty">No sign-offs.</div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Role</th>
+                      <th>Domain</th>
+                      <th>Disposition</th>
+                      <th>Signed by</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tabRows.rows.map((s, i) => (
+                      <tr key={i}>
+                        <td>{pick(s, 'roleKey')}</td>
+                        <td className="muted">{pick(s, 'domainKey') || '—'}</td>
+                        <td>{statusPill(pick(s, 'disposition'))}</td>
+                        <td className="muted">{pick(s, 'signedBy')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <p className="page-sub" style={{ marginTop: 12 }}>
+                Read-only. No decision can be issued, no stage closed, and no waiver approved from this
+                console — those remain evidence/API-driven and human-governed. The verdict shown is a
+                server-derived preview.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▚', group: 'Overview' },
   { id: 'notifications', label: 'Notifications', icon: '🔔', group: 'Notifications' },
@@ -11866,6 +12268,7 @@ const NAV = [
   { id: 'admin-assignments', label: 'Access Assignments', icon: '🔑', group: 'Administration' },
   { id: 'admin-billing', label: 'Plans & Subscriptions', icon: '🧾', group: 'Administration' },
   { id: 'admin-secrets', label: 'Secrets & Keys', icon: '🔐', group: 'Administration' },
+  { id: 'admin-certification', label: 'Certification', icon: '✅', group: 'Administration' },
 ];
 
 // The Administration group is NOT entitlement-gated (it is a platform capability, not a commercial vertical):
@@ -11880,6 +12283,9 @@ const ADMIN_READ_PERMS = [
   // M41 Secrets & Keys is a platform SECURITY-administration capability (not a commercial vertical), so it is RBAC-
   // gated here rather than entitlement-gated — a security auditor holding only security.secret.read sees this group.
   'security.secret.read',
+  // M42 Certification evidence console — a platform GOVERNANCE-administration capability; RBAC-gated (a certification
+  // auditor holding only platform_certification.programme.read sees this group).
+  'platform_certification.programme.read',
 ];
 
 // Finance (m19 fiscal calendar) is a platform finance-CONTROL capability, not a commercial vertical, so — like
@@ -12195,6 +12601,7 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'admin-secrets' && (
           <SecretsKeysWorkspace tenant={tenant} perms={perms} actorId={actorId} />
         )}
+        {route === 'admin-certification' && <CertificationConsole tenant={tenant} perms={perms} />}
       </main>
     </div>
   );

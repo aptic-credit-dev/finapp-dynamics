@@ -8,6 +8,8 @@ import type {
   FindingRow,
   WaiverRow,
   ReadinessRow,
+  ClosureRow,
+  SignoffListRow,
 } from '@finapp/m42-certification';
 
 export function programmeView(p: ProgrammeRow) {
@@ -68,6 +70,22 @@ export function readinessView(r: ReadinessRow) {
     kind: r.kind,
     refKey: r.ref_key,
     result: r.result,
+    signedOff: r.signed_off_by !== null,
     version: r.version,
   };
+}
+
+// Read-only sign-off projection — role/domain/disposition + the opaque signer id; no secret/PII.
+export function signoffView(s: SignoffListRow) {
+  return {
+    roleKey: s.role_key,
+    domainKey: s.domain_key,
+    signedBy: s.signed_by,
+    disposition: s.disposition,
+  };
+}
+
+// Read-only closure projection — the derived decision on the immutable closure artifact (metadata only).
+export function closureView(c: ClosureRow) {
+  return { id: c.id, programmeId: c.programme_id, decision: c.decision };
 }

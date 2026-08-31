@@ -3,7 +3,14 @@ import { Endpoint } from '@finapp/kernel';
 import { ProgrammeService, M42_PERMISSIONS, M42_AUDIT_CODES } from '@finapp/m42-certification';
 import { ActorContextFactory } from '@finapp/m02-identity';
 import { requireString, requireVersion, requireTenantScope } from '../identity/http.ts';
-import { programmeView, assessmentView, findingView, readinessView } from './views.ts';
+import {
+  programmeView,
+  assessmentView,
+  findingView,
+  readinessView,
+  signoffView,
+  closureView,
+} from './views.ts';
 
 /**
  * `/api/v1/platform-certification` (m42) — certification PROGRAMMES + evidence intake (assessments, findings, readiness,
@@ -57,6 +64,40 @@ export class CertificationController {
     const s = await this.scoped(h, 'get programme (m42)');
     const p = await this.programmes.getProgramme(s.ctx, id);
     return p ? programmeView(p) : null;
+  }
+
+  // Read-only evidence chain (permissions enforced in-service; no @Endpoint — reads are not audited; RLS-scoped).
+  // These back the Stage-8 read-only certification console; NONE mutates state. The DERIVED decision comes only from
+  // GET decision/preview (below, in the decision controller) — there is no browser path to issue/close.
+  @Get('programmes/:id/assessments')
+  async listAssessments(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list assessments (m42)');
+    return { assessments: (await this.programmes.listAssessments(s.ctx, id)).map(assessmentView) };
+  }
+
+  @Get('programmes/:id/findings')
+  async listFindings(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list findings (m42)');
+    return { findings: (await this.programmes.listFindings(s.ctx, id)).map(findingView) };
+  }
+
+  @Get('programmes/:id/readiness')
+  async listReadiness(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list readiness (m42)');
+    return { readiness: (await this.programmes.listReadiness(s.ctx, id)).map(readinessView) };
+  }
+
+  @Get('programmes/:id/signoffs')
+  async listSignoffs(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list signoffs (m42)');
+    return { signoffs: (await this.programmes.listSignoffs(s.ctx, id)).map(signoffView) };
+  }
+
+  @Get('programmes/:id/closure')
+  async getClosure(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'get closure (m42)');
+    const c = await this.programmes.getClosure(s.ctx, id);
+    return { closure: c ? closureView(c) : null };
   }
 
   @Endpoint({
