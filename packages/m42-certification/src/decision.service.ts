@@ -319,6 +319,12 @@ export class DecisionService {
     return this.db.withTenant(ctx, (tx) => this.deriveVerdict(tx, programmeId, now ?? new Date(), 0));
   }
 
+  /** Read-only list of a programme's waivers (any state) for the evidence console. RLS-scoped; gated by finding.read. */
+  async listWaivers(ctx: RequestContext, programmeId: string): Promise<WaiverRow[]> {
+    await this.authz.require(ctx, M42_PERMISSIONS.findingRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listWaivers(tx, programmeId));
+  }
+
   // ---- closure --------------------------------------------------------------------------------
   /** Issue the immutable STAGE CLOSURE artifact (after a decision is issued). Maker-checker/SoD; bounded metadata + opaque refs. */
   async closeStage(

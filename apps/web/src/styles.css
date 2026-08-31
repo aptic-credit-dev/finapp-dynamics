@@ -761,3 +761,24 @@ tr.row-active {
   border-color: var(--bad);
   color: #fff;
 }
+/* M42 Certification console — the domain × aspect assessment matrix + the derived-verdict blocker list. */
+.cert-matrix th,
+.cert-matrix td {
+  text-align: center;
+  padding: 5px 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.cert-matrix th:first-child,
+.cert-matrix td:first-child {
+  text-align: left;
+}
+.cert-blockers {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--bad);
+}
+.cert-blockers li {
+  margin: 3px 0;
+}

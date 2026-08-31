@@ -96,6 +96,16 @@ export class CertificationDecisionController {
     return waiverView(w);
   }
 
+  // Read-only list of a programme's waivers (any state) — permission enforced in-service; RLS-scoped; no mutation.
+  @Get('programmes/:id/waivers')
+  async listWaivers(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'list waivers (m42)');
+    return { waivers: (await this.decisions.listWaivers(s.ctx, id)).map(waiverView) };
+  }
+
+  // Read-only DERIVED verdict + blockers (server-derived by evaluateCertificationDecision; NEVER caller-set). This is
+  // a preview, not a decision: no state change, no audit, no GO issuance. The mutating decision/closure remain
+  // evidence/API-driven and are deliberately NOT surfaced to the browser (deny-by-default preserved).
   @Get('programmes/:id/decision/preview')
   async preview(@Param('id') id: string, @Headers() h: Record<string, string>) {
     const s = await this.scoped(h, 'preview decision (m42)');

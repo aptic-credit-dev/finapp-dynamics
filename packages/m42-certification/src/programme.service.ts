@@ -28,7 +28,16 @@ import {
   type AssessmentRow,
   type FindingRow,
   type ReadinessRow,
+  type ClosureRow,
 } from './repository.ts';
+
+/** Read-only sign-off projection (role sign-offs on a programme; no secret/PII). */
+export interface SignoffListRow {
+  readonly role_key: string;
+  readonly domain_key: string | null;
+  readonly signed_by: string;
+  readonly disposition: string;
+}
 import type { M42Emitter } from './emit.ts';
 
 export class ProgrammeService {
@@ -407,5 +416,30 @@ export class ProgrammeService {
     await this.authz.require(ctx, M42_PERMISSIONS.programmeRead);
     const { limit, offset } = clampPage(page, size);
     return this.db.withTenant(ctx, (tx) => this.repo.listProgrammes(tx, limit, offset));
+  }
+
+  // ---- READ MODEL (evidence console: assessments / findings / readiness / sign-offs / closure) ----
+  // All read-only, RLS-scoped, permission-gated (no audit on reads). Bounded projections — opaque evidence refs
+  // only, never a raw body/secret/PII. These back the Stage-8 read-only certification console; the mutating intake
+  // (record/resolve/sign-off) and the DERIVED decision/closure stay API/evidence-driven (deny-by-default unchanged).
+  async listAssessments(ctx: RequestContext, programmeId: string): Promise<AssessmentRow[]> {
+    await this.authz.require(ctx, M42_PERMISSIONS.assessmentRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listAssessments(tx, programmeId));
+  }
+  async listFindings(ctx: RequestContext, programmeId: string): Promise<FindingRow[]> {
+    await this.authz.require(ctx, M42_PERMISSIONS.findingRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listFindings(tx, programmeId));
+  }
+  async listReadiness(ctx: RequestContext, programmeId: string): Promise<ReadinessRow[]> {
+    await this.authz.require(ctx, M42_PERMISSIONS.assessmentRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listReadiness(tx, programmeId));
+  }
+  async listSignoffs(ctx: RequestContext, programmeId: string): Promise<SignoffListRow[]> {
+    await this.authz.require(ctx, M42_PERMISSIONS.programmeRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listSignoffs(tx, programmeId));
+  }
+  async getClosure(ctx: RequestContext, programmeId: string): Promise<ClosureRow | null> {
+    await this.authz.require(ctx, M42_PERMISSIONS.programmeRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.getClosure(tx, programmeId));
   }
 }

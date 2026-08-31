@@ -304,6 +304,15 @@ export class CertificationRepository {
     );
     return rows;
   }
+  // Read-only list of all waivers on a programme (any state) — RLS-scoped; for the evidence console. No secret/PII.
+  async listWaivers(tx: Tx, programmeId: string): Promise<WaiverRow[]> {
+    const { rows } = await tx.query<WaiverRow>(
+      `SELECT tenant_id, id, programme_id, finding_id, is_absolute, requested_by, approved_by, state, valid_to, version
+         FROM certification_waiver WHERE programme_id=$1 ORDER BY created_at`,
+      [programmeId],
+    );
+    return rows;
+  }
 
   // ---- readiness (mutable; upsert per kind+ref) ----
   async upsertReadiness(
