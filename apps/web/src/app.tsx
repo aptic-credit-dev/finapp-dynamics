@@ -12444,10 +12444,14 @@ function DevApplications({ tenant, perms }: { tenant: string | null; perms: Set<
   });
   const [purpose, setPurpose] = useState('api');
   const [busy, setBusy] = useState(false);
+  // Clear the one-time secret ONLY when the selected app / tenant changes — never on a refresh() nonce bump, or a
+  // freshly-issued secret would vanish before it can be copied (it is non-recoverable).
+  useEffect(() => {
+    setOneTime(null);
+  }, [selected, tenant]);
   useEffect(() => {
     let live = true;
     setDetail(null);
-    setOneTime(null);
     if (!selected) return;
     void api.getDevApp(selected, tenant).then((r) => {
       if (live && r.ok) setDetail((r.data?.app ?? null) as api.Row | null);
