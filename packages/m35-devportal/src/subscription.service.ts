@@ -9,8 +9,8 @@ import type { Authz, Db, RequestContext } from '@finapp/kernel';
 import { M35_PERMISSIONS } from './permissions.ts';
 import { M35_AUDIT_CODES } from './audit-codes.ts';
 import { badRequest, governanceForbidden, versionConflict } from './errors.ts';
-import { isPublicVisibility, evaluateSodGate, REASON_CODES } from './domain.ts';
-import { DevportalRepository, type SubscriptionRow } from './repository.ts';
+import { isPublicVisibility, evaluateSodGate, REASON_CODES, clampPage } from './domain.ts';
+import { DevportalRepository, type SubscriptionRow, type SubscriptionReadRow } from './repository.ts';
 import type { M35Emitter } from './emit.ts';
 import type { UsageQuotaPort } from './ports.ts';
 
@@ -248,5 +248,20 @@ export class SubscriptionService {
   async getSubscription(ctx: RequestContext, id: string): Promise<SubscriptionRow | null> {
     await this.authz.require(ctx, M35_PERMISSIONS.subscriptionManage);
     return this.db.withTenant(ctx, (tx) => this.repo.getSubscription(tx, id));
+  }
+  /** Read-model: the tenant's app→product subscriptions (requested/active/suspended). Gated on subscription.manage —
+   * mirrors getSubscription; there is NO separate subscription-read permission, so viewing subscriptions is a
+   * privileged capability (a pure read-only developer does not see them). */
+  async listSubscriptions(
+    ctx: RequestContext,
+    page?: { limit?: number; offset?: number },
+  ): Promise<SubscriptionReadRow[]> {
+    await this.authz.require(ctx, M35_PERMISSIONS.subscriptionManage);
+    const { limit, offset } = clampPage(page?.limit, page?.offset);
+    return this.db.withTenant(ctx, (tx) => this.repo.listSubscriptions(tx, limit, offset));
+  }
+  async listSubscriptionsByApp(ctx: RequestContext, appId: string): Promise<SubscriptionReadRow[]> {
+    await this.authz.require(ctx, M35_PERMISSIONS.subscriptionManage);
+    return this.db.withTenant(ctx, (tx) => this.repo.listSubscriptionsByApp(tx, appId));
   }
 }

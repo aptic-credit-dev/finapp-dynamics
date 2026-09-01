@@ -972,6 +972,64 @@ export const getCertDecisionPreview = (
 ): Promise<ApiResult<{ decision?: string; blockers?: string[]; reasonCode?: string }>> =>
   call(`${CERT}/programmes/${encodeURIComponent(id)}/decision/preview`, { tenantId: t });
 
+// --- M35 Developer Portal — canonical m35-devportal governed FACADE, reused (no second gateway / connector /
+// marketplace / credential / subscription / entitlement engine). Reads are RLS-scoped + permission-gated
+// (devportal.app.read / devportal.product.read; subscriptions require the PRIVILEGED devportal.subscription.manage
+// as there is no separate subscription-read permission). Every mutation is permission-gated + audited; credential
+// issuance/rotation is HUMAN-only and returns the plaintext secret ONCE (never persisted, never re-readable — there
+// is NO reveal/recovery of a stored credential). Public exposure + connector/marketplace publication remain fail-
+// closed server-side (m39 quota unbuilt; m33/m34 runtimes framework-only). ---
+const DEV = '/developer';
+export const getDevApps = (t?: string | null): Promise<ApiResult<{ apps?: Row[] }>> =>
+  call(`${DEV}/apps`, { tenantId: t });
+export const getDevApp = (id: string, t?: string | null): Promise<ApiResult<{ app?: Row | null }>> =>
+  call(`${DEV}/apps/${encodeURIComponent(id)}`, { tenantId: t });
+export const getDevAppCredentials = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ credentials?: Row[] }>> =>
+  call(`${DEV}/apps/${encodeURIComponent(id)}/credentials`, { tenantId: t });
+export const getDevProducts = (t?: string | null): Promise<ApiResult<{ products?: Row[] }>> =>
+  call(`${DEV}/products`, { tenantId: t });
+export const getDevProduct = (id: string, t?: string | null): Promise<ApiResult<{ product?: Row | null }>> =>
+  call(`${DEV}/products/${encodeURIComponent(id)}`, { tenantId: t });
+export const getDevProductScopes = (id: string, t?: string | null): Promise<ApiResult<{ scopes?: Row[] }>> =>
+  call(`${DEV}/products/${encodeURIComponent(id)}/scopes`, { tenantId: t });
+export const getDevSubscriptions = (t?: string | null): Promise<ApiResult<{ subscriptions?: Row[] }>> =>
+  call(`${DEV}/subscriptions`, { tenantId: t });
+
+// Writes — canonical governed actions over the existing m35 service. The server (M02 RBAC + m35 maker-checker/SoD +
+// human-only credential gate + optimistic version) is AUTHORITATIVE; the UI only orchestrates.
+export const registerDevApp = (
+  body: { appKey: string; name: string; scope?: string; homepageUrl?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${DEV}/apps`, { method: 'POST', body, tenantId: t });
+export const suspendDevApp = (id: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DEV}/apps/${encodeURIComponent(id)}/suspend`, { method: 'POST', tenantId: t });
+// Issue/rotate return { credential, secret } — `secret` is the plaintext returned ONCE (null when a secretref was
+// supplied). The client shows it a single time and never stores or re-fetches it (no recovery path exists).
+export const issueDevCredential = (
+  id: string,
+  body: { purpose?: string },
+  t?: string | null,
+): Promise<ApiResult<{ credential?: Row; secret?: string | null }>> =>
+  call(`${DEV}/apps/${encodeURIComponent(id)}/credentials`, { method: 'POST', body, tenantId: t });
+export const rotateDevCredential = (
+  credentialId: string,
+  t?: string | null,
+): Promise<ApiResult<{ credential?: Row; secret?: string | null }>> =>
+  call(`${DEV}/credentials/${encodeURIComponent(credentialId)}/rotate`, { method: 'POST', tenantId: t });
+export const revokeDevCredential = (credentialId: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DEV}/credentials/${encodeURIComponent(credentialId)}/revoke`, { method: 'POST', tenantId: t });
+export const requestDevSubscription = (
+  body: { appId: string; productId: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${DEV}/subscriptions`, { method: 'POST', body, tenantId: t });
+export const approveDevSubscription = (subscriptionId: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DEV}/subscriptions/approve`, { method: 'POST', body: { subscriptionId }, tenantId: t });
+export const suspendDevSubscription = (subscriptionId: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${DEV}/subscriptions/suspend`, { method: 'POST', body: { subscriptionId }, tenantId: t });
+
 // --- M13 Case management (Legal workspace) — canonical m13-case engine, reused (no second case engine). Every
 // mutation is permission-gated + audited + carries expectedVersion where required; lifecycle is named POST
 // actions (open/triage/assign/reassign/resolve/close/reopen/archive/escalate) — there is NO hard delete. Party

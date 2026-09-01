@@ -1,9 +1,9 @@
-import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
 import { Endpoint } from '@finapp/kernel';
 import { SubscriptionService, M35_PERMISSIONS, M35_AUDIT_CODES } from '@finapp/m35-devportal';
 import { ActorContextFactory } from '@finapp/m02-identity';
 import { requireString, requireTenantScope } from '../identity/http.ts';
-import { subscriptionView } from './views.ts';
+import { subscriptionView, subscriptionReadView } from './views.ts';
 
 /**
  * App SUBSCRIPTIONS under `/api/v1/developer` — the public-exposure grant. Requesting/approving/suspending a subscription is
@@ -24,6 +24,22 @@ export class DevportalSubscriptionsController {
   }
   private scoped(h: Record<string, string>, r: string) {
     return this.actors.forRequest(h, r).then(requireTenantScope);
+  }
+
+  /** The tenant's app→product subscriptions. Read permission (subscription.manage) enforced in-service —
+   * viewing subscriptions is a PRIVILEGED capability (there is no separate subscription-read permission). */
+  @Get('subscriptions')
+  async listSubscriptions(@Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'browse subscriptions (m35)');
+    const rows = await this.subs.listSubscriptions(s.ctx, {});
+    return { subscriptions: rows.map(subscriptionReadView) };
+  }
+
+  @Get('subscriptions/:id')
+  async getSubscription(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'read subscription (m35)');
+    const sub = await this.subs.getSubscription(s.ctx, id);
+    return { subscription: sub === null ? null : subscriptionView(sub) };
   }
 
   @Endpoint({

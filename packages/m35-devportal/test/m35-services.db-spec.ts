@@ -217,4 +217,61 @@ export default defineDbSpec('m35-services', async (ctx, t) => {
   t.equal(priorAfterRotate?.status, 'rotated', 'the prior credential is marked rotated');
   const revoked = await apps.revokeCredential(authorCtx, userR, rotated.credential.id);
   t.equal(revoked.status, 'revoked', 'a human revokes a credential');
+
+  // --- READ-MODEL projections (Stage-8 developer-portal surface) --------------------------------
+  // app detail read (app.read): enriched with safe descriptive/lifecycle metadata.
+  const appRead = await apps.getAppRead(authorCtx, app.id);
+  t.ok(appRead !== null && appRead.id === app.id, 'getAppRead returns the app detail');
+  t.ok(
+    typeof appRead?.created_at !== 'undefined' && appRead.status === 'active',
+    'app detail carries created_at + status metadata',
+  );
+  // credential METADATA read (app.read): metadata only — NEVER any secret column.
+  const credMeta = await apps.listCredentialsByApp(authorCtx, app.id);
+  t.ok(credMeta.length >= 2, 'listCredentialsByApp returns the app credential metadata');
+  const leakedKeys = credMeta.flatMap((c) =>
+    Object.keys(c).filter((k) => k === 'secret_hash' || k === 'secret_ref' || /secret|plaintext/i.test(k)),
+  );
+  t.equal(leakedKeys.length, 0, 'credential metadata carries ZERO secret columns (no hash, ref or value)');
+  // credential reads are gated on app.read (mirrors getCredential) — a ctx lacking it is refused.
+  await t.rejects(
+    apps.listCredentialsByApp(ctxOf(userA, [M35_PERMISSIONS.productRead]), app.id),
+    'listing credential metadata requires devportal.app.read (default deny)',
+  );
+  await t.rejects(
+    apps.getAppRead(ctxOf(userA, [M35_PERMISSIONS.productRead]), app.id),
+    'reading app detail requires devportal.app.read (default deny)',
+  );
+
+  // product catalog read (product.read): detail + exposed operations (the facade scopes).
+  const prodRead = await products.getProductRead(authorCtx, published.id);
+  t.ok(prodRead !== null && prodRead.state === 'published', 'getProductRead returns the published product');
+  const prodScopes = await products.listScopes(authorCtx, published.id);
+  t.ok(
+    prodScopes.length >= 1 && prodScopes[0]?.required_permission.split('.').length === 3,
+    'listScopes returns operations each carrying a 3-segment m02 permission (facade rule)',
+  );
+
+  // subscription list read: PRIVILEGED (subscription.manage) — there is no separate subscription-read permission.
+  const subList = await subsDeny.listSubscriptions(subApproverCtx, {});
+  t.ok(subList.length >= 1, 'listSubscriptions returns the tenant subscriptions');
+  t.ok(
+    subList.every((s) => 'requested_by' in s && 'approved_by' in s),
+    'a subscription read carries the governed maker/checker evidence (requested_by/approved_by)',
+  );
+  await t.rejects(
+    subsDeny.listSubscriptions(ctxOf(userA, [M35_PERMISSIONS.appRead, M35_PERMISSIONS.productRead]), {}),
+    'listing subscriptions requires the PRIVILEGED devportal.subscription.manage (no read-only path)',
+  );
+
+  // cross-tenant isolation (RLS FORCE): a different tenant context sees none of tenant A's subscriptions.
+  const otherTenant = randomUUID();
+  const otherCtx: RequestContext = {
+    tenantId: otherTenant,
+    userId: userA,
+    correlationId: randomUUID(),
+    permissions: [M35_PERMISSIONS.subscriptionManage],
+  };
+  const otherList = await subsDeny.listSubscriptions(otherCtx, {});
+  t.equal(otherList.length, 0, "another tenant cannot see tenant A's subscriptions (RLS FORCE)");
 });

@@ -19,7 +19,13 @@ import {
   REASON_CODES,
   clampPage,
 } from './domain.ts';
-import { DevportalRepository, type AppRow, type CredentialRow } from './repository.ts';
+import {
+  DevportalRepository,
+  type AppRow,
+  type CredentialRow,
+  type AppReadRow,
+  type CredentialMetaRow,
+} from './repository.ts';
 import type { M35Emitter } from './emit.ts';
 
 /** The result of issuing/rotating a credential: the stored row + the plaintext secret returned to the caller ONCE (only
@@ -336,5 +342,16 @@ export class AppService {
     await this.authz.require(ctx, M35_PERMISSIONS.appRead);
     const { limit, offset } = clampPage(page?.limit, page?.offset);
     return this.db.withTenant(ctx, (tx) => this.repo.listApps(tx, limit, offset));
+  }
+  /** Read-model: the app + its safe descriptive/lifecycle metadata (developer-portal detail). */
+  async getAppRead(ctx: RequestContext, id: string): Promise<AppReadRow | null> {
+    await this.authz.require(ctx, M35_PERMISSIONS.appRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.getAppRead(tx, id));
+  }
+  /** Read-model: an app's API-credential METADATA (never any secret material). Gated on app.read (a credential is
+   * a facet of the app the caller may already read — mirrors getCredential, which also authorizes app.read). */
+  async listCredentialsByApp(ctx: RequestContext, appId: string): Promise<CredentialMetaRow[]> {
+    await this.authz.require(ctx, M35_PERMISSIONS.appRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listCredentialsByApp(tx, appId));
   }
 }

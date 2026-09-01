@@ -26,7 +26,12 @@ import {
   clampPage,
   REASON_CODES,
 } from './domain.ts';
-import { DevportalRepository, type ProductRow, type ProductScopeRow } from './repository.ts';
+import {
+  DevportalRepository,
+  type ProductRow,
+  type ProductScopeRow,
+  type ProductReadRow,
+} from './repository.ts';
 import type { M35Emitter } from './emit.ts';
 import type { CatalogSourcePort } from './ports.ts';
 
@@ -481,5 +486,15 @@ export class ProductService {
     await this.authz.require(ctx, M35_PERMISSIONS.productRead);
     const { limit, offset } = clampPage(page?.limit, page?.offset);
     return this.db.withTenant(ctx, (tx) => this.repo.listProducts(tx, limit, offset));
+  }
+  /** Read-model: the product + its safe descriptive/lifecycle metadata (developer-portal catalog detail). */
+  async getProductRead(ctx: RequestContext, id: string): Promise<ProductReadRow | null> {
+    await this.authz.require(ctx, M35_PERMISSIONS.productRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.getProductRead(tx, id));
+  }
+  /** Read-model: the ALLOW-LISTED operations a product exposes + the m02 permission each requires (facade rule). */
+  async listScopes(ctx: RequestContext, productId: string): Promise<ProductScopeRow[]> {
+    await this.authz.require(ctx, M35_PERMISSIONS.productRead);
+    return this.db.withTenant(ctx, (tx) => this.repo.listProductScopes(tx, productId));
   }
 }
