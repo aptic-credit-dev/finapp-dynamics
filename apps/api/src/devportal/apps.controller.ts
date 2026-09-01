@@ -3,7 +3,7 @@ import { Endpoint } from '@finapp/kernel';
 import { AppService, M35_PERMISSIONS, M35_AUDIT_CODES } from '@finapp/m35-devportal';
 import { ActorContextFactory } from '@finapp/m02-identity';
 import { requireString, requireTenantScope } from '../identity/http.ts';
-import { appView, credentialView, issuedCredentialView } from './views.ts';
+import { appView, credentialView, issuedCredentialView, appDetailView, credentialMetaView } from './views.ts';
 
 /**
  * Developer APPLICATIONS + API CREDENTIALS under `/api/v1/developer`. Registering/suspending an app is unprivileged;
@@ -50,6 +50,21 @@ export class DevportalAppsController {
     const s = await this.scoped(h, 'browse developer apps (m35)');
     const rows = await this.apps.listApps(s.ctx, {});
     return { apps: rows.map(appView) };
+  }
+
+  @Get('apps/:id')
+  async getApp(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'read developer app (m35)');
+    const a = await this.apps.getAppRead(s.ctx, id);
+    return { app: a === null ? null : appDetailView(a) };
+  }
+
+  /** An app's API-credential METADATA (never any secret material). Read permission enforced in-service (app.read). */
+  @Get('apps/:id/credentials')
+  async listAppCredentials(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'browse developer credentials (m35)');
+    const rows = await this.apps.listCredentialsByApp(s.ctx, id);
+    return { credentials: rows.map(credentialMetaView) };
   }
 
   @Endpoint({

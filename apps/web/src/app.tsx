@@ -12238,6 +12238,1013 @@ function CertificationConsole({ tenant, perms }: { tenant: string | null; perms:
   );
 }
 
+// ---------- M35 Developer Portal ----------
+// A governed FAÇADE over the canonical m35-devportal service (apps / API credentials / API products / app
+// subscriptions). The browser adds NO authorization or engine logic: M02 RBAC + m35 maker-checker/SoD + the
+// human-only credential gate + optimistic version are all server-authoritative. The portal is deliberately HONEST
+// about runtime reach — it never implies that connector execution (m33), marketplace install (m34), webhook/event
+// delivery (m36) or PUBLIC API exposure are live, because those runtimes are framework-only / fail-closed today.
+const DEV_READ_PERMS = ['devportal.app.read', 'devportal.product.read'];
+const fmtDate = (v: unknown): string => {
+  const s = str(v);
+  return s ? s.slice(0, 10) : '—';
+};
+
+/** Honest per-product runtime classification (repository truth): only an INTERNAL, non-public product is a fully
+ * live end-to-end path today. A connector/marketplace-sourced product depends on the m33/m34 runtime (framework-
+ * only → publish fails closed); a PUBLIC-visibility product depends on the m39 quota (unbuilt → approval fails
+ * closed). We surface the real state, never a more-complete impression than the backend supports. */
+function productRuntime(sourceKind: string, visibility: string): { live: boolean; label: string } {
+  if (visibility === 'public')
+    return { live: false, label: 'Public API exposure — not yet production-enabled (m39 quota fail-closed)' };
+  if (sourceKind === 'connector')
+    return { live: false, label: 'Connector runtime (m33) — framework-only, not production-enabled' };
+  if (sourceKind === 'marketplace')
+    return { live: false, label: 'Marketplace runtime (m34) — framework-only, not production-enabled' };
+  return { live: true, label: 'Internal API — available for subscription within this tenant' };
+}
+function runtimeBadge(sourceKind: string, visibility: string): JSX.Element {
+  const r = productRuntime(sourceKind, visibility);
+  return (
+    <span className={`pill ${r.live ? 'ok' : 'warn'}`} title={r.label}>
+      {r.live ? '✓ Available for subscription' : '◔ Runtime not production-enabled'}
+    </span>
+  );
+}
+
+function DevPortalIntro({ what }: { what: string }): JSX.Element {
+  return (
+    <p className="page-sub">
+      {what} · governed façade over the canonical <code>m35-devportal</code> service · synthetic staging data.
+      M02 RBAC, maker-checker/SoD and tenant isolation (RLS) are enforced <strong>server-side</strong>.
+      Connector execution (m33), marketplace install (m34), webhook/event delivery (m36) and public API
+      exposure are <strong>not production-enabled</strong> here and are shown as such — only internal,
+      tenant-scoped API products are a live end-to-end path today.
+    </p>
+  );
+}
+
+function DevOverview({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const canReadApps = perms.has('devportal.app.read');
+  const canReadProducts = perms.has('devportal.product.read');
+  const canSubs = perms.has('devportal.subscription.manage');
+  const apps = useRows(
+    () =>
+      canReadApps
+        ? api.getDevApps(tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canReadApps],
+  );
+  const products = useRows(
+    () =>
+      canReadProducts
+        ? api.getDevProducts(tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canReadProducts],
+  );
+  const subs = useRows(
+    () =>
+      canSubs
+        ? api.getDevSubscriptions(tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canSubs],
+  );
+  // Credential totals are per-app; aggregate across the caller's apps (synthetic staging → few apps).
+  const [creds, setCreds] = useState<{ total: number; active: number } | null>(null);
+  const appKey = apps.rows.map((a) => pick(a, 'id')).join(',');
+  useEffect(() => {
+    let live = true;
+    setCreds(null);
+    if (!canReadApps || apps.loading) return;
+    const ids = apps.rows.map((a) => pick(a, 'id')).filter(Boolean);
+    if (ids.length === 0) {
+      setCreds({ total: 0, active: 0 });
+      return;
+    }
+    void Promise.all(ids.map((id) => api.getDevAppCredentials(id, tenant))).then((rs) => {
+      if (!live) return;
+      const rows = rs.flatMap((r) => (r.ok ? api.asRows(r.data) : []));
+      setCreds({ total: rows.length, active: rows.filter((c) => pick(c, 'status') === 'active').length });
+    });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appKey, tenant, canReadApps, apps.loading]);
+
+  const activeApps = apps.rows.filter((a) => pick(a, 'status') === 'active').length;
+  const publishedProducts = products.rows.filter((p) => pick(p, 'state') === 'published').length;
+  const activeSubs = subs.rows.filter((s) => pick(s, 'status') === 'active').length;
+  const tile = (label: string, value: string, sub: string): JSX.Element => (
+    <div className="card" style={{ flex: '1 1 200px' }}>
+      <div className="muted" style={{ fontSize: 12 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 600, margin: '4px 0' }}>{value}</div>
+      <div className="muted" style={{ fontSize: 12 }}>
+        {sub}
+      </div>
+    </div>
+  );
+  return (
+    <>
+      <h1 className="page-title">Developer · Overview</h1>
+      <DevPortalIntro what="Your applications, credentials, products and subscriptions" />
+      <div className="split" style={{ flexWrap: 'wrap' }}>
+        {tile(
+          'Applications',
+          canReadApps ? String(apps.rows.length) : '—',
+          canReadApps ? `${activeApps} active` : 'needs devportal.app.read',
+        )}
+        {tile(
+          'API products',
+          canReadProducts ? String(products.rows.length) : '—',
+          canReadProducts ? `${publishedProducts} published` : 'needs devportal.product.read',
+        )}
+        {tile(
+          'API credentials',
+          creds ? String(creds.total) : canReadApps ? '…' : '—',
+          creds ? `${creds.active} active` : 'metadata only',
+        )}
+        {tile(
+          'Subscriptions',
+          canSubs ? String(subs.rows.length) : '—',
+          canSubs ? `${activeSubs} active` : 'needs devportal.subscription.manage',
+        )}
+      </div>
+      <div className="card">
+        <header>
+          <h3>Developer access / entitlements</h3>
+        </header>
+        {!canSubs ? (
+          <div className="empty">
+            An access/entitlement summary is derived from active subscriptions, which require{' '}
+            <code>devportal.subscription.manage</code> to view. Your role does not hold it.
+          </div>
+        ) : (
+          <>
+            <p className="muted" style={{ marginTop: 0 }}>
+              An application is entitled to call the products it holds an <strong>active</strong> subscription
+              to. M39 remains authoritative for entitlement/quota; this summary reflects backend subscription
+              truth only — usage metering is not exposed by the developer-portal API and is not shown here.
+            </p>
+            {activeSubs === 0 ? (
+              <div className="empty">No active product entitlements yet.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Application</th>
+                    <th>Product</th>
+                    <th>Entitlement</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {subs.rows
+                    .filter((s) => pick(s, 'status') === 'active')
+                    .map((s, i) => (
+                      <tr key={pick(s, 'id') || i}>
+                        <td className="muted">{pick(s, 'appId').slice(0, 8)}…</td>
+                        <td className="muted">{pick(s, 'productId').slice(0, 8)}…</td>
+                        <td>{statusPill('active')}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function DevApplications({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const canRead = perms.has('devportal.app.read');
+  const canManageApp = perms.has('devportal.app.manage');
+  const canManageCred = perms.has('devportal.credential.manage');
+  const [nonce, setNonce] = useState(0);
+  const refresh = (): void => setNonce((x) => x + 1);
+  const apps = useRows(
+    () =>
+      canRead ? api.getDevApps(tenant) : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canRead, nonce],
+  );
+  const [selected, setSelected] = useState<string | null>(null);
+  const [detail, setDetail] = useState<api.Row | null>(null);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  // A freshly-issued/rotated credential's plaintext secret — held in memory ONLY, shown once, never persisted or
+  // re-fetched (there is no recovery path). Cleared on dismiss / selection change / navigation.
+  const [oneTime, setOneTime] = useState<{ keyId: string; secret: string } | null>(null);
+  const [reg, setReg] = useState<{ open: boolean; appKey: string; name: string; homepageUrl: string }>({
+    open: false,
+    appKey: '',
+    name: '',
+    homepageUrl: '',
+  });
+  const [purpose, setPurpose] = useState('api');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setDetail(null);
+    setOneTime(null);
+    if (!selected) return;
+    void api.getDevApp(selected, tenant).then((r) => {
+      if (live && r.ok) setDetail((r.data?.app ?? null) as api.Row | null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [selected, tenant, nonce]);
+  const credentials = useRows(
+    () =>
+      selected
+        ? api.getDevAppCredentials(selected, tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [selected, tenant, nonce],
+  );
+  if (!canRead) {
+    return (
+      <>
+        <h1 className="page-title">Developer · Applications</h1>
+        <div className="card">
+          <div className="empty">
+            Viewing developer applications needs <code>devportal.app.read</code>. Your role does not hold it —
+            the server denies the read (this is not merely hidden UI).
+          </div>
+        </div>
+      </>
+    );
+  }
+  const st = detail ? pick(detail, 'status') : '';
+  const appActive = st === 'active';
+
+  async function submitRegister(): Promise<void> {
+    setBusy(true);
+    setMsg(null);
+    const r = await api.registerDevApp(
+      {
+        appKey: reg.appKey.trim(),
+        name: reg.name.trim(),
+        ...(reg.homepageUrl.trim() !== '' ? { homepageUrl: reg.homepageUrl.trim() } : {}),
+      },
+      tenant,
+    );
+    setBusy(false);
+    if (r.ok) {
+      setMsg({ kind: 'ok', text: 'Application registered.' });
+      const newId = r.data ? pick(r.data as api.Row, 'id') : '';
+      setReg({ open: false, appKey: '', name: '', homepageUrl: '' });
+      if (newId) setSelected(newId);
+      refresh();
+    } else {
+      setMsg({ kind: 'err', text: `Denied (HTTP ${r.status}): ${r.error ?? 'not permitted'}` });
+    }
+  }
+  async function issue(): Promise<void> {
+    if (!selected) return;
+    setBusy(true);
+    setMsg(null);
+    const r = await api.issueDevCredential(selected, { purpose: purpose.trim() || 'api' }, tenant);
+    setBusy(false);
+    if (r.ok && r.data) {
+      const secret = str(r.data.secret);
+      const keyId = r.data.credential ? pick(r.data.credential as api.Row, 'keyId') : '';
+      if (secret !== '') setOneTime({ keyId, secret });
+      setMsg({
+        kind: 'ok',
+        text: 'API credential issued. The secret is shown once below and cannot be retrieved again.',
+      });
+      refresh();
+    } else {
+      setMsg({ kind: 'err', text: `Denied (HTTP ${r.status}): ${r.error ?? 'not permitted'}` });
+    }
+  }
+  async function rotate(credId: string): Promise<void> {
+    setMsg(null);
+    const r = await api.rotateDevCredential(credId, tenant);
+    if (r.ok && r.data) {
+      const secret = str(r.data.secret);
+      const keyId = r.data.credential ? pick(r.data.credential as api.Row, 'keyId') : '';
+      if (secret !== '') setOneTime({ keyId, secret });
+      setMsg({
+        kind: 'ok',
+        text: 'Credential rotated. The new secret is shown once below (non-recoverable).',
+      });
+      refresh();
+    } else {
+      setMsg({ kind: 'err', text: `Denied (HTTP ${r.status}): ${r.error ?? 'not permitted'}` });
+    }
+  }
+  async function revoke(credId: string): Promise<void> {
+    setMsg(null);
+    const r = await api.revokeDevCredential(credId, tenant);
+    if (r.ok) {
+      setMsg({ kind: 'ok', text: 'Credential revoked.' });
+      refresh();
+    } else {
+      setMsg({ kind: 'err', text: `Denied (HTTP ${r.status}): ${r.error ?? 'not permitted'}` });
+    }
+  }
+  return (
+    <>
+      <h1 className="page-title">Developer · Applications</h1>
+      <DevPortalIntro what="Register applications and manage their API credentials" />
+      {msg ? (
+        <div className={`sk-banner ${msg.kind}`} role="status">
+          {msg.text}
+          <button className="btn secondary" onClick={() => setMsg(null)}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+      <div className="split">
+        <div className="card" style={{ flex: '1 1 320px' }}>
+          <header>
+            <h3>Applications</h3>
+            <span>
+              {canManageApp ? (
+                <button
+                  className="btn"
+                  style={{ marginRight: 8 }}
+                  onClick={() => {
+                    setReg({ ...reg, open: !reg.open });
+                    setMsg(null);
+                  }}
+                >
+                  Register app
+                </button>
+              ) : null}
+              <span className="demo-note">SYNTHETIC</span>
+            </span>
+          </header>
+          {reg.open && canManageApp ? (
+            <div className="sk-form">
+              <h4>Register application</h4>
+              <label className="sk-field">
+                <span>Application key (logical, unique)</span>
+                <input
+                  value={reg.appKey}
+                  placeholder="my-service"
+                  onChange={(e) => setReg({ ...reg, appKey: e.target.value })}
+                />
+              </label>
+              <label className="sk-field">
+                <span>Name</span>
+                <input
+                  value={reg.name}
+                  placeholder="My Service"
+                  onChange={(e) => setReg({ ...reg, name: e.target.value })}
+                />
+              </label>
+              <label className="sk-field">
+                <span>Homepage URL (optional)</span>
+                <input
+                  value={reg.homepageUrl}
+                  placeholder="https://…"
+                  onChange={(e) => setReg({ ...reg, homepageUrl: e.target.value })}
+                />
+              </label>
+              <div className="sk-actions">
+                <button
+                  className="btn"
+                  disabled={busy || reg.appKey.trim() === '' || reg.name.trim() === ''}
+                  onClick={() => void submitRegister()}
+                >
+                  {busy ? 'Registering…' : 'Register'}
+                </button>
+                <button className="btn secondary" onClick={() => setReg({ ...reg, open: false })}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {apps.loading ? (
+            <div className="loading">Loading…</div>
+          ) : apps.error ? (
+            <div className="empty">Could not load ({apps.error}).</div>
+          ) : apps.rows.length === 0 ? (
+            <div className="empty">No applications registered.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Application</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {apps.rows.map((a, i) => {
+                  const id = pick(a, 'id');
+                  return (
+                    <tr
+                      key={id || i}
+                      className={selected === id ? 'row-active' : ''}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setSelected(id)}
+                    >
+                      <td>
+                        {pick(a, 'name') || pick(a, 'appKey')}
+                        <div className="muted" style={{ fontSize: 11 }}>
+                          {pick(a, 'appKey')}
+                        </div>
+                      </td>
+                      <td>{statusPill(pick(a, 'status'))}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="card" style={{ flex: '2 1 520px' }}>
+          {!selected ? (
+            <div className="empty">Select an application to see its detail and API credentials.</div>
+          ) : !detail ? (
+            <div className="loading">Loading…</div>
+          ) : (
+            <>
+              <header>
+                <h3>{pick(detail, 'name') || pick(detail, 'appKey')}</h3>
+                <span>
+                  {statusPill(st)}
+                  {canManageApp && appActive ? (
+                    <span style={{ marginLeft: 8 }}>
+                      <ActionButton
+                        label="Suspend app"
+                        allowed={true}
+                        danger
+                        onRun={async () => {
+                          const r = await api.suspendDevApp(selected, tenant);
+                          if (r.ok) {
+                            setMsg({ kind: 'ok', text: 'Application suspended.' });
+                            refresh();
+                          } else
+                            setMsg({
+                              kind: 'err',
+                              text: `Denied (HTTP ${r.status}): ${r.error ?? 'not permitted'}`,
+                            });
+                        }}
+                      />
+                    </span>
+                  ) : null}
+                </span>
+              </header>
+              <table>
+                <tbody>
+                  <tr>
+                    <th>Application ID</th>
+                    <td className="muted">{pick(detail, 'id')}</td>
+                  </tr>
+                  <tr>
+                    <th>Key</th>
+                    <td>{pick(detail, 'appKey')}</td>
+                  </tr>
+                  <tr>
+                    <th>Description</th>
+                    <td className="muted">{pick(detail, 'description') || '—'}</td>
+                  </tr>
+                  <tr>
+                    <th>Owner</th>
+                    <td className="muted">{pick(detail, 'ownerRef') || '—'}</td>
+                  </tr>
+                  <tr>
+                    <th>Scope</th>
+                    <td className="muted">{pick(detail, 'scope')}</td>
+                  </tr>
+                  <tr>
+                    <th>Created / updated</th>
+                    <td className="muted">
+                      {fmtDate(detail['createdAt'])} · {fmtDate(detail['updatedAt'])}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {oneTime ? (
+                <div className="sk-banner ok" role="status" style={{ display: 'block' }}>
+                  <strong>One-time secret for {oneTime.keyId.slice(0, 16)}…</strong>
+                  <div
+                    style={{
+                      fontFamily: 'monospace',
+                      wordBreak: 'break-all',
+                      margin: '8px 0',
+                      padding: 8,
+                      background: 'rgba(0,0,0,0.06)',
+                      borderRadius: 6,
+                    }}
+                  >
+                    {oneTime.secret}
+                  </div>
+                  Copy it now — this plaintext is shown <strong>once</strong> and is{' '}
+                  <strong>not recoverable</strong>. Aptic Dynamics stores only a one-way hash; there is no
+                  reveal of a stored credential.
+                  <div style={{ marginTop: 8 }}>
+                    <button className="btn secondary" onClick={() => setOneTime(null)}>
+                      I've stored it — dismiss
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <h4 style={{ margin: '16px 0 6px' }}>API credentials</h4>
+              <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+                Metadata only — no secret material is ever displayed. Issuing/rotating is human-governed and
+                returns a plaintext secret exactly once.
+              </p>
+              {canManageCred ? (
+                appActive ? (
+                  <div className="sk-actions" style={{ marginBottom: 8 }}>
+                    <input
+                      className="confirm-reason"
+                      value={purpose}
+                      placeholder="purpose (e.g. api)"
+                      onChange={(e) => setPurpose(e.target.value)}
+                      style={{ maxWidth: 180 }}
+                    />
+                    <button className="btn" disabled={busy} onClick={() => void issue()}>
+                      {busy ? 'Issuing…' : 'Issue credential'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="empty">Only an active application can hold credentials.</div>
+                )
+              ) : null}
+              {credentials.loading ? (
+                <div className="loading">Loading…</div>
+              ) : credentials.rows.length === 0 ? (
+                <div className="empty">No credentials issued.</div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Key ID</th>
+                      <th>Purpose</th>
+                      <th>Status</th>
+                      <th>Issued</th>
+                      <th>Updated</th>
+                      {canManageCred ? <th>Actions</th> : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {credentials.rows.map((c, i) => {
+                      const cid = pick(c, 'id');
+                      const cstatus = pick(c, 'status');
+                      return (
+                        <tr key={cid || i}>
+                          <td className="muted" style={{ fontFamily: 'monospace', fontSize: 11 }}>
+                            {pick(c, 'keyId').slice(0, 20)}…
+                          </td>
+                          <td>{pick(c, 'purpose')}</td>
+                          <td>{statusPill(cstatus)}</td>
+                          <td className="muted">{fmtDate(c['createdAt'])}</td>
+                          <td className="muted">{fmtDate(c['updatedAt'])}</td>
+                          {canManageCred ? (
+                            <td>
+                              {cstatus === 'active' ? (
+                                <span style={{ display: 'inline-flex', gap: 6 }}>
+                                  <ActionButton
+                                    label="Rotate"
+                                    allowed={true}
+                                    onRun={async () => {
+                                      await rotate(cid);
+                                    }}
+                                  />
+                                  <ActionButton
+                                    label="Revoke"
+                                    allowed={true}
+                                    danger
+                                    onRun={async () => {
+                                      await revoke(cid);
+                                    }}
+                                  />
+                                </span>
+                              ) : (
+                                <span className="muted">—</span>
+                              )}
+                            </td>
+                          ) : null}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DevProducts({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
+  const canRead = perms.has('devportal.product.read');
+  const products = useRows(
+    () =>
+      canRead
+        ? api.getDevProducts(tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canRead],
+  );
+  const [selected, setSelected] = useState<string | null>(null);
+  const [detail, setDetail] = useState<api.Row | null>(null);
+  useEffect(() => {
+    let live = true;
+    setDetail(null);
+    if (!selected) return;
+    void api.getDevProduct(selected, tenant).then((r) => {
+      if (live && r.ok) setDetail((r.data?.product ?? null) as api.Row | null);
+    });
+    return () => {
+      live = false;
+    };
+  }, [selected, tenant]);
+  const scopes = useRows(
+    () =>
+      selected
+        ? api.getDevProductScopes(selected, tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [selected, tenant],
+  );
+  if (!canRead) {
+    return (
+      <>
+        <h1 className="page-title">Developer · API Products</h1>
+        <div className="card">
+          <div className="empty">
+            Viewing the API product catalog needs <code>devportal.product.read</code>. Your role does not hold
+            it.
+          </div>
+        </div>
+      </>
+    );
+  }
+  return (
+    <>
+      <h1 className="page-title">Developer · API Products</h1>
+      <DevPortalIntro what="The governed API product catalog" />
+      <div className="split">
+        <div className="card" style={{ flex: '1 1 340px' }}>
+          <header>
+            <h3>Catalog</h3>
+            <span className="demo-note">SYNTHETIC</span>
+          </header>
+          {products.loading ? (
+            <div className="loading">Loading…</div>
+          ) : products.rows.length === 0 ? (
+            <div className="empty">No API products.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>State</th>
+                  <th>Runtime</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.rows.map((p, i) => {
+                  const id = pick(p, 'id');
+                  return (
+                    <tr
+                      key={id || i}
+                      className={selected === id ? 'row-active' : ''}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setSelected(id)}
+                    >
+                      <td>
+                        {pick(p, 'title') || pick(p, 'productKey')}
+                        <div className="muted" style={{ fontSize: 11 }}>
+                          {pick(p, 'category')} · {pick(p, 'visibility')} · {pick(p, 'sourceKind')}
+                        </div>
+                      </td>
+                      <td>{statusPill(pick(p, 'state'))}</td>
+                      <td>{runtimeBadge(pick(p, 'sourceKind'), pick(p, 'visibility'))}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="card" style={{ flex: '2 1 480px' }}>
+          {!selected ? (
+            <div className="empty">Select a product to see its detail and exposed operations.</div>
+          ) : !detail ? (
+            <div className="loading">Loading…</div>
+          ) : (
+            <>
+              <header>
+                <h3>{pick(detail, 'title') || pick(detail, 'productKey')}</h3>
+                {statusPill(pick(detail, 'state'))}
+              </header>
+              {(() => {
+                const rt = productRuntime(pick(detail, 'sourceKind'), pick(detail, 'visibility'));
+                return (
+                  <div className={`sk-banner ${rt.live ? 'ok' : 'warn'}`} role="status">
+                    <strong>{rt.live ? 'Available for subscription.' : 'Not production-enabled.'}</strong>
+                    &nbsp;
+                    {rt.label}.
+                  </div>
+                );
+              })()}
+              <table>
+                <tbody>
+                  <tr>
+                    <th>Summary</th>
+                    <td className="muted">{pick(detail, 'summary') || '—'}</td>
+                  </tr>
+                  <tr>
+                    <th>Category / visibility</th>
+                    <td>
+                      {pick(detail, 'category')} · {pick(detail, 'visibility')}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Source</th>
+                    <td className="muted">
+                      {pick(detail, 'sourceKind')}
+                      {pick(detail, 'sourceRef') ? ` · ${pick(detail, 'sourceRef')}` : ''}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Validated</th>
+                    <td>{pick(detail, 'validationPassed') === 'true' ? 'yes' : 'no'}</td>
+                  </tr>
+                  <tr>
+                    <th>Published</th>
+                    <td className="muted">
+                      {fmtDate(detail['createdAt'])} · {fmtDate(detail['updatedAt'])}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <h4 style={{ margin: '16px 0 6px' }}>Exposed operations</h4>
+              <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>
+                Every exposed operation carries the m02 permission it requires — the façade never bypasses
+                RBAC.
+              </p>
+              {scopes.loading ? (
+                <div className="loading">Loading…</div>
+              ) : scopes.rows.length === 0 ? (
+                <div className="empty">No operations declared.</div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Operation</th>
+                      <th>Required permission</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scopes.rows.map((sc, i) => (
+                      <tr key={pick(sc, 'id') || i}>
+                        <td>{pick(sc, 'operationRef')}</td>
+                        <td>
+                          <code>{pick(sc, 'requiredPermission')}</code>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DevSubscriptions({
+  tenant,
+  perms,
+  actorId,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+  actorId: string;
+}): JSX.Element {
+  const canManage = perms.has('devportal.subscription.manage');
+  const canReadApps = perms.has('devportal.app.read');
+  const canReadProducts = perms.has('devportal.product.read');
+  const [nonce, setNonce] = useState(0);
+  const refresh = (): void => setNonce((x) => x + 1);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const subs = useRows(
+    () =>
+      canManage
+        ? api.getDevSubscriptions(tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canManage, nonce],
+  );
+  const apps = useRows(
+    () =>
+      canManage && canReadApps
+        ? api.getDevApps(tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canManage, canReadApps, nonce],
+  );
+  const products = useRows(
+    () =>
+      canManage && canReadProducts
+        ? api.getDevProducts(tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canManage, canReadProducts, nonce],
+  );
+  const [reqApp, setReqApp] = useState('');
+  const [reqProduct, setReqProduct] = useState('');
+  const [busy, setBusy] = useState(false);
+  if (!canManage) {
+    return (
+      <>
+        <h1 className="page-title">Developer · Subscriptions</h1>
+        <div className="card">
+          <div className="empty">
+            Subscriptions are a <strong>privileged</strong> capability — viewing and managing them needs{' '}
+            <code>devportal.subscription.manage</code> (there is no separate subscription-read permission).
+            Your role does not hold it, so the server denies the read.
+          </div>
+        </div>
+      </>
+    );
+  }
+  const publishedProducts = products.rows.filter((p) => pick(p, 'state') === 'published');
+  const productLabel = (id: string): string => {
+    const p = products.rows.find((x) => pick(x, 'id') === id);
+    return p ? pick(p, 'title') || pick(p, 'productKey') : id.slice(0, 8) + '…';
+  };
+  const appLabel = (id: string): string => {
+    const a = apps.rows.find((x) => pick(x, 'id') === id);
+    return a ? pick(a, 'name') || pick(a, 'appKey') : id.slice(0, 8) + '…';
+  };
+  async function requestSub(): Promise<void> {
+    if (reqApp === '' || reqProduct === '') return;
+    setBusy(true);
+    setMsg(null);
+    const r = await api.requestDevSubscription({ appId: reqApp, productId: reqProduct }, tenant);
+    setBusy(false);
+    if (r.ok) {
+      setMsg({ kind: 'ok', text: 'Subscription requested. It awaits approval by a different person (SoD).' });
+      setReqApp('');
+      setReqProduct('');
+      refresh();
+    } else {
+      setMsg({ kind: 'err', text: `Denied (HTTP ${r.status}): ${r.error ?? 'not permitted'}` });
+    }
+  }
+  async function approve(id: string): Promise<void> {
+    setMsg(null);
+    const r = await api.approveDevSubscription(id, tenant);
+    if (r.ok) {
+      setMsg({ kind: 'ok', text: 'Subscription approved (maker-checker: approver ≠ requester).' });
+      refresh();
+    } else {
+      setMsg({
+        kind: 'err',
+        text:
+          `Denied (HTTP ${r.status}): ${r.error ?? 'not permitted'}. ` +
+          'Self-approval is blocked (SoD); a PUBLIC product also requires the m39 quota, which is fail-closed (public API exposure not yet production-enabled).',
+      });
+      refresh();
+    }
+  }
+  async function suspend(id: string): Promise<void> {
+    setMsg(null);
+    const r = await api.suspendDevSubscription(id, tenant);
+    if (r.ok) {
+      setMsg({ kind: 'ok', text: 'Subscription suspended.' });
+      refresh();
+    } else {
+      setMsg({ kind: 'err', text: `Denied (HTTP ${r.status}): ${r.error ?? 'not permitted'}` });
+    }
+  }
+  return (
+    <>
+      <h1 className="page-title">Developer · Subscriptions</h1>
+      <DevPortalIntro what="Application → product subscriptions (the public-exposure grant)" />
+      {msg ? (
+        <div className={`sk-banner ${msg.kind}`} role="status">
+          {msg.text}
+          <button className="btn secondary" onClick={() => setMsg(null)}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+      <div className="card">
+        <header>
+          <h3>Request a subscription</h3>
+          <span className="demo-note">SYNTHETIC</span>
+        </header>
+        <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>
+          Only <strong>published</strong> products are subscribable. Approval is maker-checker — a different
+          person must approve. A subscription to a PUBLIC product additionally fails closed today (m39 quota
+          unbuilt).
+        </p>
+        <div className="sk-actions">
+          <select value={reqApp} onChange={(e) => setReqApp(e.target.value)}>
+            <option value="">Select application…</option>
+            {apps.rows
+              .filter((a) => pick(a, 'status') === 'active')
+              .map((a) => (
+                <option key={pick(a, 'id')} value={pick(a, 'id')}>
+                  {pick(a, 'name') || pick(a, 'appKey')}
+                </option>
+              ))}
+          </select>
+          <select value={reqProduct} onChange={(e) => setReqProduct(e.target.value)}>
+            <option value="">Select published product…</option>
+            {publishedProducts.map((p) => (
+              <option key={pick(p, 'id')} value={pick(p, 'id')}>
+                {(pick(p, 'title') || pick(p, 'productKey')) + ` (${pick(p, 'visibility')})`}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn"
+            disabled={busy || reqApp === '' || reqProduct === ''}
+            onClick={() => void requestSub()}
+          >
+            {busy ? 'Requesting…' : 'Request'}
+          </button>
+        </div>
+      </div>
+      <div className="card">
+        <header>
+          <h3>Subscriptions</h3>
+        </header>
+        {subs.loading ? (
+          <div className="loading">Loading…</div>
+        ) : subs.rows.length === 0 ? (
+          <div className="empty">No subscriptions.</div>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Application</th>
+                <th>Product</th>
+                <th>Status</th>
+                <th>Requested by</th>
+                <th>Approved by</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subs.rows.map((s, i) => {
+                const id = pick(s, 'id');
+                const sstatus = pick(s, 'status');
+                const requestedBy = pick(s, 'requestedBy');
+                const isSelfRequest = requestedBy !== '' && requestedBy === actorId;
+                return (
+                  <tr key={id || i}>
+                    <td>{appLabel(pick(s, 'appId'))}</td>
+                    <td>{productLabel(pick(s, 'productId'))}</td>
+                    <td>{statusPill(sstatus)}</td>
+                    <td className="muted" title={requestedBy}>
+                      {requestedBy ? requestedBy.slice(0, 8) + '…' : '—'}
+                      {isSelfRequest ? ' (you)' : ''}
+                    </td>
+                    <td className="muted" title={pick(s, 'approvedBy')}>
+                      {pick(s, 'approvedBy') ? pick(s, 'approvedBy').slice(0, 8) + '…' : '—'}
+                    </td>
+                    <td>
+                      <span style={{ display: 'inline-flex', gap: 6 }}>
+                        {sstatus === 'requested' ? (
+                          <ActionButton
+                            label="Approve"
+                            allowed={true}
+                            onRun={async () => {
+                              await approve(id);
+                            }}
+                          />
+                        ) : null}
+                        {sstatus === 'active' ? (
+                          <ActionButton
+                            label="Suspend"
+                            allowed={true}
+                            danger
+                            onRun={async () => {
+                              await suspend(id);
+                            }}
+                          />
+                        ) : null}
+                        {sstatus !== 'requested' && sstatus !== 'active' ? (
+                          <span className="muted">—</span>
+                        ) : null}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  );
+}
+
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▚', group: 'Overview' },
   { id: 'notifications', label: 'Notifications', icon: '🔔', group: 'Notifications' },
@@ -12263,6 +13270,10 @@ const NAV = [
   { id: 'analytics', label: 'Analytics & Reports', icon: '📊', group: 'Reporting' },
   { id: 'copilot', label: 'Copilot', icon: '🧭', group: 'Executive' },
   { id: 'approvals', label: 'Approvals', icon: '✔', group: 'Approvals' },
+  { id: 'dev-overview', label: 'Overview', icon: '◱', group: 'Developer' },
+  { id: 'dev-apps', label: 'Applications', icon: '❏', group: 'Developer' },
+  { id: 'dev-products', label: 'API Products', icon: '⧉', group: 'Developer' },
+  { id: 'dev-subscriptions', label: 'Subscriptions', icon: '⇄', group: 'Developer' },
   { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
   { id: 'admin-assignments', label: 'Access Assignments', icon: '🔑', group: 'Administration' },
@@ -12497,6 +13508,10 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
   }, [tenant]);
   const groupAvailable = (g: string): boolean => {
     if (g === 'Administration') return ADMIN_READ_PERMS.some((p) => perms.has(p));
+    // Developer (m35 developer portal) is a self-service DEVELOPER capability (not an admin module), RBAC-gated on
+    // any devportal read (app or product). A developer holding either sees the group; actions inside stay
+    // server-governed (403 on an unheld permission). Not entitlement-gated.
+    if (g === 'Developer') return DEV_READ_PERMS.some((p) => perms.has(p));
     // Approvals is RBAC-gated (a platform capability, not a commercial vertical): visible to anyone who may
     // read approval requests (makers to track their own, checkers to decide). Not entitlement-gated.
     if (g === 'Approvals') return perms.has('approvals.request.read');
@@ -12592,6 +13607,12 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'analytics' && <AnalyticsWorkspace tenant={tenant} perms={perms} />}
         {route === 'copilot' && <CopilotWorkspace tenant={tenant} perms={perms} />}
         {route === 'approvals' && <ApprovalsInbox tenant={tenant} perms={perms} />}
+        {route === 'dev-overview' && <DevOverview tenant={tenant} perms={perms} />}
+        {route === 'dev-apps' && <DevApplications tenant={tenant} perms={perms} />}
+        {route === 'dev-products' && <DevProducts tenant={tenant} perms={perms} />}
+        {route === 'dev-subscriptions' && (
+          <DevSubscriptions tenant={tenant} perms={perms} actorId={actorId} />
+        )}
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-assignments' && <AccessAdmin tenant={tenant} perms={perms} />}

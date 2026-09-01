@@ -78,6 +78,67 @@ export interface ReviewRow {
   readonly reason_code: string | null;
 }
 
+// ---- READ-MODEL projections (Stage-8 developer-portal surface) ------------------------------------------------
+// Additive, read-only shapes for the browser: they enrich the base rows with the safe descriptive + lifecycle
+// metadata columns (description/homepage/owner + created/updated instants) the mutating RETURNING clauses omit.
+// A CREDENTIAL read projection carries NO secret column at all (neither the one-way hash nor the opaque ref) —
+// it is metadata only. RLS FORCE remains the isolation guarantee; no tenant predicate is added.
+export interface AppReadRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly scope: string;
+  readonly app_key: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly homepage_url: string | null;
+  readonly owner_ref: string | null;
+  readonly status: string;
+  readonly version: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+export interface ProductReadRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly scope: string;
+  readonly product_key: string;
+  readonly title: string;
+  readonly summary: string | null;
+  readonly category: string;
+  readonly visibility: string;
+  readonly source_kind: string;
+  readonly source_ref: string | null;
+  readonly state: string;
+  readonly validation_passed: boolean;
+  readonly version: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+/** Credential METADATA ONLY — deliberately excludes secret_hash and secret_ref (there is no read path to material). */
+export interface CredentialMetaRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly app_id: string;
+  readonly key_id: string;
+  readonly purpose: string;
+  readonly status: string;
+  readonly version: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+export interface SubscriptionReadRow {
+  readonly tenant_id: string;
+  readonly id: string;
+  readonly app_id: string;
+  readonly product_id: string;
+  readonly status: string;
+  readonly requested_by: string | null;
+  readonly approved_by: string | null;
+  readonly version: number;
+  readonly created_at: string;
+  readonly updated_at: string;
+}
+
 export class DevportalRepository {
   // ---- app ----
   async insertApp(
@@ -461,5 +522,48 @@ export class DevportalRepository {
       `INSERT INTO devportal_idempotency (tenant_id, idempotency_key, target_type, target_id, correlation_id, created_by) VALUES ($1,$2,$3,$4,$5,$6)`,
       [i.tenantId, i.idempotencyKey, i.targetType, i.targetId, i.correlationId, i.by],
     );
+  }
+
+  // ---- READ-MODEL projections (Stage-8 developer-portal surface; read-only, RLS-scoped) ----
+  async getAppRead(tx: Tx, id: string): Promise<AppReadRow | null> {
+    const { rows } = await tx.query<AppReadRow>(
+      `SELECT tenant_id, id, scope, app_key, name, description, homepage_url, owner_ref, status, version, created_at, updated_at
+       FROM devportal_app WHERE id=$1`,
+      [id],
+    );
+    return rows[0] ?? null;
+  }
+  /** Credential METADATA for an app (id/key/purpose/status/version + instants). NEVER selects secret_hash/secret_ref. */
+  async listCredentialsByApp(tx: Tx, appId: string): Promise<CredentialMetaRow[]> {
+    const { rows } = await tx.query<CredentialMetaRow>(
+      `SELECT tenant_id, id, app_id, key_id, purpose, status, version, created_at, updated_at
+       FROM devportal_credential WHERE app_id=$1 ORDER BY created_at DESC`,
+      [appId],
+    );
+    return rows;
+  }
+  async getProductRead(tx: Tx, id: string): Promise<ProductReadRow | null> {
+    const { rows } = await tx.query<ProductReadRow>(
+      `SELECT tenant_id, id, scope, product_key, title, summary, category, visibility, source_kind, source_ref, state, validation_passed, version, created_at, updated_at
+       FROM devportal_api_product WHERE id=$1`,
+      [id],
+    );
+    return rows[0] ?? null;
+  }
+  async listSubscriptions(tx: Tx, limit: number, offset: number): Promise<SubscriptionReadRow[]> {
+    const { rows } = await tx.query<SubscriptionReadRow>(
+      `SELECT tenant_id, id, app_id, product_id, status, requested_by, approved_by, version, created_at, updated_at
+       FROM devportal_subscription ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+      [limit, offset],
+    );
+    return rows;
+  }
+  async listSubscriptionsByApp(tx: Tx, appId: string): Promise<SubscriptionReadRow[]> {
+    const { rows } = await tx.query<SubscriptionReadRow>(
+      `SELECT tenant_id, id, app_id, product_id, status, requested_by, approved_by, version, created_at, updated_at
+       FROM devportal_subscription WHERE app_id=$1 ORDER BY created_at DESC`,
+      [appId],
+    );
+    return rows;
   }
 }

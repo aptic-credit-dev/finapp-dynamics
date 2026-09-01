@@ -3,7 +3,7 @@ import { Endpoint } from '@finapp/kernel';
 import { ProductService, M35_PERMISSIONS, M35_AUDIT_CODES } from '@finapp/m35-devportal';
 import { ActorContextFactory } from '@finapp/m02-identity';
 import { requireString, requireTenantScope, requireVersion } from '../identity/http.ts';
-import { productView, scopeView } from './views.ts';
+import { productView, scopeView, productDetailView } from './views.ts';
 
 /**
  * API PRODUCTS under `/api/v1/developer` — the governed gateway facade. Authoring + declaring exposed operations (each
@@ -53,6 +53,21 @@ export class DevportalProductsController {
     const s = await this.scoped(h, 'browse API products (m35)');
     const rows = await this.products.listProducts(s.ctx, {});
     return { products: rows.map(productView) };
+  }
+
+  @Get('products/:id')
+  async getProduct(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'read API product (m35)');
+    const p = await this.products.getProductRead(s.ctx, id);
+    return { product: p === null ? null : productDetailView(p) };
+  }
+
+  /** The allow-listed operations a product exposes + the m02 permission each requires (the facade rule, read-only). */
+  @Get('products/:id/scopes')
+  async listScopes(@Param('id') id: string, @Headers() h: Record<string, string>) {
+    const s = await this.scoped(h, 'browse product scopes (m35)');
+    const rows = await this.products.listScopes(s.ctx, id);
+    return { scopes: rows.map(scopeView) };
   }
 
   @Endpoint({

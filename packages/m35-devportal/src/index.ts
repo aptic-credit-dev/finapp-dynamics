@@ -110,6 +110,10 @@ export type {
   CredentialRow,
   SubscriptionRow,
   ReviewRow,
+  AppReadRow,
+  ProductReadRow,
+  CredentialMetaRow,
+  SubscriptionReadRow,
 } from './repository.ts';
 
 // Services
