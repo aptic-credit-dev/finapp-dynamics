@@ -131,24 +131,27 @@ try {
     `status=${crossR.status}`,
   );
 
-  // --- deny-by-default: the READ persona cannot MUTATE (no request / register / approve) ---
-  check(
-    'read persona cannot request a release (403)',
-    (
-      await call(AUD, 'POST', '/releases', {
-        artifactId: ART1,
-        environmentId: '00000000-0000-4000-8000-000000037201',
-        toVersion: 9,
-      })
-    ).status === 403,
-  );
-  check(
-    'read persona cannot register an artifact (403)',
-    (await call(AUD, 'POST', '/releases/artifacts', { artifactKey: 'x', name: 'x' })).status === 403,
-  );
+  // --- deny-by-default: the READ persona cannot MUTATE (no request / register / approve). Bodies are complete + valid
+  // so the request reaches the in-service permission gate (the controller validates the body first, then authorizes). ---
+  const reqRel = await call(AUD, 'POST', '/releases', {
+    artifactId: ART1,
+    environmentId: '00000000-0000-4000-8000-000000037201',
+    releaseKey: 'deny-probe-r9',
+    toVersion: 9,
+  });
+  check('read persona cannot request a release (403)', reqRel.status === 403, `status=${reqRel.status}`);
+  const regArt = await call(AUD, 'POST', '/releases/artifacts', {
+    artifactKey: 'deny-probe',
+    artifactKind: 'internal',
+    artifactRef: 'internal:deny-probe',
+    name: 'Deny Probe',
+  });
+  check('read persona cannot register an artifact (403)', regArt.status === 403, `status=${regArt.status}`);
+  const appr = await call(AUD, 'POST', `/releases/${REL1}/approve`, { expectedVersion: 1 });
   check(
     'read persona cannot approve a release (403 — no approval capability)',
-    (await call(AUD, 'POST', `/releases/${REL1}/approve`, { expectedVersion: 1 })).status === 403,
+    appr.status === 403,
+    `status=${appr.status}`,
   );
 
   const passed = results.filter((r) => r.pass).length;
