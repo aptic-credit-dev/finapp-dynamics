@@ -1030,6 +1030,20 @@ export const approveDevSubscription = (subscriptionId: string, t?: string | null
 export const suspendDevSubscription = (subscriptionId: string, t?: string | null): Promise<ApiResult<Row>> =>
   call(`${DEV}/subscriptions/suspend`, { method: 'POST', body: { subscriptionId }, tenantId: t });
 
+// --- M37 Governance / Release — READ-ONLY surface over the canonical m37-govrelease control plane. These are the
+// three GET routes that already exist (RLS-scoped + permission-gated: govrelease.artifact.read for artifacts +
+// environments, govrelease.release.read for releases). There are DELIBERATELY NO mutating client functions here:
+// request/gate/check/validate/review/approve/rollback + artifact register/retire/environment define stay evidence/
+// API-driven. The browser can NEVER request, approve, roll back or influence a release — m37's maker-checker/SoD +
+// QA gates stay server-side. This surface introduces NO M22 approval semantics and NO M42 GO/NO_GO verdict. ---
+const REL = '/releases';
+export const getGovArtifacts = (t?: string | null): Promise<ApiResult<{ artifacts?: Row[] }>> =>
+  call(`${REL}/artifacts`, { tenantId: t });
+export const getGovEnvironments = (t?: string | null): Promise<ApiResult<{ environments?: Row[] }>> =>
+  call(`${REL}/environments`, { tenantId: t });
+export const getGovReleases = (t?: string | null): Promise<ApiResult<{ releases?: Row[] }>> =>
+  call(`${REL}`, { tenantId: t });
+
 // --- M13 Case management (Legal workspace) — canonical m13-case engine, reused (no second case engine). Every
 // mutation is permission-gated + audited + carries expectedVersion where required; lifecycle is named POST
 // actions (open/triage/assign/reassign/resolve/close/reopen/archive/escalate) — there is NO hard delete. Party

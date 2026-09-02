@@ -13249,6 +13249,270 @@ function DevSubscriptions({
   );
 }
 
+// ---------- M37 Release Governance (read-only) ----------
+// A READ-ONLY governance view over the canonical m37-govrelease control plane. It SHOWS recorded release / QA /
+// approval evidence and performs NO release, approval, rollback, or GO/NO-GO decision — those stay governed in m37
+// (its own maker-checker/SoD + QA gates) and m42 (the certification verdict), enforced server-side. It introduces
+// no M22 approval semantics and no M42 verdict. Runtime status is HONEST per artifact kind.
+const RELEASE_READ_PERMS = ['govrelease.artifact.read', 'govrelease.release.read'];
+type ReleaseArea = 'artifacts' | 'environments' | 'releases';
+
+/** Honest, kind-based release capability (repository truth): only `internal` is intrinsically releasable today;
+ * connector/marketplace depend on an upstream published record; the rest have no canonical adapter and fail closed. */
+function releaseCapability(kind: string): { tone: 'ok' | 'warn' | 'bad'; label: string; title: string } {
+  if (kind === 'internal')
+    return {
+      tone: 'ok',
+      label: '✓ Releasable',
+      title: 'Internal artifact — intrinsically releasable today.',
+    };
+  if (kind === 'connector')
+    return {
+      tone: 'warn',
+      label: '◔ Conditional',
+      title: 'Releasable only when the upstream m33 connector is in a published state.',
+    };
+  if (kind === 'marketplace')
+    return {
+      tone: 'warn',
+      label: '◔ Conditional',
+      title: 'Releasable only when the upstream m34 marketplace listing is published.',
+    };
+  return {
+    tone: 'bad',
+    label: '✕ Runtime unavailable',
+    title: 'No canonical adapter wired — release fails closed (not production-enabled).',
+  };
+}
+const relStatePill = (s: string): JSX.Element => {
+  const v = s.toLowerCase();
+  const cls =
+    v === 'released'
+      ? 'ok'
+      : v === 'rejected' || v === 'rolled_back'
+        ? 'bad'
+        : v === 'qa_passed'
+          ? 'info'
+          : 'warn';
+  return <span className={`pill ${cls}`}>{s || '—'}</span>;
+};
+
+function ReleaseGovernance({
+  tenant,
+  perms,
+  area,
+}: {
+  tenant: string | null;
+  perms: Set<string>;
+  area: ReleaseArea;
+}): JSX.Element {
+  const canArtifact = perms.has('govrelease.artifact.read');
+  const canRelease = perms.has('govrelease.release.read');
+  const artifacts = useRows(
+    () =>
+      canArtifact
+        ? api.getGovArtifacts(tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canArtifact],
+  );
+  const environments = useRows(
+    () =>
+      canArtifact && (area === 'environments' || area === 'releases')
+        ? api.getGovEnvironments(tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canArtifact, area],
+  );
+  const releases = useRows(
+    () =>
+      canRelease && area === 'releases'
+        ? api.getGovReleases(tenant)
+        : Promise.resolve({ ok: true, data: [] } as api.ApiResult<unknown>),
+    [tenant, canRelease, area],
+  );
+  const title = area === 'artifacts' ? 'Artifacts' : area === 'environments' ? 'Environments' : 'Releases';
+  const intro = (
+    <p className="page-sub">
+      Read-only governance view over the canonical <code>m37-govrelease</code> control plane · synthetic
+      staging data. RLS + RBAC enforced <strong>server-side</strong>. This surface shows recorded release / QA
+      / approval evidence — it performs <strong>no</strong> release, approval, rollback or GO/NO-GO decision
+      (those stay governed in m37 and m42, server-side). Runtime status is honest: <strong>internal</strong>{' '}
+      artifacts are releasable; <strong>connector/marketplace</strong> only when their upstream is published;{' '}
+      <strong>devportal/webhook/eventstream</strong> fail closed.
+    </p>
+  );
+  const artLabel = (id: string): string => {
+    const a = artifacts.rows.find((x) => pick(x, 'id') === id);
+    return a ? pick(a, 'name') || pick(a, 'artifactKey') : id.slice(0, 8) + '…';
+  };
+  const envLabel = (id: string): string => {
+    const e = environments.rows.find((x) => pick(x, 'id') === id);
+    return e ? pick(e, 'envKey') : id.slice(0, 8) + '…';
+  };
+
+  if (area !== 'releases' && !canArtifact) {
+    return (
+      <>
+        <h1 className="page-title">Release Governance · {title}</h1>
+        <div className="card">
+          <div className="empty">
+            Viewing release artifacts/environments needs <code>govrelease.artifact.read</code>. Your role does
+            not hold it — the server denies the read.
+          </div>
+        </div>
+      </>
+    );
+  }
+  if (area === 'releases' && !canRelease) {
+    return (
+      <>
+        <h1 className="page-title">Release Governance · Releases</h1>
+        <div className="card">
+          <div className="empty">
+            Viewing releases needs <code>govrelease.release.read</code>. Your role does not hold it — the
+            server denies the read.
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h1 className="page-title">Release Governance · {title}</h1>
+      {intro}
+      {area === 'artifacts' ? (
+        <div className="card">
+          <header>
+            <h3>Integration artifacts</h3>
+            <span className="demo-note">SYNTHETIC</span>
+          </header>
+          <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>
+            An artifact is an opaque reference to an owning module (m33/m34/m35/m36) or an internal build. The
+            release-capability badge is the honest, kind-based runtime status — this view executes nothing.
+          </p>
+          {artifacts.loading ? (
+            <div className="loading">Loading…</div>
+          ) : artifacts.error ? (
+            <div className="empty">Could not load ({artifacts.error}).</div>
+          ) : artifacts.rows.length === 0 ? (
+            <div className="empty">No artifacts.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Artifact</th>
+                  <th>Kind</th>
+                  <th>Status</th>
+                  <th>Release capability</th>
+                </tr>
+              </thead>
+              <tbody>
+                {artifacts.rows.map((a, i) => {
+                  const cap = releaseCapability(pick(a, 'artifactKind'));
+                  return (
+                    <tr key={pick(a, 'id') || i}>
+                      <td>
+                        {pick(a, 'name') || pick(a, 'artifactKey')}
+                        <div className="muted" style={{ fontSize: 11 }}>
+                          {pick(a, 'artifactKey')} · {pick(a, 'artifactRef')}
+                        </div>
+                      </td>
+                      <td>{pick(a, 'artifactKind')}</td>
+                      <td>{statusPill(pick(a, 'status'))}</td>
+                      <td>
+                        <span className={`pill ${cap.tone}`} title={cap.title}>
+                          {cap.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ) : area === 'environments' ? (
+        <div className="card">
+          <header>
+            <h3>Target environments</h3>
+            <span className="demo-note">SYNTHETIC</span>
+          </header>
+          {environments.loading ? (
+            <div className="loading">Loading…</div>
+          ) : environments.rows.length === 0 ? (
+            <div className="empty">No environments.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Environment</th>
+                  <th>Tier</th>
+                  <th>Requires approval</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {environments.rows.map((e, i) => (
+                  <tr key={pick(e, 'id') || i}>
+                    <td>{pick(e, 'envKey')}</td>
+                    <td className="muted">{pick(e, 'tier')}</td>
+                    <td>{pick(e, 'requiresApproval') === 'true' ? 'yes' : 'no'}</td>
+                    <td>{statusPill(pick(e, 'status'))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ) : (
+        <div className="card">
+          <header>
+            <h3>Releases</h3>
+            <span className="demo-note">SYNTHETIC</span>
+          </header>
+          <p className="muted" style={{ marginTop: 0, fontSize: 12 }}>
+            Each row is a governed release record and its current state + QA outcome (backend truth). There
+            are no request / approve / rollback controls here — release promotion is a controlled,
+            server-governed action.
+          </p>
+          {releases.loading ? (
+            <div className="loading">Loading…</div>
+          ) : releases.rows.length === 0 ? (
+            <div className="empty">No releases.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Release</th>
+                  <th>Artifact</th>
+                  <th>Environment</th>
+                  <th>Version</th>
+                  <th>State</th>
+                  <th>QA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {releases.rows.map((r, i) => (
+                  <tr key={pick(r, 'id') || i}>
+                    <td>{pick(r, 'releaseKey')}</td>
+                    <td>{artLabel(pick(r, 'artifactId'))}</td>
+                    <td className="muted">{envLabel(pick(r, 'environmentId'))}</td>
+                    <td className="muted">
+                      {pick(r, 'fromVersion') || '—'} → {pick(r, 'toVersion')}
+                    </td>
+                    <td>{relStatePill(pick(r, 'state'))}</td>
+                    <td>{pick(r, 'qaPassed') === 'true' ? '✓ passed' : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 const NAV = [
   { id: 'dashboard', label: 'Dashboard', icon: '▚', group: 'Overview' },
   { id: 'notifications', label: 'Notifications', icon: '🔔', group: 'Notifications' },
@@ -13278,6 +13542,9 @@ const NAV = [
   { id: 'dev-apps', label: 'Applications', icon: '❏', group: 'Developer' },
   { id: 'dev-products', label: 'API Products', icon: '⧉', group: 'Developer' },
   { id: 'dev-subscriptions', label: 'Subscriptions', icon: '⇄', group: 'Developer' },
+  { id: 'release-artifacts', label: 'Artifacts', icon: '📦', group: 'Release Governance' },
+  { id: 'release-environments', label: 'Environments', icon: '🎯', group: 'Release Governance' },
+  { id: 'release-releases', label: 'Releases', icon: '🚦', group: 'Release Governance' },
   { id: 'admin-users', label: 'Users & Access', icon: '👥', group: 'Administration' },
   { id: 'admin-roles', label: 'Roles & Permissions', icon: '🛡', group: 'Administration' },
   { id: 'admin-assignments', label: 'Access Assignments', icon: '🔑', group: 'Administration' },
@@ -13516,6 +13783,9 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
     // any devportal read (app or product). A developer holding either sees the group; actions inside stay
     // server-governed (403 on an unheld permission). Not entitlement-gated.
     if (g === 'Developer') return DEV_READ_PERMS.some((p) => perms.has(p));
+    // Release Governance (m37) is a platform release/change-governance capability — RBAC-gated on any govrelease
+    // read (artifact or release). Read-only surface; not entitlement-gated. Actions stay server-governed.
+    if (g === 'Release Governance') return RELEASE_READ_PERMS.some((p) => perms.has(p));
     // Approvals is RBAC-gated (a platform capability, not a commercial vertical): visible to anyone who may
     // read approval requests (makers to track their own, checkers to decide). Not entitlement-gated.
     if (g === 'Approvals') return perms.has('approvals.request.read');
@@ -13617,6 +13887,13 @@ function Shell({ session, onOut }: { session: Session; onOut: () => void }): JSX
         {route === 'dev-subscriptions' && (
           <DevSubscriptions tenant={tenant} perms={perms} actorId={actorId} />
         )}
+        {route === 'release-artifacts' && (
+          <ReleaseGovernance tenant={tenant} perms={perms} area="artifacts" />
+        )}
+        {route === 'release-environments' && (
+          <ReleaseGovernance tenant={tenant} perms={perms} area="environments" />
+        )}
+        {route === 'release-releases' && <ReleaseGovernance tenant={tenant} perms={perms} area="releases" />}
         {route === 'admin-users' && <UsersAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-roles' && <RolesAdmin tenant={tenant} perms={perms} />}
         {route === 'admin-assignments' && <AccessAdmin tenant={tenant} perms={perms} />}
