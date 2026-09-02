@@ -54,7 +54,7 @@ export default defineSuite('api-releases-webscan', (t) => {
   const comp = slice(appSrc, /function ReleaseGovernance\(/, /\nconst NAV = \[/);
   t.ok(comp.length > 0, 'the ReleaseGovernance component is present');
   // Only invocations `api.fn(` — not type references like `api.ApiResult<…>`.
-  const apiCalls = [...comp.matchAll(/api\.([A-Za-z0-9_]+)\s*\(/g)].map((m) => m[1]);
+  const apiCalls = [...comp.matchAll(/api\.([A-Za-z0-9_]+)\s*\(/g)].map((m) => m[1] ?? '');
   const allowed = new Set(['getGovArtifacts', 'getGovEnvironments', 'getGovReleases']);
   const disallowed = [...new Set(apiCalls)].filter((c) => !allowed.has(c));
   t.equal(
