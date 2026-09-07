@@ -49,7 +49,7 @@
 - **Security updates applied** on the Contabo host: pending security packages **5 → 0**; services stayed healthy (api 200). `reboot-required=yes` → a reboot to activate kernel patches is a **commissioning-window** action (not done mid-session).
 - **Restart policy hardened**: staging containers were `restart: no` (would NOT survive the pending reboot). Applied `--restart=unless-stopped` **live** to both containers and fixed `deploy/staging/docker-compose.yml` (`unless-stopped` + bounded json-file logging).
 - **Verified OK (unchanged):** ufw active (only :22 public); api+db bound `127.0.0.1` only; PG loopback-only; no privileged containers; api runs as non-root `node`; docker daemon local-socket only (no TCP); `.env.staging` perms `600`; time synchronized; log rotation active.
-- **Not changed (documented commissioning items, lockout/disruption risk):** SSH `PasswordAuthentication`/`PermitRootLogin` → key-only (key auth verified working; change belongs in the governed commissioning window with assured console rollback); the reboot to activate kernel updates.
+- **Not changed (documented commissioning items, lockout/disruption risk):** ~~SSH `PasswordAuthentication`/`PermitRootLogin` → key-only~~ **(now EXECUTED + verified on the recovered staging host `169.58.194.151`, 2026-09-07 — see `STAGE_7_B11_SSH_LOCKDOWN_CERTIFICATION.md`: root SSH denied, password auth denied, deploy key + sudo retained, root password locked)**; the reboot to activate kernel updates.
 
 ## 3. Human actions possible NOW (no purchase, no external provider)
 
