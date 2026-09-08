@@ -1,0 +1,123 @@
+# Module CRUD / Lifecycle Matrix
+
+> End-to-end functional matrix for every web-surfaced module. Built from: (a) a **clean local DB integration
+> run** — 84 migrations applied, `db lane: 98 specs, 3043 assertions passed, 0 failed` — proving backend CRUD +
+> RLS + least-privilege + maker-checker + audit; (b) the smoke lane (51 suites, 8080 assertions, 0 failed);
+> (c) a full source trace of `apps/web/src/{app.tsx,api.ts}` against `apps/api/src/**/*.controller.ts`.
+> Companion narrative: `MODULE_FUNCTIONAL_COMPLETION_AUDIT.md`. Verdicts here are **code + DB-proven**; live
+> browser acceptance status is tracked separately (see the audit's "Environmental status").
+
+**Status legend:** WORKING (UI wired → mutation → DB, permission-gated) · PARTIAL (some lifecycle ops surfaced,
+others not) · MISSING (backend exists, no UI) · MISSING* (backend **and** `api.ts` client exist, only `app.tsx`
+wiring absent — smallest possible gap) · READ-ONLY (intentional by policy) · INFRA (intentionally unavailable
+pending infra) · N/A.
+
+**Platform invariant (verified):** there is **no `@Delete` route in any controller**. Teardown is modelled as
+archive / close / withdraw / retire / revoke / destroy / tombstone. This satisfies the Phase-3 retention rules by
+construction (no unrestricted hard delete anywhere; financial/legal records preserve history).
+
+---
+
+## A. Backend proof (DB integration lane, local PG16-equivalent PG15.2 throwaway)
+
+| Proof | Result |
+|---|---|
+| Migrations applied | 84 / 84, 0 errors |
+| DB integration specs | **98 specs, 3043 assertions, 0 failed** |
+| Tenant isolation / RLS (every module) | PASS (cross-tenant read → 0 rows; cross-tenant id → 404) |
+| Least-privilege grants | PASS (app role holds no DELETE; history tables no UPDATE/DELETE — negative assertions) |
+| Maker-checker / SoD | PASS (approver ≠ requester enforced; DB CHECK) |
+| Audit hash-chain | PASS (`gapfree=true`) |
+| Smoke (pure) lane | 51 suites, 8080 assertions, 0 failed |
+
+*Note on method:* the app must connect as a **non-superuser** role for RLS to apply; running with
+`DATABASE_APP_ROLE=finapp_app` (so the app issues `SET LOCAL ROLE`) is required — a superuser connection bypasses
+RLS. An initial local run without that env produced 15 false "cross-tenant" failures; with it, 0 failures. This is
+an environment-config point, not a product defect (RLS policies are `FORCE` + correct predicate on every table).
+
+---
+
+## B. WEB-surfaced business modules — lifecycle matrix
+
+Columns: Create · View · Edit · Delete/Archive/Close · Submit/Approve · Activity/Doc · then API / DB / RBAC / RLS /
+Audit (all proven at backend per §A) · Browser proof · Status.
+
+| Module → Entity | Create | View | Edit | Del/Arch/Close | Submit/Approve | Activity/Sub | API | DB | RBAC | RLS | Audit | Browser | Status |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| **m02-identity** Identity | WORKING | WORKING | **MISSING\*** (PATCH `updateIdentity` unwired) | deactivate/suspend/close WORKING (no hard-delete=policy) | N/A | accounts/memberships WORKING | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** (edit form) |
+| **m02-rbac** Role | WORKING | WORKING | PARTIAL (perms WORKING; attr PATCH unwired) | suspend/retire WORKING (no delete=policy) | N/A | assignment grant/revoke WORKING | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** (attr edit) |
+| **m08-notify** Inbox | N/A (system) | WORKING | N/A | READ-ONLY | mark-read WORKING | preferences WORKING | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** |
+| m08 Template/Escalation authoring | MISSING | WORKING (tmpl) | MISSING | MISSING | MISSING | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (admin) |
+| **m09-docs** Document | **MISSING\*** (`createDocument` unwired) | WORKING | classification WORKING; metadata/withdraw MISSING | archive WORKING | — | version/hold/disposition WORKING (SoD) | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** (create) |
+| m09 byte upload/download | INFRA | INFRA | — | — | — | — | ✓backend | — | ✓ | ✓ | ✓ | n/a | **INFRA** (no object store) |
+| **m12-feedback** Record | WORKING | WORKING | via actions | close/reopen WORKING (no delete=policy) | resolve→approve WORKING (SoD) | add-activity **MISSING\*** | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** (activity add) |
+| m12 Setup (questionnaire/SLA/category/source) | WORKING | WORKING | upsert WORKING | lifecycle WORKING | N/A (single-perm, no SoD—by design) | — | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** |
+| **m13-case** Case | WORKING | WORKING | via actions | close/archive/reopen WORKING | open/resolve/escalate WORKING | party/activity WORKING | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** |
+| m13 triage / decisions / settlements / tasks / investigation | triage **MISSING\***; others MISSING | — | — | — | MISSING | MISSING | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (sub-domains) |
+| **m14-legal** Matter | WORKING | WORKING | via actions | close/archive/reopen WORKING | open/resolve/escalate WORKING; settlement propose→approve WORKING (SoD) | positions/opinions/counsel/activity WORKING | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** |
+| m14 court-events / pleadings / costs / appeal / parties | MISSING | — | — | — | MISSING | parties MISSING | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (sub-domains) |
+| **m16-litigation** Proceeding | WORKING | WORKING | via actions | close/archive/reopen WORKING | conclude/escalate WORKING; filing submit→review→approve→file WORKING (SoD) | filings WORKING | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** |
+| m16 witnesses / exhibits / orders / bundles / hearings-add | MISSING | hearings/service READ | — | — | MISSING | MISSING | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (sub-domains) |
+| **m17-recovery** Recovery case | **MISSING\*** (create no UI) | WORKING | via actions | resolve/close/reopen/archive WORKING (no delete=policy) | arrangement propose→approve WORKING (SoD) | note WORKING; advance MISSING\* | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** (create/advance) |
+| m17 strategy / parties | MISSING | — | — | — | — | MISSING | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** |
+| **m18-legaldocs** Knowledge | WORKING | WORKING | via actions | withdraw WORKING (reason) | submit→review→approve→publish WORKING (SoD) | — | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** |
+| m18 Template | MISSING (create); withdraw **MISSING\*** | WORKING | — | withdraw MISSING\* | submit→approve→publish WORKING | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** |
+| m18 clauses / opinions / research / taxonomy | MISSING | — | — | — | MISSING | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (sub-domains) |
+| **m19-finance** Fiscal year | WORKING | WORKING | N/A | close/reopen WORKING | N/A | — | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** |
+| m19 Fiscal period | **MISSING** (create no api/UI) | WORKING | N/A | close/lock/reopen WORKING | N/A | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** (create) |
+| m19 GL account / Chart of Accounts | WORKING | WORKING | WORKING | activate/deactivate/archive WORKING | READ-ONLY(no SoD=policy) | history READ | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** |
+| m19 Accounting entity | **MISSING** (backend exists; UI references a control that doesn't exist — dead-end) | WORKING | MISSING | MISSING | N/A | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (dead-end) |
+| m19 catalog (cost-centre/dimension/tax/payment-term/fx; type/currency edit) | MISSING | partial | MISSING | MISSING | N/A | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (master-data) |
+| **m20-glrecon** Recon run | MISSING (create) | WORKING | execute/complete WORKING | reopen WORKING | N/A | — | ✓backend/partial | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** (create) |
+| m20 Match / Exception / GL import | manual-match MISSING; import-upload MISSING | WORKING | confirm/reject/resolve/waive/accept/reject WORKING | unmatch WORKING | — | assign MISSING | ✓partial | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** |
+| m20 Certification / reconciling-item / ruleset admin | MISSING | partial | MISSING | MISSING | certify/reject MISSING | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** |
+| **m21-journal** Journal draft | WORKING | WORKING | lines WORKING; header edit MISSING\* | withdraw WORKING | validate→submit→(M22)→authorize-post WORKING (SoD, no auto-post) | notes WORKING | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** |
+| m21 journal type/config/reason-codes | MISSING | — | MISSING | — | MISSING | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (config) |
+| **m22-approval** Approval request | via journal flow WORKING | WORKING | N/A | N/A | approve/reject/return/escalate WORKING (SoD) | — | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** |
+| m22 override/resubmit/cancel; delegations; policy admin | MISSING | partial | MISSING | MISSING | override MISSING | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (admin) |
+| **m28-copilot** Session/Query | WORKING | WORKING | N/A | N/A | READ-ONLY advisory (no execution=policy) | feedback WORKING; export **MISSING\*** | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** (advisory) |
+| m28 Config | WORKING | WORKING | — | — | publish WORKING | — | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** |
+| **m32-analytics** Governed query | N/A | WORKING | — | — | run-query WORKING | — | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** (read) |
+| m32 Dataset/Metric/Report authoring | MISSING | WORKING | MISSING | MISSING | validate/review/publish MISSING | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (authoring) |
+| m32 non-Feedback adapters | INFRA (pending m33) | — | — | — | — | — | ✓backend | — | ✓ | ✓ | ✓ | n/a | **INFRA** |
+| **m39-saas** Plan / Version / Subscription | WORKING (plan, version author, entitlement, quota) | WORKING | change-plan WORKING | suspend/cancel WORKING (no delete=policy) | publish WORKING (SoD); subscription activate/renew WORKING | usage/overrides/billing READ | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** (sub-create MISSING\*) |
+| m39 usage/overrides/billing writes | READ-ONLY (append-only/administered elsewhere=policy) | READ-ONLY | — | — | — | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **READ-ONLY** |
+| **m41-security** Secret/Key | WORKING (define) | WORKING (metadata/versions/reveals) | N/A (immutable) | revoke/destroy WORKING (SoD; no hard-delete) | activate/rotate WORKING; reveal-authorization WORKING (**never plaintext**) | — | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** |
+| m41 GRC control | WORKING (define) | WORKING | N/A (no update route=canonical) | N/A (no retire=canonical) | record-assessment WORKING (append-only) | — | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** |
+| m41 Privacy / DLP / Incident | READ-ONLY (UI); writes backend-only | READ-ONLY | — | — | — | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **READ-ONLY / PARTIAL** |
+
+---
+
+## C. FRAMEWORK-ONLY (no business UI by design — correct)
+
+kernel, contracts, m01-tenant (switcher only), m02-auth (login), m03-audit (append-only spine — **must never get
+edit/delete UI**), m04-admin, m05-hub, m06-workflow, m07-rules, m10-report (→m32), m11-ai (→m24-29), m15-recon
+(→m20), m15a-matching, m23-finance-integration, m24-ai-foundation, m25-operational-ai, m26-legal-ai,
+m27-finance-ai, m29-ai-governance, m30-platform, m31-studio, m33-integration, m34-marketplace, m35-devportal,
+m36-events, m37-govrelease, m38-automation, m40-resilience, m42-certification. **Audit Logs: append-only,
+permanently read-only — no edit/delete to be added, ever (Phase-3 rule 8).**
+
+---
+
+## D. Genuine launch-relevant WEB gaps (ranked; backend proven-present for all)
+
+**Tier-1 — MISSING\* (api.ts client already exists; pure `app.tsx` wiring; lowest risk, highest confidence):**
+1. m09 `createDocument` — user cannot create a document record from the UI.
+2. m12 `addFeedbackActivity` — cannot add an activity/comment to a feedback record.
+3. m13 `triageCase` — cannot triage a case.
+4. m17 `advanceRecovery` — cannot advance a recovery stage.
+5. m28 `exportCopilotQuery` — privileged export unwired.
+6. m18 `withdrawTemplate` — template withdraw unwired.
+7. m02-identity `updateIdentity` (PATCH) — no edit form.
+
+**Tier-2 — MISSING (need a small `api.ts` wrapper + UI; backend exists):**
+8. m19 **accounting-entity** create/lifecycle — a **dead-end** (UI text points to a non-existent control).
+9. m19 **fiscal-period** create.
+10. m17 **recovery case create**; m20 **recon-run create** / manual-match / GL-import upload.
+11. Legal sub-domains (m13 decisions/tasks; m14 court-events/pleadings; m16 witnesses/exhibits/orders/bundles;
+    m18 clauses/taxonomy) — collectively large; individually bounded.
+12. m32 analytics definition authoring; m08 template/escalation admin; m22 delegation/policy admin.
+
+**Intentionally READ-ONLY / not gaps:** audit spine, copilot advisory, DLP findings, privacy records, saas
+usage/billing evidence, analytics governed-query-only reads, all catalogs, no-hard-delete everywhere, m09 byte I/O
+(INFRA), m32 non-Feedback adapters (INFRA).
