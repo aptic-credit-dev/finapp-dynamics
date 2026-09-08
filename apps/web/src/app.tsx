@@ -3481,6 +3481,8 @@ function FeedbackDrawer({
   const [sentiment, setSentiment] = useState('negative');
   const [severity, setSeverity] = useState('medium');
   const [resText, setResText] = useState('');
+  const [actType, setActType] = useState('note');
+  const [actHead, setActHead] = useState('');
   useEffect(() => {
     let live = true;
     void api.getFeedbackRecord(recordId, tenant).then((r) => live && setF((r.data as api.Row) ?? null));
@@ -3737,6 +3739,40 @@ function FeedbackDrawer({
             ))}
             {acts.length === 0 && <li className="muted">No activities.</li>}
           </ul>
+          {can('feedback.activity.create') && !closed && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <select value={actType} onChange={(e) => setActType(e.target.value)}>
+                {['note', 'call', 'email', 'meeting', 'correspondence', 'task'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={actHead}
+                placeholder="Headline"
+                onChange={(e) => setActHead(e.target.value)}
+                style={{ flex: 1 }}
+                aria-label="Activity headline"
+              />
+              <button
+                className="btn"
+                disabled={actHead.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.addFeedbackActivity(
+                      recordId,
+                      { activityType: actType, headline: actHead.trim() },
+                      tenant,
+                    ),
+                    'Activity added.',
+                  ).then(() => setActHead(''))
+                }
+              >
+                Add
+              </button>
+            </div>
+          )}
 
           <h4 className="drawer-sub">Case management</h4>
           <div className="linkrow">
