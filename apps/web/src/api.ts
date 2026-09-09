@@ -598,8 +598,10 @@ export const advanceRecovery = (
   id: string,
   ev: number,
   toStatus: string,
+  reasonCode?: string,
   t?: string | null,
-): Promise<ApiResult<Row>> => rcBody(id, 'advance', { expectedVersion: ev, toStatus }, t);
+): Promise<ApiResult<Row>> =>
+  rcBody(id, 'advance', { expectedVersion: ev, toStatus, ...(reasonCode ? { reasonCode } : {}) }, t);
 export const resolveRecovery = (
   id: string,
   ev: number,

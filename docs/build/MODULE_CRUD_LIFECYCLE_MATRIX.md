@@ -101,14 +101,16 @@ permanently read-only — no edit/delete to be added, ever (Phase-3 rule 8).**
 
 ## D. Genuine launch-relevant WEB gaps (ranked; backend proven-present for all)
 
-**Tier-1 — MISSING\* (api.ts client already exists; pure `app.tsx` wiring; lowest risk, highest confidence):**
-1. m09 `createDocument` — user cannot create a document record from the UI.
-2. m12 `addFeedbackActivity` — cannot add an activity/comment to a feedback record.
-3. m13 `triageCase` — cannot triage a case.
-4. m17 `advanceRecovery` — cannot advance a recovery stage.
-5. m28 `exportCopilotQuery` — privileged export unwired.
-6. m18 `withdrawTemplate` — template withdraw unwired.
-7. m02-identity `updateIdentity` (PATCH) — no edit form.
+**Tier-1 — status:** m12 `addFeedbackActivity` merged (PR #179); the remaining six are now **WIRED** on
+`release/tier1-web-wiring-completion` (backend-proven; authenticated browser sign-off OPEN — see
+`TIER1_WEB_WIRING_COMPLETION_REPORT.md`):
+1. m09 `createDocument` — ✅ WIRED ("Create document" metadata form, `documents.document.create`).
+2. m12 `addFeedbackActivity` — ✅ MERGED.
+3. m13 `triageCase` — ✅ WIRED (triage control, `cases.case.triage`).
+4. m17 `advanceRecovery` — ✅ WIRED (ordered "Advance stage" + reason, `recovery.case.update`).
+5. m28 `exportCopilotQuery` — ✅ WIRED (privileged export, references-only, `ai.copilot.export`).
+6. m18 `withdrawTemplate` — ✅ WIRED (danger+reason withdraw, `legaldocs.template.manage`).
+7. m02-identity `updateIdentity` (PATCH) — ✅ WIRED (profile edit form, `identity.registry.edit`).
 
 **Tier-2 — MISSING (need a small `api.ts` wrapper + UI; backend exists):**
 8. m19 **accounting-entity** create/lifecycle — a **dead-end** (UI text points to a non-existent control).
