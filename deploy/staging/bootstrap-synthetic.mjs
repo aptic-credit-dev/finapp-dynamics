@@ -13,6 +13,12 @@
  * service and the DB/API integration lane; this seed provides the tenant + identity + role STRUCTURE only.
  */
 import pg from 'pg';
+import { randomUUID } from 'node:crypto';
+
+// Canonical Stage-7 "Synthetic Tenant 1" id, shared by every persona/demo/acceptance seed
+// (seed-personas.mjs, seed-*-demo.mjs, m*-accept.mjs). bootstrap MUST create stg_tenant_1 with THIS id,
+// otherwise those seeds fail with a tenant_memberships_tenant_fkey FK-ordering error.
+const CANONICAL_T1 = 'ac1fd32d-0929-4729-9b50-b57ec5b5286b';
 
 if (process.env.NODE_ENV === 'production') {
   console.error('refusing to run: NODE_ENV=production (staging-only synthetic bootstrap).');
@@ -45,10 +51,10 @@ try {
   const tenantCount = Number.isInteger(tenantCountRaw) && tenantCountRaw >= 2 ? tenantCountRaw : 2;
   for (let n = 1; n <= tenantCount; n += 1) {
     await q(
-      `INSERT INTO tenants (code, legal_name, tenant_type, status, activated_at)
-       VALUES ($1, $2, $3, 'active', now())
+      `INSERT INTO tenants (id, code, legal_name, tenant_type, status, activated_at)
+       VALUES ($1, $2, $3, $4, 'active', now())
        ON CONFLICT (code) DO NOTHING`,
-      [`stg_tenant_${n}`, `Stage-7 Synthetic Tenant ${n}`, tt],
+      [n === 1 ? CANONICAL_T1 : randomUUID(), `stg_tenant_${n}`, `Stage-7 Synthetic Tenant ${n}`, tt],
     );
   }
 

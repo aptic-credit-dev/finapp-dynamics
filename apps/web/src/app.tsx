@@ -412,12 +412,115 @@ function RunsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<st
     setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
     if (r.ok) setNonce((x) => x + 1);
   };
+  const accounts = useRows(() => api.getAccounts(tenant), [tenant]);
+  const [showRun, setShowRun] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [rcAcct, setRcAcct] = useState('');
+  const [rcStart, setRcStart] = useState('');
+  const [rcEnd, setRcEnd] = useState('');
+  const [rcOpen, setRcOpen] = useState('');
+  const [rcClose, setRcClose] = useState('');
+  const certs = useRows(
+    () =>
+      selectedRun
+        ? api.getRunCertifications(selectedRun, tenant)
+        : Promise.resolve({ ok: true, status: 200, data: [], error: null }),
+    [selectedRun, tenant, nonce],
+  );
+  const latestCert = certs.rows[0] ?? null;
+  const [ovrReason, setOvrReason] = useState('');
+  const candidates = useRows(
+    () =>
+      selectedRun
+        ? api.getRunCandidates(selectedRun, tenant)
+        : Promise.resolve({ ok: true, status: 200, data: { candidates: [] }, error: null }),
+    [selectedRun, tenant, nonce],
+  );
+  const [mmReason, setMmReason] = useState('');
+  const createRun = (): void => {
+    if (rcAcct === '') return;
+    setBusy(true);
+    void api
+      .createReconRun(
+        {
+          glAccountId: rcAcct,
+          ...(rcStart ? { periodStart: rcStart } : {}),
+          ...(rcEnd ? { periodEnd: rcEnd } : {}),
+          ...(toMinorUnits(rcOpen) !== null ? { openingBalanceMinor: toMinorUnits(rcOpen) as number } : {}),
+          ...(toMinorUnits(rcClose) !== null ? { closingBalanceMinor: toMinorUnits(rcClose) as number } : {}),
+        },
+        tenant,
+      )
+      .then((r) => {
+        report(r, 'Reconciliation run created (draft).');
+        if (r.ok) {
+          const newId = pick((r.data as api.Row) ?? {}, 'id');
+          setShowRun(false);
+          setRcStart('');
+          setRcEnd('');
+          setRcOpen('');
+          setRcClose('');
+          if (newId) setRunId(newId);
+        }
+        setBusy(false);
+      });
+  };
   return (
     <div className="card">
       <header>
         <h3>Reconciliation runs &amp; matches</h3>
         <span className="demo-note">SYNTHETIC</span>
       </header>
+      {can('gl_reconciliation.run.create') && (
+        <div style={{ padding: '0 16px 8px' }}>
+          {!showRun ? (
+            <button className="btn" onClick={() => setShowRun(true)}>
+              + New run
+            </button>
+          ) : (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={rcAcct} onChange={(e) => setRcAcct(e.target.value)} aria-label="Recon account">
+                <option value="">Reconciliation account…</option>
+                {accounts.rows.map((a, i) => (
+                  <option key={pick(a, 'id') || i} value={pick(a, 'id')}>
+                    {pick(a, 'accountName', 'glAccountRef', 'code') || pick(a, 'id')}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="date"
+                value={rcStart}
+                aria-label="Period start"
+                onChange={(e) => setRcStart(e.target.value)}
+              />
+              <input
+                type="date"
+                value={rcEnd}
+                aria-label="Period end"
+                onChange={(e) => setRcEnd(e.target.value)}
+              />
+              <input
+                value={rcOpen}
+                placeholder="Opening bal (opt)"
+                aria-label="Opening balance"
+                onChange={(e) => setRcOpen(e.target.value)}
+              />
+              <input
+                value={rcClose}
+                placeholder="Closing bal (opt)"
+                aria-label="Closing balance"
+                onChange={(e) => setRcClose(e.target.value)}
+              />
+              <button className="btn primary sm" disabled={busy || rcAcct === ''} onClick={createRun}>
+                {busy ? '…' : 'Create run'}
+              </button>
+              <button className="btn link sm" onClick={() => setShowRun(false)}>
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {runs.loading ? (
         <div className="loading">Loading runs…</div>
       ) : runs.rows.length === 0 ? (
@@ -473,6 +576,184 @@ function RunsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<st
                     .then((r) => report(r, 'Run reopened (audited).'))
                 }
               />
+            </div>
+          )}
+          {selectedRun && (can('gl_reconciliation.match.manual') || candidates.rows.length > 0) && (
+            <div style={{ padding: '0 16px 8px' }}>
+              <h4 className="drawer-sub">Manual match — candidates</h4>
+              {candidates.rows.length === 0 ? (
+                <div className="muted" style={{ fontSize: 12 }}>
+                  No unmatched candidate pairs for this run. (Execute the run to surface candidates.)
+                </div>
+              ) : (
+                <>
+                  <div className="run-picker" style={{ gap: 6 }}>
+                    <input
+                      value={mmReason}
+                      placeholder="Match reason (required)"
+                      aria-label="Manual match reason"
+                      style={{ flex: 1 }}
+                      onChange={(e) => setMmReason(e.target.value)}
+                    />
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>GL line</th>
+                        <th>Source line</th>
+                        <th className="num">Variance</th>
+                        <th className="num">Date Δ</th>
+                        <th>Band</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {candidates.rows.map((c, i) => {
+                        const gl = pick(c, 'glLineId');
+                        const src = pick(c, 'sourceLineId');
+                        const variance = pick(c, 'amountVarianceMinor');
+                        const exact = variance === '0' || variance === '0.00' || Number(variance) === 0;
+                        return (
+                          <tr key={pick(c, 'id') || i}>
+                            <td className="muted">{gl.slice(0, 8)}</td>
+                            <td className="muted">{src.slice(0, 8)}</td>
+                            <td className="num">{fmtMinor(c['amountVarianceMinor'])}</td>
+                            <td className="num">{pick(c, 'dateVarianceDays') || '0'}</td>
+                            <td className="muted">{pick(c, 'confidenceBand') || '—'}</td>
+                            <td>
+                              <button
+                                className="btn secondary sm"
+                                disabled={busy || !exact || mmReason.trim() === '' || gl === '' || src === ''}
+                                title={
+                                  exact
+                                    ? 'Confirm exact-variance manual match'
+                                    : 'Manual match requires exact zero variance (no tolerance)'
+                                }
+                                onClick={() => {
+                                  setBusy(true);
+                                  void api
+                                    .createManualMatch(
+                                      {
+                                        runId: selectedRun,
+                                        glLineIds: [gl],
+                                        sourceLineIds: [src],
+                                        reason: mmReason.trim(),
+                                      },
+                                      tenant,
+                                    )
+                                    .then((r) => {
+                                      report(r, 'Manual match recorded (exact, audited).');
+                                      if (r.ok) setMmReason('');
+                                      setBusy(false);
+                                    });
+                                }}
+                              >
+                                Match
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+                    Manual match must balance EXACTLY (zero variance — no tolerance); the server re-validates
+                    the balance and rejects an already-matched line. Split / many-to-many grouping is
+                    domain-supported but not yet surfaced here (needs run-scoped line selection) — bounded
+                    follow-up.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+          {selectedRun && /completed/.test(runStatus) && (
+            <div style={{ padding: '0 16px 8px' }}>
+              <h4 className="drawer-sub">Balance certification</h4>
+              <p className="muted" style={{ fontSize: 11, margin: '0 0 6px' }}>
+                Certification is a governed record with a privileged override — it is NOT approver≠maker
+                segregation of duties (real SoD sign-off is the M21/M22 journal path) and it posts nothing to
+                the core ledger.
+              </p>
+              {latestCert === null ? (
+                <ActionButton
+                  label="Draft certification"
+                  allowed={can('gl_reconciliation.certification.create')}
+                  onRun={() =>
+                    api
+                      .createCertification({ runId: selectedRun }, tenant)
+                      .then((r) => report(r, 'Certification drafted.'))
+                  }
+                />
+              ) : (
+                <div className="admin-actions">
+                  <span className="muted">Status: {statusPill(pick(latestCert, 'status'))}</span>
+                  {pick(latestCert, 'status').toLowerCase() === 'draft' && (
+                    <>
+                      <ActionButton
+                        label="Certify"
+                        allowed={can('gl_reconciliation.certification.create')}
+                        onRun={() =>
+                          api
+                            .certifyRun(
+                              pick(latestCert, 'id'),
+                              Number(latestCert['version'] ?? 1),
+                              {},
+                              tenant,
+                            )
+                            .then((r) => report(r, 'Balance certified (audited).'))
+                        }
+                      />
+                      {can('gl_reconciliation.certification.override') && (
+                        <span className="run-picker" style={{ gap: 6 }}>
+                          <input
+                            value={ovrReason}
+                            placeholder="Override reason"
+                            aria-label="Override reason"
+                            onChange={(e) => setOvrReason(e.target.value)}
+                          />
+                          <button
+                            className="btn danger sm"
+                            disabled={busy || ovrReason.trim() === ''}
+                            onClick={() => {
+                              setBusy(true);
+                              void api
+                                .certifyRun(
+                                  pick(latestCert, 'id'),
+                                  Number(latestCert['version'] ?? 1),
+                                  { override: true, overrideReason: ovrReason.trim() },
+                                  tenant,
+                                )
+                                .then((r) => {
+                                  report(r, 'Balance certified with override (audited).');
+                                  if (r.ok) setOvrReason('');
+                                  setBusy(false);
+                                });
+                            }}
+                          >
+                            Certify (override)
+                          </button>
+                        </span>
+                      )}
+                      <ActionButton
+                        label="Reject"
+                        danger
+                        needsReason
+                        allowed={can('gl_reconciliation.certification.create')}
+                        onRun={(reason) =>
+                          api
+                            .rejectCertification(
+                              pick(latestCert, 'id'),
+                              Number(latestCert['version'] ?? 1),
+                              reason ?? '',
+                              tenant,
+                            )
+                            .then((r) => report(r, 'Certification rejected (history preserved).'))
+                        }
+                      />
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {msg && (
@@ -545,6 +826,52 @@ function ImportsCard({ tenant, perms }: { tenant: string | null; perms: Set<stri
     setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
     if (r.ok) setNonce((x) => x + 1);
   };
+  const [showImp, setShowImp] = useState(false);
+  const [impAcct, setImpAcct] = useState('');
+  const [impFormat, setImpFormat] = useState('csv');
+  const [impRef, setImpRef] = useState('');
+  const [impBusy, setImpBusy] = useState(false);
+  const [impLines, setImpLines] = useState<
+    { txnDate: string; amount: string; direction: string; reference: string }[]
+  >([{ txnDate: '', amount: '', direction: 'debit', reference: '' }]);
+  const setImpLine = (i: number, patch: Partial<(typeof impLines)[number]>): void =>
+    setImpLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const validImpLines = impLines.filter((l) => l.txnDate !== '' && toMinorUnits(l.amount) !== null);
+  const submitImport = (): void => {
+    if (impAcct === '' || impRef.trim() === '' || validImpLines.length === 0) return;
+    setImpBusy(true);
+    void api
+      .createGlImport(
+        {
+          glAccountId: impAcct,
+          sourceFormat: impFormat,
+          fileHash: impRef.trim(),
+          lines: validImpLines.map((l) => ({
+            txnDate: l.txnDate,
+            amountMinor: toMinorUnits(l.amount) as number,
+            direction: l.direction,
+            ...(l.reference.trim() ? { reference: l.reference.trim() } : {}),
+          })),
+        },
+        tenant,
+      )
+      .then((r) => {
+        if (r.ok) {
+          const lc = (r.data as { lineCount?: number } | null)?.lineCount ?? validImpLines.length;
+          setMsg({
+            ok: true,
+            msg: `Import created — ${String(lc)} line(s) accepted; any rejected rows are recorded as import errors (view per import).`,
+          });
+          setShowImp(false);
+          setImpRef('');
+          setImpLines([{ txnDate: '', amount: '', direction: 'debit', reference: '' }]);
+          setNonce((x) => x + 1);
+        } else {
+          setMsg({ ok: false, msg: r.error ?? 'Import failed.' });
+        }
+        setImpBusy(false);
+      });
+  };
   useEffect(() => {
     let live = true;
     setRows(null);
@@ -577,6 +904,112 @@ function ImportsCard({ tenant, perms }: { tenant: string | null; perms: Set<stri
         <h3>GL / statement imports</h3>
         <span className="demo-note">SYNTHETIC</span>
       </header>
+      {can('gl_reconciliation.import.create') && (
+        <div style={{ padding: '0 16px 8px' }}>
+          {!showImp ? (
+            <button className="btn" onClick={() => setShowImp(true)}>
+              + Import GL (structured rows)
+            </button>
+          ) : (
+            <div className="stack" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <select
+                  value={impAcct}
+                  onChange={(e) => setImpAcct(e.target.value)}
+                  aria-label="Import account"
+                >
+                  <option value="">Reconciliation account…</option>
+                  {accounts.rows.map((a, i) => (
+                    <option key={pick(a, 'id', 'account_id') || i} value={pick(a, 'id', 'account_id')}>
+                      {pick(a, 'accountName', 'name', 'code') || pick(a, 'id', 'account_id')}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={impFormat}
+                  onChange={(e) => setImpFormat(e.target.value)}
+                  aria-label="Source format"
+                >
+                  {['csv', 'excel', 'pdf', 'api', 'manual'].map((x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={impRef}
+                  placeholder="Batch reference / dedup key (required)"
+                  aria-label="Batch reference"
+                  onChange={(e) => setImpRef(e.target.value)}
+                />
+              </div>
+              {impLines.map((l, i) => (
+                <div key={i} className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  <input
+                    type="date"
+                    value={l.txnDate}
+                    aria-label={`Line ${String(i + 1)} date`}
+                    onChange={(e) => setImpLine(i, { txnDate: e.target.value })}
+                  />
+                  <input
+                    value={l.amount}
+                    placeholder="Amount (e.g. 100.00)"
+                    aria-label={`Line ${String(i + 1)} amount`}
+                    onChange={(e) => setImpLine(i, { amount: e.target.value })}
+                  />
+                  <select
+                    value={l.direction}
+                    aria-label={`Line ${String(i + 1)} direction`}
+                    onChange={(e) => setImpLine(i, { direction: e.target.value })}
+                  >
+                    <option value="debit">debit</option>
+                    <option value="credit">credit</option>
+                  </select>
+                  <input
+                    value={l.reference}
+                    placeholder="Reference (opt)"
+                    aria-label={`Line ${String(i + 1)} reference`}
+                    onChange={(e) => setImpLine(i, { reference: e.target.value })}
+                  />
+                  {l.amount.trim() !== '' && toMinorUnits(l.amount) === null && (
+                    <span className="error" style={{ fontSize: 12 }}>
+                      invalid amount
+                    </span>
+                  )}
+                </div>
+              ))}
+              <div className="run-picker" style={{ gap: 6 }}>
+                <button
+                  className="btn secondary sm"
+                  onClick={() =>
+                    setImpLines((ls) => [
+                      ...ls,
+                      { txnDate: '', amount: '', direction: 'debit', reference: '' },
+                    ])
+                  }
+                >
+                  + Add row
+                </button>
+                <button
+                  className="btn primary sm"
+                  disabled={impBusy || impAcct === '' || impRef.trim() === '' || validImpLines.length === 0}
+                  onClick={submitImport}
+                >
+                  {impBusy ? '…' : `Import ${String(validImpLines.length)} row(s)`}
+                </button>
+                <button className="btn link sm" onClick={() => setShowImp(false)}>
+                  Cancel
+                </button>
+              </div>
+              <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+                Structured row ingestion only — no file/object-store upload on staging. Amounts are exact
+                minor units; rows with a bad direction/amount are rejected server-side and recorded as import
+                errors. Re-importing the same batch reference is idempotent.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       {msg && (
         <div className={msg.ok ? 'ok-note' : 'error'} style={{ margin: '0 16px 8px' }}>
           {msg.msg}
@@ -1758,11 +2191,27 @@ function RecoveryCases({
   actorId: string;
 }): JSX.Element {
   const [statusFilter, setStatusFilter] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
   const cases = useRows(
     () => api.getRecoveries(tenant, statusFilter ? { status: statusFilter } : undefined),
-    [tenant, statusFilter],
+    [tenant, statusFilter, reloadKey],
   );
   const [openId, setOpenId] = useState<string | null>(null);
+  const can = (p: string): boolean => perms.has(p);
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createMsg, setCreateMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [ncType, setNcType] = useState('');
+  const [ncTitle, setNcTitle] = useState('');
+  const [ncPriority, setNcPriority] = useState('normal');
+  const [ncRisk, setNcRisk] = useState('');
+  const [ncConf, setNcConf] = useState('confidential');
+  const [ncCurrency, setNcCurrency] = useState('KES');
+  const [ncAmount, setNcAmount] = useState('');
+  const [ncSummary, setNcSummary] = useState('');
+  const knownTypes = Array.from(
+    new Set(cases.rows.map((c) => pick(c, 'recoveryTypeCode')).filter((x) => x !== '')),
+  );
   const STAGES = [
     ['', 'All statuses'],
     ['referred', 'Referred (early arrears)'],
@@ -1796,6 +2245,143 @@ function RecoveryCases({
             ))}
           </select>
         </div>
+        {can('recovery.case.create') && (
+          <div className="card" style={{ margin: '8px 0' }}>
+            {!showCreate ? (
+              <button className="btn" onClick={() => setShowCreate(true)}>
+                + New recovery case
+              </button>
+            ) : (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  value={ncType}
+                  placeholder="Recovery type code (active, required)"
+                  aria-label="Recovery type code"
+                  list="recovery-type-codes"
+                  onChange={(e) => setNcType(e.target.value)}
+                />
+                <datalist id="recovery-type-codes">
+                  {knownTypes.map((tc) => (
+                    <option key={tc} value={tc} />
+                  ))}
+                </datalist>
+                <input
+                  value={ncTitle}
+                  placeholder="Title (required)"
+                  aria-label="Title"
+                  onChange={(e) => setNcTitle(e.target.value)}
+                />
+                <select
+                  value={ncPriority}
+                  onChange={(e) => setNcPriority(e.target.value)}
+                  aria-label="Priority"
+                >
+                  {['low', 'normal', 'high', 'urgent'].map((x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ))}
+                </select>
+                <select value={ncRisk} onChange={(e) => setNcRisk(e.target.value)} aria-label="Risk">
+                  <option value="">risk…</option>
+                  {['low', 'medium', 'high', 'critical'].map((x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={ncConf}
+                  onChange={(e) => setNcConf(e.target.value)}
+                  aria-label="Confidentiality"
+                >
+                  {['standard', 'confidential', 'restricted', 'privileged'].map((x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={ncCurrency}
+                  placeholder="Currency"
+                  aria-label="Currency"
+                  style={{ width: 70 }}
+                  onChange={(e) => setNcCurrency(e.target.value.toUpperCase())}
+                />
+                <input
+                  value={ncAmount}
+                  placeholder="Principal (e.g. 10000.00)"
+                  aria-label="Principal amount"
+                  onChange={(e) => setNcAmount(e.target.value)}
+                />
+                <input
+                  value={ncSummary}
+                  placeholder="Summary (optional)"
+                  aria-label="Summary"
+                  onChange={(e) => setNcSummary(e.target.value)}
+                />
+                <button
+                  className="btn primary sm"
+                  disabled={
+                    creating ||
+                    ncType.trim() === '' ||
+                    ncTitle.trim() === '' ||
+                    (ncAmount.trim() !== '' && toMinorUnits(ncAmount) === null)
+                  }
+                  onClick={() => {
+                    setCreating(true);
+                    setCreateMsg(null);
+                    const principal =
+                      ncAmount.trim() === '' ? undefined : (toMinorUnits(ncAmount) ?? undefined);
+                    void api
+                      .createRecovery(
+                        {
+                          recoveryTypeCode: ncType.trim(),
+                          title: ncTitle.trim(),
+                          priority: ncPriority,
+                          confidentiality: ncConf,
+                          currency: ncCurrency.trim() || 'KES',
+                          ...(ncRisk ? { recoveryRisk: ncRisk } : {}),
+                          ...(principal !== undefined ? { principalAmountMinor: principal } : {}),
+                          ...(ncSummary.trim() ? { summary: ncSummary.trim() } : {}),
+                        },
+                        tenant,
+                      )
+                      .then((r) => {
+                        setCreateMsg(
+                          r.ok
+                            ? { ok: true, msg: 'Recovery case created (draft, audited).' }
+                            : { ok: false, msg: r.error ?? 'Create failed.' },
+                        );
+                        if (r.ok) {
+                          const newId = pick((r.data as api.Row) ?? {}, 'id');
+                          setNcType('');
+                          setNcTitle('');
+                          setNcAmount('');
+                          setNcSummary('');
+                          setNcRisk('');
+                          setShowCreate(false);
+                          setReloadKey((x) => x + 1);
+                          if (newId) setOpenId(newId);
+                        }
+                        setCreating(false);
+                      });
+                  }}
+                >
+                  {creating ? '…' : 'Create'}
+                </button>
+                <button className="btn link sm" onClick={() => setShowCreate(false)}>
+                  Cancel
+                </button>
+              </div>
+            )}
+            {createMsg && <div className={createMsg.ok ? 'ok-note' : 'error'}>{createMsg.msg}</div>}
+            <p className="muted" style={{ fontSize: 11, margin: '6px 0 0' }}>
+              Creates the case as a draft. Debtor parties, owner assignment and deadlines are added from the
+              case drawer after creation. Amounts are exact minor units; no hard delete.
+            </p>
+          </div>
+        )}
         {cases.loading ? (
           <div className="loading">Loading cases…</div>
         ) : cases.error ? (
@@ -1963,6 +2549,17 @@ function PeriodsPanel({
     if (r.ok) refresh();
   };
   const rows = periods.rows;
+  // Client-side validation guards. The m19 domain enforces only period_number uniqueness + start<=end + FY-open;
+  // it has NO overlap or within-FY-containment guard (documented backend gap), so these are UI safeguards only.
+  const datesOrdered = start !== '' && end !== '' && start <= end;
+  const numDup =
+    /^\d+$/.test(num.trim()) && rows.some((p) => Number(pick(p, 'periodNumber')) === Number(num));
+  const overlaps =
+    start !== '' &&
+    end !== '' &&
+    rows.some((p) => start <= pick(p, 'endDate') && pick(p, 'startDate') <= end);
+  const periodInvalid =
+    !/^\d+$/.test(num.trim()) || start === '' || end === '' || !datesOrdered || numDup || overlaps;
   return (
     <div className="card">
       <header>
@@ -1980,9 +2577,24 @@ function PeriodsPanel({
           />
           <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
           <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+          {start !== '' && end !== '' && !datesOrdered && (
+            <span className="error" style={{ fontSize: 12 }}>
+              End date must be on/after start.
+            </span>
+          )}
+          {numDup && (
+            <span className="error" style={{ fontSize: 12 }}>
+              Period # already exists.
+            </span>
+          )}
+          {overlaps && datesOrdered && (
+            <span className="error" style={{ fontSize: 12 }}>
+              Dates overlap an existing period.
+            </span>
+          )}
           <button
             className="btn"
-            disabled={!/^\d+$/.test(num.trim()) || start === '' || end === ''}
+            disabled={periodInvalid}
             onClick={() =>
               void run(
                 api.openPeriod(
@@ -2444,7 +3056,7 @@ function FinanceConfigWorkspace({
   perms: Set<string>;
 }): JSX.Element {
   const can = (p: string): boolean => perms.has(p);
-  const [tab, setTab] = useState<'accounts' | 'types' | 'currencies'>('accounts');
+  const [tab, setTab] = useState<'accounts' | 'entities' | 'types' | 'currencies'>('accounts');
   const [nonce, setNonce] = useState(0);
   const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   const refresh = (): void => setNonce((x) => x + 1);
@@ -2590,8 +3202,78 @@ function FinanceConfigWorkspace({
     }
   };
 
+  // ---- Accounting entities admin (create / edit / activate / deactivate) — single-permission, no maker-checker,
+  // code unique per tenant + immutable, no hard delete. NOTE: the domain has NO server-side dependency guard on
+  // deactivate (documented gap) — the UI adds an explicit confirm but cannot itself prove dependency safety. ----
+  const allEntities = useRows(() => api.getFinanceEntities(tenant), [tenant, nonce]);
+  const [ecCode, setEcCode] = useState('');
+  const [ecName, setEcName] = useState('');
+  const [ecCurrency, setEcCurrency] = useState('');
+  const [ecDesc, setEcDesc] = useState('');
+  const [editEntId, setEditEntId] = useState<string | null>(null);
+  const [eeName, setEeName] = useState('');
+  const [eeCurrency, setEeCurrency] = useState('');
+  const submitEntity = async (): Promise<void> => {
+    if (ecCode.trim() === '' || ecName.trim() === '') {
+      setMsg({ ok: false, msg: 'Entity code and name are required.' });
+      return;
+    }
+    if (ecCurrency.trim() !== '' && !/^[A-Z]{3}$/.test(ecCurrency.trim().toUpperCase())) {
+      setMsg({ ok: false, msg: 'Functional currency must be a 3-letter code.' });
+      return;
+    }
+    const r = await api.createFinanceEntity(
+      {
+        code: ecCode.trim(),
+        name: ecName.trim(),
+        ...(ecCurrency.trim() ? { functionalCurrencyCode: ecCurrency.trim().toUpperCase() } : {}),
+        ...(ecDesc.trim() ? { description: ecDesc.trim() } : {}),
+      },
+      tenant,
+    );
+    if (r.ok) {
+      setMsg({ ok: true, msg: `Entity ${ecCode.trim()} created.` });
+      setEcCode('');
+      setEcName('');
+      setEcCurrency('');
+      setEcDesc('');
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not create entity.' });
+      if (r.status === 409) refresh();
+    }
+  };
+  const saveEntityEdit = async (id: string, ev: number): Promise<void> => {
+    if (eeName.trim() === '') {
+      setMsg({ ok: false, msg: 'Entity name is required.' });
+      return;
+    }
+    if (eeCurrency.trim() !== '' && !/^[A-Z]{3}$/.test(eeCurrency.trim().toUpperCase())) {
+      setMsg({ ok: false, msg: 'Functional currency must be a 3-letter code.' });
+      return;
+    }
+    const r = await api.updateFinanceEntity(
+      id,
+      ev,
+      {
+        name: eeName.trim(),
+        ...(eeCurrency.trim() ? { functionalCurrencyCode: eeCurrency.trim().toUpperCase() } : {}),
+      },
+      tenant,
+    );
+    if (r.ok) {
+      setMsg({ ok: true, msg: 'Entity updated.' });
+      setEditEntId(null);
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Update failed.' });
+      if (r.status === 409) refresh();
+    }
+  };
+
   const tabs: { id: typeof tab; label: string }[] = [
     { id: 'accounts', label: 'Chart of Accounts' },
+    { id: 'entities', label: 'Accounting Entities' },
     { id: 'types', label: 'Account Types' },
     { id: 'currencies', label: 'Currencies' },
   ];
@@ -2772,6 +3454,168 @@ function FinanceConfigWorkspace({
                 onClose={() => setOpenAcctId(null)}
               />
             )}
+          </>
+        )}
+
+        {tab === 'entities' && (
+          <>
+            {can('finance.entity.manage') && (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  style={{ width: 110 }}
+                  value={ecCode}
+                  placeholder="Code (unique)"
+                  aria-label="Entity code"
+                  maxLength={40}
+                  onChange={(e) => setEcCode(e.target.value)}
+                />
+                <input
+                  value={ecName}
+                  placeholder="Name"
+                  aria-label="Entity name"
+                  maxLength={200}
+                  onChange={(e) => setEcName(e.target.value)}
+                />
+                <input
+                  style={{ width: 130 }}
+                  value={ecCurrency}
+                  placeholder="Func. currency"
+                  aria-label="Functional currency"
+                  maxLength={3}
+                  onChange={(e) => setEcCurrency(e.target.value.toUpperCase())}
+                />
+                <input
+                  value={ecDesc}
+                  placeholder="Description (optional)"
+                  aria-label="Entity description"
+                  onChange={(e) => setEcDesc(e.target.value)}
+                />
+                <button
+                  className="btn"
+                  disabled={ecCode.trim() === '' || ecName.trim() === ''}
+                  onClick={() => void submitEntity()}
+                >
+                  New entity
+                </button>
+              </div>
+            )}
+            {allEntities.loading ? (
+              <div className="loading">Loading entities…</div>
+            ) : allEntities.error ? (
+              <div className="empty">Could not load entities ({allEntities.error}).</div>
+            ) : allEntities.rows.length === 0 ? (
+              <div className="empty">No accounting entities configured.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Currency</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allEntities.rows.map((r, i) => {
+                    const id = pick(r, 'id');
+                    const eev = Number(r['version'] ?? 1);
+                    const active = pick(r, 'status').toLowerCase() === 'active';
+                    const editing = editEntId === id;
+                    return (
+                      <tr key={id || i}>
+                        <td className="muted">{pick(r, 'code') || '—'}</td>
+                        <td>
+                          {editing ? (
+                            <input
+                              value={eeName}
+                              aria-label="Edit entity name"
+                              onChange={(e) => setEeName(e.target.value)}
+                            />
+                          ) : (
+                            pick(r, 'name') || '—'
+                          )}
+                        </td>
+                        <td className="muted">
+                          {editing ? (
+                            <input
+                              style={{ width: 70 }}
+                              value={eeCurrency}
+                              aria-label="Edit functional currency"
+                              maxLength={3}
+                              onChange={(e) => setEeCurrency(e.target.value.toUpperCase())}
+                            />
+                          ) : (
+                            pick(r, 'functionalCurrencyCode') || '—'
+                          )}
+                        </td>
+                        <td>{statusPill(pick(r, 'status'))}</td>
+                        <td>
+                          <div className="action-row">
+                            {editing ? (
+                              <>
+                                <button
+                                  className="btn primary sm"
+                                  disabled={eeName.trim() === ''}
+                                  onClick={() => void saveEntityEdit(id, eev)}
+                                >
+                                  Save
+                                </button>
+                                <button className="btn link sm" onClick={() => setEditEntId(null)}>
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                {can('finance.entity.manage') && (
+                                  <button
+                                    className="btn secondary sm"
+                                    onClick={() => {
+                                      setEditEntId(id);
+                                      setEeName(pick(r, 'name'));
+                                      setEeCurrency(pick(r, 'functionalCurrencyCode'));
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                                <ActionButton
+                                  label="Activate"
+                                  allowed={!active && can('finance.entity.activate')}
+                                  onRun={() =>
+                                    runCurrency(
+                                      api.financeEntityLifecycle(id, 'activate', eev, tenant),
+                                      `Entity ${pick(r, 'code')} activated.`,
+                                    )
+                                  }
+                                />
+                                <ActionButton
+                                  label="Deactivate"
+                                  danger
+                                  needsReason
+                                  allowed={active && can('finance.entity.deactivate')}
+                                  onRun={() =>
+                                    runCurrency(
+                                      api.financeEntityLifecycle(id, 'deactivate', eev, tenant),
+                                      `Entity ${pick(r, 'code')} deactivated.`,
+                                    )
+                                  }
+                                />
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+            <p className="muted" style={{ fontSize: 11, margin: '8px 0 0' }}>
+              Single-permission config (no maker-checker). Code is unique per tenant and immutable after
+              create; there is no hard delete. NOTE: the domain does not itself block deactivating an entity
+              that still has dependents (fiscal years / accounts) — deactivate with care.
+            </p>
           </>
         )}
 

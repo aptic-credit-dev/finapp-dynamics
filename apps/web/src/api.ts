@@ -315,6 +315,79 @@ export const rejectImport = (
   t?: string | null,
 ): Promise<ApiResult<Row>> => rvPost(`gl-imports/${encodeURIComponent(id)}/reject`, ev, t, reason);
 
+// M20 GL-reconciliation CREATE/import/match/certify — all POST arbitrary JSON bodies (the rvPost helper only
+// carries expectedVersion). Money is exact integer minor units. Reads used by the manual-match UI: run
+// candidates carry {glLineId, sourceLineId, amountVarianceMinor} for the run.
+export const getRunCandidates = (
+  runId: string,
+  t?: string | null,
+): Promise<ApiResult<{ candidates?: Row[] }>> =>
+  call(`${R}/runs/${encodeURIComponent(runId)}/candidates`, { tenantId: t });
+export const createReconRun = (
+  body: {
+    glAccountId: string;
+    rulesetId?: string;
+    periodStart?: string;
+    periodEnd?: string;
+    openingBalanceMinor?: number;
+    closingBalanceMinor?: number;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${R}/runs`, { method: 'POST', body, tenantId: t });
+export const createGlImport = (
+  body: {
+    glAccountId: string;
+    sourceFormat: string;
+    fileHash: string;
+    fileName?: string;
+    periodStart?: string;
+    periodEnd?: string;
+    openingBalanceMinor?: number;
+    closingBalanceMinor?: number;
+    lines: {
+      txnDate: string;
+      amountMinor: number;
+      direction: string;
+      reference?: string;
+      description?: string;
+    }[];
+  },
+  t?: string | null,
+): Promise<ApiResult<{ import?: Row; lineCount?: number; balance?: Row | null } & Row>> =>
+  call(`${R}/gl-imports`, { method: 'POST', body, tenantId: t });
+// Manual match — PRIVILEGED (gl_reconciliation.match.manual). Must balance EXACTLY (variance 0, no tolerance).
+// Server does NOT itself block re-matching an already-matched line, so the UI must only offer unmatched lines.
+export const createManualMatch = (
+  body: { runId: string; glLineIds: string[]; sourceLineIds: string[]; reason: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${R}/manual-matches`, { method: 'POST', body, tenantId: t });
+// Certification — draft → certify/reject. NOTE: this is NOT approver≠maker SoD (m20 does not enforce it); it is
+// a privileged reason-bearing certify with an override path. Real maker-checker sign-off lives in M21/M22.
+export const createCertification = (body: { runId: string }, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${R}/certifications`, { method: 'POST', body, tenantId: t });
+export const certifyRun = (
+  id: string,
+  ev: number,
+  opts: { override?: boolean; overrideReason?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${R}/certifications/${encodeURIComponent(id)}/certify`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...opts },
+    tenantId: t,
+  });
+export const rejectCertification = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${R}/certifications/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    body: { expectedVersion: ev, reason },
+    tenantId: t,
+  });
+
 // --- journals (M21) — the reconciliation "Propose adjustment" flow reuses the CANONICAL maker-checker journal
 // path. No posting is exposed here: a proposal is created + submitted (PENDING APPROVAL); a separate approver
 // authorises posting server-side (M22 SoD). This client never calls a posting endpoint. ---
@@ -582,6 +655,26 @@ export const recordRecoveryNote = (
     tenantId: t,
   });
 
+// Create a recovery case — POST /recovery/recoveries, permission recovery.case.create, audit
+// RECOVERY_CASE_CREATED. The server forces recoveryNumber/status(draft)/tenant_id; the caller supplies only the
+// domain-supported fields below. Amounts are integer minor units. Debtor/owner/deadlines are separate follow-up
+// endpoints (parties/assign/deadlines), not part of create.
+export const createRecovery = (
+  body: {
+    recoveryTypeCode: string;
+    title: string;
+    summary?: string;
+    description?: string;
+    confidentiality?: string;
+    priority?: string;
+    recoveryRisk?: string;
+    currency?: string;
+    principalAmountMinor?: number;
+    sourceReference?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${RC}/recoveries`, { method: 'POST', body, tenantId: t });
+
 // M44 Recovery OPERATIONAL actions — canonical m17 lifecycle, reused (no duplicate recovery engine). Every action
 // is permission-gated + audited server-side, carries the mandatory expectedVersion, and respects the m17 state
 // machine (an invalid transition fails closed). There is NO hard delete — a case resolves/closes/reopens/archives.
@@ -705,6 +798,41 @@ export const getFinanceEntities = (
   status?: string,
 ): Promise<ApiResult<Row[] | { entities?: Row[] }>> =>
   call(`${FIN}/entities${status ? `?status=${encodeURIComponent(status)}` : ''}`, { tenantId: t });
+// Accounting entity admin — single-permission (NO maker-checker on m19 config). Code is unique per tenant
+// (server-enforced) and immutable after create. Lifecycle activate/deactivate + edit carry expectedVersion.
+// There is NO hard delete and NO server-side dependency guard on deactivate (documented gap).
+export const createFinanceEntity = (
+  body: {
+    code: string;
+    name: string;
+    parentEntityId?: string;
+    functionalCurrencyCode?: string;
+    description?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${FIN}/entities`, { method: 'POST', body, tenantId: t });
+export const updateFinanceEntity = (
+  id: string,
+  ev: number,
+  body: { name?: string; parentEntityId?: string; functionalCurrencyCode?: string; description?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${FIN}/entities/${encodeURIComponent(id)}`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+export const financeEntityLifecycle = (
+  id: string,
+  action: 'activate' | 'deactivate',
+  ev: number,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${FIN}/entities/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
 export const getFiscalYears = (
   entityId: string,
   t?: string | null,
