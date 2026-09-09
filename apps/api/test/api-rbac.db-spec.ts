@@ -252,6 +252,15 @@ async function run(ctx: DbSpecContext, t: Assert, api: Client): Promise<void> {
       403,
       'a permission the grantor does not hold (a bogus one included) is refused — no self-escalation',
     );
+
+    // Wave-3: role ATTRIBUTE edit (name/description only) — allow-listed server-side; versioned; audited.
+    const cur = await api('GET', `/rbac/roles/${roleId}`, { headers: inTenant() });
+    const renamed = await api('PATCH', `/rbac/roles/${roleId}`, {
+      headers: inTenant(),
+      body: { expectedVersion: Number(cur.body['version']), name: 'Renamed Role', description: 'updated' },
+    });
+    t.equal(renamed.body['name'], 'Renamed Role', 'role name is editable over HTTP (allow-listed)');
+    t.equal(renamed.body['description'], 'updated', 'role description is editable over HTTP');
   }
 
   // --- assignment ----------------------------------------------------------------------------------
