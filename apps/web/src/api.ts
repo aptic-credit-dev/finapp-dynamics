@@ -315,6 +315,79 @@ export const rejectImport = (
   t?: string | null,
 ): Promise<ApiResult<Row>> => rvPost(`gl-imports/${encodeURIComponent(id)}/reject`, ev, t, reason);
 
+// M20 GL-reconciliation CREATE/import/match/certify — all POST arbitrary JSON bodies (the rvPost helper only
+// carries expectedVersion). Money is exact integer minor units. Reads used by the manual-match UI: run
+// candidates carry {glLineId, sourceLineId, amountVarianceMinor} for the run.
+export const getRunCandidates = (
+  runId: string,
+  t?: string | null,
+): Promise<ApiResult<{ candidates?: Row[] }>> =>
+  call(`${R}/runs/${encodeURIComponent(runId)}/candidates`, { tenantId: t });
+export const createReconRun = (
+  body: {
+    glAccountId: string;
+    rulesetId?: string;
+    periodStart?: string;
+    periodEnd?: string;
+    openingBalanceMinor?: number;
+    closingBalanceMinor?: number;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${R}/runs`, { method: 'POST', body, tenantId: t });
+export const createGlImport = (
+  body: {
+    glAccountId: string;
+    sourceFormat: string;
+    fileHash: string;
+    fileName?: string;
+    periodStart?: string;
+    periodEnd?: string;
+    openingBalanceMinor?: number;
+    closingBalanceMinor?: number;
+    lines: {
+      txnDate: string;
+      amountMinor: number;
+      direction: string;
+      reference?: string;
+      description?: string;
+    }[];
+  },
+  t?: string | null,
+): Promise<ApiResult<{ import?: Row; lineCount?: number; balance?: Row | null } & Row>> =>
+  call(`${R}/gl-imports`, { method: 'POST', body, tenantId: t });
+// Manual match — PRIVILEGED (gl_reconciliation.match.manual). Must balance EXACTLY (variance 0, no tolerance).
+// Server does NOT itself block re-matching an already-matched line, so the UI must only offer unmatched lines.
+export const createManualMatch = (
+  body: { runId: string; glLineIds: string[]; sourceLineIds: string[]; reason: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${R}/manual-matches`, { method: 'POST', body, tenantId: t });
+// Certification — draft → certify/reject. NOTE: this is NOT approver≠maker SoD (m20 does not enforce it); it is
+// a privileged reason-bearing certify with an override path. Real maker-checker sign-off lives in M21/M22.
+export const createCertification = (body: { runId: string }, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${R}/certifications`, { method: 'POST', body, tenantId: t });
+export const certifyRun = (
+  id: string,
+  ev: number,
+  opts: { override?: boolean; overrideReason?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${R}/certifications/${encodeURIComponent(id)}/certify`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...opts },
+    tenantId: t,
+  });
+export const rejectCertification = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${R}/certifications/${encodeURIComponent(id)}/reject`, {
+    method: 'POST',
+    body: { expectedVersion: ev, reason },
+    tenantId: t,
+  });
+
 // --- journals (M21) — the reconciliation "Propose adjustment" flow reuses the CANONICAL maker-checker journal
 // path. No posting is exposed here: a proposal is created + submitted (PENDING APPROVAL); a separate approver
 // authorises posting server-side (M22 SoD). This client never calls a posting endpoint. ---

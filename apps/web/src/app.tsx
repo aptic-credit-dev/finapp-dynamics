@@ -412,12 +412,115 @@ function RunsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<st
     setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
     if (r.ok) setNonce((x) => x + 1);
   };
+  const accounts = useRows(() => api.getAccounts(tenant), [tenant]);
+  const [showRun, setShowRun] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [rcAcct, setRcAcct] = useState('');
+  const [rcStart, setRcStart] = useState('');
+  const [rcEnd, setRcEnd] = useState('');
+  const [rcOpen, setRcOpen] = useState('');
+  const [rcClose, setRcClose] = useState('');
+  const certs = useRows(
+    () =>
+      selectedRun
+        ? api.getRunCertifications(selectedRun, tenant)
+        : Promise.resolve({ ok: true, status: 200, data: [], error: null }),
+    [selectedRun, tenant, nonce],
+  );
+  const latestCert = certs.rows[0] ?? null;
+  const [ovrReason, setOvrReason] = useState('');
+  const candidates = useRows(
+    () =>
+      selectedRun
+        ? api.getRunCandidates(selectedRun, tenant)
+        : Promise.resolve({ ok: true, status: 200, data: { candidates: [] }, error: null }),
+    [selectedRun, tenant, nonce],
+  );
+  const [mmReason, setMmReason] = useState('');
+  const createRun = (): void => {
+    if (rcAcct === '') return;
+    setBusy(true);
+    void api
+      .createReconRun(
+        {
+          glAccountId: rcAcct,
+          ...(rcStart ? { periodStart: rcStart } : {}),
+          ...(rcEnd ? { periodEnd: rcEnd } : {}),
+          ...(toMinorUnits(rcOpen) !== null ? { openingBalanceMinor: toMinorUnits(rcOpen) as number } : {}),
+          ...(toMinorUnits(rcClose) !== null ? { closingBalanceMinor: toMinorUnits(rcClose) as number } : {}),
+        },
+        tenant,
+      )
+      .then((r) => {
+        report(r, 'Reconciliation run created (draft).');
+        if (r.ok) {
+          const newId = pick((r.data as api.Row) ?? {}, 'id');
+          setShowRun(false);
+          setRcStart('');
+          setRcEnd('');
+          setRcOpen('');
+          setRcClose('');
+          if (newId) setRunId(newId);
+        }
+        setBusy(false);
+      });
+  };
   return (
     <div className="card">
       <header>
         <h3>Reconciliation runs &amp; matches</h3>
         <span className="demo-note">SYNTHETIC</span>
       </header>
+      {can('gl_reconciliation.run.create') && (
+        <div style={{ padding: '0 16px 8px' }}>
+          {!showRun ? (
+            <button className="btn" onClick={() => setShowRun(true)}>
+              + New run
+            </button>
+          ) : (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={rcAcct} onChange={(e) => setRcAcct(e.target.value)} aria-label="Recon account">
+                <option value="">Reconciliation account…</option>
+                {accounts.rows.map((a, i) => (
+                  <option key={pick(a, 'id') || i} value={pick(a, 'id')}>
+                    {pick(a, 'accountName', 'glAccountRef', 'code') || pick(a, 'id')}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="date"
+                value={rcStart}
+                aria-label="Period start"
+                onChange={(e) => setRcStart(e.target.value)}
+              />
+              <input
+                type="date"
+                value={rcEnd}
+                aria-label="Period end"
+                onChange={(e) => setRcEnd(e.target.value)}
+              />
+              <input
+                value={rcOpen}
+                placeholder="Opening bal (opt)"
+                aria-label="Opening balance"
+                onChange={(e) => setRcOpen(e.target.value)}
+              />
+              <input
+                value={rcClose}
+                placeholder="Closing bal (opt)"
+                aria-label="Closing balance"
+                onChange={(e) => setRcClose(e.target.value)}
+              />
+              <button className="btn primary sm" disabled={busy || rcAcct === ''} onClick={createRun}>
+                {busy ? '…' : 'Create run'}
+              </button>
+              <button className="btn link sm" onClick={() => setShowRun(false)}>
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {runs.loading ? (
         <div className="loading">Loading runs…</div>
       ) : runs.rows.length === 0 ? (
@@ -473,6 +576,184 @@ function RunsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<st
                     .then((r) => report(r, 'Run reopened (audited).'))
                 }
               />
+            </div>
+          )}
+          {selectedRun && (can('gl_reconciliation.match.manual') || candidates.rows.length > 0) && (
+            <div style={{ padding: '0 16px 8px' }}>
+              <h4 className="drawer-sub">Manual match — candidates</h4>
+              {candidates.rows.length === 0 ? (
+                <div className="muted" style={{ fontSize: 12 }}>
+                  No unmatched candidate pairs for this run. (Execute the run to surface candidates.)
+                </div>
+              ) : (
+                <>
+                  <div className="run-picker" style={{ gap: 6 }}>
+                    <input
+                      value={mmReason}
+                      placeholder="Match reason (required)"
+                      aria-label="Manual match reason"
+                      style={{ flex: 1 }}
+                      onChange={(e) => setMmReason(e.target.value)}
+                    />
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>GL line</th>
+                        <th>Source line</th>
+                        <th className="num">Variance</th>
+                        <th className="num">Date Δ</th>
+                        <th>Band</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {candidates.rows.map((c, i) => {
+                        const gl = pick(c, 'glLineId');
+                        const src = pick(c, 'sourceLineId');
+                        const variance = pick(c, 'amountVarianceMinor');
+                        const exact = variance === '0' || variance === '0.00' || Number(variance) === 0;
+                        return (
+                          <tr key={pick(c, 'id') || i}>
+                            <td className="muted">{gl.slice(0, 8)}</td>
+                            <td className="muted">{src.slice(0, 8)}</td>
+                            <td className="num">{fmtMinor(c['amountVarianceMinor'])}</td>
+                            <td className="num">{pick(c, 'dateVarianceDays') || '0'}</td>
+                            <td className="muted">{pick(c, 'confidenceBand') || '—'}</td>
+                            <td>
+                              <button
+                                className="btn secondary sm"
+                                disabled={busy || !exact || mmReason.trim() === '' || gl === '' || src === ''}
+                                title={
+                                  exact
+                                    ? 'Confirm exact-variance manual match'
+                                    : 'Manual match requires exact zero variance (no tolerance)'
+                                }
+                                onClick={() => {
+                                  setBusy(true);
+                                  void api
+                                    .createManualMatch(
+                                      {
+                                        runId: selectedRun,
+                                        glLineIds: [gl],
+                                        sourceLineIds: [src],
+                                        reason: mmReason.trim(),
+                                      },
+                                      tenant,
+                                    )
+                                    .then((r) => {
+                                      report(r, 'Manual match recorded (exact, audited).');
+                                      if (r.ok) setMmReason('');
+                                      setBusy(false);
+                                    });
+                                }}
+                              >
+                                Match
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+                    Manual match must balance EXACTLY (zero variance — no tolerance); the server re-validates
+                    the balance and rejects an already-matched line. Split / many-to-many grouping is
+                    domain-supported but not yet surfaced here (needs run-scoped line selection) — bounded
+                    follow-up.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+          {selectedRun && /completed/.test(runStatus) && (
+            <div style={{ padding: '0 16px 8px' }}>
+              <h4 className="drawer-sub">Balance certification</h4>
+              <p className="muted" style={{ fontSize: 11, margin: '0 0 6px' }}>
+                Certification is a governed record with a privileged override — it is NOT approver≠maker
+                segregation of duties (real SoD sign-off is the M21/M22 journal path) and it posts nothing to
+                the core ledger.
+              </p>
+              {latestCert === null ? (
+                <ActionButton
+                  label="Draft certification"
+                  allowed={can('gl_reconciliation.certification.create')}
+                  onRun={() =>
+                    api
+                      .createCertification({ runId: selectedRun }, tenant)
+                      .then((r) => report(r, 'Certification drafted.'))
+                  }
+                />
+              ) : (
+                <div className="admin-actions">
+                  <span className="muted">Status: {statusPill(pick(latestCert, 'status'))}</span>
+                  {pick(latestCert, 'status').toLowerCase() === 'draft' && (
+                    <>
+                      <ActionButton
+                        label="Certify"
+                        allowed={can('gl_reconciliation.certification.create')}
+                        onRun={() =>
+                          api
+                            .certifyRun(
+                              pick(latestCert, 'id'),
+                              Number(latestCert['version'] ?? 1),
+                              {},
+                              tenant,
+                            )
+                            .then((r) => report(r, 'Balance certified (audited).'))
+                        }
+                      />
+                      {can('gl_reconciliation.certification.override') && (
+                        <span className="run-picker" style={{ gap: 6 }}>
+                          <input
+                            value={ovrReason}
+                            placeholder="Override reason"
+                            aria-label="Override reason"
+                            onChange={(e) => setOvrReason(e.target.value)}
+                          />
+                          <button
+                            className="btn danger sm"
+                            disabled={busy || ovrReason.trim() === ''}
+                            onClick={() => {
+                              setBusy(true);
+                              void api
+                                .certifyRun(
+                                  pick(latestCert, 'id'),
+                                  Number(latestCert['version'] ?? 1),
+                                  { override: true, overrideReason: ovrReason.trim() },
+                                  tenant,
+                                )
+                                .then((r) => {
+                                  report(r, 'Balance certified with override (audited).');
+                                  if (r.ok) setOvrReason('');
+                                  setBusy(false);
+                                });
+                            }}
+                          >
+                            Certify (override)
+                          </button>
+                        </span>
+                      )}
+                      <ActionButton
+                        label="Reject"
+                        danger
+                        needsReason
+                        allowed={can('gl_reconciliation.certification.create')}
+                        onRun={(reason) =>
+                          api
+                            .rejectCertification(
+                              pick(latestCert, 'id'),
+                              Number(latestCert['version'] ?? 1),
+                              reason ?? '',
+                              tenant,
+                            )
+                            .then((r) => report(r, 'Certification rejected (history preserved).'))
+                        }
+                      />
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {msg && (
@@ -545,6 +826,52 @@ function ImportsCard({ tenant, perms }: { tenant: string | null; perms: Set<stri
     setMsg(r.ok ? { ok: true, msg: okMsg } : { ok: false, msg: r.error ?? 'Action failed.' });
     if (r.ok) setNonce((x) => x + 1);
   };
+  const [showImp, setShowImp] = useState(false);
+  const [impAcct, setImpAcct] = useState('');
+  const [impFormat, setImpFormat] = useState('csv');
+  const [impRef, setImpRef] = useState('');
+  const [impBusy, setImpBusy] = useState(false);
+  const [impLines, setImpLines] = useState<
+    { txnDate: string; amount: string; direction: string; reference: string }[]
+  >([{ txnDate: '', amount: '', direction: 'debit', reference: '' }]);
+  const setImpLine = (i: number, patch: Partial<(typeof impLines)[number]>): void =>
+    setImpLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  const validImpLines = impLines.filter((l) => l.txnDate !== '' && toMinorUnits(l.amount) !== null);
+  const submitImport = (): void => {
+    if (impAcct === '' || impRef.trim() === '' || validImpLines.length === 0) return;
+    setImpBusy(true);
+    void api
+      .createGlImport(
+        {
+          glAccountId: impAcct,
+          sourceFormat: impFormat,
+          fileHash: impRef.trim(),
+          lines: validImpLines.map((l) => ({
+            txnDate: l.txnDate,
+            amountMinor: toMinorUnits(l.amount) as number,
+            direction: l.direction,
+            ...(l.reference.trim() ? { reference: l.reference.trim() } : {}),
+          })),
+        },
+        tenant,
+      )
+      .then((r) => {
+        if (r.ok) {
+          const lc = (r.data as { lineCount?: number } | null)?.lineCount ?? validImpLines.length;
+          setMsg({
+            ok: true,
+            msg: `Import created — ${String(lc)} line(s) accepted; any rejected rows are recorded as import errors (view per import).`,
+          });
+          setShowImp(false);
+          setImpRef('');
+          setImpLines([{ txnDate: '', amount: '', direction: 'debit', reference: '' }]);
+          setNonce((x) => x + 1);
+        } else {
+          setMsg({ ok: false, msg: r.error ?? 'Import failed.' });
+        }
+        setImpBusy(false);
+      });
+  };
   useEffect(() => {
     let live = true;
     setRows(null);
@@ -577,6 +904,112 @@ function ImportsCard({ tenant, perms }: { tenant: string | null; perms: Set<stri
         <h3>GL / statement imports</h3>
         <span className="demo-note">SYNTHETIC</span>
       </header>
+      {can('gl_reconciliation.import.create') && (
+        <div style={{ padding: '0 16px 8px' }}>
+          {!showImp ? (
+            <button className="btn" onClick={() => setShowImp(true)}>
+              + Import GL (structured rows)
+            </button>
+          ) : (
+            <div className="stack" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <select
+                  value={impAcct}
+                  onChange={(e) => setImpAcct(e.target.value)}
+                  aria-label="Import account"
+                >
+                  <option value="">Reconciliation account…</option>
+                  {accounts.rows.map((a, i) => (
+                    <option key={pick(a, 'id', 'account_id') || i} value={pick(a, 'id', 'account_id')}>
+                      {pick(a, 'accountName', 'name', 'code') || pick(a, 'id', 'account_id')}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={impFormat}
+                  onChange={(e) => setImpFormat(e.target.value)}
+                  aria-label="Source format"
+                >
+                  {['csv', 'excel', 'pdf', 'api', 'manual'].map((x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={impRef}
+                  placeholder="Batch reference / dedup key (required)"
+                  aria-label="Batch reference"
+                  onChange={(e) => setImpRef(e.target.value)}
+                />
+              </div>
+              {impLines.map((l, i) => (
+                <div key={i} className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  <input
+                    type="date"
+                    value={l.txnDate}
+                    aria-label={`Line ${String(i + 1)} date`}
+                    onChange={(e) => setImpLine(i, { txnDate: e.target.value })}
+                  />
+                  <input
+                    value={l.amount}
+                    placeholder="Amount (e.g. 100.00)"
+                    aria-label={`Line ${String(i + 1)} amount`}
+                    onChange={(e) => setImpLine(i, { amount: e.target.value })}
+                  />
+                  <select
+                    value={l.direction}
+                    aria-label={`Line ${String(i + 1)} direction`}
+                    onChange={(e) => setImpLine(i, { direction: e.target.value })}
+                  >
+                    <option value="debit">debit</option>
+                    <option value="credit">credit</option>
+                  </select>
+                  <input
+                    value={l.reference}
+                    placeholder="Reference (opt)"
+                    aria-label={`Line ${String(i + 1)} reference`}
+                    onChange={(e) => setImpLine(i, { reference: e.target.value })}
+                  />
+                  {l.amount.trim() !== '' && toMinorUnits(l.amount) === null && (
+                    <span className="error" style={{ fontSize: 12 }}>
+                      invalid amount
+                    </span>
+                  )}
+                </div>
+              ))}
+              <div className="run-picker" style={{ gap: 6 }}>
+                <button
+                  className="btn secondary sm"
+                  onClick={() =>
+                    setImpLines((ls) => [
+                      ...ls,
+                      { txnDate: '', amount: '', direction: 'debit', reference: '' },
+                    ])
+                  }
+                >
+                  + Add row
+                </button>
+                <button
+                  className="btn primary sm"
+                  disabled={impBusy || impAcct === '' || impRef.trim() === '' || validImpLines.length === 0}
+                  onClick={submitImport}
+                >
+                  {impBusy ? '…' : `Import ${String(validImpLines.length)} row(s)`}
+                </button>
+                <button className="btn link sm" onClick={() => setShowImp(false)}>
+                  Cancel
+                </button>
+              </div>
+              <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+                Structured row ingestion only — no file/object-store upload on staging. Amounts are exact
+                minor units; rows with a bad direction/amount are rejected server-side and recorded as import
+                errors. Re-importing the same batch reference is idempotent.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       {msg && (
         <div className={msg.ok ? 'ok-note' : 'error'} style={{ margin: '0 16px 8px' }}>
           {msg.msg}
