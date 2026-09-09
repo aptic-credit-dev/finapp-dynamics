@@ -86,8 +86,10 @@ adapters (INFRA — pending m33). Secrets never reveal plaintext (reveal returns
   assertions).
 
 ## 14. Remaining functional blockers (web-wiring; backend-ready)
-Tier-1 (api.ts client exists — pure wiring): m09 createDocument, m13 triageCase, m17 advanceRecovery, m18
-withdrawTemplate, m28 exportCopilotQuery, m02-identity updateIdentity edit. Tier-2 (small api wrapper + UI): m19
+**Update:** the Tier-1 set is now implemented — m12 addFeedbackActivity merged (PR #179); m09 createDocument,
+m13 triageCase, m17 advanceRecovery, m18 withdrawTemplate, m28 exportCopilotQuery, m02-identity updateIdentity
+are **WIRED** on `release/tier1-web-wiring-completion` (backend-proven; authenticated browser sign-off OPEN — see
+`TIER1_WEB_WIRING_COMPLETION_REPORT.md`). Remaining: Tier-2 (small api wrapper + UI): m19
 accounting-entity (dead-end) & fiscal-period, m17 recovery-case create, m20 recon-run/manual-match/import,
 legal sub-domains (m13/m14/m16/m18), m32 definition authoring, m08 template/escalation admin, m22 delegation/
 policy admin. One UX-safety follow-up: add two-step confirm to plain sub-entity destructive buttons (e.g.
