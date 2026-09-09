@@ -440,7 +440,7 @@ function RunsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<st
   const reconItems = useRows(
     () =>
       selectedRun
-        ? api.getReconcilingItems(selectedRun, tenant)
+        ? api.getRunReconcilingItems(selectedRun, tenant)
         : Promise.resolve({ ok: true, status: 200, data: [], error: null }),
     [selectedRun, tenant, nonce],
   );
@@ -7379,6 +7379,10 @@ function NotificationsWorkspace({
 
   // Template versions sub-panel: the selected template's version history (read-only).
   const [openTplId, setOpenTplId] = useState<string | null>(null);
+  const [ntKey, setNtKey] = useState('');
+  const [ntName, setNtName] = useState('');
+  const [ntChannel, setNtChannel] = useState('in_app');
+  const [ntBody, setNtBody] = useState('');
   const versions = useRows(async () => {
     if (!openTplId) return { ok: true, status: 200, data: [] as api.Row[], error: null };
     const r = await api.getNotifTemplateVersions(openTplId, tenant);
@@ -7666,6 +7670,68 @@ function NotificationsWorkspace({
             </table>
           ))}
 
+        {tab === 'templates' && can('notifications.template.author') && (
+          <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
+            <input
+              value={ntKey}
+              placeholder="Template key"
+              aria-label="Template key"
+              onChange={(e) => setNtKey(e.target.value)}
+            />
+            <input
+              value={ntName}
+              placeholder="Name"
+              aria-label="Template name"
+              onChange={(e) => setNtName(e.target.value)}
+            />
+            <select value={ntChannel} onChange={(e) => setNtChannel(e.target.value)} aria-label="Channel">
+              {['in_app', 'email', 'sms', 'webhook'].map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+            <input
+              value={ntBody}
+              placeholder="Body template (e.g. Hi {{name}})"
+              aria-label="Body template"
+              style={{ flex: 1 }}
+              onChange={(e) => setNtBody(e.target.value)}
+            />
+            <button
+              className="btn"
+              disabled={ntKey.trim() === '' || ntName.trim() === '' || ntBody.trim() === ''}
+              onClick={() =>
+                void api
+                  .createNotifTemplate(
+                    {
+                      key: ntKey.trim(),
+                      name: ntName.trim(),
+                      spec: {
+                        schemaVersion: 1,
+                        code: ntKey.trim(),
+                        name: ntName.trim(),
+                        channel: ntChannel,
+                        bodyTemplate: ntBody.trim(),
+                        variables: [],
+                      },
+                    },
+                    tenant,
+                  )
+                  .then((r) => {
+                    report(r, 'Template created (draft — validate → publish → activate to go live).');
+                    if (r.ok) {
+                      setNtKey('');
+                      setNtName('');
+                      setNtBody('');
+                    }
+                  })
+              }
+            >
+              New template
+            </button>
+          </div>
+        )}
         {tab === 'templates' &&
           (templates.loading ? (
             <div className="loading">Loading templates…</div>
@@ -7676,8 +7742,9 @@ function NotificationsWorkspace({
           ) : (
             <>
               <div className="ok-note" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}>
-                Read-only viewer. Template authoring and publish is a privileged maker-checker admin flow
-                (approver ≠ author; a published version is immutable) — it is not exposed here.
+                Template authoring is a privileged maker-checker admin flow (approver ≠ author; a published
+                version is immutable; content is metadata only — never a secret/credential). There is no local
+                preview/test-render and delivery requires a real external provider — neither is offered here.
               </div>
               <table>
                 <thead>
@@ -7727,16 +7794,82 @@ function NotificationsWorkspace({
                                       <th>Version #</th>
                                       <th>Status</th>
                                       <th>Notes</th>
+                                      <th>Lifecycle (maker-checker)</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {versions.rows.map((v, j) => (
-                                      <tr key={pick(v, 'id') || j}>
-                                        <td className="muted">{pick(v, 'versionNumber') || '—'}</td>
-                                        <td>{statusPill(pick(v, 'status'))}</td>
-                                        <td className="muted">{pick(v, 'notes') || '—'}</td>
-                                      </tr>
-                                    ))}
+                                    {versions.rows.map((v, j) => {
+                                      const vid = pick(v, 'id');
+                                      const vev = Number(v['version'] ?? 1);
+                                      const vst = pick(v, 'status').toLowerCase();
+                                      return (
+                                        <tr key={vid || j}>
+                                          <td className="muted">{pick(v, 'versionNumber') || '—'}</td>
+                                          <td>{statusPill(pick(v, 'status'))}</td>
+                                          <td className="muted">{pick(v, 'notes') || '—'}</td>
+                                          <td>
+                                            <div className="action-row">
+                                              <ActionButton
+                                                label="Validate"
+                                                allowed={
+                                                  /draft/.test(vst) && can('notifications.template.validate')
+                                                }
+                                                onRun={() =>
+                                                  api
+                                                    .validateNotifVersion(vid, vev, tenant)
+                                                    .then((r) => report(r, 'Version validated.'))
+                                                }
+                                              />
+                                              <ActionButton
+                                                label="Publish"
+                                                allowed={
+                                                  /validated/.test(vst) &&
+                                                  can('notifications.template.publish')
+                                                }
+                                                onRun={() =>
+                                                  api
+                                                    .publishNotifVersion(vid, vev, tenant)
+                                                    .then((r) =>
+                                                      report(r, 'Version published (content frozen).'),
+                                                    )
+                                                }
+                                              />
+                                              <ActionButton
+                                                label="Activate"
+                                                allowed={
+                                                  /published/.test(vst) &&
+                                                  can('notifications.template.activate')
+                                                }
+                                                onRun={() =>
+                                                  api
+                                                    .activateNotifVersion(vid, vev, tenant)
+                                                    .then((r) =>
+                                                      report(
+                                                        r,
+                                                        'Version activated (one active per template).',
+                                                      ),
+                                                    )
+                                                }
+                                              />
+                                              <ActionButton
+                                                label="Retire"
+                                                danger
+                                                needsReason
+                                                allowed={
+                                                  /published|active/.test(vst) &&
+                                                  can('notifications.template.retire')
+                                                }
+                                                onRun={(reason) =>
+                                                  api
+                                                    .retireNotifVersion(vid, vev, reason ?? '', tenant)
+                                                    .then((r) => report(r, 'Version retired.'))
+                                                }
+                                              />
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               )}
@@ -8658,6 +8791,29 @@ function AnalyticsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
     else setQErr(r.error ?? 'Query failed.');
     setRunning(false);
   };
+  const [aNonce, setANonce] = useState(0);
+  const [aMsg, setAMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const aRun = (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> =>
+    p.then((r) => {
+      setAMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+      if (r.ok) setANonce((x) => x + 1);
+    });
+  const [dsSource, setDsSource] = useState('m12-feedback');
+  const [dsKey, setDsKey] = useState('');
+  const [dsName, setDsName] = useState('');
+  const [mDataset, setMDataset] = useState('');
+  const [mKey, setMKey] = useState('');
+  const [mName, setMName] = useState('');
+  const [mAgg, setMAgg] = useState('count');
+  const [mMeasure, setMMeasure] = useState('');
+  const [rKey, setRKey] = useState('');
+  const [rName, setRName] = useState('');
+  const draftMetrics = useRows(async () => {
+    const r = mDataset
+      ? await api.getDatasetMetrics(mDataset, tenant)
+      : { ok: true, status: 200, data: [], error: null };
+    return { ...r, data: api.asRows((r as api.ApiResult<unknown>).data) };
+  }, [tenant, mDataset, aNonce, tab]);
   const tabs: { id: typeof tab; label: string }[] = [
     { id: 'datasets', label: 'Datasets' },
     { id: 'metrics', label: 'Metrics' },
@@ -8698,7 +8854,45 @@ function AnalyticsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
             </button>
           ))}
         </div>
+        {aMsg && <div className={aMsg.ok ? 'ok-note' : 'error'}>{aMsg.msg}</div>}
 
+        {tab === 'datasets' && can('analytics.dataset.manage') && (
+          <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
+            <input
+              value={dsSource}
+              placeholder="Source module"
+              aria-label="Source module"
+              onChange={(e) => setDsSource(e.target.value)}
+            />
+            <input
+              value={dsKey}
+              placeholder="Dataset key"
+              aria-label="Dataset key"
+              onChange={(e) => setDsKey(e.target.value)}
+            />
+            <input
+              value={dsName}
+              placeholder="Name"
+              aria-label="Dataset name"
+              onChange={(e) => setDsName(e.target.value)}
+            />
+            <button
+              className="btn"
+              disabled={dsSource.trim() === '' || dsKey.trim() === '' || dsName.trim() === ''}
+              onClick={() =>
+                aRun(
+                  api.createDataset(
+                    { sourceModule: dsSource.trim(), datasetKey: dsKey.trim(), name: dsName.trim() },
+                    tenant,
+                  ),
+                  'Dataset defined (governed; whitelisted dims/measures — no arbitrary SQL).',
+                )
+              }
+            >
+              New dataset
+            </button>
+          </div>
+        )}
         {tab === 'datasets' &&
           (datasets.loading ? (
             <div className="loading">Loading datasets…</div>
@@ -8729,6 +8923,116 @@ function AnalyticsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
             </table>
           ))}
 
+        {tab === 'metrics' && can('analytics.metric.author') && (
+          <>
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
+              <select value={mDataset} onChange={(e) => setMDataset(e.target.value)} aria-label="Dataset">
+                <option value="">Dataset…</option>
+                {datasets.rows.map((d, i) => (
+                  <option key={pick(d, 'id') || i} value={pick(d, 'id')}>
+                    {pick(d, 'datasetKey') || pick(d, 'name')}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={mKey}
+                placeholder="Metric key"
+                aria-label="Metric key"
+                onChange={(e) => setMKey(e.target.value)}
+              />
+              <input
+                value={mName}
+                placeholder="Name"
+                aria-label="Metric name"
+                onChange={(e) => setMName(e.target.value)}
+              />
+              <select value={mAgg} onChange={(e) => setMAgg(e.target.value)} aria-label="Aggregation">
+                {['count', 'count_distinct', 'sum', 'avg', 'min', 'max'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={mMeasure}
+                placeholder="Measure key"
+                aria-label="Measure key"
+                onChange={(e) => setMMeasure(e.target.value)}
+              />
+              <button
+                className="btn"
+                disabled={
+                  mDataset === '' || mKey.trim() === '' || mName.trim() === '' || mMeasure.trim() === ''
+                }
+                onClick={() =>
+                  aRun(
+                    api.createMetric(
+                      {
+                        datasetId: mDataset,
+                        metricKey: mKey.trim(),
+                        name: mName.trim(),
+                        aggregation: mAgg,
+                        measureKey: mMeasure.trim(),
+                      },
+                      tenant,
+                    ),
+                    'Metric drafted (author → validate → review → publish).',
+                  )
+                }
+              >
+                New metric
+              </button>
+            </div>
+            {mDataset !== '' && draftMetrics.rows.length > 0 && (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>Status</th>
+                    <th>Lifecycle (maker-checker; approver ≠ author)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {draftMetrics.rows.map((m, i) => {
+                    const id = pick(m, 'id');
+                    const mev = Number(m['version'] ?? 1);
+                    const st = pick(m, 'status').toLowerCase();
+                    return (
+                      <tr key={id || i}>
+                        <td className="muted">{pick(m, 'metricKey')}</td>
+                        <td>{statusPill(pick(m, 'status'))}</td>
+                        <td>
+                          <div className="action-row">
+                            <ActionButton
+                              label="Validate"
+                              allowed={/draft/.test(st) && can('analytics.metric.author')}
+                              onRun={() => aRun(api.validateMetric(id, mev, tenant), 'Metric validated.')}
+                            />
+                            <ActionButton
+                              label="Request review"
+                              allowed={/validated/.test(st) && can('analytics.metric.author')}
+                              onRun={() => aRun(api.reviewMetric(id, mev, tenant), 'Review requested.')}
+                            />
+                            <ActionButton
+                              label="Publish"
+                              allowed={/review_pending/.test(st) && can('analytics.metric.publish')}
+                              onRun={() =>
+                                aRun(
+                                  api.publishMetric(id, mev, tenant),
+                                  'Metric published (SoD; a distinct human approver).',
+                                )
+                              }
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
         {tab === 'metrics' &&
           (metrics.loading ? (
             <div className="loading">Loading metrics…</div>
@@ -8761,6 +9065,38 @@ function AnalyticsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
             </table>
           ))}
 
+        {tab === 'reports' && can('analytics.report.author') && (
+          <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
+            <input
+              value={rKey}
+              placeholder="Report key"
+              aria-label="Report key"
+              onChange={(e) => setRKey(e.target.value)}
+            />
+            <input
+              value={rName}
+              placeholder="Name"
+              aria-label="Report name"
+              onChange={(e) => setRName(e.target.value)}
+            />
+            <button
+              className="btn"
+              disabled={rKey.trim() === '' || rName.trim() === ''}
+              onClick={() =>
+                aRun(
+                  api.createReport({ reportKey: rKey.trim(), name: rName.trim() }, tenant),
+                  'Report drafted.',
+                )
+              }
+            >
+              New report
+            </button>
+            <span className="muted" style={{ fontSize: 11 }}>
+              Report create is governed; the report validate/review HTTP routes are not exposed by the
+              backend, so the publish path is a documented backend gap (not simulated).
+            </span>
+          </div>
+        )}
         {tab === 'reports' &&
           (reports.loading ? (
             <div className="loading">Loading reports…</div>
@@ -13755,12 +14091,11 @@ function ApprovalsInbox({ tenant, perms }: { tenant: string | null; perms: Set<s
   const [dgEnds, setDgEnds] = useState('');
   const [dgBusy, setDgBusy] = useState(false);
   const [dgMsg, setDgMsg] = useState<{ ok: boolean; msg: string } | null>(null);
-  const dgRun = (p: Promise<api.ApiResult<api.Row>>, ok: string): void => {
-    void p.then((r) => {
+  const dgRun = (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> =>
+    p.then((r) => {
       setDgMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
       if (r.ok) setNonce((x) => x + 1);
     });
-  };
   return (
     <>
       <h1 className="page-title">Approvals</h1>
