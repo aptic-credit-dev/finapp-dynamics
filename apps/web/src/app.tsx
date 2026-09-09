@@ -3800,6 +3800,10 @@ function JournalDraftDrawer({
   const [amt, setAmt] = useState('');
   const [ldesc, setLdesc] = useState('');
   const [editLine, setEditLine] = useState<api.Row | null>(null);
+  const [editHdr, setEditHdr] = useState(false);
+  const [hdrDesc, setHdrDesc] = useState('');
+  const [hdrRef, setHdrRef] = useState('');
+  const [hdrDate, setHdrDate] = useState('');
   const [note, setNote] = useState('');
   // Canonical GL-account options for the line selector — active + postable accounts of the draft's entity only
   // (only those are valid journal targets). Empty (or a 403 for a persona without finance reads) falls back to
@@ -4086,6 +4090,73 @@ function JournalDraftDrawer({
                 </button>
               )}
             </div>
+          )}
+
+          {mutable && can('journals.draft.edit') && (
+            <>
+              <h4 className="drawer-sub">Header</h4>
+              {!editHdr ? (
+                <button
+                  className="btn secondary sm"
+                  onClick={() => {
+                    setHdrDesc(pick(draft, 'description'));
+                    setHdrRef(pick(draft, 'reference'));
+                    setHdrDate(pick(draft, 'journalDate').slice(0, 10));
+                    setEditHdr(true);
+                  }}
+                >
+                  Edit header
+                </button>
+              ) : (
+                <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  <input
+                    value={hdrDesc}
+                    placeholder="Description"
+                    aria-label="Journal description"
+                    onChange={(e) => setHdrDesc(e.target.value)}
+                  />
+                  <input
+                    value={hdrRef}
+                    placeholder="Reference"
+                    aria-label="Journal reference"
+                    onChange={(e) => setHdrRef(e.target.value)}
+                  />
+                  <input
+                    type="date"
+                    value={hdrDate}
+                    aria-label="Journal date"
+                    onChange={(e) => setHdrDate(e.target.value)}
+                  />
+                  <button
+                    className="btn primary sm"
+                    onClick={() =>
+                      void run(
+                        api.editJournalDraft(
+                          draftId,
+                          version,
+                          {
+                            ...(hdrDesc.trim() ? { description: hdrDesc.trim() } : {}),
+                            ...(hdrRef.trim() ? { reference: hdrRef.trim() } : {}),
+                            ...(hdrDate ? { journalDate: hdrDate } : {}),
+                          },
+                          tenant,
+                        ),
+                        'Journal header updated (lines/balance untouched).',
+                      ).then(() => setEditHdr(false))
+                    }
+                  >
+                    Save header
+                  </button>
+                  <button className="btn link sm" onClick={() => setEditHdr(false)}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+              <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+                Header metadata only (description/reference/date) on a draft or validated journal — amounts,
+                lines and debit/credit balance are never touched; posting/approval controls are unaffected.
+              </p>
+            </>
           )}
 
           <h4 className="drawer-sub">Actions</h4>
