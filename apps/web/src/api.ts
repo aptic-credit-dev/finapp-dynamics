@@ -1263,6 +1263,54 @@ export const addCaseActivity = (
   t?: string | null,
 ): Promise<ApiResult<Row>> =>
   call(`${CS}/${encodeURIComponent(id)}/activities`, { method: 'POST', body, tenantId: t });
+export const completeCaseActivity = (
+  aid: string,
+  ev: number,
+  outcome: string | undefined,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/activities/${encodeURIComponent(aid)}/complete`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...(outcome ? { outcome } : {}) },
+    tenantId: t,
+  });
+// M13 case DECISIONS — submit (maker) then a DISTINCT approver approves (SoD, DB-enforced). No reject-over-HTTP.
+export const getCaseDecisions = (id: string, t?: string | null): Promise<ApiResult<{ decisions?: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/decisions`, { tenantId: t });
+export const submitCaseDecision = (
+  id: string,
+  body: {
+    decisionType: string;
+    summary?: string;
+    reasons?: string;
+    conditions?: string;
+    remedyType?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/${encodeURIComponent(id)}/decisions`, { method: 'POST', body, tenantId: t });
+export const approveCaseDecision = (did: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${CS}/decisions/${encodeURIComponent(did)}/approve`, { method: 'POST', body: {}, tenantId: t });
+// M13 case TASKS — create + complete (expectedVersion). Assign/reopen/escalate are NOT exposed by the backend.
+export const getCaseTasks = (id: string, t?: string | null): Promise<ApiResult<{ tasks?: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/tasks`, { tenantId: t });
+export const addCaseTask = (
+  id: string,
+  body: { taskType: string; headline: string; description?: string; dueAt?: string; priority?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/${encodeURIComponent(id)}/tasks`, { method: 'POST', body, tenantId: t });
+export const completeCaseTask = (
+  tid: string,
+  ev: number,
+  outcome: string | undefined,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/tasks/${encodeURIComponent(tid)}/complete`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...(outcome ? { outcome } : {}) },
+    tenantId: t,
+  });
 export const getCaseDeadlines = (id: string, t?: string | null): Promise<ApiResult<{ deadlines: Row[] }>> =>
   call(`${CS}/${encodeURIComponent(id)}/deadlines`, { tenantId: t });
 export const getCaseRelationships = (

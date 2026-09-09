@@ -9248,6 +9248,12 @@ function CaseDrawer({
   const [trPri, setTrPri] = useState('normal');
   const [actType, setActType] = useState('note');
   const [actHead, setActHead] = useState('');
+  const [decisions, setDecisions] = useState<api.Row[]>([]);
+  const [tasks, setTasks] = useState<api.Row[]>([]);
+  const [dType, setDType] = useState('accept');
+  const [dSummary, setDSummary] = useState('');
+  const [tkHead, setTkHead] = useState('');
+  const [tkPri, setTkPri] = useState('normal');
   useEffect(() => {
     let live = true;
     void api.getCase(caseId, tenant).then((r) => {
@@ -9261,6 +9267,12 @@ function CaseDrawer({
     });
     void api.getCaseDeadlines(caseId, tenant).then((r) => {
       if (live) setDeadlines((r.data as { deadlines?: api.Row[] } | null)?.deadlines ?? []);
+    });
+    void api.getCaseDecisions(caseId, tenant).then((r) => {
+      if (live) setDecisions((r.data as { decisions?: api.Row[] } | null)?.decisions ?? []);
+    });
+    void api.getCaseTasks(caseId, tenant).then((r) => {
+      if (live) setTasks((r.data as { tasks?: api.Row[] } | null)?.tasks ?? []);
     });
     return () => {
       live = false;
@@ -9514,7 +9526,20 @@ function CaseDrawer({
                 <span className="muted">
                   {pick(a, 'activityType')} · {pick(a, 'status')}
                   {pick(a, 'outcome') ? ` · ${pick(a, 'outcome')}` : ''}
-                </span>
+                </span>{' '}
+                {pick(a, 'status').toLowerCase() !== 'completed' && can('cases.activity.complete') && (
+                  <button
+                    className="btn link sm"
+                    onClick={() =>
+                      void run(
+                        api.completeCaseActivity(pick(a, 'id'), Number(a['version'] ?? 1), undefined, tenant),
+                        'Activity completed.',
+                      )
+                    }
+                  >
+                    complete
+                  </button>
+                )}
               </li>
             ))}
             {acts.length === 0 && <li className="muted">No activities.</li>}
@@ -9548,6 +9573,143 @@ function CaseDrawer({
               </button>
             </div>
           )}
+
+          <h4 className="drawer-sub">Decisions (maker-checker)</h4>
+          <ul className="timeline">
+            {decisions.map((d, i) => (
+              <li key={pick(d, 'id') || i}>
+                <span className="t-head">{pick(d, 'decisionType')}</span>{' '}
+                <span className="muted">
+                  {pick(d, 'approvalStatus')}
+                  {pick(d, 'summary') ? ` · ${pick(d, 'summary')}` : ''}
+                </span>{' '}
+                {pick(d, 'approvalStatus').toLowerCase() === 'submitted' && can('cases.decision.approve') && (
+                  <button
+                    className="btn link sm"
+                    onClick={() =>
+                      void run(
+                        api.approveCaseDecision(pick(d, 'id'), tenant),
+                        'Decision approved (SoD — a distinct approver, audited).',
+                      )
+                    }
+                  >
+                    approve
+                  </button>
+                )}
+              </li>
+            ))}
+            {decisions.length === 0 && <li className="muted">No decisions.</li>}
+          </ul>
+          {can('cases.decision.submit') && !terminal && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={dType} onChange={(e) => setDType(e.target.value)} aria-label="Decision type">
+                {[
+                  'accept',
+                  'reject',
+                  'uphold_complaint',
+                  'dismiss_complaint',
+                  'approve_settlement',
+                  'reject_settlement',
+                  'approve_legal_action',
+                  'discontinue',
+                  'approve_recovery',
+                  'approve_closure',
+                  'refer_externally',
+                ].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={dSummary}
+                placeholder="Rationale / summary"
+                aria-label="Decision summary"
+                style={{ flex: 1 }}
+                onChange={(e) => setDSummary(e.target.value)}
+              />
+              <button
+                className="btn"
+                onClick={() =>
+                  void run(
+                    api.submitCaseDecision(
+                      caseId,
+                      { decisionType: dType, ...(dSummary.trim() ? { summary: dSummary.trim() } : {}) },
+                      tenant,
+                    ),
+                    'Decision submitted (a distinct approver must approve).',
+                  ).then(() => setDSummary(''))
+                }
+              >
+                Submit decision
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Tasks</h4>
+          <ul className="timeline">
+            {tasks.map((tk, i) => (
+              <li key={pick(tk, 'id') || i}>
+                <span className="t-head">{pick(tk, 'headline') || pick(tk, 'taskType')}</span>{' '}
+                <span className="muted">
+                  {pick(tk, 'priority')} · {pick(tk, 'status')}
+                  {pick(tk, 'mandatory') === 'true' ? ' · mandatory' : ''}
+                </span>{' '}
+                {!/completed|cancelled/.test(pick(tk, 'status').toLowerCase()) &&
+                  can('cases.task.manage') && (
+                    <button
+                      className="btn link sm"
+                      onClick={() =>
+                        void run(
+                          api.completeCaseTask(pick(tk, 'id'), Number(tk['version'] ?? 1), undefined, tenant),
+                          'Task completed.',
+                        )
+                      }
+                    >
+                      complete
+                    </button>
+                  )}
+              </li>
+            ))}
+            {tasks.length === 0 && <li className="muted">No tasks.</li>}
+          </ul>
+          {can('cases.task.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <input
+                value={tkHead}
+                placeholder="Task headline"
+                aria-label="Task headline"
+                style={{ flex: 1 }}
+                onChange={(e) => setTkHead(e.target.value)}
+              />
+              <select value={tkPri} onChange={(e) => setTkPri(e.target.value)} aria-label="Task priority">
+                {['low', 'normal', 'high', 'urgent'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="btn"
+                disabled={tkHead.trim() === ''}
+                onClick={() =>
+                  void run(
+                    api.addCaseTask(
+                      caseId,
+                      { taskType: 'follow_up', headline: tkHead.trim(), priority: tkPri },
+                      tenant,
+                    ),
+                    'Task created.',
+                  ).then(() => setTkHead(''))
+                }
+              >
+                Add task
+              </button>
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+            Task assign/reopen/escalate are not exposed by the case backend (only create + complete).
+          </p>
 
           {deadlines.length > 0 && (
             <>
