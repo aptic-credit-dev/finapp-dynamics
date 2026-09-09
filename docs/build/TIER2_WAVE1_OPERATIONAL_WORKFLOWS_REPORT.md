@@ -9,14 +9,21 @@
 build).
 
 ## 2. Branch & final SHA
-`release/tier2-wave1-operational-workflows` off `21907fc`. Final SHA: **`652e26a`** (docs commit appended after).
+`release/tier2-wave1-operational-workflows` off `21907fc`. The final SHA is the documentation-reconciliation
+commit that adds this note (the last entry in §3). All commits below are ancestors of the branch HEAD; there is
+no hidden or unrelated commit.
 
 ## 3. Commits created
 - `75147fa` feat(web/m17): wire recovery case creation
 - `d94406f` feat(web/m19): wire accounting-entity admin + fiscal-period overlap guard
 - `e5dd775` feat(web/m20): wire recon run creation, GL import, manual match, certification
 - `652e26a` fix(staging-seed): bootstrap the canonical Synthetic Tenant 1 id
-- (this) docs(tier2): Wave-1 report + browser checklist + matrix/report updates
+- `329b4da` test(api/m19): entity edit + lifecycle + duplicate-code HTTP coverage
+- `fba6cb0` docs(tier2): Wave-1 report + browser checklist + matrix/report updates
+- (this) docs(tier2): reconcile the commit list (the report predated the test/docs commit split)
+
+**Total: 6 commits above `main` before this reconciliation commit** (an earlier chat summary miscounted this as
+7 — corrected here).
 
 ## 4. Files changed
 - `apps/web/src/app.tsx` — M17/M19/M20 UI.
