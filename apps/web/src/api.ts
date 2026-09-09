@@ -1263,6 +1263,54 @@ export const addCaseActivity = (
   t?: string | null,
 ): Promise<ApiResult<Row>> =>
   call(`${CS}/${encodeURIComponent(id)}/activities`, { method: 'POST', body, tenantId: t });
+export const completeCaseActivity = (
+  aid: string,
+  ev: number,
+  outcome: string | undefined,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/activities/${encodeURIComponent(aid)}/complete`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...(outcome ? { outcome } : {}) },
+    tenantId: t,
+  });
+// M13 case DECISIONS — submit (maker) then a DISTINCT approver approves (SoD, DB-enforced). No reject-over-HTTP.
+export const getCaseDecisions = (id: string, t?: string | null): Promise<ApiResult<{ decisions?: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/decisions`, { tenantId: t });
+export const submitCaseDecision = (
+  id: string,
+  body: {
+    decisionType: string;
+    summary?: string;
+    reasons?: string;
+    conditions?: string;
+    remedyType?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/${encodeURIComponent(id)}/decisions`, { method: 'POST', body, tenantId: t });
+export const approveCaseDecision = (did: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${CS}/decisions/${encodeURIComponent(did)}/approve`, { method: 'POST', body: {}, tenantId: t });
+// M13 case TASKS — create + complete (expectedVersion). Assign/reopen/escalate are NOT exposed by the backend.
+export const getCaseTasks = (id: string, t?: string | null): Promise<ApiResult<{ tasks?: Row[] }>> =>
+  call(`${CS}/${encodeURIComponent(id)}/tasks`, { tenantId: t });
+export const addCaseTask = (
+  id: string,
+  body: { taskType: string; headline: string; description?: string; dueAt?: string; priority?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/${encodeURIComponent(id)}/tasks`, { method: 'POST', body, tenantId: t });
+export const completeCaseTask = (
+  tid: string,
+  ev: number,
+  outcome: string | undefined,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${CS}/tasks/${encodeURIComponent(tid)}/complete`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...(outcome ? { outcome } : {}) },
+    tenantId: t,
+  });
 export const getCaseDeadlines = (id: string, t?: string | null): Promise<ApiResult<{ deadlines: Row[] }>> =>
   call(`${CS}/${encodeURIComponent(id)}/deadlines`, { tenantId: t });
 export const getCaseRelationships = (
@@ -1379,6 +1427,78 @@ export const proposeSettlement = (
   call(`${LG}/matters/${encodeURIComponent(id)}/settlements`, { method: 'POST', body, tenantId: t });
 export const approveSettlement = (sid: string, t?: string | null): Promise<ApiResult<Row>> =>
   call(`${LG}/settlements/${encodeURIComponent(sid)}/approve`, { method: 'POST', tenantId: t });
+
+// M14 matter sub-records — court events / pleadings / costs / appeal. All reuse existing endpoints; costs are
+// finance/court REFERENCES only (integer minor units, no ledger/posting), append-only (no edit/void by domain);
+// appeal is inline matter fields (free-form status, no state machine per domain).
+export const getMatterCourtEvents = (id: string, t?: string | null) => mget(id, 'court-events', t);
+export const scheduleCourtEvent = (
+  id: string,
+  body: {
+    eventType: string;
+    title?: string;
+    scheduledAt?: string;
+    forum?: string;
+    venue?: string;
+    presidingRef?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/court-events`, { method: 'POST', body, tenantId: t });
+export const completeCourtEvent = (
+  cid: string,
+  ev: number,
+  body: { outcome?: string; nextAction?: string; nextAt?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/court-events/${encodeURIComponent(cid)}/complete`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+export const getMatterPleadings = (id: string, t?: string | null) => mget(id, 'pleadings', t);
+export const registerPleading = (
+  id: string,
+  body: { documentRole: string; documentRef?: string; confidentiality?: string; privileged?: boolean },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/pleadings`, { method: 'POST', body, tenantId: t });
+export const filePleading = (
+  pid: string,
+  ev: number,
+  courtStampReference: string | undefined,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/pleadings/${encodeURIComponent(pid)}/file`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...(courtStampReference ? { courtStampReference } : {}) },
+    tenantId: t,
+  });
+export const getMatterCosts = (id: string, t?: string | null) => mget(id, 'costs', t);
+export const recordMatterCost = (
+  id: string,
+  body: {
+    costType?: string;
+    description?: string;
+    amountMinor?: number;
+    currency?: string;
+    invoiceReference?: string;
+    recoverable?: boolean;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/costs`, { method: 'POST', body, tenantId: t });
+export const updateMatterAppeal = (
+  id: string,
+  ev: number,
+  body: { appealStatus?: string; appealForum?: string; appealDeadline?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/appeal`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
 
 // --- M12 Feedback Management (Customer Service) — canonical m12-feedback engine, reused (no second feedback
 // engine). The Aptic FMS model: capture → classify → assign/escalate → HOD resolution (submit → approve, a
@@ -1664,6 +1784,114 @@ export const approveFiling = (fid: string, ev: number, t?: string | null): Promi
 export const fileFiling = (fid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
   filingAction(fid, 'file', ev, t);
 
+// M16 litigation sub-records — witnesses / exhibits / orders (+ compliance obligations) / bundles (+ items).
+// Witness CONTACT is redacted server-side unless litigation.witness_contact.read is held. Orders are append-only
+// (no version). Exhibit admit is a single-winner decision (no version). There is NO hard delete.
+export const getProceedingExhibits = (id: string, t?: string | null) => pget(id, 'exhibits', t);
+export const getProceedingOrders = (id: string, t?: string | null) => pget(id, 'orders', t);
+export const getProceedingObligations = (id: string, t?: string | null) => pget(id, 'obligations', t);
+export const getProceedingBundles = (id: string, t?: string | null) => pget(id, 'bundles', t);
+export const addWitness = (
+  id: string,
+  body: {
+    witnessType: string;
+    role?: string;
+    relevance?: string;
+    contactRef?: string;
+    confidentiality?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}/witnesses`, { method: 'POST', body, tenantId: t });
+export const registerExhibit = (
+  id: string,
+  body: {
+    exhibitNumber?: string;
+    description?: string;
+    source?: string;
+    documentRef?: string;
+    confidentiality?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}/exhibits`, { method: 'POST', body, tenantId: t });
+export const admitExhibit = (xid: string, decision: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LIT}/exhibits/${encodeURIComponent(xid)}/admit`, {
+    method: 'POST',
+    body: { decision },
+    tenantId: t,
+  });
+export const recordOrder = (
+  id: string,
+  body: {
+    orderType: string;
+    orderDate?: string;
+    issuingForum?: string;
+    summary?: string;
+    operativeTerms?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}/orders`, { method: 'POST', body, tenantId: t });
+export const addObligation = (
+  id: string,
+  body: {
+    obligationType?: string;
+    responsibleRef?: string;
+    dueDate?: string;
+    description?: string;
+    orderId?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}/obligations`, { method: 'POST', body, tenantId: t });
+export const completeObligation = (
+  oid: string,
+  ev: number,
+  evidenceReference: string | undefined,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/obligations/${encodeURIComponent(oid)}/complete`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...(evidenceReference ? { evidenceReference } : {}) },
+    tenantId: t,
+  });
+export const breachObligation = (
+  oid: string,
+  ev: number,
+  reason: string | undefined,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/obligations/${encodeURIComponent(oid)}/breach`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
+export const createBundle = (
+  id: string,
+  body: { bundleType?: string; title?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}/bundles`, { method: 'POST', body, tenantId: t });
+export const approveBundle = (bid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LIT}/bundles/${encodeURIComponent(bid)}/approve`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const fileBundle = (bid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LIT}/bundles/${encodeURIComponent(bid)}/file`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const addBundleItem = (
+  bid: string,
+  body: { documentRef?: string; tab?: string; description?: string; sortOrder?: number },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/bundles/${encodeURIComponent(bid)}/items`, { method: 'POST', body, tenantId: t });
+
 // --- M18 Legal Documents (knowledge + template library) — canonical m18-legaldocs engine, reused (no second
 // document/knowledge engine, no second blob store — files live in m09 by reference). The editorial lifecycle is
 // maker-checker: create → submit → review/request-changes → approve (DISTINCT approver, SoD server-side) →
@@ -1720,6 +1948,79 @@ export const getTemplate = (id: string, t?: string | null): Promise<ApiResult<Ro
   call(`${LD}/templates/${encodeURIComponent(id)}`, { tenantId: t });
 const tplAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
   call<Row>(`${LD}/templates/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+// Template CREATE (draft) — content is an opaque m09 ref/guidance only, never a secret value.
+export const createTemplate = (
+  body: {
+    templateCode: string;
+    title: string;
+    category?: string;
+    jurisdiction?: string;
+    practiceArea?: string;
+    description?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${LD}/templates`, { method: 'POST', body, tenantId: t });
+// Clauses — create draft then maker-checker submit/approve/publish, withdraw/supersede. No inline text (contentRef
+// only); no hard delete. There is NO template-clause composition or mandatory-clause validation in the domain.
+export const getClauses = (t?: string | null): Promise<ApiResult<{ clauses?: Row[] }>> =>
+  call(`${LD}/clauses`, { tenantId: t });
+export const createClause = (
+  body: {
+    clauseCode: string;
+    title: string;
+    clauseKind?: string;
+    category?: string;
+    jurisdiction?: string;
+    guidance?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${LD}/clauses`, { method: 'POST', body, tenantId: t });
+const clauseAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${LD}/clauses/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+export const submitClause = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  clauseAction(id, 'submit', { expectedVersion: ev }, t);
+export const approveClause = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  clauseAction(id, 'approve', { expectedVersion: ev }, t);
+export const publishClause = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  clauseAction(id, 'publish', { expectedVersion: ev }, t);
+export const withdrawClause = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => clauseAction(id, 'withdraw', { expectedVersion: ev, reason }, t);
+// Taxonomy — create/update/retire; code unique per (tenant, kind); soft-retire (no hard delete). NOTE: the domain
+// has NO retire-with-dependency guard (documented gap).
+export const getTaxonomy = (t?: string | null, kind?: string): Promise<ApiResult<{ taxonomy?: Row[] }>> =>
+  call(`${LD}/taxonomy${kind ? `?kind=${encodeURIComponent(kind)}` : ''}`, { tenantId: t });
+export const createTaxonomy = (
+  body: {
+    kind: string;
+    code: string;
+    label: string;
+    parentCode?: string;
+    jurisdiction?: string;
+    description?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${LD}/taxonomy`, { method: 'POST', body, tenantId: t });
+export const updateTaxonomy = (
+  id: string,
+  ev: number,
+  body: { label?: string; parentCode?: string; jurisdiction?: string; description?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LD}/taxonomy/${encodeURIComponent(id)}`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+export const retireTaxonomy = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LD}/taxonomy/${encodeURIComponent(id)}/retire`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
 export const submitTemplate = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
   tplAction(id, 'submit', { expectedVersion: ev }, t);
 export const approveTemplate = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
