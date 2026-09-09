@@ -1784,6 +1784,114 @@ export const approveFiling = (fid: string, ev: number, t?: string | null): Promi
 export const fileFiling = (fid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
   filingAction(fid, 'file', ev, t);
 
+// M16 litigation sub-records — witnesses / exhibits / orders (+ compliance obligations) / bundles (+ items).
+// Witness CONTACT is redacted server-side unless litigation.witness_contact.read is held. Orders are append-only
+// (no version). Exhibit admit is a single-winner decision (no version). There is NO hard delete.
+export const getProceedingExhibits = (id: string, t?: string | null) => pget(id, 'exhibits', t);
+export const getProceedingOrders = (id: string, t?: string | null) => pget(id, 'orders', t);
+export const getProceedingObligations = (id: string, t?: string | null) => pget(id, 'obligations', t);
+export const getProceedingBundles = (id: string, t?: string | null) => pget(id, 'bundles', t);
+export const addWitness = (
+  id: string,
+  body: {
+    witnessType: string;
+    role?: string;
+    relevance?: string;
+    contactRef?: string;
+    confidentiality?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}/witnesses`, { method: 'POST', body, tenantId: t });
+export const registerExhibit = (
+  id: string,
+  body: {
+    exhibitNumber?: string;
+    description?: string;
+    source?: string;
+    documentRef?: string;
+    confidentiality?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}/exhibits`, { method: 'POST', body, tenantId: t });
+export const admitExhibit = (xid: string, decision: string, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LIT}/exhibits/${encodeURIComponent(xid)}/admit`, {
+    method: 'POST',
+    body: { decision },
+    tenantId: t,
+  });
+export const recordOrder = (
+  id: string,
+  body: {
+    orderType: string;
+    orderDate?: string;
+    issuingForum?: string;
+    summary?: string;
+    operativeTerms?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}/orders`, { method: 'POST', body, tenantId: t });
+export const addObligation = (
+  id: string,
+  body: {
+    obligationType?: string;
+    responsibleRef?: string;
+    dueDate?: string;
+    description?: string;
+    orderId?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}/obligations`, { method: 'POST', body, tenantId: t });
+export const completeObligation = (
+  oid: string,
+  ev: number,
+  evidenceReference: string | undefined,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/obligations/${encodeURIComponent(oid)}/complete`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...(evidenceReference ? { evidenceReference } : {}) },
+    tenantId: t,
+  });
+export const breachObligation = (
+  oid: string,
+  ev: number,
+  reason: string | undefined,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/obligations/${encodeURIComponent(oid)}/breach`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
+export const createBundle = (
+  id: string,
+  body: { bundleType?: string; title?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/proceedings/${encodeURIComponent(id)}/bundles`, { method: 'POST', body, tenantId: t });
+export const approveBundle = (bid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LIT}/bundles/${encodeURIComponent(bid)}/approve`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const fileBundle = (bid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LIT}/bundles/${encodeURIComponent(bid)}/file`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const addBundleItem = (
+  bid: string,
+  body: { documentRef?: string; tab?: string; description?: string; sortOrder?: number },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LIT}/bundles/${encodeURIComponent(bid)}/items`, { method: 'POST', body, tenantId: t });
+
 // --- M18 Legal Documents (knowledge + template library) — canonical m18-legaldocs engine, reused (no second
 // document/knowledge engine, no second blob store — files live in m09 by reference). The editorial lifecycle is
 // maker-checker: create → submit → review/request-changes → approve (DISTINCT approver, SoD server-side) →

@@ -5668,6 +5668,18 @@ function ProceedingDrawer({
   const [nonce, setNonce] = useState(0);
   const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   const [owner, setOwner] = useState('');
+  const [witnesses, setWitnesses] = useState<api.Row[]>([]);
+  const [exhibits, setExhibits] = useState<api.Row[]>([]);
+  const [orders, setOrders] = useState<api.Row[]>([]);
+  const [obligations, setObligations] = useState<api.Row[]>([]);
+  const [bundles, setBundles] = useState<api.Row[]>([]);
+  const [wType, setWType] = useState('fact');
+  const [wRole, setWRole] = useState('');
+  const [exNum, setExNum] = useState('');
+  const [exDesc, setExDesc] = useState('');
+  const [orType, setOrType] = useState('directions_order');
+  const [orSummary, setOrSummary] = useState('');
+  const [buTitle, setBuTitle] = useState('');
   const grab = (r: api.ApiResult<unknown>, key: string): api.Row[] =>
     ((r.data as Record<string, api.Row[]> | null)?.[key] ?? []) as api.Row[];
   useEffect(() => {
@@ -5678,6 +5690,15 @@ function ProceedingDrawer({
       .getProceedingAppearances(proceedingId, tenant)
       .then((r) => live && setAppearances(grab(r, 'appearances')));
     void api.getProceedingService(proceedingId, tenant).then((r) => live && setService(grab(r, 'service')));
+    void api
+      .getProceedingWitnesses(proceedingId, tenant)
+      .then((r) => live && setWitnesses(api.asRows(r.data)));
+    void api.getProceedingExhibits(proceedingId, tenant).then((r) => live && setExhibits(api.asRows(r.data)));
+    void api.getProceedingOrders(proceedingId, tenant).then((r) => live && setOrders(api.asRows(r.data)));
+    void api
+      .getProceedingObligations(proceedingId, tenant)
+      .then((r) => live && setObligations(api.asRows(r.data)));
+    void api.getProceedingBundles(proceedingId, tenant).then((r) => live && setBundles(api.asRows(r.data)));
     return () => {
       live = false;
     };
@@ -5880,6 +5901,320 @@ function ProceedingDrawer({
             ))}
             {service.length === 0 && <li className="muted">No service records.</li>}
           </ul>
+
+          <h4 className="drawer-sub">Witnesses</h4>
+          <ul className="timeline">
+            {witnesses.map((w, i) => (
+              <li key={pick(w, 'id') || i}>
+                <span className="t-head">{pick(w, 'role') || pick(w, 'witnessType')}</span>{' '}
+                <span className="muted">
+                  {pick(w, 'witnessType')} · {pick(w, 'attendanceStatus') || 'pending'}
+                  {pick(w, 'contactRef') ? ` · ${pick(w, 'contactRef')}` : ''}
+                </span>
+              </li>
+            ))}
+            {witnesses.length === 0 && <li className="muted">No witnesses.</li>}
+          </ul>
+          {can('litigation.witness.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={wType} onChange={(e) => setWType(e.target.value)} aria-label="Witness type">
+                {['fact', 'expert', 'character', 'hostile', 'rebuttal', 'corporate_representative'].map(
+                  (x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ),
+                )}
+              </select>
+              <input
+                value={wRole}
+                placeholder="Role/relevance"
+                aria-label="Witness role"
+                onChange={(e) => setWRole(e.target.value)}
+              />
+              <button
+                className="btn"
+                onClick={() =>
+                  void run(
+                    api.addWitness(
+                      proceedingId,
+                      { witnessType: wType, ...(wRole.trim() ? { role: wRole.trim() } : {}) },
+                      tenant,
+                    ),
+                    'Witness added.',
+                  ).then(() => setWRole(''))
+                }
+              >
+                Add witness
+              </button>
+              <span className="muted" style={{ fontSize: 11 }}>
+                Contact details are redacted unless permitted; do not enter unnecessary personal data.
+              </span>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Exhibits</h4>
+          <ul className="timeline">
+            {exhibits.map((x, i) => {
+              const st = pick(x, 'admittedStatus').toLowerCase();
+              return (
+                <li key={pick(x, 'id') || i}>
+                  <span className="t-head">
+                    {pick(x, 'exhibitNumber') || pick(x, 'description') || 'Exhibit'}
+                  </span>{' '}
+                  <span className="muted">{st || 'pending'}</span>{' '}
+                  {/pending|marked/.test(st) &&
+                    can('litigation.exhibit.manage') &&
+                    ['admitted', 'rejected', 'withdrawn'].map((dec) => (
+                      <button
+                        key={dec}
+                        className="btn link sm"
+                        onClick={() =>
+                          void run(api.admitExhibit(pick(x, 'id'), dec, tenant), `Exhibit ${dec}.`)
+                        }
+                      >
+                        {dec}
+                      </button>
+                    ))}
+                </li>
+              );
+            })}
+            {exhibits.length === 0 && <li className="muted">No exhibits.</li>}
+          </ul>
+          {can('litigation.exhibit.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <input
+                value={exNum}
+                placeholder="Exhibit number"
+                aria-label="Exhibit number"
+                onChange={(e) => setExNum(e.target.value)}
+              />
+              <input
+                value={exDesc}
+                placeholder="Description"
+                aria-label="Exhibit description"
+                onChange={(e) => setExDesc(e.target.value)}
+              />
+              <button
+                className="btn"
+                onClick={() =>
+                  void run(
+                    api.registerExhibit(
+                      proceedingId,
+                      {
+                        ...(exNum.trim() ? { exhibitNumber: exNum.trim() } : {}),
+                        ...(exDesc.trim() ? { description: exDesc.trim() } : {}),
+                      },
+                      tenant,
+                    ),
+                    'Exhibit registered.',
+                  ).then(() => {
+                    setExNum('');
+                    setExDesc('');
+                  })
+                }
+              >
+                Register exhibit
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Court orders &amp; compliance</h4>
+          <ul className="timeline">
+            {orders.map((o, i) => (
+              <li key={pick(o, 'id') || i}>
+                <span className="t-head">{pick(o, 'orderType')}</span>{' '}
+                <span className="muted">
+                  {pick(o, 'status') || 'active'}
+                  {pick(o, 'orderDate') ? ` · ${pick(o, 'orderDate')}` : ''}
+                  {pick(o, 'summary') ? ` · ${pick(o, 'summary')}` : ''}
+                </span>
+              </li>
+            ))}
+            {orders.length === 0 && <li className="muted">No orders.</li>}
+          </ul>
+          {can('litigation.order.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={orType} onChange={(e) => setOrType(e.target.value)} aria-label="Order type">
+                {[
+                  'interim_order',
+                  'injunction',
+                  'conservatory_order',
+                  'stay',
+                  'directions_order',
+                  'disclosure_order',
+                  'production_order',
+                  'consent_order',
+                  'costs_order',
+                  'decree',
+                  'warrant',
+                  'final_order',
+                ].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={orSummary}
+                placeholder="Terms/summary"
+                aria-label="Order summary"
+                style={{ flex: 1 }}
+                onChange={(e) => setOrSummary(e.target.value)}
+              />
+              <button
+                className="btn"
+                onClick={() =>
+                  void run(
+                    api.recordOrder(
+                      proceedingId,
+                      { orderType: orType, ...(orSummary.trim() ? { summary: orSummary.trim() } : {}) },
+                      tenant,
+                    ),
+                    'Order recorded (append-only).',
+                  ).then(() => setOrSummary(''))
+                }
+              >
+                Record order
+              </button>
+            </div>
+          )}
+          <ul className="timeline">
+            {obligations.map((ob, i) => {
+              const st = pick(ob, 'status').toLowerCase();
+              const oev = Number(ob['version'] ?? 1);
+              return (
+                <li key={pick(ob, 'id') || i}>
+                  <span className="t-head">Obligation</span>{' '}
+                  <span className="muted">
+                    {st || 'open'}
+                    {pick(ob, 'dueDate') ? ` · due ${pick(ob, 'dueDate')}` : ''}
+                  </span>{' '}
+                  {!/completed|waived|breached/.test(st) && can('litigation.compliance.manage') && (
+                    <>
+                      <button
+                        className="btn link sm"
+                        onClick={() =>
+                          void run(
+                            api.completeObligation(pick(ob, 'id'), oev, undefined, tenant),
+                            'Obligation completed.',
+                          )
+                        }
+                      >
+                        complete
+                      </button>
+                      <button
+                        className="btn link sm"
+                        onClick={() =>
+                          void run(
+                            api.breachObligation(pick(ob, 'id'), oev, undefined, tenant),
+                            'Obligation breach recorded.',
+                          )
+                        }
+                      >
+                        breach
+                      </button>
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {can('litigation.compliance.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <button
+                className="btn secondary sm"
+                onClick={() =>
+                  void run(
+                    api.addObligation(proceedingId, { obligationType: 'compliance' }, tenant),
+                    'Compliance obligation opened.',
+                  )
+                }
+              >
+                + Compliance obligation
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Bundles</h4>
+          <ul className="timeline">
+            {bundles.map((b, i) => {
+              const bev = Number(b['version'] ?? 1);
+              const ap = pick(b, 'approvalStatus').toLowerCase();
+              const fs = pick(b, 'filingStatus').toLowerCase();
+              const locked = ap === 'approved' || fs === 'filed';
+              return (
+                <li key={pick(b, 'id') || i}>
+                  <span className="t-head">{pick(b, 'title') || pick(b, 'bundleType') || 'Bundle'}</span>{' '}
+                  <span className="muted">
+                    {ap || 'draft'} · {fs || 'unfiled'}
+                  </span>{' '}
+                  {ap === 'draft' && can('litigation.bundle.approve') && (
+                    <button
+                      className="btn link sm"
+                      onClick={() =>
+                        void run(api.approveBundle(pick(b, 'id'), bev, tenant), 'Bundle approved (SoD).')
+                      }
+                    >
+                      approve
+                    </button>
+                  )}
+                  {ap === 'approved' && fs !== 'filed' && can('litigation.bundle.manage') && (
+                    <button
+                      className="btn link sm"
+                      onClick={() => void run(api.fileBundle(pick(b, 'id'), bev, tenant), 'Bundle filed.')}
+                    >
+                      file
+                    </button>
+                  )}
+                  {!locked && can('litigation.bundle.manage') && (
+                    <button
+                      className="btn link sm"
+                      onClick={() =>
+                        void run(
+                          api.addBundleItem(pick(b, 'id'), { description: 'document' }, tenant),
+                          'Bundle item added.',
+                        )
+                      }
+                    >
+                      + item
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+            {bundles.length === 0 && <li className="muted">No bundles.</li>}
+          </ul>
+          {can('litigation.bundle.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <input
+                value={buTitle}
+                placeholder="Bundle title"
+                aria-label="Bundle title"
+                onChange={(e) => setBuTitle(e.target.value)}
+              />
+              <button
+                className="btn"
+                onClick={() =>
+                  void run(
+                    api.createBundle(
+                      proceedingId,
+                      { ...(buTitle.trim() ? { title: buTitle.trim() } : {}) },
+                      tenant,
+                    ),
+                    'Bundle created (draft).',
+                  ).then(() => setBuTitle(''))
+                }
+              >
+                Create bundle
+              </button>
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+            Bundle items can only be added before approval/filing (the UI locks them after — the backend has
+            no remove/reorder/supersede op). Exhibit chain-of-custody and witness withdrawal are not modelled
+            by the domain.
+          </p>
 
           <h4 className="drawer-sub">Cross-module links</h4>
           <div className="linkrow">
