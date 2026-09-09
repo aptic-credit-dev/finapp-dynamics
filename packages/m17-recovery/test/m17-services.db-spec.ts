@@ -66,6 +66,25 @@ export default defineDbSpec('m17-services', async (ctx, t) => {
     permissions: ALL_M17_PERMISSIONS.filter((p) => p !== M17_PERMISSIONS.confidentialRead),
   };
 
+  // Owner accountability (Wave-4): assignment now validates that the owner is an ACTIVE member of the tenant
+  // (against the shared tenancy control plane, under RLS). Seed the tenant + officer identity + an active
+  // membership so the officer is a legitimate assignable owner — this mirrors reality, where an owner is a real
+  // tenant member, not a bare uuid.
+  await ctx.asSuperuser(null, async (tx) => {
+    await tx.query(
+      `INSERT INTO tenants (id, code, legal_name, tenant_type, status, activated_at) VALUES ($1,$2,$3,'enterprise_customer','active',now())`,
+      [tenant, `m17svc_${tenant.slice(0, 8)}`, 'M17 Services Ltd'],
+    );
+    await tx.query(
+      `INSERT INTO identities (id, identity_type, display_name, primary_email, primary_email_norm, status) VALUES ($1,'internal_person',$2,$3,$3,'active')`,
+      [officer, 'Recovery Officer', `officer.${officer.slice(0, 8)}@example.com`],
+    );
+    await tx.query(
+      `INSERT INTO tenant_memberships (tenant_id, id, identity_id, membership_type, status) VALUES ($1,$2,$3,'employee','active')`,
+      [tenant, randomUUID(), officer],
+    );
+  });
+
   const typeSpec = {
     schemaVersion: 1,
     code: 'judgment_recovery',

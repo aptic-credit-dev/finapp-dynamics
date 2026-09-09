@@ -494,6 +494,194 @@ export default defineDbSpec('api-recovery', async (ctx, t) => {
     );
     t.equal(fromProceeding2.body['created'], false, 'a repeat referral does not create a second recovery');
 
+    // ================= Wave-4: debtor / owner / deadline / exposure capture (HTTP) =================
+    const w4 = await client('POST', '/recovery/recoveries', {
+      headers: auth.headers,
+      body: {
+        recoveryTypeCode: 'judgment_recovery',
+        title: 'Wave4 capture',
+        principalAmountMinor: 500000,
+        currency: 'KES',
+      },
+    });
+    const w4Id = String(w4.body['id']);
+    let w4v = Number(w4.body['version']);
+
+    // (1) PATCH header edit succeeds + persists + bumps version.
+    const edited = await client('PATCH', `/recovery/recoveries/${w4Id}`, {
+      headers: auth.headers,
+      body: { expectedVersion: w4v, title: 'Wave4 capture (edited)', priority: 'high', summary: 'updated' },
+    });
+    t.equal(edited.status, 200, 'PATCH edits the case header (200)');
+    t.equal(edited.body['title'], 'Wave4 capture (edited)', 'the edited title is persisted');
+    w4v = Number(edited.body['version']);
+
+    // (2) PATCH stated exposure amounts; recovered/outstanding (progress) untouched.
+    const exposure = await client('PATCH', `/recovery/recoveries/${w4Id}`, {
+      headers: auth.headers,
+      body: {
+        expectedVersion: w4v,
+        interestAmountMinor: 12345,
+        costAmountMinor: 6789,
+        recoverableAmountMinor: 800000,
+      },
+    });
+    t.equal(
+      Number(exposure.body['interestAmountMinor']),
+      12345,
+      'PATCH sets the interest exposure exactly (minor units)',
+    );
+    t.equal(
+      exposure.body['recoveredAmountMinor'] ?? null,
+      w4.body['recoveredAmountMinor'] ?? null,
+      'PATCH never moves the recovered (progress) amount',
+    );
+    w4v = Number(exposure.body['version']);
+
+    // (3) stale-version PATCH → 409.
+    const staleEdit = await client('PATCH', `/recovery/recoveries/${w4Id}`, {
+      headers: auth.headers,
+      body: { expectedVersion: 1, title: 'stale' },
+    });
+    t.equal(staleEdit.status, 409, 'a stale-version PATCH is rejected (409)');
+
+    // (4) negative exposure amount → 400.
+    const badAmt = await client('PATCH', `/recovery/recoveries/${w4Id}`, {
+      headers: auth.headers,
+      body: { expectedVersion: w4v, principalAmountMinor: -5 },
+    });
+    t.equal(badAmt.status, 400, 'a negative exposure amount is rejected (400)');
+
+    // (5) invalid priority → 400.
+    const badPri = await client('PATCH', `/recovery/recoveries/${w4Id}`, {
+      headers: auth.headers,
+      body: { expectedVersion: w4v, priority: 'sideways' },
+    });
+    t.equal(badPri.status, 400, 'an invalid priority is rejected (400)');
+
+    // (6) add a debtor party with a contact reference.
+    const party = await client('POST', `/recovery/recoveries/${w4Id}/parties`, {
+      headers: auth.headers,
+      body: {
+        partyRole: 'principal_debtor',
+        entityRef: 'cust-123',
+        displayLabel: 'ACME Ltd',
+        contactRef: '+254700000000',
+        liabilityAmountMinor: 500000,
+      },
+    });
+    t.ok(party.status === 200 || party.status === 201, 'a debtor party is added over HTTP (200)');
+    const partyId = String(party.body['id']);
+
+    // (7) PII minimization: a party-reader WITHOUT recovery.party_contact.read sees the contact redacted; a
+    // privileged reader sees the reference. The contact is never leaked to an under-privileged caller.
+    const partyReader = await seedActor(ctx, 'recpartyreader');
+    await grantInTenant(ctx, admin.tenantId, partyReader, [M17_PERMISSIONS.partyRead], 'recpartyreader');
+    const partyReaderAuth = await login(client, partyReader, admin.tenantId);
+    const redactedParties = await client('GET', `/recovery/recoveries/${w4Id}/parties`, {
+      headers: partyReaderAuth.headers,
+    });
+    const rp = (redactedParties.body['parties'] as Record<string, unknown>[])[0] ?? {};
+    t.equal(
+      rp['contactRef'],
+      '[redacted]',
+      'a caller without party_contact.read sees the debtor contact redacted',
+    );
+    const revealedParties = await client('GET', `/recovery/recoveries/${w4Id}/parties`, {
+      headers: auth.headers,
+    });
+    const vp = (revealedParties.body['parties'] as Record<string, unknown>[])[0] ?? {};
+    t.equal(vp['contactRef'], '+254700000000', 'a privileged caller reads the debtor contact reference');
+
+    // (8) remove a party: stale version → 409, correct version → 200 (soft, no hard delete).
+    const staleRemove = await client('POST', `/recovery/parties/${partyId}/remove`, {
+      headers: auth.headers,
+      body: { expectedVersion: 999 },
+    });
+    t.equal(staleRemove.status, 409, 'removing a party with a stale version is rejected (409)');
+    const removed = await client('POST', `/recovery/parties/${partyId}/remove`, {
+      headers: auth.headers,
+      body: { expectedVersion: Number(party.body['version']) },
+    });
+    t.ok(
+      removed.status === 200 || removed.status === 201,
+      'a party is soft-removed with the correct version',
+    );
+
+    // Owner tests — read the authoritative version first.
+    const beforeOwner = await client('GET', `/recovery/recoveries/${w4Id}`, { headers: auth.headers });
+    const ownV = Number(beforeOwner.body['version']);
+
+    // (9) ineligible owner (a random uuid that is not a member) → 400.
+    const ghost = randomUUID();
+    const badOwner = await client('POST', `/recovery/recoveries/${w4Id}/assign`, {
+      headers: auth.headers,
+      body: { expectedVersion: ownV, owner: ghost },
+    });
+    t.equal(badOwner.status, 400, 'assigning a non-member identity is rejected (ineligible owner, 400)');
+
+    // (10) arbitrary name (non-uuid) → 400.
+    const nameOwner = await client('POST', `/recovery/recoveries/${w4Id}/assign`, {
+      headers: auth.headers,
+      body: { expectedVersion: ownV, owner: 'John Smith' },
+    });
+    t.equal(nameOwner.status, 400, 'assigning an arbitrary name (non-uuid) is rejected (400)');
+
+    // (11) an active tenant member → 200, owner recorded.
+    const okOwner = await client('POST', `/recovery/recoveries/${w4Id}/assign`, {
+      headers: auth.headers,
+      body: { expectedVersion: ownV, owner: admin.identityId },
+    });
+    t.ok(okOwner.status === 200 || okOwner.status === 201, 'assigning an active tenant member succeeds');
+    t.equal(okOwner.body['legalOwner'], admin.identityId, 'the accountable owner is recorded');
+
+    // (12) cross-tenant owner (an active member of ANOTHER tenant) → 400.
+    const foreign = await seedActor(ctx, 'recforeign');
+    const xOwner = await client('POST', `/recovery/recoveries/${w4Id}/reassign`, {
+      headers: auth.headers,
+      body: { expectedVersion: Number(okOwner.body['version']), owner: foreign.identityId, reason: 'x' },
+    });
+    t.equal(xOwner.status, 400, 'assigning an identity from another tenant is rejected (cross-tenant, 400)');
+
+    // (13) reassign to an eligible owner with a reason → 200.
+    const reassigned = await client('POST', `/recovery/recoveries/${w4Id}/reassign`, {
+      headers: auth.headers,
+      body: { expectedVersion: Number(okOwner.body['version']), owner: admin.identityId, reason: 'coverage' },
+    });
+    t.ok(
+      reassigned.status === 200 || reassigned.status === 201,
+      'reassigning to an eligible owner with a reason succeeds',
+    );
+
+    // (14) deadline with an explicit future date → 200.
+    const dl = await client('POST', `/recovery/recoveries/${w4Id}/deadlines`, {
+      headers: auth.headers,
+      body: { deadlineType: 'review', rule: { kind: 'explicit', dueMs: Date.parse('2030-01-01T00:00:00Z') } },
+    });
+    t.ok(dl.status === 200 || dl.status === 201, 'a deadline with an explicit future date is captured (200)');
+    const dlId = String(dl.body['id']);
+
+    // (15) limitation deadline in the PAST → 400 (invalid date; no statutory calc, only the not-in-past check).
+    const badDl = await client('POST', `/recovery/recoveries/${w4Id}/deadlines`, {
+      headers: auth.headers,
+      body: {
+        deadlineType: 'limitation',
+        rule: { kind: 'explicit', dueMs: Date.parse('2000-01-01T00:00:00Z') },
+      },
+    });
+    t.equal(badDl.status, 400, 'a limitation deadline in the past is rejected (invalid date, 400)');
+
+    // (16) extend a deadline (future) with a reason + version → 200.
+    const extended = await client('POST', `/recovery/deadlines/${dlId}/extend`, {
+      headers: auth.headers,
+      body: {
+        expectedVersion: Number(dl.body['version']),
+        extensionTo: new Date(Date.parse('2031-06-01T00:00:00Z')).toISOString(),
+        reason: 'agreed extension',
+      },
+    });
+    t.ok(extended.status === 200 || extended.status === 201, 'a deadline is extended with a reason');
+
     // A header cannot grant authority (403).
     const outsider = await seedActor(ctx, 'recoutsider');
     const outsiderAuth = await login(client, outsider);
