@@ -1428,6 +1428,78 @@ export const proposeSettlement = (
 export const approveSettlement = (sid: string, t?: string | null): Promise<ApiResult<Row>> =>
   call(`${LG}/settlements/${encodeURIComponent(sid)}/approve`, { method: 'POST', tenantId: t });
 
+// M14 matter sub-records — court events / pleadings / costs / appeal. All reuse existing endpoints; costs are
+// finance/court REFERENCES only (integer minor units, no ledger/posting), append-only (no edit/void by domain);
+// appeal is inline matter fields (free-form status, no state machine per domain).
+export const getMatterCourtEvents = (id: string, t?: string | null) => mget(id, 'court-events', t);
+export const scheduleCourtEvent = (
+  id: string,
+  body: {
+    eventType: string;
+    title?: string;
+    scheduledAt?: string;
+    forum?: string;
+    venue?: string;
+    presidingRef?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/court-events`, { method: 'POST', body, tenantId: t });
+export const completeCourtEvent = (
+  cid: string,
+  ev: number,
+  body: { outcome?: string; nextAction?: string; nextAt?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/court-events/${encodeURIComponent(cid)}/complete`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+export const getMatterPleadings = (id: string, t?: string | null) => mget(id, 'pleadings', t);
+export const registerPleading = (
+  id: string,
+  body: { documentRole: string; documentRef?: string; confidentiality?: string; privileged?: boolean },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/pleadings`, { method: 'POST', body, tenantId: t });
+export const filePleading = (
+  pid: string,
+  ev: number,
+  courtStampReference: string | undefined,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/pleadings/${encodeURIComponent(pid)}/file`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...(courtStampReference ? { courtStampReference } : {}) },
+    tenantId: t,
+  });
+export const getMatterCosts = (id: string, t?: string | null) => mget(id, 'costs', t);
+export const recordMatterCost = (
+  id: string,
+  body: {
+    costType?: string;
+    description?: string;
+    amountMinor?: number;
+    currency?: string;
+    invoiceReference?: string;
+    recoverable?: boolean;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/costs`, { method: 'POST', body, tenantId: t });
+export const updateMatterAppeal = (
+  id: string,
+  ev: number,
+  body: { appealStatus?: string; appealForum?: string; appealDeadline?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LG}/matters/${encodeURIComponent(id)}/appeal`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+
 // --- M12 Feedback Management (Customer Service) — canonical m12-feedback engine, reused (no second feedback
 // engine). The Aptic FMS model: capture → classify → assign/escalate → HOD resolution (submit → approve, a
 // DISTINCT approver = SoD) → customer confirmation → rule-gated close. Every mutation is permission-gated +

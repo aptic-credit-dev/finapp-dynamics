@@ -8669,6 +8669,22 @@ function MatterDrawer({
   const [opText, setOpText] = useState('');
   const [firmRef, setFirmRef] = useState('');
   const [actHead, setActHead] = useState('');
+  const [courtEvents, setCourtEvents] = useState<api.Row[]>([]);
+  const [pleadings, setPleadings] = useState<api.Row[]>([]);
+  const [costs, setCosts] = useState<api.Row[]>([]);
+  const [ceType, setCeType] = useState('hearing');
+  const [ceTitle, setCeTitle] = useState('');
+  const [ceAt, setCeAt] = useState('');
+  const [ceForum, setCeForum] = useState('');
+  const [plRole, setPlRole] = useState('affidavit');
+  const [plRef, setPlRef] = useState('');
+  const [coType, setCoType] = useState('legal_fees');
+  const [coDesc, setCoDesc] = useState('');
+  const [coAmount, setCoAmount] = useState('');
+  const [coCur, setCoCur] = useState('KES');
+  const [apStatus, setApStatus] = useState('');
+  const [apForum, setApForum] = useState('');
+  const [apDeadline, setApDeadline] = useState('');
   const grab = (r: api.ApiResult<unknown>, key: string): api.Row[] =>
     ((r.data as Record<string, api.Row[]> | null)?.[key] ?? []) as api.Row[];
   useEffect(() => {
@@ -8681,6 +8697,9 @@ function MatterDrawer({
     void api
       .getMatterSettlements(matterId, tenant)
       .then((r) => live && setSettlements(grab(r, 'settlements')));
+    void api.getMatterCourtEvents(matterId, tenant).then((r) => live && setCourtEvents(api.asRows(r.data)));
+    void api.getMatterPleadings(matterId, tenant).then((r) => live && setPleadings(api.asRows(r.data)));
+    void api.getMatterCosts(matterId, tenant).then((r) => live && setCosts(api.asRows(r.data)));
     return () => {
       live = false;
     };
@@ -9014,6 +9033,305 @@ function MatterDrawer({
                 Add
               </button>
             </div>
+          )}
+
+          <h4 className="drawer-sub">Court events</h4>
+          <ul className="timeline">
+            {courtEvents.map((cee, i) => (
+              <li key={pick(cee, 'id') || i}>
+                <span className="t-head">{pick(cee, 'title') || pick(cee, 'eventType')}</span>{' '}
+                <span className="muted">
+                  {pick(cee, 'eventType')} · {pick(cee, 'status')}
+                  {pick(cee, 'scheduledAt')
+                    ? ` · ${pick(cee, 'scheduledAt').slice(0, 16).replace('T', ' ')}`
+                    : ''}
+                  {pick(cee, 'outcome') ? ` · ${pick(cee, 'outcome')}` : ''}
+                </span>{' '}
+                {pick(cee, 'status').toLowerCase() !== 'completed' && can('legal.court_event.manage') && (
+                  <button
+                    className="btn link sm"
+                    onClick={() =>
+                      void run(
+                        api.completeCourtEvent(pick(cee, 'id'), Number(cee['version'] ?? 1), {}, tenant),
+                        'Court event completed.',
+                      )
+                    }
+                  >
+                    complete
+                  </button>
+                )}
+              </li>
+            ))}
+            {courtEvents.length === 0 && <li className="muted">No court events.</li>}
+          </ul>
+          {can('legal.court_event.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={ceType} onChange={(e) => setCeType(e.target.value)} aria-label="Event type">
+                {[
+                  'mention',
+                  'hearing',
+                  'ruling',
+                  'judgment',
+                  'mediation',
+                  'arbitration',
+                  'settlement_conference',
+                  'case_management_conference',
+                  'directions',
+                  'filing_deadline',
+                  'service_deadline',
+                  'appeal_deadline',
+                  'regulatory_appearance',
+                ].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={ceTitle}
+                placeholder="Title"
+                aria-label="Event title"
+                onChange={(e) => setCeTitle(e.target.value)}
+              />
+              <input
+                type="datetime-local"
+                value={ceAt}
+                aria-label="Scheduled at"
+                onChange={(e) => setCeAt(e.target.value)}
+              />
+              <input
+                value={ceForum}
+                placeholder="Forum/venue"
+                aria-label="Forum"
+                onChange={(e) => setCeForum(e.target.value)}
+              />
+              <button
+                className="btn"
+                onClick={() =>
+                  void run(
+                    api.scheduleCourtEvent(
+                      matterId,
+                      {
+                        eventType: ceType,
+                        ...(ceTitle.trim() ? { title: ceTitle.trim() } : {}),
+                        ...(ceAt ? { scheduledAt: ceAt } : {}),
+                        ...(ceForum.trim() ? { forum: ceForum.trim() } : {}),
+                      },
+                      tenant,
+                    ),
+                    'Court event scheduled.',
+                  ).then(() => {
+                    setCeTitle('');
+                    setCeAt('');
+                    setCeForum('');
+                  })
+                }
+              >
+                Schedule
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Pleadings</h4>
+          <ul className="timeline">
+            {pleadings.map((pl, i) => (
+              <li key={pick(pl, 'id') || i}>
+                <span className="t-head">{pick(pl, 'documentRole')}</span>{' '}
+                <span className="muted">
+                  {pick(pl, 'filingStatus')}
+                  {pick(pl, 'courtStampReference') ? ` · ${pick(pl, 'courtStampReference')}` : ''}
+                </span>{' '}
+                {/draft|ready/.test(pick(pl, 'filingStatus').toLowerCase()) &&
+                  can('legal.pleading.manage') && (
+                    <button
+                      className="btn link sm"
+                      onClick={() =>
+                        void run(
+                          api.filePleading(pick(pl, 'id'), Number(pl['version'] ?? 1), undefined, tenant),
+                          'Pleading filed (filed-document history preserved).',
+                        )
+                      }
+                    >
+                      file
+                    </button>
+                  )}
+              </li>
+            ))}
+            {pleadings.length === 0 && <li className="muted">No pleadings.</li>}
+          </ul>
+          {can('legal.pleading.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <select value={plRole} onChange={(e) => setPlRole(e.target.value)} aria-label="Pleading type">
+                {[
+                  'plaint',
+                  'petition',
+                  'application',
+                  'notice_of_motion',
+                  'affidavit',
+                  'defence',
+                  'response',
+                  'replying_affidavit',
+                  'submissions',
+                  'witness_statement',
+                  'notice_of_appeal',
+                  'memorandum_of_appeal',
+                  'consent',
+                  'settlement_agreement',
+                ].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={plRef}
+                placeholder="Document ref (uuid, opt)"
+                aria-label="Document ref"
+                onChange={(e) => setPlRef(e.target.value)}
+              />
+              <button
+                className="btn"
+                onClick={() =>
+                  void run(
+                    api.registerPleading(
+                      matterId,
+                      { documentRole: plRole, ...(plRef.trim() ? { documentRef: plRef.trim() } : {}) },
+                      tenant,
+                    ),
+                    'Pleading registered (draft).',
+                  ).then(() => setPlRef(''))
+                }
+              >
+                Register pleading
+              </button>
+            </div>
+          )}
+
+          <h4 className="drawer-sub">Legal costs (references — exact minor units, no ledger posting)</h4>
+          <ul className="timeline">
+            {costs.map((co, i) => (
+              <li key={pick(co, 'id') || i}>
+                <span className="t-head">{pick(co, 'costType')}</span>{' '}
+                <span className="muted">
+                  {fmtMinor(co['amountMinor'])} {pick(co, 'currency')} · {pick(co, 'approvalStatus')}
+                  {pick(co, 'recoverable') === 'true' ? ' · recoverable' : ''}
+                </span>
+              </li>
+            ))}
+            {costs.length === 0 && <li className="muted">No cost references.</li>}
+          </ul>
+          {can('legal.cost.manage') && !terminal && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <input
+                value={coType}
+                placeholder="Cost type (e.g. legal_fees, disbursement)"
+                aria-label="Cost type"
+                onChange={(e) => setCoType(e.target.value)}
+              />
+              <input
+                value={coDesc}
+                placeholder="Description (opt)"
+                aria-label="Cost description"
+                onChange={(e) => setCoDesc(e.target.value)}
+              />
+              <input
+                value={coAmount}
+                placeholder="Amount (e.g. 5000.00)"
+                aria-label="Cost amount"
+                onChange={(e) => setCoAmount(e.target.value)}
+              />
+              <input
+                value={coCur}
+                placeholder="Cur"
+                aria-label="Currency"
+                style={{ width: 60 }}
+                onChange={(e) => setCoCur(e.target.value.toUpperCase())}
+              />
+              <button
+                className="btn"
+                disabled={coType.trim() === '' || (coAmount.trim() !== '' && toMinorUnits(coAmount) === null)}
+                onClick={() =>
+                  void run(
+                    api.recordMatterCost(
+                      matterId,
+                      {
+                        costType: coType.trim(),
+                        ...(coDesc.trim() ? { description: coDesc.trim() } : {}),
+                        ...(toMinorUnits(coAmount) !== null
+                          ? { amountMinor: toMinorUnits(coAmount) as number }
+                          : {}),
+                        currency: coCur.trim() || 'KES',
+                      },
+                      tenant,
+                    ),
+                    'Cost reference recorded (append-only, audited).',
+                  ).then(() => {
+                    setCoDesc('');
+                    setCoAmount('');
+                  })
+                }
+              >
+                Record cost
+              </button>
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+            Costs are references only (no ledger/posting/payment) and append-only — the domain exposes no
+            edit/approve/void, so none is offered.
+          </p>
+
+          {can('legal.appeal.manage') && (
+            <>
+              <h4 className="drawer-sub">Appeal</h4>
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  Current: {pick(m, 'appealStatus') || '—'}
+                </span>
+                <input
+                  value={apStatus}
+                  placeholder="Appeal status"
+                  aria-label="Appeal status"
+                  onChange={(e) => setApStatus(e.target.value)}
+                />
+                <input
+                  value={apForum}
+                  placeholder="Appeal court/forum"
+                  aria-label="Appeal forum"
+                  onChange={(e) => setApForum(e.target.value)}
+                />
+                <input
+                  type="date"
+                  value={apDeadline}
+                  aria-label="Appeal deadline"
+                  onChange={(e) => setApDeadline(e.target.value)}
+                />
+                <button
+                  className="btn"
+                  disabled={apStatus.trim() === '' && apForum.trim() === '' && apDeadline === ''}
+                  onClick={() =>
+                    void run(
+                      api.updateMatterAppeal(
+                        matterId,
+                        ev,
+                        {
+                          ...(apStatus.trim() ? { appealStatus: apStatus.trim() } : {}),
+                          ...(apForum.trim() ? { appealForum: apForum.trim() } : {}),
+                          ...(apDeadline ? { appealDeadline: apDeadline } : {}),
+                        },
+                        tenant,
+                      ),
+                      'Appeal updated (audited).',
+                    ).then(() => {
+                      setApStatus('');
+                      setApForum('');
+                      setApDeadline('');
+                    })
+                  }
+                >
+                  Update appeal
+                </button>
+              </div>
+            </>
           )}
 
           <h4 className="drawer-sub">Cross-module links</h4>
