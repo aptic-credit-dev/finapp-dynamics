@@ -719,6 +719,105 @@ export const createRecovery = (
   t?: string | null,
 ): Promise<ApiResult<Row>> => call(`${RC}/recoveries`, { method: 'POST', body, tenantId: t });
 
+// Edit an OPEN recovery case header + stated exposure — PATCH /recovery/recoveries/:id, permission
+// recovery.case.update, audit RECOVERY_CASE_UPDATED. Optimistic-locked (expectedVersion). The server allow-lists
+// the fields below and will NOT touch recovered/outstanding (progress amounts), owner/team, or lifecycle status.
+export const updateRecovery = (
+  id: string,
+  ev: number,
+  body: {
+    title?: string;
+    summary?: string;
+    description?: string;
+    priority?: string;
+    recoveryRisk?: string;
+    confidentiality?: string;
+    sourceReference?: string;
+    currency?: string;
+    principalAmountMinor?: number;
+    interestAmountMinor?: number;
+    costAmountMinor?: number;
+    recoverableAmountMinor?: number;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${RC}/recoveries/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+
+// Debtor / accountable parties — the m17 party sub-record. Contact/identity data are opaque REFERENCES to master
+// data (entityRef/contactRef/addressRef), never copied PII; the server redacts contactRef unless the caller holds
+// recovery.party_contact.read. add=POST (audit RECOVERY_PARTY_ADDED), remove=soft deactivate (append-only history).
+export const getRecoveryParties = (id: string, t?: string | null): Promise<ApiResult<{ parties?: Row[] }>> =>
+  call(`${RC}/recoveries/${encodeURIComponent(id)}/parties`, { tenantId: t });
+export const addRecoveryParty = (
+  id: string,
+  body: {
+    partyRole: string;
+    entityRef?: string;
+    displayLabel?: string;
+    liabilityBasis?: string;
+    liabilityAmountMinor?: number;
+    contactRef?: string;
+    addressRef?: string;
+    authority?: string;
+    confidentiality?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${RC}/recoveries/${encodeURIComponent(id)}/parties`, { method: 'POST', body, tenantId: t });
+export const removeRecoveryParty = (pid: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${RC}/parties/${encodeURIComponent(pid)}/remove`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+
+// Deadlines / relevant dates — the m17 deadline sub-record. Due instant is derived from an explicit user-entered
+// date (rule.kind='explicit', dueMs); the server applies NO statutory limitation calculation — a `limitation`
+// deadline is only checked to not be in the past. add=POST (RECOVERY_DEADLINE_CREATED), extend requires a version.
+export const getRecoveryDeadlines = (
+  id: string,
+  t?: string | null,
+): Promise<ApiResult<{ deadlines?: Row[] }>> =>
+  call(`${RC}/recoveries/${encodeURIComponent(id)}/deadlines`, { tenantId: t });
+export const addRecoveryDeadline = (
+  id: string,
+  body: {
+    deadlineType: string;
+    dueMs: number;
+    source?: string;
+    authority?: string;
+    warnWindowMs?: number;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${RC}/recoveries/${encodeURIComponent(id)}/deadlines`, {
+    method: 'POST',
+    body: {
+      deadlineType: body.deadlineType,
+      rule: { kind: 'explicit', dueMs: body.dueMs },
+      ...(body.source ? { source: body.source } : {}),
+      ...(body.authority ? { authority: body.authority } : {}),
+      ...(body.warnWindowMs != null ? { warnWindowMs: body.warnWindowMs } : {}),
+    },
+    tenantId: t,
+  });
+export const extendRecoveryDeadline = (
+  did: string,
+  ev: number,
+  extensionToMs: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${RC}/deadlines/${encodeURIComponent(did)}/extend`, {
+    method: 'POST',
+    body: { expectedVersion: ev, extensionTo: new Date(extensionToMs).toISOString(), reason },
+    tenantId: t,
+  });
+
 // M44 Recovery OPERATIONAL actions — canonical m17 lifecycle, reused (no duplicate recovery engine). Every action
 // is permission-gated + audited server-side, carries the mandatory expectedVersion, and respects the m17 state
 // machine (an invalid transition fails closed). There is NO hard delete — a case resolves/closes/reopens/archives.
@@ -730,7 +829,20 @@ export const assignRecovery = (
   owner: string,
   t?: string | null,
   reassign = false,
-): Promise<ApiResult<Row>> => rcBody(id, reassign ? 'reassign' : 'assign', { expectedVersion: ev, owner }, t);
+  opts?: { reason?: string; team?: string; kind?: string },
+): Promise<ApiResult<Row>> =>
+  rcBody(
+    id,
+    reassign ? 'reassign' : 'assign',
+    {
+      expectedVersion: ev,
+      owner,
+      ...(opts?.reason ? { reason: opts.reason } : {}),
+      ...(opts?.team ? { team: opts.team } : {}),
+      ...(opts?.kind ? { kind: opts.kind } : {}),
+    },
+    t,
+  );
 export const advanceRecovery = (
   id: string,
   ev: number,
