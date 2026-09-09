@@ -108,6 +108,15 @@ court-events/pleadings/costs/appeal; M16 litigation witnesses/exhibits/orders/ob
 template-create/clauses/taxonomy. DB lane 3065/0 (+15 HTTP sub-record tests). Backend-absent ops (M18
 composition/mandatory-validation, etc.) are reported as not-modelled, not invented. No legal-evidence hard delete.
 
+## 14d. Tier-2 Wave-3 progress (update)
+Wave-3 admin/analytics/finance-controls/RBAC workflows are **WIRED** on
+`release/tier2-wave3-admin-analytics-controls` (backend-proven; browser sign-off OPEN — see
+`TIER2_WAVE3_COMPLETION_REPORT.md`): M32 analytics authoring (dataset/metric maker-checker lifecycle/report
+create); M08 template authoring lifecycle; M22 delegation grant/revoke/list; M21 journal header edit; M02 role
+attribute edit; M20 reconciling-items + a bounded backend already-matched guard (409). DB lane 3072/0 (+7).
+Backend-absent items reported as gaps (not simulated). No hard-delete added; no secret exposed; SoD/RLS/accounting
+controls preserved.
+
 ## 15. Remaining external-assurance blockers
 The Stage-7 gates (independent pen-test, cross-host DR drill, acceptance-grade load/chaos, real-data migration —
 all `requires_review`), plus provisioning an authenticated **browser-acceptance environment** with the full

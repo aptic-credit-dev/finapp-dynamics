@@ -361,6 +361,23 @@ export const createManualMatch = (
   body: { runId: string; glLineIds: string[]; sourceLineIds: string[]; reason: string },
   t?: string | null,
 ): Promise<ApiResult<Row>> => call(`${R}/manual-matches`, { method: 'POST', body, tenantId: t });
+// Reconciling items — raise an unresolved variance item (exact minor units) + clear it with a reason.
+// gl_reconciliation.item.manage; audit GLRECON_RECONCILING_ITEM_RAISED/_CLEARED. No hard delete (clear = close).
+export const raiseReconcilingItem = (
+  body: { runId: string; itemType: string; amountMinor: number; direction?: string; reason?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${R}/reconciling-items`, { method: 'POST', body, tenantId: t });
+export const clearReconcilingItem = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${R}/reconciling-items/${encodeURIComponent(id)}/clear`, {
+    method: 'POST',
+    body: { expectedVersion: ev, reason },
+    tenantId: t,
+  });
 // Certification — draft → certify/reject. NOTE: this is NOT approver≠maker SoD (m20 does not enforce it); it is
 // a privileged reason-bearing certify with an override path. Real maker-checker sign-off lives in M21/M22.
 export const createCertification = (body: { runId: string }, t?: string | null): Promise<ApiResult<Row>> =>
@@ -616,6 +633,33 @@ export const decideApproval = (
   call(`${AP}/requests/${encodeURIComponent(id)}/decisions`, {
     method: 'POST',
     body: { expectedVersion: ev, decision, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
+// M22 delegation admin. Server blocks self-delegation (delegator === delegate) + enforces ends_at > starts_at.
+// The grantor's own authority bound + overlap are NOT enforced at grant time by the domain — SoD is applied at
+// DECISION time via the delegator (documented). approvals.delegation.manage; audit APPROVAL_DELEGATION_*.
+export const listDelegations = (t?: string | null): Promise<ApiResult<{ delegations?: Row[] }>> =>
+  call(`${AP}/delegations`, { tenantId: t });
+export const grantDelegation = (
+  body: {
+    delegator: string;
+    delegate: string;
+    subjectType: string;
+    scope?: string;
+    reason?: string;
+    endsAt?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${AP}/delegations`, { method: 'POST', body, tenantId: t });
+export const revokeDelegation = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${AP}/delegations/${encodeURIComponent(id)}/revoke`, {
+    method: 'POST',
+    body: { expectedVersion: ev, reason },
     tenantId: t,
   });
 
@@ -2076,6 +2120,51 @@ export const runAnalyticsQuery = (
     },
     tenantId: t,
   });
+// M32 analytics AUTHORING — governed definitions only (whitelisted dims/measures/filters; NO arbitrary SQL).
+// Metric lifecycle is maker-checker: author -> validate -> request-review -> publish (SoD, human approver;
+// published immutable). Dataset EDIT/RETIRE and report VALIDATE/REVIEW/PUBLISH-path are not exposed by the
+// backend (documented gaps). All permission-gated + audited server-side.
+export const createDataset = (
+  body: {
+    sourceModule: string;
+    datasetKey: string;
+    name: string;
+    scope?: string;
+    classification?: string;
+    dimensions?: unknown[];
+    measures?: unknown[];
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${AN}/datasets`, { method: 'POST', body, tenantId: t });
+export const createMetric = (
+  body: {
+    datasetId: string;
+    metricKey: string;
+    name: string;
+    aggregation: string;
+    measureKey: string;
+    valueKind?: string;
+    currency?: string;
+    dimensions?: string[];
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${AN}/metrics`, { method: 'POST', body, tenantId: t });
+const metricAction = (id: string, action: string, ev: number, t?: string | null) =>
+  call<Row>(`${AN}/metrics/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
+export const validateMetric = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  metricAction(id, 'validate', ev, t);
+export const reviewMetric = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  metricAction(id, 'review', ev, t);
+export const publishMetric = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  metricAction(id, 'publish', ev, t);
+export const createReport = (
+  body: { reportKey: string; name: string; scope?: string; kind?: string; classification?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${AN}/reports`, { method: 'POST', body, tenantId: t });
 
 // --- M28 Executive Copilot — canonical m28 copilot governance surface (`/copilot`), reused (no second AI /
 // advisory engine). A grounded, READ-ONLY executive advisory: the copilot analyses, explains, CITES and
@@ -2195,6 +2284,44 @@ export const getNotifTemplateVersions = (
   t?: string | null,
 ): Promise<ApiResult<{ versions: Row[] }>> =>
   call(`${NT}/templates/${encodeURIComponent(id)}/versions`, { tenantId: t });
+// M08 template AUTHORING lifecycle. spec is metadata-only (channel enum + templated subject/body + typed vars) —
+// NEVER a secret/credential (channel secrets live in external provider adapters, not m08). There is NO preview/
+// test-render endpoint and delivery requires a real provider (external) — a local preview is not offered.
+// Lifecycle: create(draft) -> validate -> publish(freeze) -> activate(one active) -> retire.
+export const createNotifTemplate = (
+  body: { key: string; name: string; description?: string; scope?: string; spec: Record<string, unknown> },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${NT}/templates`, { method: 'POST', body, tenantId: t });
+export const newNotifTemplateVersion = (
+  id: string,
+  body: { spec: Record<string, unknown>; notes?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${NT}/templates/${encodeURIComponent(id)}/versions`, { method: 'POST', body, tenantId: t });
+const versionAction = (
+  id: string,
+  action: string,
+  ev: number,
+  reason: string | undefined,
+  t?: string | null,
+) =>
+  call<Row>(`${NT}/versions/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
+export const validateNotifVersion = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  versionAction(id, 'validate', ev, undefined, t);
+export const publishNotifVersion = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  versionAction(id, 'publish', ev, undefined, t);
+export const activateNotifVersion = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  versionAction(id, 'activate', ev, undefined, t);
+export const retireNotifVersion = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => versionAction(id, 'retire', ev, reason, t);
 
 // --- M09 Documents — canonical m09-docs engine, reused (no second document / content store). Metadata +
 // governance (classification, legal hold, retention/disposition maker-checker with SoD, immutable versions,
@@ -2417,6 +2544,19 @@ export const changeRolePermissions = (
   t?: string | null,
 ): Promise<ApiResult<Row>> =>
   call(`/rbac/roles/${encodeURIComponent(roleId)}/permissions`, { method: 'PATCH', body, tenantId: t });
+// Role ATTRIBUTE edit — name/description only (allow-listed server-side; never permissions/kind/tenant/status/
+// immutability). System/immutable roles are rejected server-side + DB. rbac.role.edit; audit RBAC_ROLE_UPDATED.
+export const updateRole = (
+  roleId: string,
+  ev: number,
+  body: { name?: string; description?: string | null },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`/rbac/roles/${encodeURIComponent(roleId)}`, {
+    method: 'PATCH',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
 export type RoleAction = 'activate' | 'suspend' | 'reactivate' | 'retire';
 export const roleAction = (
   id: string,

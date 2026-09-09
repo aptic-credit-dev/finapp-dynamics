@@ -128,9 +128,18 @@ see `TIER2_WAVE1_OPERATIONAL_WORKFLOWS_REPORT.md`):
     (m13 task assign/escalate; m18 composition + mandatory-validation; m16 witness-withdraw/exhibit-custody/order-
     edit/bundle-remove-reorder; taxonomy dependency guard) reported as not-modelled, not invented.
 
-**Tier-2 Wave-3+ — MISSING (remaining):**
-12. m32 analytics definition authoring; m08 template/escalation admin; m22 delegation/policy admin; m20 split
-    manual-match + source-import + reconciling-items; m20 HTTP test lane; recovery debtor/owner/deadline capture.
+**Tier-2 Wave-3 — WIRED** on `release/tier2-wave3-admin-analytics-controls` (backend-proven; browser sign-off
+OPEN — see `TIER2_WAVE3_COMPLETION_REPORT.md`):
+12. ✅ m32 analytics authoring (dataset/metric+maker-checker-lifecycle/report create); ✅ m08 template
+    authoring lifecycle; ✅ m22 delegation grant/revoke/list; ✅ m21 journal header edit; ✅ m02 role-attr edit;
+    ✅ m20 reconciling-items + a bounded backend already-matched guard (409). Backend-absent items (m32 dataset
+    edit/retire + report publish-path; m08 preview/send + escalation admin; m22 delegation edit/expire +
+    policy/config admin; m20 split-match + source-file) reported as gaps, not simulated.
+
+**Tier-2 Wave-4+ — MISSING (remaining):**
+13. recovery debtor/owner/deadline capture; m20 split many-to-many (needs a new unmatched-line read endpoint) +
+    source-file ingestion (no storage contract); m22 policy/config/reason-code admin; m08 escalation admin; m32
+    dataset-edit/report-publish backend; sub-entity confirm hardening.
 
 **Intentionally READ-ONLY / not gaps:** audit spine, copilot advisory, DLP findings, privacy records, saas
 usage/billing evidence, analytics governed-query-only reads, all catalogs, no-hard-delete everywhere, m09 byte I/O

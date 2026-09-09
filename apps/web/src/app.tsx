@@ -437,6 +437,16 @@ function RunsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<st
     [selectedRun, tenant, nonce],
   );
   const [mmReason, setMmReason] = useState('');
+  const reconItems = useRows(
+    () =>
+      selectedRun
+        ? api.getRunReconcilingItems(selectedRun, tenant)
+        : Promise.resolve({ ok: true, status: 200, data: [], error: null }),
+    [selectedRun, tenant, nonce],
+  );
+  const [riType, setRiType] = useState('timing_difference');
+  const [riAmount, setRiAmount] = useState('');
+  const [riReason, setRiReason] = useState('');
   const createRun = (): void => {
     if (rcAcct === '') return;
     setBusy(true);
@@ -664,6 +674,85 @@ function RunsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<st
                   </p>
                 </>
               )}
+            </div>
+          )}
+          {selectedRun && can('gl_reconciliation.item.manage') && (
+            <div style={{ padding: '0 16px 8px' }}>
+              <h4 className="drawer-sub">Reconciling items</h4>
+              <ul className="timeline">
+                {reconItems.rows.map((it, i) => {
+                  const st = pick(it, 'status').toLowerCase();
+                  const iev = Number(it['version'] ?? 1);
+                  return (
+                    <li key={pick(it, 'id') || i}>
+                      <span className="t-head">{pick(it, 'itemType')}</span>{' '}
+                      <span className="muted">
+                        {fmtMinor(it['amountMinor'])} · {st || 'open'}
+                      </span>{' '}
+                      {st === 'open' && (
+                        <ActionButton
+                          label="Clear"
+                          needsReason
+                          allowed
+                          onRun={(reason) =>
+                            api
+                              .clearReconcilingItem(pick(it, 'id'), iev, reason ?? '', tenant)
+                              .then((r) => report(r, 'Reconciling item cleared (audited).'))
+                          }
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+                {reconItems.rows.length === 0 && <li className="muted">No reconciling items.</li>}
+              </ul>
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  value={riType}
+                  placeholder="Item type"
+                  aria-label="Item type"
+                  onChange={(e) => setRiType(e.target.value)}
+                />
+                <input
+                  value={riAmount}
+                  placeholder="Amount (e.g. 100.00)"
+                  aria-label="Item amount"
+                  onChange={(e) => setRiAmount(e.target.value)}
+                />
+                <input
+                  value={riReason}
+                  placeholder="Reason (opt)"
+                  aria-label="Item reason"
+                  onChange={(e) => setRiReason(e.target.value)}
+                />
+                <button
+                  className="btn primary sm"
+                  disabled={busy || riType.trim() === '' || toMinorUnits(riAmount) === null}
+                  onClick={() => {
+                    setBusy(true);
+                    void api
+                      .raiseReconcilingItem(
+                        {
+                          runId: selectedRun,
+                          itemType: riType.trim(),
+                          amountMinor: toMinorUnits(riAmount) as number,
+                          ...(riReason.trim() ? { reason: riReason.trim() } : {}),
+                        },
+                        tenant,
+                      )
+                      .then((r) => {
+                        report(r, 'Reconciling item raised (exact minor units, audited).');
+                        if (r.ok) {
+                          setRiAmount('');
+                          setRiReason('');
+                        }
+                        setBusy(false);
+                      });
+                  }}
+                >
+                  Raise item
+                </button>
+              </div>
             </div>
           )}
           {selectedRun && /completed/.test(runStatus) && (
@@ -3800,6 +3889,10 @@ function JournalDraftDrawer({
   const [amt, setAmt] = useState('');
   const [ldesc, setLdesc] = useState('');
   const [editLine, setEditLine] = useState<api.Row | null>(null);
+  const [editHdr, setEditHdr] = useState(false);
+  const [hdrDesc, setHdrDesc] = useState('');
+  const [hdrRef, setHdrRef] = useState('');
+  const [hdrDate, setHdrDate] = useState('');
   const [note, setNote] = useState('');
   // Canonical GL-account options for the line selector — active + postable accounts of the draft's entity only
   // (only those are valid journal targets). Empty (or a 403 for a persona without finance reads) falls back to
@@ -4086,6 +4179,73 @@ function JournalDraftDrawer({
                 </button>
               )}
             </div>
+          )}
+
+          {mutable && can('journals.draft.edit') && (
+            <>
+              <h4 className="drawer-sub">Header</h4>
+              {!editHdr ? (
+                <button
+                  className="btn secondary sm"
+                  onClick={() => {
+                    setHdrDesc(pick(draft, 'description'));
+                    setHdrRef(pick(draft, 'reference'));
+                    setHdrDate(pick(draft, 'journalDate').slice(0, 10));
+                    setEditHdr(true);
+                  }}
+                >
+                  Edit header
+                </button>
+              ) : (
+                <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  <input
+                    value={hdrDesc}
+                    placeholder="Description"
+                    aria-label="Journal description"
+                    onChange={(e) => setHdrDesc(e.target.value)}
+                  />
+                  <input
+                    value={hdrRef}
+                    placeholder="Reference"
+                    aria-label="Journal reference"
+                    onChange={(e) => setHdrRef(e.target.value)}
+                  />
+                  <input
+                    type="date"
+                    value={hdrDate}
+                    aria-label="Journal date"
+                    onChange={(e) => setHdrDate(e.target.value)}
+                  />
+                  <button
+                    className="btn primary sm"
+                    onClick={() =>
+                      void run(
+                        api.editJournalDraft(
+                          draftId,
+                          version,
+                          {
+                            ...(hdrDesc.trim() ? { description: hdrDesc.trim() } : {}),
+                            ...(hdrRef.trim() ? { reference: hdrRef.trim() } : {}),
+                            ...(hdrDate ? { journalDate: hdrDate } : {}),
+                          },
+                          tenant,
+                        ),
+                        'Journal header updated (lines/balance untouched).',
+                      ).then(() => setEditHdr(false))
+                    }
+                  >
+                    Save header
+                  </button>
+                  <button className="btn link sm" onClick={() => setEditHdr(false)}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+              <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+                Header metadata only (description/reference/date) on a draft or validated journal — amounts,
+                lines and debit/credit balance are never touched; posting/approval controls are unaffected.
+              </p>
+            </>
           )}
 
           <h4 className="drawer-sub">Actions</h4>
@@ -7219,6 +7379,10 @@ function NotificationsWorkspace({
 
   // Template versions sub-panel: the selected template's version history (read-only).
   const [openTplId, setOpenTplId] = useState<string | null>(null);
+  const [ntKey, setNtKey] = useState('');
+  const [ntName, setNtName] = useState('');
+  const [ntChannel, setNtChannel] = useState('in_app');
+  const [ntBody, setNtBody] = useState('');
   const versions = useRows(async () => {
     if (!openTplId) return { ok: true, status: 200, data: [] as api.Row[], error: null };
     const r = await api.getNotifTemplateVersions(openTplId, tenant);
@@ -7506,6 +7670,68 @@ function NotificationsWorkspace({
             </table>
           ))}
 
+        {tab === 'templates' && can('notifications.template.author') && (
+          <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
+            <input
+              value={ntKey}
+              placeholder="Template key"
+              aria-label="Template key"
+              onChange={(e) => setNtKey(e.target.value)}
+            />
+            <input
+              value={ntName}
+              placeholder="Name"
+              aria-label="Template name"
+              onChange={(e) => setNtName(e.target.value)}
+            />
+            <select value={ntChannel} onChange={(e) => setNtChannel(e.target.value)} aria-label="Channel">
+              {['in_app', 'email', 'sms', 'webhook'].map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+            <input
+              value={ntBody}
+              placeholder="Body template (e.g. Hi {{name}})"
+              aria-label="Body template"
+              style={{ flex: 1 }}
+              onChange={(e) => setNtBody(e.target.value)}
+            />
+            <button
+              className="btn"
+              disabled={ntKey.trim() === '' || ntName.trim() === '' || ntBody.trim() === ''}
+              onClick={() =>
+                void api
+                  .createNotifTemplate(
+                    {
+                      key: ntKey.trim(),
+                      name: ntName.trim(),
+                      spec: {
+                        schemaVersion: 1,
+                        code: ntKey.trim(),
+                        name: ntName.trim(),
+                        channel: ntChannel,
+                        bodyTemplate: ntBody.trim(),
+                        variables: [],
+                      },
+                    },
+                    tenant,
+                  )
+                  .then((r) => {
+                    report(r, 'Template created (draft — validate → publish → activate to go live).');
+                    if (r.ok) {
+                      setNtKey('');
+                      setNtName('');
+                      setNtBody('');
+                    }
+                  })
+              }
+            >
+              New template
+            </button>
+          </div>
+        )}
         {tab === 'templates' &&
           (templates.loading ? (
             <div className="loading">Loading templates…</div>
@@ -7516,8 +7742,9 @@ function NotificationsWorkspace({
           ) : (
             <>
               <div className="ok-note" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}>
-                Read-only viewer. Template authoring and publish is a privileged maker-checker admin flow
-                (approver ≠ author; a published version is immutable) — it is not exposed here.
+                Template authoring is a privileged maker-checker admin flow (approver ≠ author; a published
+                version is immutable; content is metadata only — never a secret/credential). There is no local
+                preview/test-render and delivery requires a real external provider — neither is offered here.
               </div>
               <table>
                 <thead>
@@ -7567,16 +7794,82 @@ function NotificationsWorkspace({
                                       <th>Version #</th>
                                       <th>Status</th>
                                       <th>Notes</th>
+                                      <th>Lifecycle (maker-checker)</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {versions.rows.map((v, j) => (
-                                      <tr key={pick(v, 'id') || j}>
-                                        <td className="muted">{pick(v, 'versionNumber') || '—'}</td>
-                                        <td>{statusPill(pick(v, 'status'))}</td>
-                                        <td className="muted">{pick(v, 'notes') || '—'}</td>
-                                      </tr>
-                                    ))}
+                                    {versions.rows.map((v, j) => {
+                                      const vid = pick(v, 'id');
+                                      const vev = Number(v['version'] ?? 1);
+                                      const vst = pick(v, 'status').toLowerCase();
+                                      return (
+                                        <tr key={vid || j}>
+                                          <td className="muted">{pick(v, 'versionNumber') || '—'}</td>
+                                          <td>{statusPill(pick(v, 'status'))}</td>
+                                          <td className="muted">{pick(v, 'notes') || '—'}</td>
+                                          <td>
+                                            <div className="action-row">
+                                              <ActionButton
+                                                label="Validate"
+                                                allowed={
+                                                  /draft/.test(vst) && can('notifications.template.validate')
+                                                }
+                                                onRun={() =>
+                                                  api
+                                                    .validateNotifVersion(vid, vev, tenant)
+                                                    .then((r) => report(r, 'Version validated.'))
+                                                }
+                                              />
+                                              <ActionButton
+                                                label="Publish"
+                                                allowed={
+                                                  /validated/.test(vst) &&
+                                                  can('notifications.template.publish')
+                                                }
+                                                onRun={() =>
+                                                  api
+                                                    .publishNotifVersion(vid, vev, tenant)
+                                                    .then((r) =>
+                                                      report(r, 'Version published (content frozen).'),
+                                                    )
+                                                }
+                                              />
+                                              <ActionButton
+                                                label="Activate"
+                                                allowed={
+                                                  /published/.test(vst) &&
+                                                  can('notifications.template.activate')
+                                                }
+                                                onRun={() =>
+                                                  api
+                                                    .activateNotifVersion(vid, vev, tenant)
+                                                    .then((r) =>
+                                                      report(
+                                                        r,
+                                                        'Version activated (one active per template).',
+                                                      ),
+                                                    )
+                                                }
+                                              />
+                                              <ActionButton
+                                                label="Retire"
+                                                danger
+                                                needsReason
+                                                allowed={
+                                                  /published|active/.test(vst) &&
+                                                  can('notifications.template.retire')
+                                                }
+                                                onRun={(reason) =>
+                                                  api
+                                                    .retireNotifVersion(vid, vev, reason ?? '', tenant)
+                                                    .then((r) => report(r, 'Version retired.'))
+                                                }
+                                              />
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               )}
@@ -8498,6 +8791,29 @@ function AnalyticsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
     else setQErr(r.error ?? 'Query failed.');
     setRunning(false);
   };
+  const [aNonce, setANonce] = useState(0);
+  const [aMsg, setAMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const aRun = (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> =>
+    p.then((r) => {
+      setAMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+      if (r.ok) setANonce((x) => x + 1);
+    });
+  const [dsSource, setDsSource] = useState('m12-feedback');
+  const [dsKey, setDsKey] = useState('');
+  const [dsName, setDsName] = useState('');
+  const [mDataset, setMDataset] = useState('');
+  const [mKey, setMKey] = useState('');
+  const [mName, setMName] = useState('');
+  const [mAgg, setMAgg] = useState('count');
+  const [mMeasure, setMMeasure] = useState('');
+  const [rKey, setRKey] = useState('');
+  const [rName, setRName] = useState('');
+  const draftMetrics = useRows(async () => {
+    const r = mDataset
+      ? await api.getDatasetMetrics(mDataset, tenant)
+      : { ok: true, status: 200, data: [], error: null };
+    return { ...r, data: api.asRows((r as api.ApiResult<unknown>).data) };
+  }, [tenant, mDataset, aNonce, tab]);
   const tabs: { id: typeof tab; label: string }[] = [
     { id: 'datasets', label: 'Datasets' },
     { id: 'metrics', label: 'Metrics' },
@@ -8538,7 +8854,45 @@ function AnalyticsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
             </button>
           ))}
         </div>
+        {aMsg && <div className={aMsg.ok ? 'ok-note' : 'error'}>{aMsg.msg}</div>}
 
+        {tab === 'datasets' && can('analytics.dataset.manage') && (
+          <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
+            <input
+              value={dsSource}
+              placeholder="Source module"
+              aria-label="Source module"
+              onChange={(e) => setDsSource(e.target.value)}
+            />
+            <input
+              value={dsKey}
+              placeholder="Dataset key"
+              aria-label="Dataset key"
+              onChange={(e) => setDsKey(e.target.value)}
+            />
+            <input
+              value={dsName}
+              placeholder="Name"
+              aria-label="Dataset name"
+              onChange={(e) => setDsName(e.target.value)}
+            />
+            <button
+              className="btn"
+              disabled={dsSource.trim() === '' || dsKey.trim() === '' || dsName.trim() === ''}
+              onClick={() =>
+                aRun(
+                  api.createDataset(
+                    { sourceModule: dsSource.trim(), datasetKey: dsKey.trim(), name: dsName.trim() },
+                    tenant,
+                  ),
+                  'Dataset defined (governed; whitelisted dims/measures — no arbitrary SQL).',
+                )
+              }
+            >
+              New dataset
+            </button>
+          </div>
+        )}
         {tab === 'datasets' &&
           (datasets.loading ? (
             <div className="loading">Loading datasets…</div>
@@ -8569,6 +8923,116 @@ function AnalyticsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
             </table>
           ))}
 
+        {tab === 'metrics' && can('analytics.metric.author') && (
+          <>
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
+              <select value={mDataset} onChange={(e) => setMDataset(e.target.value)} aria-label="Dataset">
+                <option value="">Dataset…</option>
+                {datasets.rows.map((d, i) => (
+                  <option key={pick(d, 'id') || i} value={pick(d, 'id')}>
+                    {pick(d, 'datasetKey') || pick(d, 'name')}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={mKey}
+                placeholder="Metric key"
+                aria-label="Metric key"
+                onChange={(e) => setMKey(e.target.value)}
+              />
+              <input
+                value={mName}
+                placeholder="Name"
+                aria-label="Metric name"
+                onChange={(e) => setMName(e.target.value)}
+              />
+              <select value={mAgg} onChange={(e) => setMAgg(e.target.value)} aria-label="Aggregation">
+                {['count', 'count_distinct', 'sum', 'avg', 'min', 'max'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={mMeasure}
+                placeholder="Measure key"
+                aria-label="Measure key"
+                onChange={(e) => setMMeasure(e.target.value)}
+              />
+              <button
+                className="btn"
+                disabled={
+                  mDataset === '' || mKey.trim() === '' || mName.trim() === '' || mMeasure.trim() === ''
+                }
+                onClick={() =>
+                  aRun(
+                    api.createMetric(
+                      {
+                        datasetId: mDataset,
+                        metricKey: mKey.trim(),
+                        name: mName.trim(),
+                        aggregation: mAgg,
+                        measureKey: mMeasure.trim(),
+                      },
+                      tenant,
+                    ),
+                    'Metric drafted (author → validate → review → publish).',
+                  )
+                }
+              >
+                New metric
+              </button>
+            </div>
+            {mDataset !== '' && draftMetrics.rows.length > 0 && (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>Status</th>
+                    <th>Lifecycle (maker-checker; approver ≠ author)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {draftMetrics.rows.map((m, i) => {
+                    const id = pick(m, 'id');
+                    const mev = Number(m['version'] ?? 1);
+                    const st = pick(m, 'status').toLowerCase();
+                    return (
+                      <tr key={id || i}>
+                        <td className="muted">{pick(m, 'metricKey')}</td>
+                        <td>{statusPill(pick(m, 'status'))}</td>
+                        <td>
+                          <div className="action-row">
+                            <ActionButton
+                              label="Validate"
+                              allowed={/draft/.test(st) && can('analytics.metric.author')}
+                              onRun={() => aRun(api.validateMetric(id, mev, tenant), 'Metric validated.')}
+                            />
+                            <ActionButton
+                              label="Request review"
+                              allowed={/validated/.test(st) && can('analytics.metric.author')}
+                              onRun={() => aRun(api.reviewMetric(id, mev, tenant), 'Review requested.')}
+                            />
+                            <ActionButton
+                              label="Publish"
+                              allowed={/review_pending/.test(st) && can('analytics.metric.publish')}
+                              onRun={() =>
+                                aRun(
+                                  api.publishMetric(id, mev, tenant),
+                                  'Metric published (SoD; a distinct human approver).',
+                                )
+                              }
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </>
+        )}
         {tab === 'metrics' &&
           (metrics.loading ? (
             <div className="loading">Loading metrics…</div>
@@ -8601,6 +9065,38 @@ function AnalyticsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
             </table>
           ))}
 
+        {tab === 'reports' && can('analytics.report.author') && (
+          <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
+            <input
+              value={rKey}
+              placeholder="Report key"
+              aria-label="Report key"
+              onChange={(e) => setRKey(e.target.value)}
+            />
+            <input
+              value={rName}
+              placeholder="Name"
+              aria-label="Report name"
+              onChange={(e) => setRName(e.target.value)}
+            />
+            <button
+              className="btn"
+              disabled={rKey.trim() === '' || rName.trim() === ''}
+              onClick={() =>
+                aRun(
+                  api.createReport({ reportKey: rKey.trim(), name: rName.trim() }, tenant),
+                  'Report drafted.',
+                )
+              }
+            >
+              New report
+            </button>
+            <span className="muted" style={{ fontSize: 11 }}>
+              Report create is governed; the report validate/review HTTP routes are not exposed by the
+              backend, so the publish path is a documented backend gap (not simulated).
+            </span>
+          </div>
+        )}
         {tab === 'reports' &&
           (reports.loading ? (
             <div className="loading">Loading reports…</div>
@@ -12950,6 +13446,9 @@ function RoleDrawer({
   const [nonce, setNonce] = useState(0);
   const [add, setAdd] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [editAttr, setEditAttr] = useState(false);
+  const [atName, setAtName] = useState('');
+  const [atDesc, setAtDesc] = useState('');
   useEffect(() => {
     let live = true;
     setHeld(null);
@@ -12987,6 +13486,72 @@ function RoleDrawer({
             <dt>Status</dt>
             <dd>{statusPill(pick(roleState, 'status'))}</dd>
           </dl>
+          {!immutable && can('rbac.role.edit') && (
+            <div className="inline-form" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+              {!editAttr ? (
+                <button
+                  className="btn secondary sm"
+                  onClick={() => {
+                    setAtName(pick(roleState, 'name'));
+                    setAtDesc(pick(roleState, 'description'));
+                    setEditAttr(true);
+                  }}
+                >
+                  Edit name / description
+                </button>
+              ) : (
+                <>
+                  <input
+                    value={atName}
+                    placeholder="Name"
+                    aria-label="Role name"
+                    onChange={(e) => setAtName(e.target.value)}
+                  />
+                  <input
+                    value={atDesc}
+                    placeholder="Description"
+                    aria-label="Role description"
+                    onChange={(e) => setAtDesc(e.target.value)}
+                  />
+                  <div className="run-picker" style={{ gap: 6 }}>
+                    <button
+                      className="btn primary sm"
+                      disabled={atName.trim() === ''}
+                      onClick={() =>
+                        void api
+                          .updateRole(
+                            id,
+                            version,
+                            { name: atName.trim(), description: atDesc.trim() === '' ? null : atDesc.trim() },
+                            tenant,
+                          )
+                          .then((r) => {
+                            setMsg(
+                              r.ok
+                                ? { ok: true, msg: 'Role attributes updated (audited).' }
+                                : { ok: false, msg: r.error ?? 'Update failed.' },
+                            );
+                            if (r.ok) {
+                              setEditAttr(false);
+                              refresh();
+                            }
+                          })
+                      }
+                    >
+                      Save
+                    </button>
+                    <button className="btn link sm" onClick={() => setEditAttr(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+                    Name and description only — permissions, kind, status, tenant and system-role immutability
+                    are never editable here.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
           {immutable && (
             <p className="muted" style={{ fontSize: 12 }}>
               System role — immutable. Permissions and lifecycle cannot be changed.
@@ -13518,6 +14083,19 @@ function ApprovalsInbox({ tenant, perms }: { tenant: string | null; perms: Set<s
     () => api.listApprovalRequests(tenant, status === 'all' ? undefined : status),
     [tenant, status, nonce],
   );
+  const can = (p: string): boolean => perms.has(p);
+  const delegations = useRows(() => api.listDelegations(tenant), [tenant, nonce]);
+  const [dgtor, setDgtor] = useState('');
+  const [dgte, setDgte] = useState('');
+  const [dgSubject, setDgSubject] = useState('approval_request');
+  const [dgEnds, setDgEnds] = useState('');
+  const [dgBusy, setDgBusy] = useState(false);
+  const [dgMsg, setDgMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const dgRun = (p: Promise<api.ApiResult<api.Row>>, ok: string): Promise<void> =>
+    p.then((r) => {
+      setDgMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+      if (r.ok) setNonce((x) => x + 1);
+    });
   return (
     <>
       <h1 className="page-title">Approvals</h1>
@@ -13581,6 +14159,124 @@ function ApprovalsInbox({ tenant, perms }: { tenant: string | null; perms: Set<s
           </table>
         )}
       </div>
+      {can('approvals.delegation.read') && (
+        <div className="card">
+          <header>
+            <h3>Approval delegations</h3>
+            <span className="demo-note">SYNTHETIC</span>
+          </header>
+          {dgMsg && <div className={dgMsg.ok ? 'ok-note' : 'error'}>{dgMsg.msg}</div>}
+          {can('approvals.delegation.manage') && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <input
+                value={dgtor}
+                placeholder="Delegator (identity id)"
+                aria-label="Delegator"
+                onChange={(e) => setDgtor(e.target.value)}
+              />
+              <input
+                value={dgte}
+                placeholder="Delegate (identity id)"
+                aria-label="Delegate"
+                onChange={(e) => setDgte(e.target.value)}
+              />
+              <input
+                value={dgSubject}
+                placeholder="Subject type"
+                aria-label="Subject type"
+                onChange={(e) => setDgSubject(e.target.value)}
+              />
+              <input
+                type="date"
+                value={dgEnds}
+                aria-label="Ends at"
+                onChange={(e) => setDgEnds(e.target.value)}
+              />
+              <button
+                className="btn primary sm"
+                disabled={dgBusy || dgtor.trim() === '' || dgte.trim() === '' || dgtor.trim() === dgte.trim()}
+                onClick={() => {
+                  setDgBusy(true);
+                  void api
+                    .grantDelegation(
+                      {
+                        delegator: dgtor.trim(),
+                        delegate: dgte.trim(),
+                        subjectType: dgSubject.trim() || 'approval_request',
+                        ...(dgEnds ? { endsAt: dgEnds } : {}),
+                      },
+                      tenant,
+                    )
+                    .then((r) => {
+                      setDgMsg(
+                        r.ok
+                          ? { ok: true, msg: 'Delegation granted (audited).' }
+                          : { ok: false, msg: r.error ?? 'Grant failed.' },
+                      );
+                      if (r.ok) {
+                        setDgtor('');
+                        setDgte('');
+                        setDgEnds('');
+                        setNonce((x) => x + 1);
+                      }
+                      setDgBusy(false);
+                    });
+                }}
+              >
+                Grant delegation
+              </button>
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: 11, margin: '4px 0' }}>
+            Self-delegation (delegator = delegate) is blocked server-side + DB. The domain does not bound a
+            grant to the grantor&apos;s own authority or check overlaps at grant time — SoD is enforced at
+            DECISION time via the delegator. No hard delete (revoke = close).
+          </p>
+          {delegations.rows.length === 0 ? (
+            <div className="empty">No delegations.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Delegator</th>
+                  <th>Delegate</th>
+                  <th>Subject</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {delegations.rows.map((d, i) => {
+                  const dev = Number(d['version'] ?? 1);
+                  const active = pick(d, 'status').toLowerCase() === 'active';
+                  return (
+                    <tr key={pick(d, 'id') || i}>
+                      <td className="muted">{pick(d, 'delegator').slice(0, 12)}</td>
+                      <td className="muted">{pick(d, 'delegate').slice(0, 12)}</td>
+                      <td className="muted">{pick(d, 'subjectType')}</td>
+                      <td>{statusPill(pick(d, 'status'))}</td>
+                      <td>
+                        <ActionButton
+                          label="Revoke"
+                          danger
+                          needsReason
+                          allowed={active && can('approvals.delegation.manage')}
+                          onRun={(reason) =>
+                            dgRun(
+                              api.revokeDelegation(pick(d, 'id'), dev, reason ?? '', tenant),
+                              'Delegation revoked (audited).',
+                            )
+                          }
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
       {open && (
         <ApprovalDrawer
           requestId={open}

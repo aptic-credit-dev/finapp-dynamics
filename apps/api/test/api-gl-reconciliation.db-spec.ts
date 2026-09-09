@@ -293,6 +293,49 @@ export default defineDbSpec('api-gl-reconciliation', async (ctx, t) => {
       t.equal(confirm.body['status'], 'confirmed', 'a proposed match confirms over HTTP');
     }
 
+    // Wave-3: reconciling-item raise + clear over HTTP (exact minor units; clear = close, no hard delete).
+    const item = await client('POST', '/gl-reconciliation/reconciling-items', {
+      headers: auth.headers,
+      body: { runId, itemType: 'timing_difference', amountMinor: 250 },
+    });
+    t.ok(item.status === 200 || item.status === 201, 'a reconciling item is raised over HTTP');
+    t.equal(String(item.body['amountMinor']), '250', 'the reconciling item records exact minor units');
+    const cleared = await client(
+      'POST',
+      `/gl-reconciliation/reconciling-items/${String(item.body['id'])}/clear`,
+      {
+        headers: auth.headers,
+        body: { expectedVersion: item.body['version'], reason: 'resolved next period' },
+      },
+    );
+    t.equal(cleared.body['status'], 'cleared', 'the reconciling item clears over HTTP (audited, no delete)');
+    const itemAnon = await client('POST', '/gl-reconciliation/reconciling-items', {
+      body: { runId, itemType: 'x', amountMinor: 1 },
+    });
+    t.equal(itemAnon.status, 401, 'an anonymous caller cannot raise a reconciling item (401)');
+
+    // Wave-3 backend fix: a line consumed by the confirmed match cannot be manually re-matched (409).
+    if (proposed !== undefined) {
+      const mlines = (
+        await client('GET', `/gl-reconciliation/matches/${String(proposed['id'])}/lines`, {
+          headers: auth.headers,
+        })
+      ).body['lines'] as Record<string, unknown>[];
+      const glId = mlines.find((l) => l['glLineId'])?.['glLineId'];
+      const srcId = mlines.find((l) => l['sourceLineId'])?.['sourceLineId'];
+      if (glId !== undefined && srcId !== undefined) {
+        const reMatch = await client('POST', '/gl-reconciliation/manual-matches', {
+          headers: auth.headers,
+          body: { runId, glLineIds: [glId], sourceLineIds: [srcId], reason: 'retry an already-matched line' },
+        });
+        t.equal(
+          reMatch.status,
+          409,
+          'an already-matched line cannot be manually re-matched (Wave-3 guard, 409)',
+        );
+      }
+    }
+
     const rec = await client('POST', '/gl-reconciliation/recommendations', {
       headers: auth.headers,
       body: { runId, amountMinor: 5000, description: 'suggested correction', reasonCode: 'unmatched_gl' },
