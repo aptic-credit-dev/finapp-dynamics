@@ -213,12 +213,24 @@ export class MatchService {
       for (const id of input.glLineIds) {
         const l = await this.repo.findLine(tx, id);
         if (l === null) throw badRequest(`GL line ${id} not found.`, ctx.correlationId);
+        // Fail closed: only an UNMATCHED line may be manually matched. A line already matched/partially-matched/
+        // excepted is ineligible — reject (409) rather than silently re-match and corrupt the reconciliation.
+        if (l.status !== 'unmatched')
+          throw ProblemError.conflict(
+            `GL line ${id} is already ${l.status} and cannot be manually matched.`,
+            ctx.correlationId,
+          );
         glLines.push(l);
       }
       const sourceLines = [];
       for (const id of input.sourceLineIds) {
         const l = await this.repo.findSourceLine(tx, id);
         if (l === null) throw badRequest(`Source line ${id} not found.`, ctx.correlationId);
+        if (l.status !== 'unmatched')
+          throw ProblemError.conflict(
+            `Source line ${id} is already ${l.status} and cannot be manually matched.`,
+            ctx.correlationId,
+          );
         sourceLines.push(l);
       }
       const glAmounts = glLines.map((l) => Number(l.amount_minor));

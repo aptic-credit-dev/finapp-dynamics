@@ -437,6 +437,16 @@ function RunsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<st
     [selectedRun, tenant, nonce],
   );
   const [mmReason, setMmReason] = useState('');
+  const reconItems = useRows(
+    () =>
+      selectedRun
+        ? api.getReconcilingItems(selectedRun, tenant)
+        : Promise.resolve({ ok: true, status: 200, data: [], error: null }),
+    [selectedRun, tenant, nonce],
+  );
+  const [riType, setRiType] = useState('timing_difference');
+  const [riAmount, setRiAmount] = useState('');
+  const [riReason, setRiReason] = useState('');
   const createRun = (): void => {
     if (rcAcct === '') return;
     setBusy(true);
@@ -664,6 +674,85 @@ function RunsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<st
                   </p>
                 </>
               )}
+            </div>
+          )}
+          {selectedRun && can('gl_reconciliation.item.manage') && (
+            <div style={{ padding: '0 16px 8px' }}>
+              <h4 className="drawer-sub">Reconciling items</h4>
+              <ul className="timeline">
+                {reconItems.rows.map((it, i) => {
+                  const st = pick(it, 'status').toLowerCase();
+                  const iev = Number(it['version'] ?? 1);
+                  return (
+                    <li key={pick(it, 'id') || i}>
+                      <span className="t-head">{pick(it, 'itemType')}</span>{' '}
+                      <span className="muted">
+                        {fmtMinor(it['amountMinor'])} · {st || 'open'}
+                      </span>{' '}
+                      {st === 'open' && (
+                        <ActionButton
+                          label="Clear"
+                          needsReason
+                          allowed
+                          onRun={(reason) =>
+                            api
+                              .clearReconcilingItem(pick(it, 'id'), iev, reason ?? '', tenant)
+                              .then((r) => report(r, 'Reconciling item cleared (audited).'))
+                          }
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+                {reconItems.rows.length === 0 && <li className="muted">No reconciling items.</li>}
+              </ul>
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  value={riType}
+                  placeholder="Item type"
+                  aria-label="Item type"
+                  onChange={(e) => setRiType(e.target.value)}
+                />
+                <input
+                  value={riAmount}
+                  placeholder="Amount (e.g. 100.00)"
+                  aria-label="Item amount"
+                  onChange={(e) => setRiAmount(e.target.value)}
+                />
+                <input
+                  value={riReason}
+                  placeholder="Reason (opt)"
+                  aria-label="Item reason"
+                  onChange={(e) => setRiReason(e.target.value)}
+                />
+                <button
+                  className="btn primary sm"
+                  disabled={busy || riType.trim() === '' || toMinorUnits(riAmount) === null}
+                  onClick={() => {
+                    setBusy(true);
+                    void api
+                      .raiseReconcilingItem(
+                        {
+                          runId: selectedRun,
+                          itemType: riType.trim(),
+                          amountMinor: toMinorUnits(riAmount) as number,
+                          ...(riReason.trim() ? { reason: riReason.trim() } : {}),
+                        },
+                        tenant,
+                      )
+                      .then((r) => {
+                        report(r, 'Reconciling item raised (exact minor units, audited).');
+                        if (r.ok) {
+                          setRiAmount('');
+                          setRiReason('');
+                        }
+                        setBusy(false);
+                      });
+                  }}
+                >
+                  Raise item
+                </button>
+              </div>
             </div>
           )}
           {selectedRun && /completed/.test(runStatus) && (
@@ -13021,6 +13110,9 @@ function RoleDrawer({
   const [nonce, setNonce] = useState(0);
   const [add, setAdd] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [editAttr, setEditAttr] = useState(false);
+  const [atName, setAtName] = useState('');
+  const [atDesc, setAtDesc] = useState('');
   useEffect(() => {
     let live = true;
     setHeld(null);
@@ -13058,6 +13150,72 @@ function RoleDrawer({
             <dt>Status</dt>
             <dd>{statusPill(pick(roleState, 'status'))}</dd>
           </dl>
+          {!immutable && can('rbac.role.edit') && (
+            <div className="inline-form" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+              {!editAttr ? (
+                <button
+                  className="btn secondary sm"
+                  onClick={() => {
+                    setAtName(pick(roleState, 'name'));
+                    setAtDesc(pick(roleState, 'description'));
+                    setEditAttr(true);
+                  }}
+                >
+                  Edit name / description
+                </button>
+              ) : (
+                <>
+                  <input
+                    value={atName}
+                    placeholder="Name"
+                    aria-label="Role name"
+                    onChange={(e) => setAtName(e.target.value)}
+                  />
+                  <input
+                    value={atDesc}
+                    placeholder="Description"
+                    aria-label="Role description"
+                    onChange={(e) => setAtDesc(e.target.value)}
+                  />
+                  <div className="run-picker" style={{ gap: 6 }}>
+                    <button
+                      className="btn primary sm"
+                      disabled={atName.trim() === ''}
+                      onClick={() =>
+                        void api
+                          .updateRole(
+                            id,
+                            version,
+                            { name: atName.trim(), description: atDesc.trim() === '' ? null : atDesc.trim() },
+                            tenant,
+                          )
+                          .then((r) => {
+                            setMsg(
+                              r.ok
+                                ? { ok: true, msg: 'Role attributes updated (audited).' }
+                                : { ok: false, msg: r.error ?? 'Update failed.' },
+                            );
+                            if (r.ok) {
+                              setEditAttr(false);
+                              refresh();
+                            }
+                          })
+                      }
+                    >
+                      Save
+                    </button>
+                    <button className="btn link sm" onClick={() => setEditAttr(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+                    Name and description only — permissions, kind, status, tenant and system-role immutability
+                    are never editable here.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
           {immutable && (
             <p className="muted" style={{ fontSize: 12 }}>
               System role — immutable. Permissions and lifecycle cannot be changed.
@@ -13589,6 +13747,20 @@ function ApprovalsInbox({ tenant, perms }: { tenant: string | null; perms: Set<s
     () => api.listApprovalRequests(tenant, status === 'all' ? undefined : status),
     [tenant, status, nonce],
   );
+  const can = (p: string): boolean => perms.has(p);
+  const delegations = useRows(() => api.listDelegations(tenant), [tenant, nonce]);
+  const [dgtor, setDgtor] = useState('');
+  const [dgte, setDgte] = useState('');
+  const [dgSubject, setDgSubject] = useState('approval_request');
+  const [dgEnds, setDgEnds] = useState('');
+  const [dgBusy, setDgBusy] = useState(false);
+  const [dgMsg, setDgMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const dgRun = (p: Promise<api.ApiResult<api.Row>>, ok: string): void => {
+    void p.then((r) => {
+      setDgMsg(r.ok ? { ok: true, msg: ok } : { ok: false, msg: r.error ?? 'Action failed.' });
+      if (r.ok) setNonce((x) => x + 1);
+    });
+  };
   return (
     <>
       <h1 className="page-title">Approvals</h1>
@@ -13652,6 +13824,124 @@ function ApprovalsInbox({ tenant, perms }: { tenant: string | null; perms: Set<s
           </table>
         )}
       </div>
+      {can('approvals.delegation.read') && (
+        <div className="card">
+          <header>
+            <h3>Approval delegations</h3>
+            <span className="demo-note">SYNTHETIC</span>
+          </header>
+          {dgMsg && <div className={dgMsg.ok ? 'ok-note' : 'error'}>{dgMsg.msg}</div>}
+          {can('approvals.delegation.manage') && (
+            <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+              <input
+                value={dgtor}
+                placeholder="Delegator (identity id)"
+                aria-label="Delegator"
+                onChange={(e) => setDgtor(e.target.value)}
+              />
+              <input
+                value={dgte}
+                placeholder="Delegate (identity id)"
+                aria-label="Delegate"
+                onChange={(e) => setDgte(e.target.value)}
+              />
+              <input
+                value={dgSubject}
+                placeholder="Subject type"
+                aria-label="Subject type"
+                onChange={(e) => setDgSubject(e.target.value)}
+              />
+              <input
+                type="date"
+                value={dgEnds}
+                aria-label="Ends at"
+                onChange={(e) => setDgEnds(e.target.value)}
+              />
+              <button
+                className="btn primary sm"
+                disabled={dgBusy || dgtor.trim() === '' || dgte.trim() === '' || dgtor.trim() === dgte.trim()}
+                onClick={() => {
+                  setDgBusy(true);
+                  void api
+                    .grantDelegation(
+                      {
+                        delegator: dgtor.trim(),
+                        delegate: dgte.trim(),
+                        subjectType: dgSubject.trim() || 'approval_request',
+                        ...(dgEnds ? { endsAt: dgEnds } : {}),
+                      },
+                      tenant,
+                    )
+                    .then((r) => {
+                      setDgMsg(
+                        r.ok
+                          ? { ok: true, msg: 'Delegation granted (audited).' }
+                          : { ok: false, msg: r.error ?? 'Grant failed.' },
+                      );
+                      if (r.ok) {
+                        setDgtor('');
+                        setDgte('');
+                        setDgEnds('');
+                        setNonce((x) => x + 1);
+                      }
+                      setDgBusy(false);
+                    });
+                }}
+              >
+                Grant delegation
+              </button>
+            </div>
+          )}
+          <p className="muted" style={{ fontSize: 11, margin: '4px 0' }}>
+            Self-delegation (delegator = delegate) is blocked server-side + DB. The domain does not bound a
+            grant to the grantor&apos;s own authority or check overlaps at grant time — SoD is enforced at
+            DECISION time via the delegator. No hard delete (revoke = close).
+          </p>
+          {delegations.rows.length === 0 ? (
+            <div className="empty">No delegations.</div>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Delegator</th>
+                  <th>Delegate</th>
+                  <th>Subject</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {delegations.rows.map((d, i) => {
+                  const dev = Number(d['version'] ?? 1);
+                  const active = pick(d, 'status').toLowerCase() === 'active';
+                  return (
+                    <tr key={pick(d, 'id') || i}>
+                      <td className="muted">{pick(d, 'delegator').slice(0, 12)}</td>
+                      <td className="muted">{pick(d, 'delegate').slice(0, 12)}</td>
+                      <td className="muted">{pick(d, 'subjectType')}</td>
+                      <td>{statusPill(pick(d, 'status'))}</td>
+                      <td>
+                        <ActionButton
+                          label="Revoke"
+                          danger
+                          needsReason
+                          allowed={active && can('approvals.delegation.manage')}
+                          onRun={(reason) =>
+                            dgRun(
+                              api.revokeDelegation(pick(d, 'id'), dev, reason ?? '', tenant),
+                              'Delegation revoked (audited).',
+                            )
+                          }
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
       {open && (
         <ApprovalDrawer
           requestId={open}

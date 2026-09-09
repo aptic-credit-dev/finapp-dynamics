@@ -361,6 +361,23 @@ export const createManualMatch = (
   body: { runId: string; glLineIds: string[]; sourceLineIds: string[]; reason: string },
   t?: string | null,
 ): Promise<ApiResult<Row>> => call(`${R}/manual-matches`, { method: 'POST', body, tenantId: t });
+// Reconciling items — raise an unresolved variance item (exact minor units) + clear it with a reason.
+// gl_reconciliation.item.manage; audit GLRECON_RECONCILING_ITEM_RAISED/_CLEARED. No hard delete (clear = close).
+export const raiseReconcilingItem = (
+  body: { runId: string; itemType: string; amountMinor: number; direction?: string; reason?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${R}/reconciling-items`, { method: 'POST', body, tenantId: t });
+export const clearReconcilingItem = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${R}/reconciling-items/${encodeURIComponent(id)}/clear`, {
+    method: 'POST',
+    body: { expectedVersion: ev, reason },
+    tenantId: t,
+  });
 // Certification — draft → certify/reject. NOTE: this is NOT approver≠maker SoD (m20 does not enforce it); it is
 // a privileged reason-bearing certify with an override path. Real maker-checker sign-off lives in M21/M22.
 export const createCertification = (body: { runId: string }, t?: string | null): Promise<ApiResult<Row>> =>
@@ -616,6 +633,33 @@ export const decideApproval = (
   call(`${AP}/requests/${encodeURIComponent(id)}/decisions`, {
     method: 'POST',
     body: { expectedVersion: ev, decision, ...(reason ? { reason } : {}) },
+    tenantId: t,
+  });
+// M22 delegation admin. Server blocks self-delegation (delegator === delegate) + enforces ends_at > starts_at.
+// The grantor's own authority bound + overlap are NOT enforced at grant time by the domain — SoD is applied at
+// DECISION time via the delegator (documented). approvals.delegation.manage; audit APPROVAL_DELEGATION_*.
+export const listDelegations = (t?: string | null): Promise<ApiResult<{ delegations?: Row[] }>> =>
+  call(`${AP}/delegations`, { tenantId: t });
+export const grantDelegation = (
+  body: {
+    delegator: string;
+    delegate: string;
+    subjectType: string;
+    scope?: string;
+    reason?: string;
+    endsAt?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${AP}/delegations`, { method: 'POST', body, tenantId: t });
+export const revokeDelegation = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${AP}/delegations/${encodeURIComponent(id)}/revoke`, {
+    method: 'POST',
+    body: { expectedVersion: ev, reason },
     tenantId: t,
   });
 
@@ -2417,6 +2461,19 @@ export const changeRolePermissions = (
   t?: string | null,
 ): Promise<ApiResult<Row>> =>
   call(`/rbac/roles/${encodeURIComponent(roleId)}/permissions`, { method: 'PATCH', body, tenantId: t });
+// Role ATTRIBUTE edit — name/description only (allow-listed server-side; never permissions/kind/tenant/status/
+// immutability). System/immutable roles are rejected server-side + DB. rbac.role.edit; audit RBAC_ROLE_UPDATED.
+export const updateRole = (
+  roleId: string,
+  ev: number,
+  body: { name?: string; description?: string | null },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`/rbac/roles/${encodeURIComponent(roleId)}`, {
+    method: 'PATCH',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
 export type RoleAction = 'activate' | 'suspend' | 'reactivate' | 'retire';
 export const roleAction = (
   id: string,
