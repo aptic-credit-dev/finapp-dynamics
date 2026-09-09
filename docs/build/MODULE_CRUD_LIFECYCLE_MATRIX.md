@@ -121,9 +121,14 @@ see `TIER2_WAVE1_OPERATIONAL_WORKFLOWS_REPORT.md`):
     **manual-match** ✅ (exact 1:1; split/many-to-many deferred), **certification** ✅ (privileged override — NOT
     SoD; real SoD is M21/M22).
 
-**Tier-2 Wave-2+ — MISSING (remaining):**
-11. Legal sub-domains (m13 decisions/tasks; m14 court-events/pleadings; m16 witnesses/exhibits/orders/bundles;
-    m18 clauses/taxonomy) — collectively large; individually bounded.
+**Tier-2 Wave-2 — WIRED** on `release/tier2-wave2-legal-workflows` (backend-proven; browser sign-off OPEN — see
+`TIER2_WAVE2_LEGAL_WORKFLOWS_REPORT.md`):
+11. Legal sub-domains — ✅ WIRED: m13 decisions/tasks/activity-complete; m14 court-events/pleadings/costs/appeal;
+    m16 witnesses/exhibits/orders/obligations/bundles; m18 template-create/clauses/taxonomy. Backend-absent ops
+    (m13 task assign/escalate; m18 composition + mandatory-validation; m16 witness-withdraw/exhibit-custody/order-
+    edit/bundle-remove-reorder; taxonomy dependency guard) reported as not-modelled, not invented.
+
+**Tier-2 Wave-3+ — MISSING (remaining):**
 12. m32 analytics definition authoring; m08 template/escalation admin; m22 delegation/policy admin; m20 split
     manual-match + source-import + reconciling-items; m20 HTTP test lane; recovery debtor/owner/deadline capture.
 

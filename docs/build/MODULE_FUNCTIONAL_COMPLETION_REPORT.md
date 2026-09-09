@@ -101,6 +101,13 @@ sign-off OPEN — see `TIER2_WAVE1_OPERATIONAL_WORKFLOWS_REPORT.md`): M17 recove
 admin (+ fiscal-period already worked, overlap guard added); M20 run create / GL import / manual match (exact 1:1)
 / certification. Also fixed the `seed-personas` FK-ordering defect so authenticated browser acceptance can proceed.
 
+## 14c. Tier-2 Wave-2 progress (update)
+Wave-2 legal workflows are **WIRED** on `release/tier2-wave2-legal-workflows` (backend-proven; browser sign-off
+OPEN — see `TIER2_WAVE2_LEGAL_WORKFLOWS_REPORT.md`): M13 case decisions/tasks/activity-complete; M14 matter
+court-events/pleadings/costs/appeal; M16 litigation witnesses/exhibits/orders/obligations/bundles; M18
+template-create/clauses/taxonomy. DB lane 3065/0 (+15 HTTP sub-record tests). Backend-absent ops (M18
+composition/mandatory-validation, etc.) are reported as not-modelled, not invented. No legal-evidence hard delete.
+
 ## 15. Remaining external-assurance blockers
 The Stage-7 gates (independent pen-test, cross-host DR drill, acceptance-grade load/chaos, real-data migration —
 all `requires_review`), plus provisioning an authenticated **browser-acceptance environment** with the full
