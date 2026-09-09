@@ -44,6 +44,9 @@ const DEFAULT_CLOSURE_CRITERIA: ClosureCriteria = {
 
 type Stamp = 'referred' | 'resolved' | 'closed' | 'reopened' | 'archived';
 
+/** Assignment owners are tenant identity ids (uuid), never free-form names. */
+const RECOVERY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export class RecoveryService {
   private readonly db: Db;
   private readonly authz: Authz;
@@ -97,6 +100,114 @@ export class RecoveryService {
       source: input.source ?? 'direct_instruction',
       originatingModule: null,
       privileged: input.privileged === true,
+    });
+  }
+
+  /**
+   * Edit the mutable header + exposure of an OPEN case (M17 Wave-4). Allow-listed fields only — title, summary,
+   * description, priority, risk, confidentiality, sourceReference, currency, and the four *stated* exposure amounts
+   * (principal/interest/cost/recoverable). It DELIBERATELY cannot touch `recovered`/`outstanding` (those are moved
+   * only by recorded receipts/outcomes — the recovery-progress invariant), owner/team/strategy (dedicated flows),
+   * lifecycle status, or tenant. Optimistic-locked; blocked once the case is terminal. Audit carries changed field
+   * NAMES only, never the (sensitive) values (ADR-072).
+   */
+  async updateCase(
+    ctx: RequestContext,
+    actor: string | null,
+    id: string,
+    input: {
+      expectedVersion: number;
+      title?: string | null;
+      summary?: string | null;
+      description?: string | null;
+      priority?: string | null;
+      recoveryRisk?: string | null;
+      confidentiality?: string | null;
+      sourceReference?: string | null;
+      currency?: string | null;
+      principalAmountMinor?: number | null;
+      interestAmountMinor?: number | null;
+      costAmountMinor?: number | null;
+      recoverableAmountMinor?: number | null;
+    },
+  ): Promise<RecoveryRow> {
+    await this.authz.require(ctx, M17_PERMISSIONS.recoveryUpdate);
+    if (
+      input.title != null &&
+      (input.title.trim() === '' || input.title.length > RECOVERY_LIMITS.maxTitleChars)
+    )
+      throw badRequest('a title is required and must be bounded', ctx.correlationId);
+    if (input.summary != null && input.summary.length > RECOVERY_LIMITS.maxSummaryChars)
+      throw badRequest('summary too long', ctx.correlationId);
+    if (input.description != null && input.description.length > RECOVERY_LIMITS.maxDescriptionChars)
+      throw badRequest('description too long', ctx.correlationId);
+    if (input.priority != null && !isPriority(input.priority))
+      throw badRequest('invalid priority', ctx.correlationId);
+    if (input.recoveryRisk != null && !isRecoveryRisk(input.recoveryRisk))
+      throw badRequest('invalid recovery risk', ctx.correlationId);
+    if (input.confidentiality != null && !isConfidentiality(input.confidentiality))
+      throw badRequest('invalid confidentiality', ctx.correlationId);
+    for (const v of [
+      input.principalAmountMinor,
+      input.interestAmountMinor,
+      input.costAmountMinor,
+      input.recoverableAmountMinor,
+    ])
+      if (v != null && (!Number.isInteger(v) || v < 0))
+        throw badRequest('amounts must be non-negative integer minor units', ctx.correlationId);
+    const fields = Object.entries({
+      title: input.title,
+      summary: input.summary,
+      description: input.description,
+      priority: input.priority,
+      recoveryRisk: input.recoveryRisk,
+      confidentiality: input.confidentiality,
+      sourceReference: input.sourceReference,
+      currency: input.currency,
+      principalAmountMinor: input.principalAmountMinor,
+      interestAmountMinor: input.interestAmountMinor,
+      costAmountMinor: input.costAmountMinor,
+      recoverableAmountMinor: input.recoverableAmountMinor,
+    })
+      .filter(([, v]) => v != null)
+      .map(([k]) => k);
+    if (fields.length === 0) throw badRequest('no editable fields supplied', ctx.correlationId);
+    return this.db.withTenant(ctx, async (tx) => {
+      const rec = await this.repo.findRecovery(tx, id);
+      if (rec === null) throw ProblemError.notFound('Recovery not found.', ctx.correlationId);
+      if (isRecoveryTerminal(rec.status))
+        throw ProblemError.conflict(
+          `Recovery is ${rec.status}; header edits are not permitted after closure.`,
+          ctx.correlationId,
+        );
+      const upd = await this.repo.patchRecovery(tx, {
+        id,
+        expectedVersion: input.expectedVersion,
+        ...(input.title != null ? { title: input.title } : {}),
+        ...(input.summary != null ? { summary: input.summary } : {}),
+        ...(input.description != null ? { description: input.description } : {}),
+        ...(input.priority != null ? { priority: input.priority } : {}),
+        ...(input.recoveryRisk != null ? { recoveryRisk: input.recoveryRisk } : {}),
+        ...(input.confidentiality != null ? { confidentiality: input.confidentiality } : {}),
+        ...(input.sourceReference != null ? { sourceReference: input.sourceReference } : {}),
+        ...(input.currency != null ? { currency: input.currency } : {}),
+        ...(input.principalAmountMinor != null ? { principalAmountMinor: input.principalAmountMinor } : {}),
+        ...(input.interestAmountMinor != null ? { interestAmountMinor: input.interestAmountMinor } : {}),
+        ...(input.costAmountMinor != null ? { costAmountMinor: input.costAmountMinor } : {}),
+        ...(input.recoverableAmountMinor != null
+          ? { recoverableAmountMinor: input.recoverableAmountMinor }
+          : {}),
+        by: actor,
+      });
+      if (upd === null)
+        throw ProblemError.conflict('Recovery modified concurrently (stale version).', ctx.correlationId);
+      await this.emitter.recordAudit(tx, ctx, {
+        code: M17_AUDIT_CODES.recoveryUpdated,
+        entityType: 'recovery_case',
+        entityId: id,
+        detail: { fields },
+      });
+      return upd;
     });
   }
 
@@ -543,8 +654,21 @@ export class RecoveryService {
       ctx,
       input.reassign === true ? M17_PERMISSIONS.recoveryReassign : M17_PERMISSIONS.recoveryAssign,
     );
-    if (input.owner.trim() === '') throw badRequest('an owner is required', ctx.correlationId);
+    const owner = input.owner.trim();
+    if (owner === '') throw badRequest('an owner is required', ctx.correlationId);
+    // Owner accountability (M17 Wave-4): an owner must be an EXISTING tenant identity, never an arbitrary name.
+    // Reject anything that is not a uuid up front, then confirm active same-tenant membership under RLS below.
+    if (!RECOVERY_UUID_RE.test(owner))
+      throw badRequest('owner must reference a tenant identity (uuid)', ctx.correlationId);
     return this.db.withTenant(ctx, async (tx) => {
+      // Fail closed: the identity must be an ACTIVE member of THIS tenant. RLS FORCE (no system escape) on
+      // tenant_memberships means a cross-tenant identity is invisible here, so this rejects cross-tenant owners
+      // and any suspended/ended/pending (disabled/ineligible) membership.
+      if (!(await this.repo.isActiveTenantMember(tx, owner)))
+        throw badRequest(
+          'owner is not an active member of this tenant and cannot be assigned',
+          ctx.correlationId,
+        );
       const rec = await this.repo.findRecovery(tx, id);
       if (rec === null) throw ProblemError.notFound('Recovery not found.', ctx.correlationId);
       if (isRecoveryTerminal(rec.status))
@@ -556,7 +680,7 @@ export class RecoveryService {
       const upd = await this.repo.assignRecovery(tx, {
         id,
         expectedVersion: input.expectedVersion,
-        owner: input.owner,
+        owner,
         toStatus: to,
         by: actor,
       });
@@ -573,7 +697,7 @@ export class RecoveryService {
         tenantId: ctx.tenantId,
         recoveryId: id,
         kind: input.kind ?? 'legal_owner',
-        ref: input.owner,
+        ref: owner,
         reason: input.reason ?? null,
         ruleEvalId: input.ruleEvaluationId ?? null,
         by: actor,
@@ -594,7 +718,7 @@ export class RecoveryService {
         code: input.reassign === true ? M17_AUDIT_CODES.recoveryReassigned : M17_AUDIT_CODES.recoveryAssigned,
         entityType: 'recovery_case',
         entityId: id,
-        detail: { owner: input.owner },
+        detail: { owner },
       });
       await this.emitter.publish(tx, {
         type: input.reassign === true ? 'RecoveryReassigned' : 'RecoveryAssigned',

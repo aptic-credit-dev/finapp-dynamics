@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import { Endpoint } from '@finapp/kernel';
 import { RecoveryService, M17_AUDIT_CODES, M17_PERMISSIONS } from '@finapp/m17-recovery';
 import { ActorContextFactory } from '@finapp/m02-identity';
@@ -156,6 +156,37 @@ export class RecoveriesController {
         reassign: true,
         ...optStr(b['team'], 'team'),
         ...optStr(b['reason'], 'reason'),
+      }),
+      true,
+    );
+  }
+  @Endpoint({
+    permission: M17_PERMISSIONS.recoveryUpdate,
+    auditCode: M17_AUDIT_CODES.recoveryUpdated,
+    description: 'Edit a recovery case header + stated exposure (open cases only).',
+  })
+  @Patch('recoveries/:id')
+  async update(
+    @Param('id') id: string,
+    @Body() b: Record<string, unknown>,
+    @Headers() h: Record<string, string>,
+  ) {
+    const s = await this.scoped(h, 'update recovery (m17)');
+    return recoveryView(
+      await this.service.updateCase(s.ctx, s.actor.identityId, id, {
+        expectedVersion: requireVersion(b['expectedVersion'], s.correlationId),
+        ...optStr(b['title'], 'title'),
+        ...optStr(b['summary'], 'summary'),
+        ...optStr(b['description'], 'description'),
+        ...optStr(b['priority'], 'priority'),
+        ...optStr(b['recoveryRisk'], 'recoveryRisk'),
+        ...optStr(b['confidentiality'], 'confidentiality'),
+        ...optStr(b['sourceReference'], 'sourceReference'),
+        ...optStr(b['currency'], 'currency'),
+        ...optNum(b['principalAmountMinor'], 'principalAmountMinor'),
+        ...optNum(b['interestAmountMinor'], 'interestAmountMinor'),
+        ...optNum(b['costAmountMinor'], 'costAmountMinor'),
+        ...optNum(b['recoverableAmountMinor'], 'recoverableAmountMinor'),
       }),
       true,
     );
