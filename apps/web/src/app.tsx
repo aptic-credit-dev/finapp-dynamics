@@ -2116,6 +2116,17 @@ function PeriodsPanel({
     if (r.ok) refresh();
   };
   const rows = periods.rows;
+  // Client-side validation guards. The m19 domain enforces only period_number uniqueness + start<=end + FY-open;
+  // it has NO overlap or within-FY-containment guard (documented backend gap), so these are UI safeguards only.
+  const datesOrdered = start !== '' && end !== '' && start <= end;
+  const numDup =
+    /^\d+$/.test(num.trim()) && rows.some((p) => Number(pick(p, 'periodNumber')) === Number(num));
+  const overlaps =
+    start !== '' &&
+    end !== '' &&
+    rows.some((p) => start <= pick(p, 'endDate') && pick(p, 'startDate') <= end);
+  const periodInvalid =
+    !/^\d+$/.test(num.trim()) || start === '' || end === '' || !datesOrdered || numDup || overlaps;
   return (
     <div className="card">
       <header>
@@ -2133,9 +2144,24 @@ function PeriodsPanel({
           />
           <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
           <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+          {start !== '' && end !== '' && !datesOrdered && (
+            <span className="error" style={{ fontSize: 12 }}>
+              End date must be on/after start.
+            </span>
+          )}
+          {numDup && (
+            <span className="error" style={{ fontSize: 12 }}>
+              Period # already exists.
+            </span>
+          )}
+          {overlaps && datesOrdered && (
+            <span className="error" style={{ fontSize: 12 }}>
+              Dates overlap an existing period.
+            </span>
+          )}
           <button
             className="btn"
-            disabled={!/^\d+$/.test(num.trim()) || start === '' || end === ''}
+            disabled={periodInvalid}
             onClick={() =>
               void run(
                 api.openPeriod(
@@ -2597,7 +2623,7 @@ function FinanceConfigWorkspace({
   perms: Set<string>;
 }): JSX.Element {
   const can = (p: string): boolean => perms.has(p);
-  const [tab, setTab] = useState<'accounts' | 'types' | 'currencies'>('accounts');
+  const [tab, setTab] = useState<'accounts' | 'entities' | 'types' | 'currencies'>('accounts');
   const [nonce, setNonce] = useState(0);
   const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   const refresh = (): void => setNonce((x) => x + 1);
@@ -2743,8 +2769,78 @@ function FinanceConfigWorkspace({
     }
   };
 
+  // ---- Accounting entities admin (create / edit / activate / deactivate) — single-permission, no maker-checker,
+  // code unique per tenant + immutable, no hard delete. NOTE: the domain has NO server-side dependency guard on
+  // deactivate (documented gap) — the UI adds an explicit confirm but cannot itself prove dependency safety. ----
+  const allEntities = useRows(() => api.getFinanceEntities(tenant), [tenant, nonce]);
+  const [ecCode, setEcCode] = useState('');
+  const [ecName, setEcName] = useState('');
+  const [ecCurrency, setEcCurrency] = useState('');
+  const [ecDesc, setEcDesc] = useState('');
+  const [editEntId, setEditEntId] = useState<string | null>(null);
+  const [eeName, setEeName] = useState('');
+  const [eeCurrency, setEeCurrency] = useState('');
+  const submitEntity = async (): Promise<void> => {
+    if (ecCode.trim() === '' || ecName.trim() === '') {
+      setMsg({ ok: false, msg: 'Entity code and name are required.' });
+      return;
+    }
+    if (ecCurrency.trim() !== '' && !/^[A-Z]{3}$/.test(ecCurrency.trim().toUpperCase())) {
+      setMsg({ ok: false, msg: 'Functional currency must be a 3-letter code.' });
+      return;
+    }
+    const r = await api.createFinanceEntity(
+      {
+        code: ecCode.trim(),
+        name: ecName.trim(),
+        ...(ecCurrency.trim() ? { functionalCurrencyCode: ecCurrency.trim().toUpperCase() } : {}),
+        ...(ecDesc.trim() ? { description: ecDesc.trim() } : {}),
+      },
+      tenant,
+    );
+    if (r.ok) {
+      setMsg({ ok: true, msg: `Entity ${ecCode.trim()} created.` });
+      setEcCode('');
+      setEcName('');
+      setEcCurrency('');
+      setEcDesc('');
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Could not create entity.' });
+      if (r.status === 409) refresh();
+    }
+  };
+  const saveEntityEdit = async (id: string, ev: number): Promise<void> => {
+    if (eeName.trim() === '') {
+      setMsg({ ok: false, msg: 'Entity name is required.' });
+      return;
+    }
+    if (eeCurrency.trim() !== '' && !/^[A-Z]{3}$/.test(eeCurrency.trim().toUpperCase())) {
+      setMsg({ ok: false, msg: 'Functional currency must be a 3-letter code.' });
+      return;
+    }
+    const r = await api.updateFinanceEntity(
+      id,
+      ev,
+      {
+        name: eeName.trim(),
+        ...(eeCurrency.trim() ? { functionalCurrencyCode: eeCurrency.trim().toUpperCase() } : {}),
+      },
+      tenant,
+    );
+    if (r.ok) {
+      setMsg({ ok: true, msg: 'Entity updated.' });
+      setEditEntId(null);
+      refresh();
+    } else {
+      setMsg({ ok: false, msg: r.error ?? 'Update failed.' });
+      if (r.status === 409) refresh();
+    }
+  };
+
   const tabs: { id: typeof tab; label: string }[] = [
     { id: 'accounts', label: 'Chart of Accounts' },
+    { id: 'entities', label: 'Accounting Entities' },
     { id: 'types', label: 'Account Types' },
     { id: 'currencies', label: 'Currencies' },
   ];
@@ -2925,6 +3021,168 @@ function FinanceConfigWorkspace({
                 onClose={() => setOpenAcctId(null)}
               />
             )}
+          </>
+        )}
+
+        {tab === 'entities' && (
+          <>
+            {can('finance.entity.manage') && (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  style={{ width: 110 }}
+                  value={ecCode}
+                  placeholder="Code (unique)"
+                  aria-label="Entity code"
+                  maxLength={40}
+                  onChange={(e) => setEcCode(e.target.value)}
+                />
+                <input
+                  value={ecName}
+                  placeholder="Name"
+                  aria-label="Entity name"
+                  maxLength={200}
+                  onChange={(e) => setEcName(e.target.value)}
+                />
+                <input
+                  style={{ width: 130 }}
+                  value={ecCurrency}
+                  placeholder="Func. currency"
+                  aria-label="Functional currency"
+                  maxLength={3}
+                  onChange={(e) => setEcCurrency(e.target.value.toUpperCase())}
+                />
+                <input
+                  value={ecDesc}
+                  placeholder="Description (optional)"
+                  aria-label="Entity description"
+                  onChange={(e) => setEcDesc(e.target.value)}
+                />
+                <button
+                  className="btn"
+                  disabled={ecCode.trim() === '' || ecName.trim() === ''}
+                  onClick={() => void submitEntity()}
+                >
+                  New entity
+                </button>
+              </div>
+            )}
+            {allEntities.loading ? (
+              <div className="loading">Loading entities…</div>
+            ) : allEntities.error ? (
+              <div className="empty">Could not load entities ({allEntities.error}).</div>
+            ) : allEntities.rows.length === 0 ? (
+              <div className="empty">No accounting entities configured.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Currency</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allEntities.rows.map((r, i) => {
+                    const id = pick(r, 'id');
+                    const eev = Number(r['version'] ?? 1);
+                    const active = pick(r, 'status').toLowerCase() === 'active';
+                    const editing = editEntId === id;
+                    return (
+                      <tr key={id || i}>
+                        <td className="muted">{pick(r, 'code') || '—'}</td>
+                        <td>
+                          {editing ? (
+                            <input
+                              value={eeName}
+                              aria-label="Edit entity name"
+                              onChange={(e) => setEeName(e.target.value)}
+                            />
+                          ) : (
+                            pick(r, 'name') || '—'
+                          )}
+                        </td>
+                        <td className="muted">
+                          {editing ? (
+                            <input
+                              style={{ width: 70 }}
+                              value={eeCurrency}
+                              aria-label="Edit functional currency"
+                              maxLength={3}
+                              onChange={(e) => setEeCurrency(e.target.value.toUpperCase())}
+                            />
+                          ) : (
+                            pick(r, 'functionalCurrencyCode') || '—'
+                          )}
+                        </td>
+                        <td>{statusPill(pick(r, 'status'))}</td>
+                        <td>
+                          <div className="action-row">
+                            {editing ? (
+                              <>
+                                <button
+                                  className="btn primary sm"
+                                  disabled={eeName.trim() === ''}
+                                  onClick={() => void saveEntityEdit(id, eev)}
+                                >
+                                  Save
+                                </button>
+                                <button className="btn link sm" onClick={() => setEditEntId(null)}>
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                {can('finance.entity.manage') && (
+                                  <button
+                                    className="btn secondary sm"
+                                    onClick={() => {
+                                      setEditEntId(id);
+                                      setEeName(pick(r, 'name'));
+                                      setEeCurrency(pick(r, 'functionalCurrencyCode'));
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                                <ActionButton
+                                  label="Activate"
+                                  allowed={!active && can('finance.entity.activate')}
+                                  onRun={() =>
+                                    runCurrency(
+                                      api.financeEntityLifecycle(id, 'activate', eev, tenant),
+                                      `Entity ${pick(r, 'code')} activated.`,
+                                    )
+                                  }
+                                />
+                                <ActionButton
+                                  label="Deactivate"
+                                  danger
+                                  needsReason
+                                  allowed={active && can('finance.entity.deactivate')}
+                                  onRun={() =>
+                                    runCurrency(
+                                      api.financeEntityLifecycle(id, 'deactivate', eev, tenant),
+                                      `Entity ${pick(r, 'code')} deactivated.`,
+                                    )
+                                  }
+                                />
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+            <p className="muted" style={{ fontSize: 11, margin: '8px 0 0' }}>
+              Single-permission config (no maker-checker). Code is unique per tenant and immutable after
+              create; there is no hard delete. NOTE: the domain does not itself block deactivating an entity
+              that still has dependents (fiscal years / accounts) — deactivate with care.
+            </p>
           </>
         )}
 

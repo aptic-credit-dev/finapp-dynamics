@@ -725,6 +725,41 @@ export const getFinanceEntities = (
   status?: string,
 ): Promise<ApiResult<Row[] | { entities?: Row[] }>> =>
   call(`${FIN}/entities${status ? `?status=${encodeURIComponent(status)}` : ''}`, { tenantId: t });
+// Accounting entity admin — single-permission (NO maker-checker on m19 config). Code is unique per tenant
+// (server-enforced) and immutable after create. Lifecycle activate/deactivate + edit carry expectedVersion.
+// There is NO hard delete and NO server-side dependency guard on deactivate (documented gap).
+export const createFinanceEntity = (
+  body: {
+    code: string;
+    name: string;
+    parentEntityId?: string;
+    functionalCurrencyCode?: string;
+    description?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${FIN}/entities`, { method: 'POST', body, tenantId: t });
+export const updateFinanceEntity = (
+  id: string,
+  ev: number,
+  body: { name?: string; parentEntityId?: string; functionalCurrencyCode?: string; description?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${FIN}/entities/${encodeURIComponent(id)}`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+export const financeEntityLifecycle = (
+  id: string,
+  action: 'activate' | 'deactivate',
+  ev: number,
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${FIN}/entities/${encodeURIComponent(id)}/${action}`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
 export const getFiscalYears = (
   entityId: string,
   t?: string | null,
