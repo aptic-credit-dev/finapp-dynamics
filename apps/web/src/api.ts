@@ -582,6 +582,26 @@ export const recordRecoveryNote = (
     tenantId: t,
   });
 
+// Create a recovery case — POST /recovery/recoveries, permission recovery.case.create, audit
+// RECOVERY_CASE_CREATED. The server forces recoveryNumber/status(draft)/tenant_id; the caller supplies only the
+// domain-supported fields below. Amounts are integer minor units. Debtor/owner/deadlines are separate follow-up
+// endpoints (parties/assign/deadlines), not part of create.
+export const createRecovery = (
+  body: {
+    recoveryTypeCode: string;
+    title: string;
+    summary?: string;
+    description?: string;
+    confidentiality?: string;
+    priority?: string;
+    recoveryRisk?: string;
+    currency?: string;
+    principalAmountMinor?: number;
+    sourceReference?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${RC}/recoveries`, { method: 'POST', body, tenantId: t });
+
 // M44 Recovery OPERATIONAL actions — canonical m17 lifecycle, reused (no duplicate recovery engine). Every action
 // is permission-gated + audited server-side, carries the mandatory expectedVersion, and respects the m17 state
 // machine (an invalid transition fails closed). There is NO hard delete — a case resolves/closes/reopens/archives.

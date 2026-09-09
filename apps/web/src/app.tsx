@@ -1758,11 +1758,27 @@ function RecoveryCases({
   actorId: string;
 }): JSX.Element {
   const [statusFilter, setStatusFilter] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
   const cases = useRows(
     () => api.getRecoveries(tenant, statusFilter ? { status: statusFilter } : undefined),
-    [tenant, statusFilter],
+    [tenant, statusFilter, reloadKey],
   );
   const [openId, setOpenId] = useState<string | null>(null);
+  const can = (p: string): boolean => perms.has(p);
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createMsg, setCreateMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [ncType, setNcType] = useState('');
+  const [ncTitle, setNcTitle] = useState('');
+  const [ncPriority, setNcPriority] = useState('normal');
+  const [ncRisk, setNcRisk] = useState('');
+  const [ncConf, setNcConf] = useState('confidential');
+  const [ncCurrency, setNcCurrency] = useState('KES');
+  const [ncAmount, setNcAmount] = useState('');
+  const [ncSummary, setNcSummary] = useState('');
+  const knownTypes = Array.from(
+    new Set(cases.rows.map((c) => pick(c, 'recoveryTypeCode')).filter((x) => x !== '')),
+  );
   const STAGES = [
     ['', 'All statuses'],
     ['referred', 'Referred (early arrears)'],
@@ -1796,6 +1812,143 @@ function RecoveryCases({
             ))}
           </select>
         </div>
+        {can('recovery.case.create') && (
+          <div className="card" style={{ margin: '8px 0' }}>
+            {!showCreate ? (
+              <button className="btn" onClick={() => setShowCreate(true)}>
+                + New recovery case
+              </button>
+            ) : (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  value={ncType}
+                  placeholder="Recovery type code (active, required)"
+                  aria-label="Recovery type code"
+                  list="recovery-type-codes"
+                  onChange={(e) => setNcType(e.target.value)}
+                />
+                <datalist id="recovery-type-codes">
+                  {knownTypes.map((tc) => (
+                    <option key={tc} value={tc} />
+                  ))}
+                </datalist>
+                <input
+                  value={ncTitle}
+                  placeholder="Title (required)"
+                  aria-label="Title"
+                  onChange={(e) => setNcTitle(e.target.value)}
+                />
+                <select
+                  value={ncPriority}
+                  onChange={(e) => setNcPriority(e.target.value)}
+                  aria-label="Priority"
+                >
+                  {['low', 'normal', 'high', 'urgent'].map((x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ))}
+                </select>
+                <select value={ncRisk} onChange={(e) => setNcRisk(e.target.value)} aria-label="Risk">
+                  <option value="">risk…</option>
+                  {['low', 'medium', 'high', 'critical'].map((x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={ncConf}
+                  onChange={(e) => setNcConf(e.target.value)}
+                  aria-label="Confidentiality"
+                >
+                  {['standard', 'confidential', 'restricted', 'privileged'].map((x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={ncCurrency}
+                  placeholder="Currency"
+                  aria-label="Currency"
+                  style={{ width: 70 }}
+                  onChange={(e) => setNcCurrency(e.target.value.toUpperCase())}
+                />
+                <input
+                  value={ncAmount}
+                  placeholder="Principal (e.g. 10000.00)"
+                  aria-label="Principal amount"
+                  onChange={(e) => setNcAmount(e.target.value)}
+                />
+                <input
+                  value={ncSummary}
+                  placeholder="Summary (optional)"
+                  aria-label="Summary"
+                  onChange={(e) => setNcSummary(e.target.value)}
+                />
+                <button
+                  className="btn primary sm"
+                  disabled={
+                    creating ||
+                    ncType.trim() === '' ||
+                    ncTitle.trim() === '' ||
+                    (ncAmount.trim() !== '' && toMinorUnits(ncAmount) === null)
+                  }
+                  onClick={() => {
+                    setCreating(true);
+                    setCreateMsg(null);
+                    const principal =
+                      ncAmount.trim() === '' ? undefined : (toMinorUnits(ncAmount) ?? undefined);
+                    void api
+                      .createRecovery(
+                        {
+                          recoveryTypeCode: ncType.trim(),
+                          title: ncTitle.trim(),
+                          priority: ncPriority,
+                          confidentiality: ncConf,
+                          currency: ncCurrency.trim() || 'KES',
+                          ...(ncRisk ? { recoveryRisk: ncRisk } : {}),
+                          ...(principal !== undefined ? { principalAmountMinor: principal } : {}),
+                          ...(ncSummary.trim() ? { summary: ncSummary.trim() } : {}),
+                        },
+                        tenant,
+                      )
+                      .then((r) => {
+                        setCreateMsg(
+                          r.ok
+                            ? { ok: true, msg: 'Recovery case created (draft, audited).' }
+                            : { ok: false, msg: r.error ?? 'Create failed.' },
+                        );
+                        if (r.ok) {
+                          const newId = pick((r.data as api.Row) ?? {}, 'id');
+                          setNcType('');
+                          setNcTitle('');
+                          setNcAmount('');
+                          setNcSummary('');
+                          setNcRisk('');
+                          setShowCreate(false);
+                          setReloadKey((x) => x + 1);
+                          if (newId) setOpenId(newId);
+                        }
+                        setCreating(false);
+                      });
+                  }}
+                >
+                  {creating ? '…' : 'Create'}
+                </button>
+                <button className="btn link sm" onClick={() => setShowCreate(false)}>
+                  Cancel
+                </button>
+              </div>
+            )}
+            {createMsg && <div className={createMsg.ok ? 'ok-note' : 'error'}>{createMsg.msg}</div>}
+            <p className="muted" style={{ fontSize: 11, margin: '6px 0 0' }}>
+              Creates the case as a draft. Debtor parties, owner assignment and deadlines are added from the
+              case drawer after creation. Amounts are exact minor units; no hard delete.
+            </p>
+          </div>
+        )}
         {cases.loading ? (
           <div className="loading">Loading cases…</div>
         ) : cases.error ? (
