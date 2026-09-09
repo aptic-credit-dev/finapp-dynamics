@@ -196,6 +196,27 @@ export default defineDbSpec('api-finance', async (ctx, t) => {
       `register an entity over HTTP (got ${String(entity.status)})`,
     );
     const entityId = String(entity.body['id']);
+    // Entity edit + lifecycle + duplicate-code — the web Accounting Entities admin tab drives these paths.
+    const dupEntity = await client('POST', '/finance/entities', {
+      headers: auth.headers,
+      body: { code: 'ACME', name: 'Duplicate' },
+    });
+    t.equal(dupEntity.status, 409, 'a duplicate entity code is rejected per tenant (409)');
+    const editedEntity = await client('POST', `/finance/entities/${entityId}`, {
+      headers: auth.headers,
+      body: { expectedVersion: entity.body['version'], name: 'Acme Holdings Ltd' },
+    });
+    t.equal(editedEntity.body['name'], 'Acme Holdings Ltd', 'entity name is editable over HTTP (audited)');
+    const deactEntity = await client('POST', `/finance/entities/${entityId}/deactivate`, {
+      headers: auth.headers,
+      body: { expectedVersion: editedEntity.body['version'] },
+    });
+    t.equal(deactEntity.body['status'], 'inactive', 'entity deactivates over HTTP (no hard delete)');
+    const reactEntity = await client('POST', `/finance/entities/${entityId}/activate`, {
+      headers: auth.headers,
+      body: { expectedVersion: deactEntity.body['version'] },
+    });
+    t.equal(reactEntity.body['status'], 'active', 'entity reactivates over HTTP');
     const at = await client('POST', '/finance/account-types', {
       headers: auth.headers,
       body: { code: 'AST', name: 'Assets', accountClass: 'asset' },
