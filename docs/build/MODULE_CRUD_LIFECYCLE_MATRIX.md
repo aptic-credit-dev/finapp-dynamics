@@ -112,13 +112,20 @@ permanently read-only — no edit/delete to be added, ever (Phase-3 rule 8).**
 6. m18 `withdrawTemplate` — ✅ WIRED (danger+reason withdraw, `legaldocs.template.manage`).
 7. m02-identity `updateIdentity` (PATCH) — ✅ WIRED (profile edit form, `identity.registry.edit`).
 
-**Tier-2 — MISSING (need a small `api.ts` wrapper + UI; backend exists):**
-8. m19 **accounting-entity** create/lifecycle — a **dead-end** (UI text points to a non-existent control).
-9. m19 **fiscal-period** create.
-10. m17 **recovery case create**; m20 **recon-run create** / manual-match / GL-import upload.
+**Tier-2 Wave-1 — WIRED** on `release/tier2-wave1-operational-workflows` (backend-proven; browser sign-off OPEN —
+see `TIER2_WAVE1_OPERATIONAL_WORKFLOWS_REPORT.md`):
+8. m19 **accounting-entity** create/edit/activate/deactivate — ✅ WIRED (Finance Config → Accounting Entities tab).
+9. m19 **fiscal-period** create — ✅ **already worked** (audit correction: `openPeriod` + `PeriodsPanel`); added a
+   client-side overlap/duplicate-#/date guard.
+10. m17 **recovery case create** ✅ WIRED; m20 **recon-run create** ✅, **GL import** ✅ (structured rows),
+    **manual-match** ✅ (exact 1:1; split/many-to-many deferred), **certification** ✅ (privileged override — NOT
+    SoD; real SoD is M21/M22).
+
+**Tier-2 Wave-2+ — MISSING (remaining):**
 11. Legal sub-domains (m13 decisions/tasks; m14 court-events/pleadings; m16 witnesses/exhibits/orders/bundles;
     m18 clauses/taxonomy) — collectively large; individually bounded.
-12. m32 analytics definition authoring; m08 template/escalation admin; m22 delegation/policy admin.
+12. m32 analytics definition authoring; m08 template/escalation admin; m22 delegation/policy admin; m20 split
+    manual-match + source-import + reconciling-items; m20 HTTP test lane; recovery debtor/owner/deadline capture.
 
 **Intentionally READ-ONLY / not gaps:** audit spine, copilot advisory, DLP findings, privacy records, saas
 usage/billing evidence, analytics governed-query-only reads, all catalogs, no-hard-delete everywhere, m09 byte I/O

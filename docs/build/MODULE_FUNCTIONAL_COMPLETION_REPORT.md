@@ -95,6 +95,12 @@ legal sub-domains (m13/m14/m16/m18), m32 definition authoring, m08 template/esca
 policy admin. One UX-safety follow-up: add two-step confirm to plain sub-entity destructive buttons (e.g.
 `removeCaseParty`).
 
+## 14b. Tier-2 Wave-1 progress (update)
+Wave-1 operational workflows are **WIRED** on `release/tier2-wave1-operational-workflows` (backend-proven; browser
+sign-off OPEN — see `TIER2_WAVE1_OPERATIONAL_WORKFLOWS_REPORT.md`): M17 recovery create; M19 accounting-entity
+admin (+ fiscal-period already worked, overlap guard added); M20 run create / GL import / manual match (exact 1:1)
+/ certification. Also fixed the `seed-personas` FK-ordering defect so authenticated browser acceptance can proceed.
+
 ## 15. Remaining external-assurance blockers
 The Stage-7 gates (independent pen-test, cross-host DR drill, acceptance-grade load/chaos, real-data migration —
 all `requires_review`), plus provisioning an authenticated **browser-acceptance environment** with the full
