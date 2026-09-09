@@ -1248,6 +1248,55 @@ const OUTCOME_TYPES = [
   'other',
 ];
 
+// Recovery lifecycle adjacency (mirrors the authoritative m17 RECOVERY_MACHINE; server remains the source of
+// truth and rejects any illegal move). Terminal/dedicated transitions (resolved/closed/reopened/archived/
+// withdrawn) are handled by their own reason-gated buttons, so the generic "Advance" select lists only the
+// intermediate operational next-stages.
+const RECOVERY_NEXT: Record<string, string[]> = {
+  draft: ['referred', 'under_review'],
+  referred: ['under_review', 'strategy_selection'],
+  under_review: ['strategy_selection', 'demand_issued', 'suspended', 'uncollectible'],
+  strategy_selection: [
+    'demand_issued',
+    'negotiation',
+    'enforcement_pending',
+    'agent_recovery',
+    'security_realization',
+    'write_off_recommended',
+  ],
+  demand_issued: ['awaiting_response', 'negotiation', 'enforcement_pending'],
+  awaiting_response: [
+    'negotiation',
+    'arrangement_pending',
+    'enforcement_pending',
+    'partial_recovery',
+    'recovered',
+  ],
+  negotiation: ['arrangement_pending', 'settled', 'enforcement_pending', 'write_off_recommended'],
+  arrangement_pending: ['arrangement_active', 'negotiation'],
+  arrangement_active: ['arrangement_default', 'partial_recovery', 'recovered', 'settled'],
+  arrangement_default: ['negotiation', 'enforcement_pending', 'arrangement_active', 'write_off_recommended'],
+  enforcement_pending: ['enforcement_active', 'agent_recovery', 'security_realization'],
+  enforcement_active: [
+    'attachment',
+    'execution',
+    'auction',
+    'security_realization',
+    'partial_recovery',
+    'recovered',
+    'write_off_recommended',
+  ],
+  attachment: ['execution', 'auction', 'partial_recovery', 'recovered'],
+  execution: ['auction', 'partial_recovery', 'recovered'],
+  auction: ['partial_recovery', 'recovered', 'security_realization'],
+  security_realization: ['partial_recovery', 'recovered', 'write_off_recommended'],
+  agent_recovery: ['partial_recovery', 'recovered', 'negotiation', 'write_off_recommended'],
+  partial_recovery: ['negotiation', 'enforcement_active', 'recovered', 'write_off_recommended', 'settled'],
+  write_off_recommended: ['written_off', 'enforcement_active', 'negotiation'],
+  settled: ['partial_recovery', 'recovered'],
+  suspended: ['under_review', 'strategy_selection'],
+};
+
 function RecoveryDrawer({
   id,
   tenant,
@@ -1270,6 +1319,9 @@ function RecoveryDrawer({
   const [loading, setLoading] = useState(true);
   const [nonce, setNonce] = useState(0);
   const [activity, setActivity] = useState('');
+  const [advTo, setAdvTo] = useState('');
+  const [advNote, setAdvNote] = useState('');
+  const [advancing, setAdvancing] = useState(false);
   const [arrForm, setArrForm] = useState({ arrangementType: 'installment', amount: '' });
   const [demForm, setDemForm] = useState({ demandType: 'formal_demand', amount: '' });
   const [outForm, setOutForm] = useState({ outcomeType: 'partially_recovered', amount: '' });
@@ -1400,6 +1452,44 @@ function RecoveryDrawer({
                 }
               />
             </div>
+            {openish && can('recovery.case.update') && (RECOVERY_NEXT[status]?.length ?? 0) > 0 && (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  Advance stage (from {status}):
+                </span>
+                <select value={advTo} onChange={(e) => setAdvTo(e.target.value)} aria-label="Next stage">
+                  <option value="">Select next stage…</option>
+                  {(RECOVERY_NEXT[status] ?? []).map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={advNote}
+                  placeholder="Reason (required)"
+                  aria-label="Advance reason"
+                  onChange={(e) => setAdvNote(e.target.value)}
+                />
+                <button
+                  className="btn primary sm"
+                  disabled={advancing || advTo === '' || advNote.trim() === ''}
+                  onClick={() => {
+                    setAdvancing(true);
+                    void api.advanceRecovery(id, version, advTo, advNote.trim(), tenant).then((res) => {
+                      report(res, `Advanced to ${advTo} (audited).`);
+                      if (res.ok) {
+                        setAdvTo('');
+                        setAdvNote('');
+                      }
+                      setAdvancing(false);
+                    });
+                  }}
+                >
+                  {advancing ? '…' : 'Advance'}
+                </button>
+              </div>
+            )}
             {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
 
             <h4 className="drawer-sub">Payment arrangements (maker-checker)</h4>
@@ -5498,6 +5588,21 @@ function LegalDocsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
                             allowed={/approved/.test(st) && can('legaldocs.template.publish')}
                             onRun={() => run(api.publishTemplate(id, ev, tenant), 'Template published.')}
                           />
+                          <ActionButton
+                            label="Withdraw"
+                            allowed={
+                              /draft|under_review|changes_requested|approved|published/.test(st) &&
+                              can('legaldocs.template.manage')
+                            }
+                            danger
+                            needsReason
+                            onRun={(reason) =>
+                              run(
+                                api.withdrawTemplate(id, ev, reason ?? '', tenant),
+                                'Template withdrawn (version & usage history preserved).',
+                              )
+                            }
+                          />
                         </div>
                       </td>
                     </tr>
@@ -6035,6 +6140,15 @@ function DocumentsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
   const [status, setStatus] = useState('');
   const [classification, setClassification] = useState('');
   const [openDoc, setOpenDoc] = useState<api.Row | null>(null);
+  const can = (p: string): boolean => perms.has(p);
+  const [showCreate, setShowCreate] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createMsg, setCreateMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [dcCode, setDcCode] = useState('');
+  const [dcTitle, setDcTitle] = useState('');
+  const [dcType, setDcType] = useState('');
+  const [dcClass, setDcClass] = useState('');
+  const [dcDesc, setDcDesc] = useState('');
 
   const documents = useRows(async () => {
     const r = await api.getDocuments(tenant, { code, type, status, classification });
@@ -6105,6 +6219,109 @@ function DocumentsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
                 ))}
               </select>
             </div>
+            {can('documents.document.create') && (
+              <div className="card" style={{ margin: '8px 0' }}>
+                {!showCreate ? (
+                  <button className="btn" onClick={() => setShowCreate(true)}>
+                    + Create document
+                  </button>
+                ) : (
+                  <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                    <input
+                      value={dcCode}
+                      placeholder="Code (required)"
+                      aria-label="Document code"
+                      onChange={(e) => setDcCode(e.target.value)}
+                    />
+                    <input
+                      value={dcTitle}
+                      placeholder="Title (required)"
+                      aria-label="Document title"
+                      onChange={(e) => setDcTitle(e.target.value)}
+                    />
+                    <select
+                      value={dcType}
+                      onChange={(e) => setDcType(e.target.value)}
+                      aria-label="Document type"
+                    >
+                      <option value="">Document type (active)…</option>
+                      {types.rows
+                        .filter((t) => pick(t, 'status').toLowerCase() === 'active')
+                        .map((t) => (
+                          <option key={pick(t, 'code')} value={pick(t, 'code')}>
+                            {pick(t, 'code')}
+                          </option>
+                        ))}
+                    </select>
+                    <select
+                      value={dcClass}
+                      onChange={(e) => setDcClass(e.target.value)}
+                      aria-label="Classification"
+                    >
+                      <option value="">Classification (default from type)…</option>
+                      {DOC_CLASSIFICATIONS.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={dcDesc}
+                      placeholder="Description (optional)"
+                      aria-label="Description"
+                      onChange={(e) => setDcDesc(e.target.value)}
+                    />
+                    <button
+                      className="btn primary sm"
+                      disabled={creating || dcCode.trim() === '' || dcTitle.trim() === '' || dcType === ''}
+                      onClick={() => {
+                        setCreating(true);
+                        setCreateMsg(null);
+                        void api
+                          .createDocument(
+                            {
+                              code: dcCode.trim(),
+                              title: dcTitle.trim(),
+                              documentType: dcType,
+                              ...(dcClass ? { classification: dcClass } : {}),
+                              ...(dcDesc.trim() ? { description: dcDesc.trim() } : {}),
+                            },
+                            tenant,
+                          )
+                          .then((r) => {
+                            setCreateMsg(
+                              r.ok
+                                ? { ok: true, msg: 'Document record created (metadata).' }
+                                : { ok: false, msg: r.error ?? 'Create failed.' },
+                            );
+                            if (r.ok) {
+                              setDcCode('');
+                              setDcTitle('');
+                              setDcType('');
+                              setDcClass('');
+                              setDcDesc('');
+                              setShowCreate(false);
+                              setNonce((x) => x + 1);
+                            }
+                            setCreating(false);
+                          });
+                      }}
+                    >
+                      {creating ? '…' : 'Create'}
+                    </button>
+                    <button className="btn link sm" onClick={() => setShowCreate(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                {createMsg && <div className={createMsg.ok ? 'ok-note' : 'error'}>{createMsg.msg}</div>}
+                <p className="muted" style={{ fontSize: 11, margin: '6px 0 0' }}>
+                  Creates the document <strong>record + metadata</strong> only. Uploading file{' '}
+                  <strong>content (bytes)</strong> is framework-only on staging (no object store bound) — a
+                  deployment binds a real storage adapter.
+                </p>
+              </div>
+            )}
             {documents.loading ? (
               <div className="loading">Loading documents…</div>
             ) : documents.error ? (
@@ -7364,6 +7581,29 @@ function CopilotWorkspace({ tenant, perms }: { tenant: string | null; perms: Set
                     ))}
                   </div>
                 )}
+                {respStatus.toLowerCase() === 'complete' && !held && (
+                  <div className="run-picker" style={{ gap: 6, marginTop: 8 }}>
+                    <ActionButton
+                      label="Export"
+                      allowed={can('ai.copilot.export')}
+                      onRun={() =>
+                        api.exportCopilotQuery(pick(response, 'id'), tenant).then((r) =>
+                          setMsg(
+                            r.ok
+                              ? {
+                                  ok: true,
+                                  msg: 'Export recorded — citation references only (no answer text or secrets); audited, tenant-scoped.',
+                                }
+                              : { ok: false, msg: r.error ?? 'Export not permitted.' },
+                          ),
+                        )
+                      }
+                    />
+                    <span className="muted" style={{ fontSize: 11 }}>
+                      References only — never prompt/answer text or secrets.
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -8160,6 +8400,8 @@ function CaseDrawer({
   const [pType, setPType] = useState('complainant');
   const [pLabel, setPLabel] = useState('');
   const [pContact, setPContact] = useState('');
+  const [trSev, setTrSev] = useState('medium');
+  const [trPri, setTrPri] = useState('normal');
   const [actType, setActType] = useState('note');
   const [actHead, setActHead] = useState('');
   useEffect(() => {
@@ -8275,6 +8517,37 @@ function CaseDrawer({
               onRun={(reason) => run(api.escalateCase(caseId, reason ?? '', tenant), 'Escalation triggered.')}
             />
           </div>
+          {/opened|reopened/.test(status) && can('cases.case.triage') && (
+            <div className="run-picker" style={{ gap: 6 }}>
+              <span className="muted" style={{ fontSize: 12 }}>
+                Triage ({status} → triage):
+              </span>
+              <select value={trSev} onChange={(e) => setTrSev(e.target.value)} aria-label="Severity">
+                {['low', 'medium', 'high', 'critical'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <select value={trPri} onChange={(e) => setTrPri(e.target.value)} aria-label="Priority">
+                {['low', 'normal', 'high', 'urgent'].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <ActionButton
+                label="Triage"
+                allowed
+                onRun={() =>
+                  run(
+                    api.triageCase(caseId, ev, { severity: trSev, priority: trPri }, tenant),
+                    'Case triaged.',
+                  )
+                }
+              />
+            </div>
+          )}
           {!terminal && can('cases.case.assign') && (
             <div className="run-picker" style={{ gap: 6 }}>
               <input
@@ -10293,6 +10566,12 @@ function UserDrawer({
   const [nonce, setNonce] = useState(0);
   const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   const [login, setLogin] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [edName, setEdName] = useState('');
+  const [edGiven, setEdGiven] = useState('');
+  const [edFamily, setEdFamily] = useState('');
+  const [edOrg, setEdOrg] = useState('');
   useEffect(() => {
     let live = true;
     setAccounts(null);
@@ -10339,6 +10618,85 @@ function UserDrawer({
             <dt>Status</dt>
             <dd>{statusPill(status)}</dd>
           </dl>
+          {can('identity.registry.edit') && status.toLowerCase() !== 'closed' && (
+            <div className="inline-form" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+              {!editing ? (
+                <button
+                  className="btn secondary sm"
+                  onClick={() => {
+                    setEdName(pick(ident, 'displayName'));
+                    setEdGiven(pick(ident, 'givenName'));
+                    setEdFamily(pick(ident, 'familyName'));
+                    setEdOrg(pick(ident, 'organizationRef'));
+                    setEditing(true);
+                  }}
+                >
+                  Edit profile
+                </button>
+              ) : (
+                <>
+                  <input
+                    value={edName}
+                    placeholder="Display name (required)"
+                    aria-label="Display name"
+                    onChange={(e) => setEdName(e.target.value)}
+                  />
+                  <input
+                    value={edGiven}
+                    placeholder="Given name"
+                    aria-label="Given name"
+                    onChange={(e) => setEdGiven(e.target.value)}
+                  />
+                  <input
+                    value={edFamily}
+                    placeholder="Family name"
+                    aria-label="Family name"
+                    onChange={(e) => setEdFamily(e.target.value)}
+                  />
+                  <input
+                    value={edOrg}
+                    placeholder="Organization ref"
+                    aria-label="Organization ref"
+                    onChange={(e) => setEdOrg(e.target.value)}
+                  />
+                  <div className="run-picker" style={{ gap: 6 }}>
+                    <button
+                      className="btn primary sm"
+                      disabled={savingProfile || edName.trim() === ''}
+                      onClick={() => {
+                        setSavingProfile(true);
+                        void api
+                          .updateIdentity(
+                            id,
+                            {
+                              expectedVersion: version,
+                              displayName: edName.trim(),
+                              givenName: edGiven.trim() === '' ? null : edGiven.trim(),
+                              familyName: edFamily.trim() === '' ? null : edFamily.trim(),
+                              organizationRef: edOrg.trim() === '' ? null : edOrg.trim(),
+                            },
+                            tenant,
+                          )
+                          .then((r) => {
+                            report(r, 'Identity profile updated (audited).');
+                            if (r.ok) setEditing(false);
+                            setSavingProfile(false);
+                          });
+                      }}
+                    >
+                      {savingProfile ? '…' : 'Save profile'}
+                    </button>
+                    <button className="btn link sm" onClick={() => setEditing(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="muted" style={{ fontSize: 11, margin: 0 }}>
+                    Profile fields only — role, tenant, status and credentials are never editable here.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
           <div className="admin-actions">
             {lifecycle.map((l) => (
               <ActionButton
