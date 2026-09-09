@@ -6577,7 +6577,9 @@ function KnowledgeDrawer({
 
 function LegalDocsWorkspace({ tenant, perms }: { tenant: string | null; perms: Set<string> }): JSX.Element {
   const can = (p: string): boolean => perms.has(p);
-  const [tab, setTab] = useState<'knowledge' | 'templates' | 'authorities' | 'precedents'>('knowledge');
+  const [tab, setTab] = useState<
+    'knowledge' | 'templates' | 'clauses' | 'taxonomy' | 'authorities' | 'precedents'
+  >('knowledge');
   const [nonce, setNonce] = useState(0);
   const [status, setStatus] = useState('');
   const [q, setQ] = useState('');
@@ -6602,6 +6604,24 @@ function LegalDocsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
     const r = await api.getPrecedents(tenant);
     return { ...r, data: (r.data as { precedents?: api.Row[] } | null)?.precedents ?? [] };
   }, [tenant, tab]);
+  const clauses = useRows(async () => {
+    const r = await api.getClauses(tenant);
+    return { ...r, data: api.asRows(r.data) };
+  }, [tenant, nonce, tab]);
+  const taxonomy = useRows(async () => {
+    const r = await api.getTaxonomy(tenant);
+    return { ...r, data: api.asRows(r.data) };
+  }, [tenant, nonce, tab]);
+  const [tplCode, setTplCode] = useState('');
+  const [tplTitle, setTplTitle] = useState('');
+  const [tplCat, setTplCat] = useState('');
+  const [showTpl, setShowTpl] = useState(false);
+  const [clCode, setClCode] = useState('');
+  const [clTitle, setClTitle] = useState('');
+  const [clKind, setClKind] = useState('approved');
+  const [txKind, setTxKind] = useState('legal_topic');
+  const [txCode, setTxCode] = useState('');
+  const [txLabel, setTxLabel] = useState('');
   const ql = q.trim().toLowerCase();
   const shownK = knowledge.rows.filter(
     (k) =>
@@ -6629,6 +6649,8 @@ function LegalDocsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
   const tabs: { id: typeof tab; label: string }[] = [
     { id: 'knowledge', label: 'Knowledge Library' },
     { id: 'templates', label: 'Templates' },
+    { id: 'clauses', label: 'Clauses' },
+    { id: 'taxonomy', label: 'Taxonomy' },
     { id: 'authorities', label: 'Authorities' },
     { id: 'precedents', label: 'Precedents' },
   ];
@@ -6723,6 +6745,67 @@ function LegalDocsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
           </>
         )}
 
+        {tab === 'templates' && can('legaldocs.template.manage') && (
+          <div className="card" style={{ margin: '8px 0' }}>
+            {!showTpl ? (
+              <button className="btn" onClick={() => setShowTpl(true)}>
+                + New template
+              </button>
+            ) : (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  value={tplCode}
+                  placeholder="Template code (required)"
+                  aria-label="Template code"
+                  onChange={(e) => setTplCode(e.target.value)}
+                />
+                <input
+                  value={tplTitle}
+                  placeholder="Title (required)"
+                  aria-label="Template title"
+                  onChange={(e) => setTplTitle(e.target.value)}
+                />
+                <input
+                  value={tplCat}
+                  placeholder="Category (opt)"
+                  aria-label="Template category"
+                  onChange={(e) => setTplCat(e.target.value)}
+                />
+                <button
+                  className="btn primary sm"
+                  disabled={tplCode.trim() === '' || tplTitle.trim() === ''}
+                  onClick={() =>
+                    void run(
+                      api.createTemplate(
+                        {
+                          templateCode: tplCode.trim(),
+                          title: tplTitle.trim(),
+                          ...(tplCat.trim() ? { category: tplCat.trim() } : {}),
+                        },
+                        tenant,
+                      ),
+                      'Template created (draft).',
+                    ).then(() => {
+                      setTplCode('');
+                      setTplTitle('');
+                      setTplCat('');
+                      setShowTpl(false);
+                    })
+                  }
+                >
+                  Create
+                </button>
+                <button className="btn link sm" onClick={() => setShowTpl(false)}>
+                  Cancel
+                </button>
+              </div>
+            )}
+            <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+              Content is an opaque m09 reference / guidance only — never a secret value. Template↔clause
+              composition and mandatory-clause validation are not modelled by the m18 domain.
+            </p>
+          </div>
+        )}
         {tab === 'templates' &&
           (templates.loading ? (
             <div className="loading">Loading templates…</div>
@@ -6848,6 +6931,222 @@ function LegalDocsWorkspace({ tenant, perms }: { tenant: string | null; perms: S
               </tbody>
             </table>
           ))}
+
+        {tab === 'clauses' && (
+          <>
+            {can('legaldocs.clause.manage') && (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  value={clCode}
+                  placeholder="Clause code"
+                  aria-label="Clause code"
+                  onChange={(e) => setClCode(e.target.value)}
+                />
+                <input
+                  value={clTitle}
+                  placeholder="Title"
+                  aria-label="Clause title"
+                  onChange={(e) => setClTitle(e.target.value)}
+                />
+                <select value={clKind} onChange={(e) => setClKind(e.target.value)} aria-label="Clause kind">
+                  {[
+                    'approved',
+                    'alternative',
+                    'fallback',
+                    'prohibited',
+                    'jurisdiction_specific',
+                    'practice_area',
+                  ].map((x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="btn"
+                  disabled={clCode.trim() === '' || clTitle.trim() === ''}
+                  onClick={() =>
+                    void run(
+                      api.createClause(
+                        { clauseCode: clCode.trim(), title: clTitle.trim(), clauseKind: clKind },
+                        tenant,
+                      ),
+                      'Clause created (draft).',
+                    ).then(() => {
+                      setClCode('');
+                      setClTitle('');
+                    })
+                  }
+                >
+                  New clause
+                </button>
+              </div>
+            )}
+            {clauses.loading ? (
+              <div className="loading">Loading clauses…</div>
+            ) : clauses.rows.length === 0 ? (
+              <div className="empty">No clauses.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Code</th>
+                    <th>Title</th>
+                    <th>Kind</th>
+                    <th>Status</th>
+                    <th>Lifecycle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clauses.rows.map((cl, i) => {
+                    const id = pick(cl, 'id');
+                    const cev = Number(cl['version'] ?? 1);
+                    const st = pick(cl, 'status').toLowerCase();
+                    return (
+                      <tr key={id || i}>
+                        <td className="muted">{pick(cl, 'clauseCode')}</td>
+                        <td>{pick(cl, 'title')}</td>
+                        <td className="muted">{pick(cl, 'clauseKind')}</td>
+                        <td>{statusPill(pick(cl, 'status'))}</td>
+                        <td>
+                          <div className="action-row">
+                            <ActionButton
+                              label="Submit"
+                              allowed={/draft/.test(st) && can('legaldocs.clause.manage')}
+                              onRun={() => run(api.submitClause(id, cev, tenant), 'Clause submitted.')}
+                            />
+                            <ActionButton
+                              label="Approve"
+                              allowed={/under_review|submitted/.test(st) && can('legaldocs.clause.approve')}
+                              onRun={() => run(api.approveClause(id, cev, tenant), 'Clause approved (SoD).')}
+                            />
+                            <ActionButton
+                              label="Publish"
+                              allowed={/approved/.test(st) && can('legaldocs.clause.publish')}
+                              onRun={() => run(api.publishClause(id, cev, tenant), 'Clause published.')}
+                            />
+                            <ActionButton
+                              label="Withdraw"
+                              danger
+                              needsReason
+                              allowed={
+                                /draft|under_review|changes_requested|approved|published/.test(st) &&
+                                can('legaldocs.clause.manage')
+                              }
+                              onRun={(reason) =>
+                                run(api.withdrawClause(id, cev, reason ?? '', tenant), 'Clause withdrawn.')
+                              }
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+            <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+              Clause content is an opaque m09 reference only — never inline secret text. Editing a published
+              clause requires a new version (supersede); no hard delete.
+            </p>
+          </>
+        )}
+
+        {tab === 'taxonomy' && (
+          <>
+            {can('legaldocs.taxonomy.manage') && (
+              <div className="run-picker" style={{ gap: 6, flexWrap: 'wrap' }}>
+                <select value={txKind} onChange={(e) => setTxKind(e.target.value)} aria-label="Taxonomy kind">
+                  {['practice_area', 'jurisdiction', 'legal_topic', 'document_type', 'tag'].map((x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={txCode}
+                  placeholder="Code (unique per kind)"
+                  aria-label="Taxonomy code"
+                  onChange={(e) => setTxCode(e.target.value)}
+                />
+                <input
+                  value={txLabel}
+                  placeholder="Label"
+                  aria-label="Taxonomy label"
+                  onChange={(e) => setTxLabel(e.target.value)}
+                />
+                <button
+                  className="btn"
+                  disabled={txCode.trim() === '' || txLabel.trim() === ''}
+                  onClick={() =>
+                    void run(
+                      api.createTaxonomy(
+                        { kind: txKind, code: txCode.trim(), label: txLabel.trim() },
+                        tenant,
+                      ),
+                      'Taxonomy entry created.',
+                    ).then(() => {
+                      setTxCode('');
+                      setTxLabel('');
+                    })
+                  }
+                >
+                  New entry
+                </button>
+              </div>
+            )}
+            {taxonomy.loading ? (
+              <div className="loading">Loading taxonomy…</div>
+            ) : taxonomy.rows.length === 0 ? (
+              <div className="empty">No taxonomy entries.</div>
+            ) : (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Kind</th>
+                    <th>Code</th>
+                    <th>Label</th>
+                    <th>Active</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {taxonomy.rows.map((tx, i) => {
+                    const id = pick(tx, 'id');
+                    const xev = Number(tx['version'] ?? 1);
+                    const active = String(tx['active']) === 'true';
+                    return (
+                      <tr key={id || i}>
+                        <td className="muted">{pick(tx, 'kind')}</td>
+                        <td className="muted">{pick(tx, 'code')}</td>
+                        <td>{pick(tx, 'label')}</td>
+                        <td>
+                          {active ? (
+                            <span className="pill ok">active</span>
+                          ) : (
+                            <span className="pill bad">retired</span>
+                          )}
+                        </td>
+                        <td>
+                          <ActionButton
+                            label="Retire"
+                            danger
+                            allowed={active && can('legaldocs.taxonomy.manage')}
+                            onRun={() => run(api.retireTaxonomy(id, xev, tenant), 'Taxonomy entry retired.')}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+            <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+              Codes are unique per (tenant, kind); retire is a soft flag (no hard delete). NOTE: the domain
+              does not itself block retiring a taxonomy code still referenced by clauses — retire with care.
+            </p>
+          </>
+        )}
       </div>
       {openK && (
         <KnowledgeDrawer

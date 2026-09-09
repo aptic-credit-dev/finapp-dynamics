@@ -1948,6 +1948,79 @@ export const getTemplate = (id: string, t?: string | null): Promise<ApiResult<Ro
   call(`${LD}/templates/${encodeURIComponent(id)}`, { tenantId: t });
 const tplAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
   call<Row>(`${LD}/templates/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+// Template CREATE (draft) — content is an opaque m09 ref/guidance only, never a secret value.
+export const createTemplate = (
+  body: {
+    templateCode: string;
+    title: string;
+    category?: string;
+    jurisdiction?: string;
+    practiceArea?: string;
+    description?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${LD}/templates`, { method: 'POST', body, tenantId: t });
+// Clauses — create draft then maker-checker submit/approve/publish, withdraw/supersede. No inline text (contentRef
+// only); no hard delete. There is NO template-clause composition or mandatory-clause validation in the domain.
+export const getClauses = (t?: string | null): Promise<ApiResult<{ clauses?: Row[] }>> =>
+  call(`${LD}/clauses`, { tenantId: t });
+export const createClause = (
+  body: {
+    clauseCode: string;
+    title: string;
+    clauseKind?: string;
+    category?: string;
+    jurisdiction?: string;
+    guidance?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${LD}/clauses`, { method: 'POST', body, tenantId: t });
+const clauseAction = (id: string, action: string, body: Record<string, unknown>, t?: string | null) =>
+  call<Row>(`${LD}/clauses/${encodeURIComponent(id)}/${action}`, { method: 'POST', body, tenantId: t });
+export const submitClause = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  clauseAction(id, 'submit', { expectedVersion: ev }, t);
+export const approveClause = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  clauseAction(id, 'approve', { expectedVersion: ev }, t);
+export const publishClause = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  clauseAction(id, 'publish', { expectedVersion: ev }, t);
+export const withdrawClause = (
+  id: string,
+  ev: number,
+  reason: string,
+  t?: string | null,
+): Promise<ApiResult<Row>> => clauseAction(id, 'withdraw', { expectedVersion: ev, reason }, t);
+// Taxonomy — create/update/retire; code unique per (tenant, kind); soft-retire (no hard delete). NOTE: the domain
+// has NO retire-with-dependency guard (documented gap).
+export const getTaxonomy = (t?: string | null, kind?: string): Promise<ApiResult<{ taxonomy?: Row[] }>> =>
+  call(`${LD}/taxonomy${kind ? `?kind=${encodeURIComponent(kind)}` : ''}`, { tenantId: t });
+export const createTaxonomy = (
+  body: {
+    kind: string;
+    code: string;
+    label: string;
+    parentCode?: string;
+    jurisdiction?: string;
+    description?: string;
+  },
+  t?: string | null,
+): Promise<ApiResult<Row>> => call(`${LD}/taxonomy`, { method: 'POST', body, tenantId: t });
+export const updateTaxonomy = (
+  id: string,
+  ev: number,
+  body: { label?: string; parentCode?: string; jurisdiction?: string; description?: string },
+  t?: string | null,
+): Promise<ApiResult<Row>> =>
+  call(`${LD}/taxonomy/${encodeURIComponent(id)}`, {
+    method: 'POST',
+    body: { expectedVersion: ev, ...body },
+    tenantId: t,
+  });
+export const retireTaxonomy = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
+  call(`${LD}/taxonomy/${encodeURIComponent(id)}/retire`, {
+    method: 'POST',
+    body: { expectedVersion: ev },
+    tenantId: t,
+  });
 export const submitTemplate = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
   tplAction(id, 'submit', { expectedVersion: ev }, t);
 export const approveTemplate = (id: string, ev: number, t?: string | null): Promise<ApiResult<Row>> =>
