@@ -363,6 +363,43 @@ export default defineDbSpec('api-legal', async (ctx, t) => {
     });
     t.equal(reopened.body['status'], 'reopened', 'the matter reopens over HTTP');
 
+    // Wave-2 sub-records over HTTP: court event, pleading, cost (exact minor units), appeal.
+    const ce = await client('POST', `/legal/matters/${matterId}/court-events`, {
+      headers: auth.headers,
+      body: { eventType: 'hearing', title: 'First hearing', forum: 'High Court' },
+    });
+    t.ok(ce.status === 200 || ce.status === 201, 'a court event is scheduled over HTTP');
+    const ceDone = await client('POST', `/legal/court-events/${String(ce.body['id'])}/complete`, {
+      headers: auth.headers,
+      body: { expectedVersion: ce.body['version'], outcome: 'adjourned' },
+    });
+    t.equal(ceDone.body['status'], 'completed', 'the court event completes over HTTP');
+    const pl = await client('POST', `/legal/matters/${matterId}/pleadings`, {
+      headers: auth.headers,
+      body: { documentRole: 'affidavit' },
+    });
+    const plFiled = await client('POST', `/legal/pleadings/${String(pl.body['id'])}/file`, {
+      headers: auth.headers,
+      body: { expectedVersion: pl.body['version'], courtStampReference: 'CS-1' },
+    });
+    t.equal(plFiled.body['filingStatus'], 'filed', 'a pleading files over HTTP (filed history preserved)');
+    const cost = await client('POST', `/legal/matters/${matterId}/costs`, {
+      headers: auth.headers,
+      body: { costType: 'legal_fees', amountMinor: 250000, currency: 'KES' },
+    });
+    t.equal(String(cost.body['amountMinor']), '250000', 'a cost records exact minor units over HTTP');
+    const anonCost = await client('POST', `/legal/matters/${matterId}/costs`, { body: { costType: 'x' } });
+    t.equal(anonCost.status, 401, 'an anonymous caller cannot record a cost (401)');
+    const appeal = await client('POST', `/legal/matters/${matterId}/appeal`, {
+      headers: auth.headers,
+      body: {
+        expectedVersion: reopened.body['version'],
+        appealStatus: 'intended',
+        appealForum: 'Court of Appeal',
+      },
+    });
+    t.equal(appeal.body['appealStatus'], 'intended', 'appeal fields update over HTTP');
+
     // Settlement maker-checker: the proposer cannot approve; an independent approver can.
     const settle = await client('POST', `/legal/matters/${matterId}/settlements`, {
       headers: auth.headers,

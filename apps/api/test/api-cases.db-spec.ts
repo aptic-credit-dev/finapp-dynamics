@@ -264,6 +264,27 @@ export default defineDbSpec('api-cases', async (ctx, t) => {
     });
     t.equal(String(dup.body['id']), caseId, 'a repeated idempotency-key returns the same case');
 
+    // Wave-2 sub-records over HTTP: task create+complete, activity complete.
+    const task = await client('POST', `/cases/${caseId}/tasks`, {
+      headers: auth.headers,
+      body: { taskType: 'follow_up', headline: 'call complainant', priority: 'high' },
+    });
+    t.ok(task.status === 200 || task.status === 201, 'a case task is created over HTTP');
+    const taskDone = await client('POST', `/cases/tasks/${String(task.body['id'])}/complete`, {
+      headers: auth.headers,
+      body: { expectedVersion: task.body['version'], outcome: 'done' },
+    });
+    t.equal(taskDone.body['status'], 'completed', 'a case task completes over HTTP');
+    const act = await client('POST', `/cases/${caseId}/activities`, {
+      headers: auth.headers,
+      body: { activityType: 'note', headline: 'logged' },
+    });
+    const actDone = await client('POST', `/cases/activities/${String(act.body['id'])}/complete`, {
+      headers: auth.headers,
+      body: { expectedVersion: act.body['version'] },
+    });
+    t.equal(actDone.body['status'], 'completed', 'a case activity completes over HTTP');
+
     // Lifecycle: open → triage → assign → decision (independent approver) → resolve → close.
     const opened = await client('POST', `/cases/${caseId}/open`, {
       headers: auth.headers,

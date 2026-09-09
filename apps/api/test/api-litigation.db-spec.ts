@@ -322,6 +322,46 @@ export default defineDbSpec('api-litigation', async (ctx, t) => {
       'assignment advances the proceeding to under_review over HTTP',
     );
 
+    // Wave-2 sub-records over HTTP: witness, exhibit (register+admit), order, bundle (create+item+SoD).
+    const wit = await client('POST', `/litigation/proceedings/${procId}/witnesses`, {
+      headers: auth.headers,
+      body: { witnessType: 'fact', role: 'eyewitness' },
+    });
+    t.ok(wit.status === 200 || wit.status === 201, 'a witness is added over HTTP');
+    const exh = await client('POST', `/litigation/proceedings/${procId}/exhibits`, {
+      headers: auth.headers,
+      body: { exhibitNumber: 'P1', description: 'contract' },
+    });
+    const adm = await client('POST', `/litigation/exhibits/${String(exh.body['id'])}/admit`, {
+      headers: auth.headers,
+      body: { decision: 'admitted' },
+    });
+    t.equal(adm.body['admittedStatus'], 'admitted', 'an exhibit is admitted over HTTP');
+    const admAgain = await client('POST', `/litigation/exhibits/${String(exh.body['id'])}/admit`, {
+      headers: auth.headers,
+      body: { decision: 'rejected' },
+    });
+    t.equal(admAgain.status, 409, 'a decided exhibit cannot be re-decided (single-winner, 409)');
+    const ord = await client('POST', `/litigation/proceedings/${procId}/orders`, {
+      headers: auth.headers,
+      body: { orderType: 'directions_order', summary: 'file within 14 days' },
+    });
+    t.ok(ord.status === 200 || ord.status === 201, 'a court order is recorded over HTTP');
+    const bun = await client('POST', `/litigation/proceedings/${procId}/bundles`, {
+      headers: auth.headers,
+      body: { title: 'Hearing bundle' },
+    });
+    const item = await client('POST', `/litigation/bundles/${String(bun.body['id'])}/items`, {
+      headers: auth.headers,
+      body: { description: 'exhibit P1' },
+    });
+    t.ok(item.status === 200 || item.status === 201, 'a bundle item is added over HTTP');
+    const bunSelf = await client('POST', `/litigation/bundles/${String(bun.body['id'])}/approve`, {
+      headers: auth.headers,
+      body: { expectedVersion: bun.body['version'] },
+    });
+    t.equal(bunSelf.status, 409, 'the bundle preparer cannot approve their own bundle (SoD, 409)');
+
     // Filing maker-checker: preparer cannot approve; an independent approver can.
     const filing = await client('POST', `/litigation/proceedings/${procId}/filings`, {
       headers: auth.headers,
