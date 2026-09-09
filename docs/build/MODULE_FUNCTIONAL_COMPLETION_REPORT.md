@@ -117,6 +117,21 @@ attribute edit; M20 reconciling-items + a bounded backend already-matched guard 
 Backend-absent items reported as gaps (not simulated). No hard-delete added; no secret exposed; SoD/RLS/accounting
 controls preserved.
 
+## 14e. Tier-2 Wave-4 progress (update)
+Wave-4 recovery debtor/owner/deadline/exposure capture is **WIRED** on
+`release/tier2-wave4-recovery-case-capture` (backend-proven; browser sign-off OPEN — see
+`TIER2_WAVE4_RECOVERY_COMPLETION_REPORT.md`): M17 **debtor/party** capture (add/list/remove — contact held as an
+opaque reference, redacted on read unless `recovery.party_contact.read`); **accountable owner** assignment via an
+active-tenant-member picker; **deadline / relevant-date** capture + extend (authorised user-entered date; NO
+statutory limitation calculation); and **case header + stated-exposure EDIT**. Two bounded, additive, reversible
+backend extensions: (a) an **owner-eligibility guard** in `RecoveryService.assign` — the owner must be a uuid that
+is an ACTIVE member of the tenant (validated against the shared tenancy control plane under RLS FORCE), rejecting
+cross-tenant / disabled / arbitrary-name owners; (b) a new `PATCH /recovery/recoveries/:id` (`updateCase` +
+`RECOVERY_CASE_UPDATED` audit, reusing the existing `recovery.case.update` permission and repo `patchRecovery`)
+that allow-lists title/summary/description/priority/risk/confidentiality/currency/sourceReference + the four
+STATED exposure amounts and **deliberately never touches** recovered/outstanding (progress), owner/team, or
+lifecycle status. No migration. DB lane 3093/0 (api-recovery 43 assertions, +21 Wave-4); smoke 8082/0.
+
 ## 15. Remaining external-assurance blockers
 The Stage-7 gates (independent pen-test, cross-host DR drill, acceptance-grade load/chaos, real-data migration —
 all `requires_review`), plus provisioning an authenticated **browser-acceptance environment** with the full

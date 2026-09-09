@@ -58,8 +58,8 @@ Audit (all proven at backend per §A) · Browser proof · Status.
 | m14 court-events / pleadings / costs / appeal / parties | MISSING | — | — | — | MISSING | parties MISSING | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (sub-domains) |
 | **m16-litigation** Proceeding | WORKING | WORKING | via actions | close/archive/reopen WORKING | conclude/escalate WORKING; filing submit→review→approve→file WORKING (SoD) | filings WORKING | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** |
 | m16 witnesses / exhibits / orders / bundles / hearings-add | MISSING | hearings/service READ | — | — | MISSING | MISSING | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (sub-domains) |
-| **m17-recovery** Recovery case | **MISSING\*** (create no UI) | WORKING | via actions | resolve/close/reopen/archive WORKING (no delete=policy) | arrangement propose→approve WORKING (SoD) | note WORKING; advance MISSING\* | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** (create/advance) |
-| m17 strategy / parties | MISSING | — | — | — | — | MISSING | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** |
+| **m17-recovery** Recovery case | create WIRED (W1) | WORKING | **header+exposure edit WIRED (W4)** | resolve/close/reopen/archive WORKING (no delete=policy) | arrangement propose→approve WORKING (SoD) | note WORKING; advance WIRED | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** (browser OPEN) |
+| m17 debtor / owner / deadlines | **debtor+owner+deadline capture WIRED (W4)** | WIRED (W4) | party remove / deadline extend WIRED (W4) | — | — | — | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** (browser OPEN) |
 | **m18-legaldocs** Knowledge | WORKING | WORKING | via actions | withdraw WORKING (reason) | submit→review→approve→publish WORKING (SoD) | — | ✓ | ✓ | ✓ | ✓ | ✓ | pending | **WORKING** |
 | m18 Template | MISSING (create); withdraw **MISSING\*** | WORKING | — | withdraw MISSING\* | submit→approve→publish WORKING | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **PARTIAL** |
 | m18 clauses / opinions / research / taxonomy | MISSING | — | — | — | MISSING | — | ✓backend | ✓ | ✓ | ✓ | ✓ | pending | **MISSING** (sub-domains) |
@@ -136,10 +136,20 @@ OPEN — see `TIER2_WAVE3_COMPLETION_REPORT.md`):
     edit/retire + report publish-path; m08 preview/send + escalation admin; m22 delegation edit/expire +
     policy/config admin; m20 split-match + source-file) reported as gaps, not simulated.
 
-**Tier-2 Wave-4+ — MISSING (remaining):**
-13. recovery debtor/owner/deadline capture; m20 split many-to-many (needs a new unmatched-line read endpoint) +
-    source-file ingestion (no storage contract); m22 policy/config/reason-code admin; m08 escalation admin; m32
-    dataset-edit/report-publish backend; sub-entity confirm hardening.
+**Tier-2 Wave-4 — WIRED** on `release/tier2-wave4-recovery-case-capture` (backend-proven; browser sign-off OPEN —
+see `TIER2_WAVE4_RECOVERY_COMPLETION_REPORT.md`):
+13. ✅ m17 recovery **debtor / party capture** (add/list/remove, contact redacted on read); ✅ **accountable owner**
+    assignment via an active-tenant-member picker (bounded backend guard: owner must be an ACTIVE same-tenant
+    identity — cross-tenant/disabled/non-uuid rejected); ✅ **deadline / relevant-date capture** (user-entered
+    explicit date; NO statutory limitation calc) + extend; ✅ **case header + stated-exposure EDIT** (new bounded
+    `PATCH /recovery/recoveries/:id` + `RECOVERY_CASE_UPDATED` audit; never touches recovered/outstanding, owner,
+    or lifecycle). +21 HTTP assertions (cross-tenant, stale-version, PII-not-leaked, ineligible owner, invalid
+    date/money).
+
+**Tier-2 Wave-5+ — MISSING (remaining):**
+14. m17 party edit + deadline complete/waive (backend absent); m20 split many-to-many (needs a new unmatched-line
+    read endpoint) + source-file ingestion (no storage contract); m22 policy/config/reason-code admin; m08
+    escalation admin; m32 dataset-edit/report-publish backend; sub-entity confirm hardening.
 
 **Intentionally READ-ONLY / not gaps:** audit spine, copilot advisory, DLP findings, privacy records, saas
 usage/billing evidence, analytics governed-query-only reads, all catalogs, no-hard-delete everywhere, m09 byte I/O
