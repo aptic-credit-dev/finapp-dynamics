@@ -337,6 +337,25 @@ export default defineDbSpec('api-legaldocs', async (ctx, t) => {
     });
     t.equal(tmplPub.body['status'], 'published', 'the template publishes over HTTP');
 
+    // Withdraw the published template (the web "Withdraw" control): permitted from published, reason recorded,
+    // NOT a hard delete; a withdrawn template cannot be withdrawn again (invalid transition).
+    const tmplWd = await client('POST', `/legaldocs/templates/${tmplId}/withdraw`, {
+      headers: auth.headers,
+      body: { expectedVersion: tmplPub.body['version'], reason: 'superseded by policy update' },
+    });
+    t.equal(tmplWd.body['status'], 'withdrawn', 'a published template withdraws over HTTP (no hard delete)');
+    const tmplStill = await client('GET', `/legaldocs/templates/${tmplId}`, { headers: auth.headers });
+    t.equal(tmplStill.status, 200, 'the withdrawn template record still exists (history preserved)');
+    const tmplWd2 = await client('POST', `/legaldocs/templates/${tmplId}/withdraw`, {
+      headers: auth.headers,
+      body: { expectedVersion: tmplWd.body['version'], reason: 'again' },
+    });
+    t.equal(
+      tmplWd2.status,
+      409,
+      'an already-withdrawn template cannot be withdrawn again (invalid transition)',
+    );
+
     // A library CLAUSE through the maker-checker publish path.
     const clause = await client('POST', '/legaldocs/clauses', {
       headers: auth.headers,
