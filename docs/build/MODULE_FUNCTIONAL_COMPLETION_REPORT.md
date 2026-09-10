@@ -132,6 +132,27 @@ that allow-lists title/summary/description/priority/risk/confidentiality/currenc
 STATED exposure amounts and **deliberately never touches** recovered/outstanding (progress), owner/team, or
 lifecycle status. No migration. DB lane 3093/0 (api-recovery 43 assertions, +21 Wave-4); smoke 8082/0.
 
+## 14f. Integrated Module Acceptance audit (update — `a824879`)
+An integrated acceptance + launch-blocker-closure audit was run on `release/integrated-module-acceptance` (base
+`main` @ `a824879`, PR #184 merged). Findings (see `INTEGRATED_MODULE_ACCEPTANCE_REPORT.md`,
+`DAY1_LAUNCH_BLOCKER_REGISTER.md`, `HUMAN_BROWSER_ACCEPTANCE_EVIDENCE.md`):
+- **Backend proven** for every module — DB integration lane **98 specs / 3,093 assertions / 0 failed** on the
+  non-superuser `finapp_app` role (genuine RLS, least-privilege, maker-checker/SoD, audit hash-chain).
+- **Web wiring confirmed** against the merged tree for all DAY-1 CRITICAL/SUPPORTING workflows (UI → api.ts →
+  controller → permission). The stale `MISSING*` markers in the CRUD matrix §B are reconciled (all wired across
+  Tier-1 + Waves 1–4).
+- **Unauthenticated environment verified live:** login renders, health 200, unauthenticated API 401 fail-closed,
+  localhost-only listeners, no console errors.
+- **Authenticated browser acceptance: INCOMPLETE** — deferred to a human operator (the assistant may not handle
+  credentials and the automation host had no renderable browser). A detailed operator runbook was produced.
+- **Day-1 code blockers: 0 demonstrated.** Minor gaps (m18 taxonomy-edit UI, m08 version-authoring UI, m20
+  split-match, m32 dataset-edit/report-publish, config/master-data edits) are DEFERRED, not blockers. External
+  dependencies (m09 byte storage, m08 delivery provider, m20 file ingestion, m32 non-Feedback adapters, statutory
+  limitation calc) are honestly surfaced.
+- **Recommendation: `TECHNICAL MODULE CONDITIONAL GO`** — conditioned on authenticated human browser sign-off. No
+  module is marked `ACCEPTED`/`COMPLETE` without that browser evidence. M42 remains `NO_GO`; Stage-7 G1–G4
+  unchanged; no production certificate; no deploy.
+
 ## 15. Remaining external-assurance blockers
 The Stage-7 gates (independent pen-test, cross-host DR drill, acceptance-grade load/chaos, real-data migration —
 all `requires_review`), plus provisioning an authenticated **browser-acceptance environment** with the full
