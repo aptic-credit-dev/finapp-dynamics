@@ -7,6 +7,23 @@
 > Companion narrative: `MODULE_FUNCTIONAL_COMPLETION_AUDIT.md`. Verdicts here are **code + DB-proven**; live
 > browser acceptance status is tracked separately (see the audit's "Environmental status").
 
+> **⚑ Integrated Acceptance reconciliation (`a824879`, 2026-09-10).** The per-row `MISSING*`/`PARTIAL` markers in
+> §B below predate Tier-1 + Tier-2 Waves 1–4 and are now **stale**. A full source-confirmed web-wiring trace of
+> the merged tree shows every DAY-1 CRITICAL/SUPPORTING workflow is **UI-wired → api.ts → controller →
+> permission-gated** (see `INTEGRATED_MODULE_ACCEPTANCE_REPORT.md`): m02 identity/role **edit** WIRED; m09 document
+> **create** WIRED; m13 **triage** WIRED; m17 **create/advance/debtor/owner/deadline/exposure-edit** WIRED; m18
+> **template/clause/taxonomy** + submit→approve→publish→withdraw WIRED; m19 **entity/fiscal-period** WIRED; m20
+> **run/manual-match/reconciling-item/certify** WIRED; m21 **header-edit** WIRED; m22 **delegation** WIRED; m28
+> **export** WIRED; m32 **dataset/metric/report authoring** WIRED; m08 **template lifecycle** WIRED. The
+> evidence-based per-module statuses in `INTEGRATED_MODULE_ACCEPTANCE_REPORT.md` (all **BACKEND PROVEN — browser
+> acceptance incomplete**, pending operator sign-off) **supersede** the stale cell markers here.
+>
+> **Correction (doc drift):** M18 templates/clauses have **no** `validate`/`activate`/`retire` verbs. The real
+> lifecycle is **submit → approve → publish → withdraw (+ supersede)**; maker-checker = submit(maker) +
+> approve(checker). Remaining genuine non-Day-1 gaps: m18 taxonomy-**edit** UI, m08 version-authoring UI, m20
+> split-match, m32 dataset-edit/report-publish backend, various config/master-data edit surfaces — all **DEFERRED**
+> (see `DAY1_LAUNCH_BLOCKER_REGISTER.md`).
+
 **Status legend:** WORKING (UI wired → mutation → DB, permission-gated) · PARTIAL (some lifecycle ops surfaced,
 others not) · MISSING (backend exists, no UI) · MISSING* (backend **and** `api.ts` client exist, only `app.tsx`
 wiring absent — smallest possible gap) · READ-ONLY (intentional by policy) · INFRA (intentionally unavailable
