@@ -15,7 +15,21 @@
 | B1 | **Authenticated human browser acceptance not yet performed** | Process / acceptance gate | **OPEN (only true gate)** | Backend + wiring proven; the assistant cannot handle credentials and had no renderable browser. Resolve by executing `HUMAN_BROWSER_ACCEPTANCE_EVIDENCE.md` and signing off each module. This is **not** a code defect. |
 
 **Code defects that block Day-1: NONE demonstrated.** No reproduced UI/client/API/domain/schema/seed defect was
-found in the merged code. Every DAY-1 CRITICAL and DAY-1 SUPPORTING workflow is backend-proven and UI-wired.
+found in the merged code. Every DAY-1 CRITICAL and DAY-1 SUPPORTING workflow is backend-proven and UI-wired. The
+executed authenticated pass (2026-09-10) additionally **browser-verified** M02 (view/edit/persist/audit) and the
+M17 maker paths (create / owner-assign+eligibility / exposure-edit+recovered-untouched invariant / lifecycle) plus
+the cross-cutting security/tenant-isolation/entitlement/audit invariants — all PASS. See
+`HUMAN_BROWSER_ACCEPTANCE_EVIDENCE.md` Part B.
+
+### A.1 Findings from the executed pass — LOW severity, **non-blocking**
+
+| # | Finding | Layer | Severity | Day-1 blocker? | Recommended follow-up |
+|---|---|---|---|---|---|
+| F1 | Recovery **create** accepts an unrecognized/inactive recovery-type code and stores a `null` type-version instead of rejecting it (case stays fully governed: RBAC/RLS/audit/lifecycle) | domain (m17 `insertRecovery`) | LOW | **No** — no security/financial/tenant/SoD impact | Validate the recovery type is active on create (bounded; add a failing test first) |
+| F2 | Accountable-owner **picker** empty for `stg_recovery_officer` — can `recovery.case.assign` but lacks membership-read to populate the cross-member list; only "Take ownership" (self-assign) usable | RBAC role bundle / seed | LOW | **No** — Day-1 self-assign works | Add `identity.membership.view` (or equivalent) to the recovery-officer role bundle for cross-member assignment |
+
+These are recorded honestly; per "fix only demonstrated Day-1 blockers," **no code fix was applied** on this
+acceptance branch (neither is a Day-1 blocker).
 
 ## B. Deferred — NOT required for Day 1 (post-launch)
 

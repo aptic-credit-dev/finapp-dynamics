@@ -286,3 +286,94 @@ Operator: __________________  Date: __________  Overall result: PASS / FAIL
 > Until this sign-off is completed with evidence, every user-facing module remains
 > **BACKEND PROVEN — browser acceptance incomplete**, and the audit recommendation stays
 > **TECHNICAL MODULE CONDITIONAL GO** (condition = this authenticated browser acceptance passing).
+
+---
+
+# PART B — Executed authenticated acceptance (session 2026-09-10)
+
+> A supervised, human-assisted authenticated browser pass was executed against the disposable stack (PG `:5433`
+> non-superuser `finapp_app` role → genuine RLS; API `:3000` **production mode** with the bootstrap admin; web
+> `:5173`). A human operator seeded personas and performed every login privately (the assistant never handled a
+> password). Evidence below is **verified live** in the browser and cross-checked in the database. Items not driven
+> are recorded **BLOCKED — not tested**, never auto-passed.
+
+## B.1 Session integrity
+- Operator logins landed on the controlled stack: `sessions` = 1 active; `login_attempts` = succeeded. Verified in DB.
+- API production boot ran the ADR-020 bootstrap: *"platform administrator provisioned"*. Unauthenticated
+  `GET /recovery/recoveries` → **401**; `GET /health` → **200**. Listeners localhost-only. **No console errors**
+  at any point.
+
+## B.2 M02 Identity & RBAC — persona `stg_admin_login` (platform_admin) → **PASS (browser + DB)**
+- **View:** identity register lists all 10 seeded personas. PASS.
+- **Edit + persist:** edited an identity profile (Given name → `AcceptanceProbe`); DB confirms
+  `identities.given_name='AcceptanceProbe'`; audit `m02-identity / IDENTITY_REGISTRY_UPDATED / success / actor=user`. PASS.
+- **RBAC roles:** 2 system roles shown **immutable**; note *"A grantor can only confer permissions it itself holds"*
+  (no privilege escalation). PASS.
+- **No hard delete / no credential shown:** drawer states *"No credential is ever shown. No hard delete — disposal is a
+  governed transition."* PASS.
+
+## B.3 Cross-cutting security invariants — **PASS (browser + DB)**
+- **Unauthorized read denied (fail-closed):** admin lacking `gl_reconciliation.account.read` → UI shows
+  *"Missing required permission: gl_reconciliation.account.read."* PASS.
+- **RBAC control visibility:** the maker persona sees **"+ New recovery case"**; the checker persona does **not**
+  (same page, different rights). PASS.
+- **Tenant isolation (live):** Tenant 1 Roles shows 10 roles (2 system + 8 tenant-custom); switching to Tenant 2
+  shows **only the 2 global system roles** — tenant-custom roles are not leaked across tenants. PASS.
+- **Entitlement gating (ADR-135):** Recovery/Treasury/Compliance verticals were **hidden** until the tenant was
+  granted the capability, then **appeared** on reload — availability = entitlement, actions = RBAC. PASS.
+- **Two-step confirm:** "Take ownership" required a second "Confirm" click (duplicate-submit protection). PASS.
+- **Audit hash-chain:** all audit events carry `event_hash` (append-only integrity). PASS.
+
+## B.4 M17 Recovery — persona `stg_recovery_officer` (maker) → **PASS for tested maker paths (browser + DB)**
+- **Create:** created `REC-4ee68d6c63ed` (draft); audit `RECOVERY_CASE_CREATED / success / user`. PASS.
+- **Owner assignment + eligibility:** "Take ownership" (two-step) → `legal_owner` = the officer's identity,
+  status `draft→under_review`, `version 1→2`, audit `RECOVERY_CASE_ASSIGNED / success`. The owner-eligibility guard
+  **accepted** the officer (an active tenant member). PASS.
+- **Exposure edit (Wave-4 invariant):** set Principal 25000.50 → `principal_amount_minor = 2500050` (exact minor
+  units, no float); **`recovered_amount_minor` and `outstanding_amount_minor` remained NULL** (edit never moved the
+  progress amounts); `version 2→3`; audit `RECOVERY_CASE_UPDATED / success`. PASS.
+- **Lifecycle state machine:** advance options correctly changed to the valid next-states from `under_review`. PASS.
+- **RBAC-gated sub-sections:** **Debtor & parties** and **Deadlines** sections were correctly **hidden** for this
+  persona (lacks `recovery.party.read` / `recovery.deadline.read`). PASS (correct gating).
+- **Debtor/party capture, deadline capture, cross-member owner picker:** **BLOCKED — not tested.** No seeded persona
+  holds `recovery.party.manage` / `recovery.deadline.manage` / membership-read, so these UI paths could not be
+  driven. Backend-proven in `api-recovery.db-spec` (add/list/remove party, add/extend deadline, ineligible/
+  cross-tenant owner → 400, PII redaction).
+
+## B.5 M17 Recovery — persona `stg_recovery_manager` (checker) → **PASS (browser)**
+- Recovery register renders; **no "+ New recovery case"** control (lacks `recovery.case.create`) — maker/checker
+  separation visible. PASS.
+
+## B.6 Modules NOT browser-tested this session → **BACKEND PROVEN — browser acceptance incomplete**
+M08, M09, M12, M13, M14, M16, M18, M19, M20, M21, M22, M28, M32, M41 were **not** driven in the browser: the
+minimal seed provisioned Stage-7 security/recovery/treasury/compliance personas only (no legal/CS/finance/analytics
+domain personas), and only Tenant-1 vertical entitlements were added for the Recovery pass. These remain
+**BLOCKED — not tested** in the browser (backend-proven in the DB lane). To complete them, seed the relevant domain
+personas (e.g. `seed-legal-cs-personas.mjs`) + demo data + entitlements, then run §3 as the appropriate personas.
+
+## B.7 Findings (from the executed pass) — see `DAY1_LAUNCH_BLOCKER_REGISTER.md`
+- **F1 (LOW, non-blocking):** the recovery **create** accepted an unrecognized recovery-type code
+  (`nonexistent_type_probe`) and stored a **null** `recovery_type_version` instead of rejecting an inactive/unknown
+  type. The case remains fully governed (RBAC/RLS/audit/lifecycle). **Not a Day-1 blocker** (no security/financial/
+  tenant/SoD impact). Recommended bounded follow-up: validate the recovery type is active on create.
+- **F2 (LOW, non-blocking):** the accountable-owner **picker** is empty for `stg_recovery_officer` — the role can
+  `recovery.case.assign` but lacks membership-read to populate the cross-member list; only "Take ownership"
+  (self-assign) is usable. Day-1 need is met by self-assign; consider adding membership-read to the recovery-officer
+  role bundle for cross-member assignment.
+
+## B.8 Environment provisioning notes (for the operator, to extend coverage)
+- Grant a tenant a vertical by inserting a `saas_entitlement_assignment` row (`allowance='included'`,
+  `source_kind='override'`) for `debt_recovery` / `treasury_reconciliation` / `regulatory_compliance`, **or** run
+  the proper SaaS entitlement grant via the API as an entitled admin.
+- Recovery **create** needs an **active recovery type** (draft→validated→published→active). None is seeded by the
+  minimal seed; author one via the recovery catalog before creating "real" typed cases.
+
+## B.9 Executed-pass outcome
+- **Browser-ACCEPTED (backend + authenticated browser):** **M02 Identity & RBAC** (view/edit/persist/audit) and the
+  **M17 Recovery maker paths** create / owner-assign(+eligibility) / exposure-edit(+recovered-untouched invariant) /
+  lifecycle. Cross-cutting **security + tenant-isolation + entitlement-gating + audit-chain invariants: PASS (live).**
+- **Still browser-incomplete:** the remaining Day-1 modules + M17 debtor/deadline sub-flows (no seeded personas).
+- **Day-1 code blockers demonstrated: 0** (F1/F2 are LOW, non-blocking).
+- **Recommendation unchanged: `TECHNICAL MODULE CONDITIONAL GO`** — materially advanced (2 modules + all
+  cross-cutting invariants now browser-proven); condition = complete the remaining modules' authenticated browser
+  sign-off via §3 with domain personas. M42 remains `NO_GO`; Stage-7 G1–G4 unchanged; no production certificate.

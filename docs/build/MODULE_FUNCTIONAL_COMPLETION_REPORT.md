@@ -143,8 +143,14 @@ An integrated acceptance + launch-blocker-closure audit was run on `release/inte
   Tier-1 + Waves 1–4).
 - **Unauthenticated environment verified live:** login renders, health 200, unauthenticated API 401 fail-closed,
   localhost-only listeners, no console errors.
-- **Authenticated browser acceptance: INCOMPLETE** — deferred to a human operator (the assistant may not handle
-  credentials and the automation host had no renderable browser). A detailed operator runbook was produced.
+- **Authenticated browser acceptance: PARTIAL (executed 2026-09-10).** A human operator seeded personas and logged
+  in privately (assistant never handled a password); the assistant drove the authenticated UI. **Browser-verified
+  live:** M02 (view/edit→persist→audit) = ACCEPTED; M17 maker paths (create / owner-assign+eligibility /
+  exposure-edit+recovered-untouched invariant / lifecycle) = ACCEPTED; cross-cutting invariants (RBAC deny,
+  maker/checker control visibility, tenant isolation, ADR-135 entitlement gating, two-step confirm, audit
+  hash-chain, unauth 401) = PASS. Remaining Day-1 modules + M17 debtor/deadline sub-flows are browser-incomplete
+  (no seeded domain personas) — runbook §3 hands them to the operator. Two LOW non-blocking findings (F1 create
+  accepts unknown recovery type; F2 owner-picker needs membership-read) recorded, not fixed (not Day-1 blockers).
 - **Day-1 code blockers: 0 demonstrated.** Minor gaps (m18 taxonomy-edit UI, m08 version-authoring UI, m20
   split-match, m32 dataset-edit/report-publish, config/master-data edits) are DEFERRED, not blockers. External
   dependencies (m09 byte storage, m08 delivery provider, m20 file ingestion, m32 non-Feedback adapters, statutory
