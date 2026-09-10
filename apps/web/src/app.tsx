@@ -1769,6 +1769,40 @@ const OUTCOME_TYPES = [
   'referred_out',
   'other',
 ];
+// Debtor / accountable party roles — mirrors the m17 `isPartyRole` catalogue (app-layer enum). `principal_debtor`
+// is the primary obligor; the rest are co-obligors, sureties, and related persons captured as opaque references.
+const PARTY_ROLES = [
+  'principal_debtor',
+  'co_debtor',
+  'guarantor',
+  'surety',
+  'indemnifier',
+  'judgment_debtor',
+  'third_party',
+  'chargor',
+  'mortgagor',
+  'director',
+  'spouse',
+  'beneficiary',
+  'claimant',
+  'creditor',
+];
+// Deadline / relevant-date types — mirrors the m17 deadline CHECK. `limitation` is the highest-risk date; the
+// server only checks it is not already in the past (NO statutory calculation — the user enters an authorised date).
+const DEADLINE_TYPES = [
+  'review',
+  'demand_response',
+  'arrangement_review',
+  'installment_due',
+  'enforcement_filing',
+  'enforcement_action',
+  'security_realization',
+  'agent_report',
+  'statutory_period',
+  'limitation',
+  'closure',
+  'internal_action',
+];
 
 // Recovery lifecycle adjacency (mirrors the authoritative m17 RECOVERY_MACHINE; server remains the source of
 // truth and rejects any illegal move). Terminal/dedicated transitions (resolved/closed/reopened/archived/
@@ -1847,6 +1881,37 @@ function RecoveryDrawer({
   const [arrForm, setArrForm] = useState({ arrangementType: 'installment', amount: '' });
   const [demForm, setDemForm] = useState({ demandType: 'formal_demand', amount: '' });
   const [outForm, setOutForm] = useState({ outcomeType: 'partially_recovered', amount: '' });
+  // Wave-4: debtor parties, deadlines, owner picker, header/exposure edit.
+  const [parties, setParties] = useState<api.Row[]>([]);
+  const [deadlines, setDeadlines] = useState<api.Row[]>([]);
+  const [members, setMembers] = useState<api.Row[]>([]);
+  const [identLabels, setIdentLabels] = useState<Record<string, string>>({});
+  const [showEdit, setShowEdit] = useState(false);
+  const [edit, setEdit] = useState({
+    title: '',
+    summary: '',
+    priority: '',
+    recoveryRisk: '',
+    confidentiality: '',
+    currency: '',
+    sourceReference: '',
+    principal: '',
+    interest: '',
+    cost: '',
+    recoverable: '',
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [partyForm, setPartyForm] = useState({
+    partyRole: 'principal_debtor',
+    entityRef: '',
+    displayLabel: '',
+    contactRef: '',
+    liability: '',
+    confidentiality: 'standard',
+  });
+  const [ownerPick, setOwnerPick] = useState('');
+  const [ownerReason, setOwnerReason] = useState('');
+  const [dlForm, setDlForm] = useState({ deadlineType: 'review', dueDate: '' });
   const [msg, setMsg] = useState<{ ok: boolean; msg: string } | null>(null);
   useEffect(() => {
     let live = true;
@@ -1857,19 +1922,54 @@ function RecoveryDrawer({
       api.getRecoverySub(id, 'arrangements', tenant),
       api.getRecoverySub(id, 'demands', tenant),
       api.getRecoverySub(id, 'outcomes', tenant),
-    ]).then(([r, n, a, d, o]) => {
+      can('recovery.party.read')
+        ? api.getRecoveryParties(id, tenant)
+        : Promise.resolve({ ok: true, status: 200, data: { parties: [] }, error: null } as api.ApiResult<{
+            parties?: api.Row[];
+          }>),
+      can('recovery.deadline.read')
+        ? api.getRecoveryDeadlines(id, tenant)
+        : Promise.resolve({
+            ok: true,
+            status: 200,
+            data: { deadlines: [] },
+            error: null,
+          } as api.ApiResult<{ deadlines?: api.Row[] }>),
+    ]).then(([r, n, a, d, o, p, dl]) => {
       if (!live) return;
       if (r.ok) setRec((r.data as api.Row | null) ?? null);
       setNotes(api.asRows(n.data));
       setArrs(api.asRows(a.data));
       setDemands(api.asRows(d.data));
       setOutcomes(api.asRows(o.data));
+      setParties(api.asRows(p.data));
+      setDeadlines(api.asRows(dl.data));
       setLoading(false);
     });
     return () => {
       live = false;
     };
   }, [id, tenant, nonce]);
+  // Eligible-owner directory (Wave-4). Active tenant memberships are the RLS-safe "who belongs to this tenant"
+  // list; identities give a human label. Loaded only when the caller can assign, and only once per case open.
+  useEffect(() => {
+    if (!can('recovery.case.assign') && !can('recovery.case.reassign')) return;
+    let live = true;
+    void Promise.all([api.listMemberships(tenant), api.listIdentities(tenant)]).then(([m, ids]) => {
+      if (!live) return;
+      setMembers(api.asRows(m.data).filter((x) => pick(x, 'status').toLowerCase() === 'active'));
+      const labels: Record<string, string> = {};
+      for (const person of api.asRows(ids.data)) {
+        const iid = pick(person, 'id');
+        if (iid)
+          labels[iid] = pick(person, 'displayName', 'fullName', 'legalName', 'preferredName', 'name') || iid;
+      }
+      setIdentLabels(labels);
+    });
+    return () => {
+      live = false;
+    };
+  }, [id, tenant]);
   const r = rec ?? {};
   const version = Number(r['version'] ?? 1);
   const status = pick(r, 'status').toLowerCase();
@@ -1887,6 +1987,136 @@ function RecoveryDrawer({
     );
     report(res, 'Activity recorded (audited).');
     if (res.ok) setActivity('');
+  };
+  const [dlExtend, setDlExtend] = useState<{ did: string; ver: number; date: string; reason: string } | null>(
+    null,
+  );
+  const ownerLabel = (idv: string): string => identLabels[idv] || idv;
+  const openEdit = (): void => {
+    setEdit({
+      title: pick(r, 'title'),
+      summary: pick(r, 'summary'),
+      priority: pick(r, 'priority') || 'normal',
+      recoveryRisk: pick(r, 'recoveryRisk'),
+      confidentiality: pick(r, 'confidentiality') || 'confidential',
+      currency: pick(r, 'currency') || 'KES',
+      sourceReference: pick(r, 'sourceReference'),
+      principal: '',
+      interest: '',
+      cost: '',
+      recoverable: '',
+    });
+    setShowEdit(true);
+  };
+  const saveEdit = async (): Promise<void> => {
+    const body: Parameters<typeof api.updateRecovery>[2] = {};
+    const t2 = edit.title.trim();
+    if (t2 !== '' && t2 !== pick(r, 'title')) body.title = t2;
+    if (edit.summary !== pick(r, 'summary')) body.summary = edit.summary;
+    if (edit.priority && edit.priority !== pick(r, 'priority')) body.priority = edit.priority;
+    if (edit.recoveryRisk && edit.recoveryRisk !== pick(r, 'recoveryRisk'))
+      body.recoveryRisk = edit.recoveryRisk;
+    if (edit.confidentiality && edit.confidentiality !== pick(r, 'confidentiality'))
+      body.confidentiality = edit.confidentiality;
+    if (edit.currency && edit.currency.toUpperCase() !== pick(r, 'currency'))
+      body.currency = edit.currency.toUpperCase();
+    if (edit.sourceReference !== pick(r, 'sourceReference')) body.sourceReference = edit.sourceReference;
+    const setAmt = (
+      v: string,
+      k: 'principalAmountMinor' | 'interestAmountMinor' | 'costAmountMinor' | 'recoverableAmountMinor',
+    ): void => {
+      if (v.trim() !== '') {
+        const m = toMinorUnits(v);
+        if (m !== null) body[k] = m;
+      }
+    };
+    setAmt(edit.principal, 'principalAmountMinor');
+    setAmt(edit.interest, 'interestAmountMinor');
+    setAmt(edit.cost, 'costAmountMinor');
+    setAmt(edit.recoverable, 'recoverableAmountMinor');
+    if (Object.keys(body).length === 0) {
+      setMsg({ ok: false, msg: 'No changes to save.' });
+      return;
+    }
+    setSavingEdit(true);
+    const res = await api.updateRecovery(id, version, body, tenant);
+    report(res, 'Case header / exposure updated (audited).');
+    if (res.ok) setShowEdit(false);
+    setSavingEdit(false);
+  };
+  const addParty = async (): Promise<void> => {
+    if (partyForm.entityRef.trim() === '' && partyForm.displayLabel.trim() === '') {
+      setMsg({ ok: false, msg: 'Provide a customer reference or a display label for the debtor.' });
+      return;
+    }
+    const liab =
+      partyForm.liability.trim() === '' ? undefined : (toMinorUnits(partyForm.liability) ?? undefined);
+    const res = await api.addRecoveryParty(
+      id,
+      {
+        partyRole: partyForm.partyRole,
+        ...(partyForm.entityRef.trim() ? { entityRef: partyForm.entityRef.trim() } : {}),
+        ...(partyForm.displayLabel.trim() ? { displayLabel: partyForm.displayLabel.trim() } : {}),
+        ...(partyForm.contactRef.trim() ? { contactRef: partyForm.contactRef.trim() } : {}),
+        ...(liab !== undefined ? { liabilityAmountMinor: liab } : {}),
+        confidentiality: partyForm.confidentiality,
+      },
+      tenant,
+    );
+    report(res, 'Debtor / party added (audited).');
+    if (res.ok)
+      setPartyForm({ ...partyForm, entityRef: '', displayLabel: '', contactRef: '', liability: '' });
+  };
+  const removeParty = (pid: string, pv: number): Promise<void> =>
+    api.removeRecoveryParty(pid, pv, tenant).then((res) => report(res, 'Party removed (soft, audited).'));
+  const assignOwner = (reassign: boolean): Promise<void> =>
+    api
+      .assignRecovery(
+        id,
+        version,
+        ownerPick,
+        tenant,
+        reassign,
+        reassign && ownerReason.trim() !== '' ? { reason: ownerReason.trim() } : undefined,
+      )
+      .then((res) => {
+        report(res, reassign ? 'Case reassigned (audited).' : 'Owner assigned (audited).');
+        if (res.ok) {
+          setOwnerPick('');
+          setOwnerReason('');
+        }
+      });
+  const addDeadline = async (): Promise<void> => {
+    if (dlForm.dueDate === '') return;
+    const dueMs = Date.parse(`${dlForm.dueDate}T00:00:00Z`);
+    if (!Number.isFinite(dueMs)) {
+      setMsg({ ok: false, msg: 'Enter a valid date.' });
+      return;
+    }
+    const res = await api.addRecoveryDeadline(id, { deadlineType: dlForm.deadlineType, dueMs }, tenant);
+    report(res, 'Deadline / relevant date captured (audited).');
+    if (res.ok) setDlForm({ ...dlForm, dueDate: '' });
+  };
+  const submitExtend = async (): Promise<void> => {
+    if (dlExtend === null || dlExtend.date === '' || dlExtend.reason.trim() === '') return;
+    const ms = Date.parse(`${dlExtend.date}T00:00:00Z`);
+    if (!Number.isFinite(ms)) {
+      setMsg({ ok: false, msg: 'Enter a valid date.' });
+      return;
+    }
+    const res = await api.extendRecoveryDeadline(
+      dlExtend.did,
+      dlExtend.ver,
+      ms,
+      dlExtend.reason.trim(),
+      tenant,
+    );
+    report(res, 'Deadline extended (reason recorded, audited).');
+    if (res.ok) setDlExtend(null);
+  };
+  const fmtDate = (v: unknown): string => {
+    const s = typeof v === 'string' ? v : '';
+    return s === '' ? '—' : s.slice(0, 10);
   };
   return (
     <div className="drawer-overlay" onClick={onClose} role="presentation">
@@ -1920,6 +2150,121 @@ function RecoveryDrawer({
                 {pick(r, 'sourceProceedingId') ? 'm16 linked' : 'no proceeding'}
               </dd>
             </dl>
+            {can('recovery.case.update') && openish && (
+              <div style={{ margin: '4px 0 8px' }}>
+                {!showEdit ? (
+                  <button className="btn secondary sm" onClick={openEdit}>
+                    Edit header &amp; exposure
+                  </button>
+                ) : (
+                  <div className="inline-form" style={{ flexWrap: 'wrap', gap: 6 }}>
+                    <input
+                      value={edit.title}
+                      placeholder="Title"
+                      aria-label="Title"
+                      onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+                    />
+                    <select
+                      value={edit.priority}
+                      aria-label="Priority"
+                      onChange={(e) => setEdit({ ...edit, priority: e.target.value })}
+                    >
+                      {['low', 'normal', 'high', 'urgent'].map((x) => (
+                        <option key={x} value={x}>
+                          {x}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={edit.recoveryRisk}
+                      aria-label="Risk"
+                      onChange={(e) => setEdit({ ...edit, recoveryRisk: e.target.value })}
+                    >
+                      <option value="">risk…</option>
+                      {['low', 'medium', 'high', 'critical'].map((x) => (
+                        <option key={x} value={x}>
+                          {x}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={edit.confidentiality}
+                      aria-label="Confidentiality"
+                      onChange={(e) => setEdit({ ...edit, confidentiality: e.target.value })}
+                    >
+                      {['standard', 'confidential', 'restricted', 'privileged'].map((x) => (
+                        <option key={x} value={x}>
+                          {x}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={edit.currency}
+                      placeholder="Currency"
+                      aria-label="Currency"
+                      style={{ width: 70 }}
+                      onChange={(e) => setEdit({ ...edit, currency: e.target.value.toUpperCase() })}
+                    />
+                    <input
+                      value={edit.principal}
+                      placeholder={`Principal (now ${fmtMinor(r['principalAmountMinor'])})`}
+                      aria-label="Principal amount"
+                      onChange={(e) => setEdit({ ...edit, principal: e.target.value })}
+                    />
+                    <input
+                      value={edit.interest}
+                      placeholder={`Interest (now ${fmtMinor(r['interestAmountMinor'])})`}
+                      aria-label="Interest amount"
+                      onChange={(e) => setEdit({ ...edit, interest: e.target.value })}
+                    />
+                    <input
+                      value={edit.cost}
+                      placeholder={`Costs (now ${fmtMinor(r['costAmountMinor'])})`}
+                      aria-label="Cost amount"
+                      onChange={(e) => setEdit({ ...edit, cost: e.target.value })}
+                    />
+                    <input
+                      value={edit.recoverable}
+                      placeholder={`Recoverable (now ${fmtMinor(r['recoverableAmountMinor'])})`}
+                      aria-label="Recoverable amount"
+                      onChange={(e) => setEdit({ ...edit, recoverable: e.target.value })}
+                    />
+                    <input
+                      value={edit.sourceReference}
+                      placeholder="Source / reference"
+                      aria-label="Source reference"
+                      onChange={(e) => setEdit({ ...edit, sourceReference: e.target.value })}
+                    />
+                    <input
+                      value={edit.summary}
+                      placeholder="Summary"
+                      aria-label="Summary"
+                      onChange={(e) => setEdit({ ...edit, summary: e.target.value })}
+                    />
+                    <button
+                      className="btn primary sm"
+                      disabled={
+                        savingEdit ||
+                        (edit.principal.trim() !== '' && toMinorUnits(edit.principal) === null) ||
+                        (edit.interest.trim() !== '' && toMinorUnits(edit.interest) === null) ||
+                        (edit.cost.trim() !== '' && toMinorUnits(edit.cost) === null) ||
+                        (edit.recoverable.trim() !== '' && toMinorUnits(edit.recoverable) === null)
+                      }
+                      onClick={() => void saveEdit()}
+                    >
+                      {savingEdit ? '…' : 'Save changes'}
+                    </button>
+                    <button className="btn link sm" onClick={() => setShowEdit(false)}>
+                      Cancel
+                    </button>
+                    <p className="muted" style={{ fontSize: 11, width: '100%', margin: '2px 0 0' }}>
+                      Blank amount = leave unchanged. Recovered / outstanding are NOT editable here — they
+                      move only when a receipt or outcome is recorded. Exact minor units; optimistic-locked.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <h4 className="drawer-sub">Case actions</h4>
             <div className="admin-actions">
@@ -2013,6 +2358,270 @@ function RecoveryDrawer({
               </div>
             )}
             {msg && <div className={msg.ok ? 'ok-note' : 'error'}>{msg.msg}</div>}
+
+            {(can('recovery.case.assign') || can('recovery.case.reassign')) && (
+              <>
+                <h4 className="drawer-sub">Accountable owner</h4>
+                <div className="inline-form" style={{ flexWrap: 'wrap', gap: 6 }}>
+                  <select
+                    value={ownerPick}
+                    aria-label="Owner"
+                    onChange={(e) => setOwnerPick(e.target.value)}
+                    style={{ minWidth: 200 }}
+                  >
+                    <option value="">Select an active tenant member…</option>
+                    {members.map((m) => {
+                      const iid = pick(m, 'identityId');
+                      return (
+                        <option key={pick(m, 'id') || iid} value={iid}>
+                          {ownerLabel(iid)}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <input
+                    value={ownerReason}
+                    placeholder="Reason (for reassignment)"
+                    aria-label="Reassignment reason"
+                    onChange={(e) => setOwnerReason(e.target.value)}
+                  />
+                  <ActionButton
+                    label="Assign owner"
+                    allowed={openish && ownerPick !== '' && can('recovery.case.assign')}
+                    onRun={() => assignOwner(false)}
+                  />
+                  <ActionButton
+                    label="Reassign"
+                    allowed={openish && ownerPick !== '' && can('recovery.case.reassign')}
+                    onRun={() => assignOwner(true)}
+                  />
+                </div>
+                <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>
+                  Owner is validated server-side as an ACTIVE member of this tenant — cross-tenant or disabled
+                  identities are rejected. Current owner:{' '}
+                  {pick(r, 'legalOwner') ? ownerLabel(pick(r, 'legalOwner')) : '—'}.
+                </p>
+              </>
+            )}
+
+            {can('recovery.party.read') && (
+              <>
+                <h4 className="drawer-sub">Debtor &amp; parties</h4>
+                {parties.length === 0 ? (
+                  <div className="empty">No debtor or parties captured yet.</div>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Role</th>
+                        <th>Reference / label</th>
+                        <th>Contact</th>
+                        <th className="num">Liability</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parties.map((p, i) => {
+                        const pid = pick(p, 'id');
+                        const pv = Number(p['version'] ?? 1);
+                        return (
+                          <tr key={pid || i}>
+                            <td>{(pick(p, 'partyRole') || '—').replace(/_/g, ' ')}</td>
+                            <td>{pick(p, 'displayLabel', 'entityRef') || '—'}</td>
+                            <td className="muted">{pick(p, 'contactRef') || '—'}</td>
+                            <td className="num">{fmtMinor(p['liabilityAmountMinor'])}</td>
+                            <td>
+                              <ActionButton
+                                label="Remove"
+                                allowed={can('recovery.party.manage')}
+                                danger
+                                onRun={() => removeParty(pid, pv)}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+                {can('recovery.party.manage') && openish && (
+                  <div className="inline-form" style={{ flexWrap: 'wrap', gap: 6 }}>
+                    <select
+                      value={partyForm.partyRole}
+                      aria-label="Party role"
+                      onChange={(e) => setPartyForm({ ...partyForm, partyRole: e.target.value })}
+                    >
+                      {PARTY_ROLES.map((x) => (
+                        <option key={x} value={x}>
+                          {x.replace(/_/g, ' ')}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={partyForm.entityRef}
+                      placeholder="Customer / identity reference"
+                      aria-label="Entity reference"
+                      onChange={(e) => setPartyForm({ ...partyForm, entityRef: e.target.value })}
+                    />
+                    <input
+                      value={partyForm.displayLabel}
+                      placeholder="Display label"
+                      aria-label="Display label"
+                      onChange={(e) => setPartyForm({ ...partyForm, displayLabel: e.target.value })}
+                    />
+                    <input
+                      value={partyForm.contactRef}
+                      placeholder="Contact reference (redacted on read)"
+                      aria-label="Contact reference"
+                      onChange={(e) => setPartyForm({ ...partyForm, contactRef: e.target.value })}
+                    />
+                    <input
+                      value={partyForm.liability}
+                      placeholder="Liability amount"
+                      aria-label="Liability amount"
+                      onChange={(e) => setPartyForm({ ...partyForm, liability: e.target.value })}
+                    />
+                    <select
+                      value={partyForm.confidentiality}
+                      aria-label="Party confidentiality"
+                      onChange={(e) => setPartyForm({ ...partyForm, confidentiality: e.target.value })}
+                    >
+                      {['standard', 'confidential', 'restricted', 'privileged'].map((x) => (
+                        <option key={x} value={x}>
+                          {x}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn secondary sm"
+                      disabled={
+                        partyForm.liability.trim() !== '' && toMinorUnits(partyForm.liability) === null
+                      }
+                      onClick={() => void addParty()}
+                    >
+                      + Add debtor / party
+                    </button>
+                    <p className="muted" style={{ fontSize: 11, width: '100%', margin: '2px 0 0' }}>
+                      Prefer a customer / identity REFERENCE over copying personal data. Contact reference is
+                      redacted on read unless you hold recovery.party_contact.read. Never enter full
+                      identifiers or secrets here.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {can('recovery.deadline.read') && (
+              <>
+                <h4 className="drawer-sub">Deadlines &amp; relevant dates</h4>
+                {deadlines.length === 0 ? (
+                  <div className="empty">No deadlines captured.</div>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Type</th>
+                        <th>Due</th>
+                        <th>Status</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {deadlines.map((d, i) => {
+                        const did = pick(d, 'id');
+                        const dv = Number(d['version'] ?? 1);
+                        const dst = pick(d, 'status').toLowerCase();
+                        const dueOverdue =
+                          /active|pending|open|scheduled/.test(dst) &&
+                          fmtDate(d['dueAt']) !== '—' &&
+                          Date.parse(String(d['dueAt'])) <
+                            Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+                        return (
+                          <tr key={did || i}>
+                            <td>{(pick(d, 'deadlineType') || '—').replace(/_/g, ' ')}</td>
+                            <td className={dueOverdue ? 'error' : undefined}>
+                              {fmtDate(d['dueAt'])}
+                              {dueOverdue ? ' (overdue)' : ''}
+                            </td>
+                            <td>{recoveryPill(pick(d, 'status'))}</td>
+                            <td>
+                              <ActionButton
+                                label="Extend"
+                                allowed={can('recovery.deadline.manage')}
+                                onRun={() =>
+                                  Promise.resolve(setDlExtend({ did, ver: dv, date: '', reason: '' }))
+                                }
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+                {dlExtend !== null && (
+                  <div className="inline-form" style={{ gap: 6, flexWrap: 'wrap' }}>
+                    <span className="muted" style={{ fontSize: 12 }}>
+                      Extend deadline to:
+                    </span>
+                    <input
+                      type="date"
+                      value={dlExtend.date}
+                      aria-label="Extend to date"
+                      onChange={(e) => setDlExtend({ ...dlExtend, date: e.target.value })}
+                    />
+                    <input
+                      value={dlExtend.reason}
+                      placeholder="Reason (required)"
+                      aria-label="Extension reason"
+                      onChange={(e) => setDlExtend({ ...dlExtend, reason: e.target.value })}
+                    />
+                    <button
+                      className="btn primary sm"
+                      disabled={dlExtend.date === '' || dlExtend.reason.trim() === ''}
+                      onClick={() => void submitExtend()}
+                    >
+                      Extend
+                    </button>
+                    <button className="btn link sm" onClick={() => setDlExtend(null)}>
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                {can('recovery.deadline.manage') && openish && (
+                  <div className="inline-form" style={{ gap: 6, flexWrap: 'wrap' }}>
+                    <select
+                      value={dlForm.deadlineType}
+                      aria-label="Deadline type"
+                      onChange={(e) => setDlForm({ ...dlForm, deadlineType: e.target.value })}
+                    >
+                      {DEADLINE_TYPES.map((x) => (
+                        <option key={x} value={x}>
+                          {x.replace(/_/g, ' ')}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="date"
+                      value={dlForm.dueDate}
+                      aria-label="Due date"
+                      onChange={(e) => setDlForm({ ...dlForm, dueDate: e.target.value })}
+                    />
+                    <button
+                      className="btn secondary sm"
+                      disabled={dlForm.dueDate === ''}
+                      onClick={() => void addDeadline()}
+                    >
+                      + Capture deadline
+                    </button>
+                    <p className="muted" style={{ fontSize: 11, width: '100%', margin: '2px 0 0' }}>
+                      This records an authorised user-entered date. A `limitation` date is only checked to not
+                      be in the past — no statutory limitation is calculated for you.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
 
             <h4 className="drawer-sub">Payment arrangements (maker-checker)</h4>
             {arrs.length === 0 ? (

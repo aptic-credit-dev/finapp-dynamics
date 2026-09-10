@@ -790,6 +790,7 @@ export class RecoveryRepository {
       summary?: string | null;
       description?: string | null;
       sourceReference?: string | null;
+      title?: string | null;
       by: string | null;
     },
   ): Promise<RecoveryRow | null> {
@@ -808,6 +809,7 @@ export class RecoveryRepository {
          write_off_recommended=COALESCE($28,write_off_recommended), limitation_at=COALESCE($29,limitation_at),
          final_outcome=COALESCE($30,final_outcome), residual_note=COALESCE($31,residual_note),
          summary=COALESCE($32,summary), description=COALESCE($33,description), source_reference=COALESCE($34,source_reference),
+         title=COALESCE($36,title),
          updated_by=$35, updated_at=now(), version=version+1
        WHERE id=$1 AND version=$2 RETURNING ${RECOVERY_COLS}`,
       [
@@ -846,9 +848,22 @@ export class RecoveryRepository {
         i.description ?? null,
         i.sourceReference ?? null,
         i.by,
+        i.title ?? null,
       ],
     );
     return r.rows[0] ?? null;
+  }
+  /**
+   * Owner-eligibility check for assignment (M17 Wave-4). Reads `tenant_memberships` inside the caller's tenant
+   * context; RLS FORCE (no system escape) means a membership in another tenant is invisible here, so a `true`
+   * result proves the owner is an ACTIVE member of THIS tenant — never cross-tenant, never suspended/ended/pending.
+   */
+  async isActiveTenantMember(tx: Tx, identityId: string): Promise<boolean> {
+    const r = await tx.query<{ ok: boolean }>(
+      `SELECT true AS ok FROM tenant_memberships WHERE identity_id=$1 AND status='active' LIMIT 1`,
+      [identityId],
+    );
+    return r.rows.length > 0;
   }
   async assignRecovery(
     tx: Tx,

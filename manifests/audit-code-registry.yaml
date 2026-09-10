@@ -17,7 +17,7 @@
 registry_version: 1
 owner_module: m03-audit
 reference_code_count: 916 # in the reference implementation; 0 registered in this repo
-registered_code_count: 979 # MUST equal len(codes); enforced by the conformance check
+registered_code_count: 980 # MUST equal len(codes); enforced by the conformance check
 
 format: <PREFIX>_<ENTITY>_<ACTION>
 format_notes:
@@ -562,6 +562,7 @@ codes:
   - { code: RECOVERY_TYPE_PUBLISHED, module: m17-recovery, severity: elevated, reason_required: false }
   - { code: RECOVERY_SLA_PUBLISHED, module: m17-recovery, severity: elevated, reason_required: false }
   - { code: RECOVERY_CASE_CREATED, module: m17-recovery, severity: normal, reason_required: false }
+  - { code: RECOVERY_CASE_UPDATED, module: m17-recovery, severity: normal, reason_required: false }
   - { code: RECOVERY_CASE_REFERRED, module: m17-recovery, severity: normal, reason_required: false }
   - { code: RECOVERY_CASE_ASSIGNED, module: m17-recovery, severity: normal, reason_required: false }
   - { code: RECOVERY_CASE_REASSIGNED, module: m17-recovery, severity: normal, reason_required: false }

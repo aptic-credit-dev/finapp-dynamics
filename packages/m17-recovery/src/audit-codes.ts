@@ -11,6 +11,7 @@ export const M17_AUDIT_CODES = {
   recoveryTypePublished: 'RECOVERY_TYPE_PUBLISHED',
   slaPolicyPublished: 'RECOVERY_SLA_PUBLISHED',
   recoveryCreated: 'RECOVERY_CASE_CREATED',
+  recoveryUpdated: 'RECOVERY_CASE_UPDATED',
   recoveryReferred: 'RECOVERY_CASE_REFERRED',
   recoveryAssigned: 'RECOVERY_CASE_ASSIGNED',
   recoveryReassigned: 'RECOVERY_CASE_REASSIGNED',
