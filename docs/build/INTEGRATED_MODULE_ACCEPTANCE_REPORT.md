@@ -47,12 +47,12 @@ the task ("fix only demonstrated Day-1 blockers"), the deliverable is documentat
 
 | Module | Day-1 class | Status | Backend (DB lane) | Web wiring | Notes / limitations |
 |---|---|---|---|---|---|
-| **M02 Identity & RBAC** | DAY-1 CRITICAL | BACKEND PROVEN — browser acceptance incomplete | ✓ `api-identity` (78), `api-rbac` (22) | ✓ identity edit, role attr edit, perm grant/revoke, membership/assignment | protected/system-role rejection + no-escalation are server-enforced |
+| **M02 Identity & RBAC** | DAY-1 CRITICAL | **ACCEPTED — authenticated browser + backend proven** | ✓ `api-identity` (78), `api-rbac` (22) | ✓ identity edit, role attr edit, perm grant/revoke, membership/assignment | **Browser-verified 2026-09-10:** view+edit→DB-persist→audit `IDENTITY_REGISTRY_UPDATED`; system-role immutability + no-escalation + tenant-isolation live (see evidence Part B) |
 | **M12 Feedback** | DAY-1 CRITICAL | BACKEND PROVEN — incomplete | ✓ `api-feedback` (27) | ✓ create/activity/escalate/resolve(SoD)/close/reopen | "comment" = add-activity (no separate endpoint) |
 | **M13 Cases** | DAY-1 CRITICAL | BACKEND PROVEN — incomplete | ✓ `api-cases` (18) | ✓ create/triage/decision+approve(SoD)/task/activity/lifecycle | |
 | **M14 Legal Matters** | DAY-1 CRITICAL | BACKEND PROVEN — incomplete | ✓ `api-legal` (29) | ✓ create/court-events/pleadings/costs/appeal/lifecycle | |
 | **M16 Litigation** | DAY-1 CRITICAL | BACKEND PROVEN — incomplete | ✓ `api-litigation` (27) | ✓ witnesses/exhibits/orders/obligations/bundles/filing SoD | locked-state server-enforced |
-| **M17 Recovery** | DAY-1 CRITICAL | BACKEND PROVEN — incomplete | ✓ `api-recovery` (43), `m17-*` | ✓ create/debtor/exposure-edit/owner-picker/deadline/advance/lifecycle | ineligible/cross-tenant owner → 400 (proven); no statutory limitation calc (by design) |
+| **M17 Recovery** | DAY-1 CRITICAL | **ACCEPTED (maker paths) — debtor/deadline browser-incomplete** | ✓ `api-recovery` (43), `m17-*` | ✓ create/debtor/exposure-edit/owner-picker/deadline/advance/lifecycle | **Browser-verified 2026-09-10 (maker):** create→audit, owner self-assign (eligibility passed) → under_review, exposure edit (2500050 minor units; recovered/outstanding untouched)→audit, lifecycle; debtor/deadline sections RBAC-hidden for this persona (no party/deadline-permissioned persona seeded ⇒ those + cross-tenant/ineligible-owner remain backend-proven only). No statutory limitation calc (by design). See finding F1/F2. |
 | **M18 Legal Documents** | DAY-1 CRITICAL | BACKEND PROVEN — incomplete | ✓ `api-legaldocs` (25) | ✓ template/clause/taxonomy + submit→approve→publish→withdraw(+supersede) SoD | **doc drift:** lifecycle verbs are not "validate/activate/retire"; taxonomy **edit** UI = DEFERRED |
 | **M19 Finance** | DAY-1 CRITICAL | BACKEND PROVEN — incomplete | ✓ `api-finance` (16) | ✓ entity CRUD+lifecycle, fiscal-year/period, GL account/CoA | catalog master-data edit (cost-centre/dimension/tax/fx) = DEFERRED |
 | **M20 Reconciliation** | DAY-1 CRITICAL | BACKEND PROVEN — incomplete | ✓ `api-gl-reconciliation` (19) | ✓ run/import(rows)/manual-match/already-matched-409/reconciling-item/certify | split/many-to-many = DEFERRED; file-byte ingestion = EXTERNAL DEPENDENCY |
@@ -80,9 +80,11 @@ the task ("fix only demonstrated Day-1 blockers"), the deliverable is documentat
 
 ## Required final decision structure
 
-1. **Modules accepted for Day 1:** *None marked `ACCEPTED` yet* — authenticated browser evidence is required and
-   pending. All 11 DAY-1 CRITICAL modules are **BACKEND PROVEN — browser acceptance incomplete** and are
-   *acceptance-ready* pending the operator runbook sign-off.
+1. **Modules accepted for Day 1:** After the executed authenticated pass (2026-09-10, evidence Part B):
+   **M02 Identity & RBAC = ACCEPTED** (browser + backend), and **M17 Recovery maker paths = ACCEPTED**
+   (create / owner-assign+eligibility / exposure-edit+invariant / lifecycle), with M17 debtor/deadline sub-flows
+   browser-incomplete. The remaining 9 DAY-1 CRITICAL modules stay **BACKEND PROVEN — browser acceptance
+   incomplete**, acceptance-ready pending domain-persona sign-off via the runbook.
 2. **Day-1 supporting modules:** M08, M09, M28, M32, M41 — all **BACKEND PROVEN — browser acceptance incomplete**.
 3. **Safe to defer:** M20 split/many-to-many matching; M18 taxonomy-edit UI; M08 notification version-authoring
    UI; M32 dataset-edit/report-publish backend; module config/master-data edit surfaces; M39 billing writes.
@@ -95,11 +97,14 @@ the task ("fix only demonstrated Day-1 blockers"), the deliverable is documentat
    defect). See `DAY1_LAUNCH_BLOCKER_REGISTER.md`.
 7. **Automated validation results:** baseline all green (smoke 8,082/0); DB integration **98 / 3,093 / 0** on the
    non-superuser role. No fixes ⇒ no new tests required this pass.
-8. **Authenticated browser evidence:** **INCOMPLETE.** The assistant may not handle credentials (even synthetic),
-   and the automation host's Chrome had a 0×0 viewport, so it could neither seed a login nor drive the UI.
-   Unauthenticated gates were verified live (login renders, health 200, 401 fail-closed, localhost-only, no
-   console errors). Authenticated acceptance is handed to a human operator via
-   `HUMAN_BROWSER_ACCEPTANCE_EVIDENCE.md`.
+8. **Authenticated browser evidence:** **PARTIAL — materially advanced (2026-09-10).** A human operator seeded
+   personas and logged in privately (assistant never handled a password); the assistant then drove the
+   authenticated UI. **Browser-verified live:** M02 (view/edit→persist→audit), M17 maker paths
+   (create/owner+eligibility/exposure+invariant/lifecycle), and the cross-cutting invariants (RBAC deny,
+   maker/checker control visibility, tenant isolation, ADR-135 entitlement gating, two-step confirm, audit
+   hash-chain, unauth 401, no console errors). See `HUMAN_BROWSER_ACCEPTANCE_EVIDENCE.md` Part B. **Still
+   incomplete:** the other Day-1 modules + M17 debtor/deadline sub-flows (no seeded domain personas) — handed back
+   to the operator via the runbook §3.
 9. **Security & tenant-isolation evidence:** DB lane proves FORCE RLS + `tenant_isolation` on every tenant table
    (cross-tenant read → 0 rows), least-privilege grants (app role has no DELETE; history tables no UPDATE/DELETE),
    maker-checker/SoD (approver ≠ requester, DB CHECK), and a gap-free audit hash-chain. Live: unauthenticated API
