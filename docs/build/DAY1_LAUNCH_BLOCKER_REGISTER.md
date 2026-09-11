@@ -31,6 +31,21 @@ the cross-cutting security/tenant-isolation/entitlement/audit invariants — all
 These are recorded honestly; per "fix only demonstrated Day-1 blockers," **no code fix was applied** on this
 acceptance branch (neither is a Day-1 blocker).
 
+### A.2 Final Day-1 browser campaign (update — `ff6f442`) — 0 code blockers
+
+The final campaign (`FINAL_DAY1_BROWSER_ACCEPTANCE_REPORT.md`) browser-accepted **M13** (full SoD) and browser-proved
+the **M14 / M16 / M19** maker paths; **M12 / M18 / M20 / M21 / M22** remain BACKEND PROVEN — browser incomplete
+(personas + SoD-preserving gap roles provisioned; pending operator logins). **No Day-1 code defect was
+demonstrated.** One LOW observation:
+
+| # | Finding | Type | Severity | Day-1 blocker? | Note |
+|---|---|---|---|---|---|
+| N1 | API process binds `::` (all interfaces) in the dev boot | deployment/config | LOW | **No** | production sits behind a same-origin reverse proxy; harden the bind for any exposed environment |
+
+M19 entity deactivate + fiscal-year/period were **BLOCKED by automation** (`type="date"` inputs + inline two-step
+confirms did not populate/fire under the browser driver; no console error, no server rejection) — an automation
+limitation, **not** a product defect, and **not** counted as FAIL.
+
 ## B. Deferred — NOT required for Day 1 (post-launch)
 
 | # | Item | Module | Why not Day-1 |

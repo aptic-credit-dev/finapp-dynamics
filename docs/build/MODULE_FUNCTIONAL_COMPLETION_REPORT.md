@@ -159,6 +159,18 @@ An integrated acceptance + launch-blocker-closure audit was run on `release/inte
   module is marked `ACCEPTED`/`COMPLETE` without that browser evidence. M42 remains `NO_GO`; Stage-7 G1–G4
   unchanged; no production certificate; no deploy.
 
+## 14g. Final Day-1 browser-acceptance campaign (update — `ff6f442`)
+See `FINAL_DAY1_BROWSER_ACCEPTANCE_REPORT.md`. A supervised authenticated campaign (operator-only credentials;
+disposable PG non-superuser role → genuine RLS; production API) executed live browser evidence for the legal +
+finance clusters. **M13 Cases → ACCEPTED** (create/party+`[redacted]`-contact/**decision submit→approve with SoD,
+distinct identities**/activity/lifecycle). **M14, M16, M19 → PARTIALLY ACCEPTED** (comprehensive maker evidence —
+create + sub-records + exact minor units + audit; checker/sub-steps or date/confirm-input actions not driven).
+**M12, M18, M20, M21, M22 → BACKEND PROVEN — browser incomplete** (personas + SoD-preserving gap roles + Treasury
+entitlement provisioned; pending operator logins). Cross-cutting invariants verified live (RBAC control visibility,
+permission-denied, tenant isolation, ADR-135 entitlement gating, two-step confirm, PII redaction, exact minor
+units, audit hash-chain 36/36). **0 Day-1 code defects demonstrated → no code fix.** Recommendation:
+**TECHNICAL MODULE CONDITIONAL GO**. M42 `NO_GO`; Stage-7 G1–G4 unchanged.
+
 ## 15. Remaining external-assurance blockers
 The Stage-7 gates (independent pen-test, cross-host DR drill, acceptance-grade load/chaos, real-data migration —
 all `requires_review`), plus provisioning an authenticated **browser-acceptance environment** with the full

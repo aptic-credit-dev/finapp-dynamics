@@ -23,6 +23,11 @@
 > approve(checker). Remaining genuine non-Day-1 gaps: m18 taxonomy-**edit** UI, m08 version-authoring UI, m20
 > split-match, m32 dataset-edit/report-publish backend, various config/master-data edit surfaces — all **DEFERRED**
 > (see `DAY1_LAUNCH_BLOCKER_REGISTER.md`).
+>
+> **⚑ Authenticated browser status (final campaign, `ff6f442`).** Executed live: **M02, M13, M17(maker)** = ACCEPTED
+> (M13 with full decision maker-checker SoD); **M14, M16, M19** = PARTIALLY ACCEPTED (maker paths browser-proven);
+> **M12, M18, M20, M21, M22** = BACKEND PROVEN — browser acceptance incomplete (personas + SoD-preserving gap roles
+> provisioned; pending operator logins). See `FINAL_DAY1_BROWSER_ACCEPTANCE_REPORT.md`. 0 Day-1 code defects.
 
 **Status legend:** WORKING (UI wired → mutation → DB, permission-gated) · PARTIAL (some lifecycle ops surfaced,
 others not) · MISSING (backend exists, no UI) · MISSING* (backend **and** `api.ts` client exist, only `app.tsx`
