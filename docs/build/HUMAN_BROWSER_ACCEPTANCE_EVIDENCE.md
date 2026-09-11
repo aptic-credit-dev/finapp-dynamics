@@ -377,3 +377,32 @@ personas (e.g. `seed-legal-cs-personas.mjs`) + demo data + entitlements, then ru
 - **Recommendation unchanged: `TECHNICAL MODULE CONDITIONAL GO`** — materially advanced (2 modules + all
   cross-cutting invariants now browser-proven); condition = complete the remaining modules' authenticated browser
   sign-off via §3 with domain personas. M42 remains `NO_GO`; Stage-7 G1–G4 unchanged; no production certificate.
+
+---
+
+# PART C — Final Day-1 browser campaign (session 2026-09-11)
+
+Full detail: `FINAL_DAY1_BROWSER_ACCEPTANCE_REPORT.md`. Disposable PG (non-superuser `finapp_app` → real RLS),
+production API + web; operator seeded personas (both scripts) and logged in privately per persona; SoD-preserving
+gap roles were data-seeded to distinct existing personas (no new credentials, no universal persona); a
+`treasury_reconciliation` entitlement was added for Tenant 1.
+
+**Executed browser evidence (each cross-checked in DB + audit):**
+- **M13 Cases → ACCEPTED:** create (`CASE_RECORD_CREATED`), party with contact **`[redacted]`** (`CASE_PARTY_ADDED`),
+  **decision submit→approve with SoD** — `submitted_by=legal_officer`, `approved_by=legal_manager` (distinct)
+  (`CASE_DECISION_SUBMITTED` + `CASE_DECISION_APPROVED`), activity (`CASE_ACTIVITY_CREATED`), lifecycle Open + two-step
+  confirm (`CASE_RECORD_OPENED`).
+- **M14 Legal Matters → PARTIALLY ACCEPTED (maker):** create, **cost `123456` exact minor units**, court event,
+  pleading, appeal (all audited). Settlement-approve + close (checker) not driven.
+- **M16 Litigation → PARTIALLY ACCEPTED (maker):** proceeding, witness, exhibit, order, bundle (all audited).
+  Filing/bundle approve (SoD) + exhibit-admit not driven.
+- **M19 Finance → PARTIALLY ACCEPTED:** accounting-entity create (`FIN_ENTITY_REGISTERED`); deactivate +
+  fiscal-year/period **BLOCKED (automation)** — `type="date"` inputs + inline confirm did not populate/fire under the
+  driver; no console error, no server rejection (not a product defect).
+- **M12, M18, M20, M21, M22 → BLOCKED — not driven** (personas + gap roles provisioned; pending operator logins).
+
+**Invariants live:** RBAC control visibility (maker sees create, checker doesn't), permission-denied fail-closed,
+**real SoD** (M13 approve by a distinct identity), PII redaction (party + witness `[redacted]`), exact minor units,
+two-step confirm, audit hash-chain (36/36 chained), no hard delete, no console errors, ADR-135 entitlement gating.
+
+**0 Day-1 code defects → no code fix.** Recommendation stays **`TECHNICAL MODULE CONDITIONAL GO`**.
