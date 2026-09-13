@@ -46,6 +46,23 @@ M19 entity deactivate + fiscal-year/period were **BLOCKED by automation** (`type
 confirms did not populate/fire under the browser driver; no console error, no server rejection) — an automation
 limitation, **not** a product defect, and **not** counted as FAIL.
 
+### A.3 Day-1 Acceptance Closure pass (update — `b79de0b`) — 5 defects found, 4 fixed
+
+The closure pass (`DAY1_ACCEPTANCE_CLOSURE_REPORT.md`) browser-tested M12 + the treasury cluster and surfaced real
+defects (all web-only; no backend/schema change):
+
+| # | Sev | Status | Defect |
+|---|---|---|---|
+| **D-M12-1** | **HIGH** | **FIXED** | M12 "Approve resolution" gated on `'submitted'` but backend uses `'proposed'` → **all** feedback-resolution approvals were blocked. Fixed + re-verified with SoD. **This was a genuine Day-1 code blocker — now resolved.** |
+| D-M21-1 | MED | FIXED | Journal draft create silently swallowed API errors. |
+| D-M21-2 | MED | FIXED | Journal draft had no date input; `journalDate` hardcoded to `2026-08-24`. Added a date field. |
+| D-M21-3 | MED | OPEN (non-blocking) | Non-UUID `entityRef` → raw 500 instead of 400. Recommend backend UUID validation in `draft.service`. |
+| D-M22-1 | MED | FIXED | Delegation grant defaulted `subjectType` to invalid `'approval_request'`. Replaced with a valid-values dropdown. |
+
+**Unresolved Day-1 code blockers: 0** (D-M12-1 fixed; D-M21-3 is a robustness gap, not a blocker). M20 browser
+testing is BLOCKED on recon-account seeding (data, not a defect); M22 delegation grant is BLOCKED by a client bundle
+anomaly (all code layers verified correct).
+
 ## B. Deferred — NOT required for Day 1 (post-launch)
 
 | # | Item | Module | Why not Day-1 |

@@ -171,6 +171,18 @@ permission-denied, tenant isolation, ADR-135 entitlement gating, two-step confir
 units, audit hash-chain 36/36). **0 Day-1 code defects demonstrated → no code fix.** Recommendation:
 **TECHNICAL MODULE CONDITIONAL GO**. M42 `NO_GO`; Stage-7 G1–G4 unchanged.
 
+## 14h. Day-1 Acceptance Closure pass (update — `b79de0b`)
+See `DAY1_ACCEPTANCE_CLOSURE_REPORT.md`. Operator-driven authenticated browser pass over M12 + the treasury cluster
+(disposable PG non-superuser role; production API). **Five real defects found, four fixed** (all web-only): **D-M12-1
+(HIGH, fixed)** — the "Approve resolution" button was gated on a status the backend never sets, blocking ALL
+feedback-resolution approvals (found + fixed + re-verified with SoD); D-M21-1/2 (fixed) journal-draft silent-error +
+missing date input; D-M22-1 (fixed) delegation invalid default subject-type; D-M21-3 (open, MED) non-uuid entityRef
+→500. **M12 → ACCEPTED** (full workflow incl. resolution maker-checker SoD; close correctly rule-gated). **M21 →
+PARTIALLY ACCEPTED** (maker path proven). **M22 → approval-decision SoD ACCEPTED; delegation grant BLOCKED** (client
+anomaly). **M20 → BLOCKED (browser)** on recon-account seeding (not a defect). Validation green (smoke 8,082/0; DB
+98/3,093/0). **0 unresolved Day-1 code blockers.** Recommendation: **TECHNICAL MODULE CONDITIONAL GO**. M42 `NO_GO`;
+Stage-7 G1–G4 unchanged.
+
 ## 15. Remaining external-assurance blockers
 The Stage-7 gates (independent pen-test, cross-host DR drill, acceptance-grade load/chaos, real-data migration —
 all `requires_review`), plus provisioning an authenticated **browser-acceptance environment** with the full

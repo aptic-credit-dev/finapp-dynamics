@@ -24,6 +24,12 @@
 > split-match, m32 dataset-edit/report-publish backend, various config/master-data edit surfaces — all **DEFERRED**
 > (see `DAY1_LAUNCH_BLOCKER_REGISTER.md`).
 >
+> **⚑ Day-1 Acceptance Closure pass (`b79de0b`).** M12 = **ACCEPTED** (resolution SoD; **D-M12-1 fixed** — approve
+> button had blocked all approvals); M21 = PARTIALLY ACCEPTED (maker; D-M21-1/2 fixed, D-M21-3 open); M22 =
+> approval-decision SoD ACCEPTED + D-M22-1 fixed (delegation grant BLOCKED by a client anomaly); M20 = BLOCKED
+> (browser) on recon-account seeding. 5 defects found / 4 fixed (all web-only). 0 unresolved Day-1 code blockers.
+> See `DAY1_ACCEPTANCE_CLOSURE_REPORT.md`.
+>
 > **⚑ Authenticated browser status (final campaign, `ff6f442`).** Executed live: **M02, M13, M17(maker)** = ACCEPTED
 > (M13 with full decision maker-checker SoD); **M14, M16, M19** = PARTIALLY ACCEPTED (maker paths browser-proven);
 > **M12, M18, M20, M21, M22** = BACKEND PROVEN — browser acceptance incomplete (personas + SoD-preserving gap roles
