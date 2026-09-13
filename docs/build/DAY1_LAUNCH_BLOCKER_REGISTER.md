@@ -56,10 +56,11 @@ defects (all web-only; no backend/schema change):
 | **D-M12-1** | **HIGH** | **FIXED** | M12 "Approve resolution" gated on `'submitted'` but backend uses `'proposed'` → **all** feedback-resolution approvals were blocked. Fixed + re-verified with SoD. **This was a genuine Day-1 code blocker — now resolved.** |
 | D-M21-1 | MED | FIXED | Journal draft create silently swallowed API errors. |
 | D-M21-2 | MED | FIXED | Journal draft had no date input; `journalDate` hardcoded to `2026-08-24`. Added a date field. |
-| D-M21-3 | MED | OPEN (non-blocking) | Non-UUID `entityRef` → raw 500 instead of 400. Recommend backend UUID validation in `draft.service`. |
+| D-M21-3 | MED | **FIXED** | Non-UUID `entityRef` → raw 500 instead of 400. **Fixed** (follow-up, branch `release/d-m21-3-entity-ref-validation`): the journal-draft **create** endpoint now validates `entityRef`/`periodRef`/`currencyRef`/`journalTypeId` as UUIDs at the request boundary (reusing the shared `requireUuidParam`) → bounded **400 `Invalid <field>.`** with no SQL/PostgreSQL/stack leak; a well-formed but unknown `entityRef` is still accepted as an **opaque** m19 id (m21 owns no chart of accounts). HTTP regression added in `apps/api/test/api-journals.db-spec.ts` (malformed→400 for all four fields · no-leak assertion · opaque valid-UUID accepted); DB lane **98 specs / 3,103 / 0**. |
 | D-M22-1 | MED | FIXED | Delegation grant defaulted `subjectType` to invalid `'approval_request'`. Replaced with a valid-values dropdown. |
 
-**Unresolved Day-1 code blockers: 0** (D-M12-1 fixed; D-M21-3 is a robustness gap, not a blocker). M20 browser
+**Unresolved Day-1 code blockers: 0** (D-M12-1 fixed; D-M21-3 robustness gap now **also fixed** — bounded 400
+request-boundary UUID validation, backend, with HTTP regression coverage). M20 browser
 testing is BLOCKED on recon-account seeding (data, not a defect); M22 delegation grant is BLOCKED by a client bundle
 anomaly (all code layers verified correct).
 

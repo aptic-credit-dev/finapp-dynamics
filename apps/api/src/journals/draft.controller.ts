@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 import { Endpoint } from '@finapp/kernel';
 import { DraftService, ValidationService, M21_AUDIT_CODES, M21_PERMISSIONS } from '@finapp/m21-journal';
-import { ActorContextFactory } from '@finapp/m02-identity';
+import { ActorContextFactory, requireUuidParam } from '@finapp/m02-identity';
 import { requireString, requireTenantScope, requireVersion } from '../identity/http.ts';
 import { draftView, lineView, statusHistoryView, noteView, validationView, findingView } from './views.ts';
 
@@ -13,6 +13,18 @@ import { draftView, lineView, statusHistoryView, noteView, validationView, findi
  */
 function optStr<K extends string>(v: unknown, k: K): Partial<Record<K, string>> {
   return typeof v === 'string' ? ({ [k]: v } as Record<K, string>) : {};
+}
+/**
+ * An OPTIONAL uuid reference, validated at the request boundary.
+ *
+ * `entityRef`/`periodRef`/`currencyRef`/`journalTypeId` are `uuid` columns (opaque m19 ids — m21 owns no chart of
+ * accounts). A non-uuid string reaches `::uuid` and raises `22P02`, which surfaces as a 500 — a server fault for
+ * what is a client mistake. Reject the malformed value here with a bounded 400 (reusing the same `requireUuidParam`
+ * the identity/RBAC controllers use), the same way `optStr` shapes an absent/cleared field: absent or non-string is
+ * left off untouched; a present string must be a well-formed uuid.
+ */
+function optUuid<K extends string>(v: unknown, k: K, correlationId: string): Partial<Record<K, string>> {
+  return typeof v === 'string' ? ({ [k]: requireUuidParam(v, k, correlationId) } as Record<K, string>) : {};
 }
 function num(v: unknown): number {
   return typeof v === 'number' ? v : Number.NaN;
@@ -68,11 +80,11 @@ export class JournalDraftController {
     const s = await this.scoped(h, 'create draft (m21)');
     return draftView(
       await this.service.createDraft(s.ctx, s.actor.identityId, {
-        ...optStr(b['journalTypeId'], 'journalTypeId'),
-        ...optStr(b['entityRef'], 'entityRef'),
-        ...optStr(b['periodRef'], 'periodRef'),
+        ...optUuid(b['journalTypeId'], 'journalTypeId', s.correlationId),
+        ...optUuid(b['entityRef'], 'entityRef', s.correlationId),
+        ...optUuid(b['periodRef'], 'periodRef', s.correlationId),
         ...optStr(b['periodStatus'], 'periodStatus'),
-        ...optStr(b['currencyRef'], 'currencyRef'),
+        ...optUuid(b['currencyRef'], 'currencyRef', s.correlationId),
         ...optStr(b['journalDate'], 'journalDate'),
         ...optStr(b['description'], 'description'),
         ...optStr(b['sourceType'], 'sourceType'),

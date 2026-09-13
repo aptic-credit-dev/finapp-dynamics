@@ -18,12 +18,15 @@
 | **D-M12-1** | **HIGH** | **FIXED** | M12 | "Approve resolution" button gated on `resStatus === 'submitted'`, but the backend sets a submitted resolution's status to `'proposed'` (never `'submitted'`) → the button was **unreachable**, blocking **every** feedback-resolution approval and (downstream) closure of negative feedback. | `app.tsx`: gate on `'proposed'`. Re-verified: cs_hod submit → cs_manager approve (SoD), `FEEDBACK_RESOLUTION_APPROVED`. |
 | **D-M21-1** | MED | **FIXED** | M21 | `createDraft` silently swallowed API errors (`if (r.ok && r.data)` with no else) — failures showed nothing to the user. | `app.tsx`: surface `r.error`. |
 | **D-M21-2** | MED | **FIXED** | M21 | Journal draft had **no date field**; `journalDate` was hardcoded to `'2026-08-24'` → create failed (period-rejected) whenever that date wasn't in an open period. | `app.tsx`: added a journal-date input (user picks a date in an open period). |
-| **D-M21-3** | MED | **FOUND (not fixed)** | M21 | A non-UUID `entityRef` (from the free-text fallback when the entity picker is empty) causes a raw **500** (`invalid input syntax for type uuid`) instead of a clean **400**. | Recommend a bounded backend fix: validate `entityRef` is a UUID (and exists) in `draft.service` → `badRequest`. Contributing UX: the maker lacked `finance.entity.read` so the picker couldn't populate. |
+| **D-M21-3** | MED | **FIXED (follow-up)** | M21 | A non-UUID `entityRef` (from the free-text fallback when the entity picker is empty) causes a raw **500** (`invalid input syntax for type uuid`) instead of a clean **400**. | **Fixed in a bounded backend follow-up** (branch `release/d-m21-3-entity-ref-validation`, separate from this pass's web-only fixes): the journal-draft **create** endpoint (`apps/api/src/journals/draft.controller.ts`) validates the four uuid-typed refs — `entityRef`/`periodRef`/`currencyRef`/`journalTypeId` — at the request boundary, reusing the shared `requireUuidParam`, → bounded **400 `Invalid <field>.`** (no SQL/PostgreSQL/stack leak). A well-formed but unknown `entityRef` remains accepted as an **opaque** m19 id (m21 owns no chart of accounts; no dereference, nothing cross-tenant to leak). HTTP regression added to `apps/api/test/api-journals.db-spec.ts`; DB lane **98 specs / 3,103 / 0**. Contributing UX (unchanged): the maker lacked `finance.entity.read` so the picker fell back to free text. Same-class gaps remain **by inspection** on the draft **edit** and **add-line** endpoints and on `journalDate` (a `date` column) plus a valid-but-unknown `journalTypeId` (FK `23503`) — separate, non-demonstrated in this fix; recommended follow-ups. |
 | **D-M22-1** | MED | **FIXED** | M22 | Delegation grant defaulted `subjectType` to `'approval_request'`, which is **not** a valid delegation subject type → "unknown subject type". | `app.tsx`: replaced the free-text field with a dropdown of valid types (`journal_posting`/`journal_draft`/`payment`/`adjustment`/`reconciliation`/`manual`), valid default. |
 
-All fixes are **web-only** (`apps/web/src/app.tsx`); no backend/schema/permission/audit-code change. There is no
-web-unit-test lane, so each fix's regression check is the browser re-test (D-M12-1 re-verified end-to-end; D-M21-1/2
-verified by the create-with-date flow; D-M22-1 verified by the served bundle + dropdown render).
+The **four fixes made during this pass** (D-M12-1 / D-M21-1 / D-M21-2 / D-M22-1) are **web-only**
+(`apps/web/src/app.tsx`); no backend/schema/permission/audit-code change. There is no web-unit-test lane, so each of
+those fixes' regression check is the browser re-test (D-M12-1 re-verified end-to-end; D-M21-1/2 verified by the
+create-with-date flow; D-M22-1 verified by the served bundle + dropdown render). **D-M21-3 was fixed separately** in
+a bounded backend follow-up (see its row) — controller-level UUID validation only; still **no schema/permission/
+audit-code/migration change** — and carries an automated HTTP regression in the DB lane.
 
 ## Per-module results (this pass)
 
@@ -60,8 +63,9 @@ integration lane (non-superuser `finapp_app`): 98 specs / 3,093 assertions / 0 f
 the four fixes are web-only.
 
 ## Completion decision
-- **Unresolved Day-1 code blockers:** **0** (the one true blocker, D-M12-1, was fixed + re-verified). D-M21-3 is a
-  MED robustness gap (500-vs-400 on malformed manual input), not a launch blocker.
+- **Unresolved Day-1 code blockers:** **0** (the one true blocker, D-M12-1, was fixed + re-verified). D-M21-3, the
+  MED robustness gap (500-vs-400 on malformed manual input), has since been **fixed** in a bounded backend follow-up
+  with HTTP regression coverage — it was never a launch blocker.
 - **Executed authenticated evidence:** complete for M02/M12/M13/M17 + M22 approval SoD; partial for M21 (maker) and
   M14/M16/M19; incomplete for M18 and M20 (M20 blocked on recon-account seeding; M22 delegation blocked on a client
   anomaly).
