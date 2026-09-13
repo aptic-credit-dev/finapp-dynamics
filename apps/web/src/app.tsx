@@ -5028,13 +5028,20 @@ function JournalsWorkspace({
   const [creating, setCreating] = useState(false);
   const [desc, setDesc] = useState('');
   const [entity, setEntity] = useState('');
+  const [jdate, setJdate] = useState('');
+  const [createErr, setCreateErr] = useState('');
   const shown = drafts.rows.filter((d) => status === '' || pick(d, 'status') === status);
   const createDraft = async (): Promise<void> => {
+    setCreateErr('');
+    if (jdate.trim() === '') {
+      setCreateErr('A journal date is required (it must fall in an open fiscal period).');
+      return;
+    }
     const r = await api.createJournalDraft(
       {
         description: desc.trim() || 'Journal draft',
         ...(entity.trim() ? { entityRef: entity.trim() } : {}),
-        journalDate: '2026-08-24',
+        journalDate: jdate,
         sourceType: 'manual',
       },
       tenant,
@@ -5043,8 +5050,13 @@ function JournalsWorkspace({
       setCreating(false);
       setDesc('');
       setEntity('');
+      setJdate('');
       setNonce((x) => x + 1);
       setOpenId(pick(r.data as api.Row, 'id'));
+    } else {
+      // Surface the server error instead of silently swallowing it (a blocked create returns the reason,
+      // e.g. the journal date is not in an open period).
+      setCreateErr(r.error ?? 'Create failed.');
     }
   };
   return (
@@ -5089,6 +5101,13 @@ function JournalsWorkspace({
               ) : (
                 <input value={entity} placeholder="Entity ref" onChange={(e) => setEntity(e.target.value)} />
               )}
+              <input
+                type="date"
+                value={jdate}
+                aria-label="Journal date"
+                title="Journal date (must be in an open fiscal period)"
+                onChange={(e) => setJdate(e.target.value)}
+              />
               <button className="btn" onClick={createDraft}>
                 Create
               </button>
@@ -5098,6 +5117,7 @@ function JournalsWorkspace({
             </>
           )}
         </div>
+        {createErr && <div className="error">{createErr}</div>}
         {drafts.loading ? (
           <div className="loading">Loading drafts…</div>
         ) : shown.length === 0 ? (
@@ -5317,7 +5337,7 @@ function FeedbackDrawer({
             />
             <ActionButton
               label="Approve resolution"
-              allowed={resStatus === 'submitted' && can('feedback.resolution.approve')}
+              allowed={resStatus === 'proposed' && can('feedback.resolution.approve')}
               onRun={() =>
                 run(api.approveResolution(recordId, tenant), 'Resolution approved (SoD: not the submitter).')
               }
@@ -14789,12 +14809,24 @@ function ApprovalsInbox({ tenant, perms }: { tenant: string | null; perms: Set<s
                 aria-label="Delegate"
                 onChange={(e) => setDgte(e.target.value)}
               />
-              <input
-                value={dgSubject}
-                placeholder="Subject type"
+              <select
+                value={dgSubject || 'journal_posting'}
                 aria-label="Subject type"
                 onChange={(e) => setDgSubject(e.target.value)}
-              />
+              >
+                {[
+                  'journal_posting',
+                  'journal_draft',
+                  'payment',
+                  'adjustment',
+                  'reconciliation',
+                  'manual',
+                ].map((st) => (
+                  <option key={st} value={st}>
+                    {st.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
               <input
                 type="date"
                 value={dgEnds}
@@ -14811,7 +14843,7 @@ function ApprovalsInbox({ tenant, perms }: { tenant: string | null; perms: Set<s
                       {
                         delegator: dgtor.trim(),
                         delegate: dgte.trim(),
-                        subjectType: dgSubject.trim() || 'approval_request',
+                        subjectType: dgSubject.trim() || 'journal_posting',
                         ...(dgEnds ? { endsAt: dgEnds } : {}),
                       },
                       tenant,
