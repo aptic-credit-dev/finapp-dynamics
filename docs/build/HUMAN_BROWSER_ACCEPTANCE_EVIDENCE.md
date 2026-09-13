@@ -406,3 +406,33 @@ gap roles were data-seeded to distinct existing personas (no new credentials, no
 two-step confirm, audit hash-chain (36/36 chained), no hard delete, no console errors, ADR-135 entitlement gating.
 
 **0 Day-1 code defects → no code fix.** Recommendation stays **`TECHNICAL MODULE CONDITIONAL GO`**.
+
+---
+
+# PART D — Day-1 Acceptance Closure pass (session 2026-09-13)
+
+Full detail: `DAY1_ACCEPTANCE_CLOSURE_REPORT.md`. Operator-driven authenticated browser pass (I verified every step
+in the DB/audit and fixed the defects it surfaced); scoped to **M12 + treasury cluster M20/M21/M22**. Finance/recon
+master data was provisioned via `seed-finance-config-demo.mjs`; a `treasury_reconciliation` entitlement was seeded;
+SoD-preserving gap roles were assigned to distinct existing personas (with `.read` perms where a checker must see
+what it acts on).
+
+**Defects (5 found, 4 fixed — all web-only, `apps/web/src/app.tsx`):**
+- **D-M12-1 (HIGH, FIXED):** "Approve resolution" gated on `'submitted'` but backend sets `'proposed'` → the button
+  was unreachable, blocking **all** feedback-resolution approvals. Fixed → re-verified: cs_hod submit → cs_manager
+  approve (SoD), `FEEDBACK_RESOLUTION_APPROVED`.
+- **D-M21-1 (MED, FIXED):** journal-draft create silently swallowed API errors.
+- **D-M21-2 (MED, FIXED):** journal draft had no date input; `journalDate` hardcoded to `2026-08-24`. Added a date field.
+- **D-M21-3 (MED, OPEN):** non-UUID `entityRef` → raw 500 instead of 400 (recommend backend UUID validation).
+- **D-M22-1 (MED, FIXED):** delegation grant defaulted `subjectType` to invalid `'approval_request'` → valid dropdown.
+
+**Executed results:** **M12 → ACCEPTED** (create/capture/classify/escalate/**resolution submit→approve SoD**/
+confirmation; close correctly rule-gated). **M21 → PARTIALLY ACCEPTED** (create→lines(+GL accounts)→validate→submit;
+posting-authorize pending). **M22 → approval-decision SoD ACCEPTED** (`approve` by c2 ≠ requester c1); delegation
+grant **BLOCKED** (persistent client "unknown subject type" though served UI + running API both accept
+`journal_posting` — unreproducible from code). **M20 → BLOCKED (browser)** (recon-demo seeded 0 recon accounts).
+
+**Invariants live:** maker-checker SoD (M12 resolution, M22 approval), reason-gated escalate, rule-gated close, RBAC
+fail-closed (403), PII redaction, exact minor units, audit hash-chain, no hard delete. Validation: smoke 8,082/0; DB
+98/3,093/0. **0 unresolved Day-1 code blockers** (D-M12-1 fixed). Recommendation stays **`TECHNICAL MODULE
+CONDITIONAL GO`**.

@@ -87,3 +87,11 @@ to the synthetic role; SoD unaffected.
 M42 remains `NO_GO`. Stage-7 G1–G4 unchanged. No production certificate; no production-readiness claim. Synthetic
 data only; no production/customer data. No deploy. No RBAC/RLS/audit/retention/SoD weakening (gap roles are
 additive, SoD-preserving, in the disposable DB). No hard-delete route. No credentials/PII exposed.
+
+## Superseded by the Day-1 Acceptance Closure pass (`b79de0b`)
+A follow-up closure pass (`DAY1_ACCEPTANCE_CLOSURE_REPORT.md`) executed the remaining M12 + treasury-cluster steps
+and **found 5 defects (4 fixed)** — most notably **D-M12-1 (HIGH, fixed)**: the M12 "Approve resolution" button was
+gated on a status the backend never sets, which had blocked **all** feedback-resolution approvals. Post-closure:
+**M12 → ACCEPTED**; **M21 → PARTIALLY ACCEPTED** (maker; D-M21-1/2 fixed, D-M21-3 open); **M22 → approval-decision
+SoD ACCEPTED** (delegation grant BLOCKED by a client anomaly; D-M22-1 fixed); **M20 → BLOCKED (browser)** on
+recon-account seeding. Recommendation remains **TECHNICAL MODULE CONDITIONAL GO**.
