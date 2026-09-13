@@ -216,6 +216,57 @@ export default defineDbSpec('api-journals', async (ctx, t) => {
     t.equal(draft.body['isBalanced'], true, 'the draft is balanced (debits == credits)');
     const draftId = String(draft.body['id']);
 
+    // D-M21-3: a malformed (non-uuid) reference is a BOUNDED 400 at the request boundary — never a 500.
+    // entityRef/periodRef/currencyRef/journalTypeId are `uuid` columns (opaque m19 ids — m21 owns no chart of
+    // accounts). A non-uuid string would otherwise reach `::uuid`, raise 22P02, and surface as a server-fault
+    // 500 for what is a client mistake. It is now rejected with a bounded 400 that names the field.
+    const malformed = await client('POST', '/journals/drafts', {
+      headers: auth.headers,
+      body: { entityRef: 'ACME' },
+    });
+    t.equal(malformed.status, 400, 'a non-uuid entityRef is a bounded 400 (not a 500)');
+    t.equal(malformed.body['detail'], 'Invalid entityRef.', 'the 400 names the offending field');
+    // The response must not expose SQL / PostgreSQL / stack-trace / internal query detail.
+    const leak = JSON.stringify(malformed.body).toLowerCase();
+    t.ok(
+      !['syntax', '22p02', 'journal_draft', 'insert into', 'postgres', 'select ', 'at '].some((s) =>
+        leak.includes(s),
+      ),
+      'the 400 body leaks no SQL / PostgreSQL / stack-trace / internal query detail',
+    );
+    // The other uuid-typed refs on the same endpoint are validated identically.
+    for (const [field, value] of [
+      ['periodRef', '2026-Q1'],
+      ['currencyRef', 'USD'],
+      ['journalTypeId', 'GEN'],
+    ] as const) {
+      const bad = await client('POST', '/journals/drafts', {
+        headers: auth.headers,
+        body: { [field]: value },
+      });
+      t.equal(bad.status, 400, `a non-uuid ${field} is a bounded 400`);
+      t.equal(bad.body['detail'], `Invalid ${field}.`, `the 400 names ${field}`);
+    }
+    // A well-formed but unknown entityRef is accepted as an OPAQUE reference: m21 never dereferences it, so
+    // there is no existence check to fail and nothing cross-tenant to leak — the fix is format validation, not a
+    // lookup. (Cross-tenant READ isolation is proven separately below via RLS -> 404.)
+    const opaque = await client('POST', '/journals/drafts', {
+      headers: auth.headers,
+      body: {
+        entityRef: randomUUID(),
+        currencyRef,
+        periodStatus: 'open',
+        lines: [
+          { accountRef: randomUUID(), direction: 'debit', amountMinor: 500, currencyRef },
+          { accountRef: randomUUID(), direction: 'credit', amountMinor: 500, currencyRef },
+        ],
+      },
+    });
+    t.ok(
+      opaque.status === 200 || opaque.status === 201,
+      `a well-formed unknown entityRef is accepted as an opaque m19 id (got ${String(opaque.status)})`,
+    );
+
     // Deterministic validation → validated.
     const validated = await client('POST', `/journals/drafts/${draftId}/validate`, {
       headers: auth.headers,
