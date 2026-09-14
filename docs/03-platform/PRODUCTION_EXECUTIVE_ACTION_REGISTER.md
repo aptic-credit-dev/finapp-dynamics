@@ -32,3 +32,18 @@
 - Items 1, 3, 8, 9, 10 are decisions/appointments internal to Aptic; item 2 is a joint Legal/Risk/Tech ruling.
 - Claude cannot and will not record any of these as approved. Production cutover proceeds only after the human M42
   decision is recorded and Patrick explicitly instructs "APPROVED — EXECUTE PRODUCTION CUTOVER".
+
+## In-place promotion — additional decisions required (MD infrastructure decision, 2026-09-14)
+
+Following the in-place promotion of `169.58.194.151` (see `INPLACE_STAGING_TO_PRODUCTION_PROMOTION_PLAN.md`):
+
+| # | Decision required | Recommended | Owner | Impact if not supplied | Decision |
+|---|---|---|---|---|---|
+| 11 | Retrieve **authoritative Contabo DC region** for `169.58.194.151` and rule Kenya-DPA residency | Read region in Contabo panel; Legal/Risk/CTO rule before real data | Legal (Mwangi) + Risk (Muchina) + CTO (Maina) | TZ signals Germany/EU → cross-border transfer risk; real data blocked | ☐ region OPEN |
+| 12 | Approve **clean-production initialization** (discard synthetic DB) | Approve; synthetic-only confirmed by audit — no G4 needed for Day-1 | MD + CFO + Legal (N/A record) | Cannot initialize prod DB; risk of promoting unknown data | ☐ |
+| 13 | Approve **synthetic-data disposal + deletion evidence** | Approve pre-removal encrypted dump + row-count snapshot + drop confirmation | COO/Ops + CTO | No deletion audit trail | ☐ |
+| 14 | Accept **loss of a separate staging environment** post-cutover | Acknowledge residual risk (no parity host for future change) | COO/Ops + Head of Risk | Unmanaged change-validation risk | ☐ |
+| 15 | Confirm **G2 second host is still required** (this host cannot be its own DR) | Acknowledge + provision separate host | MD + COO + CTO | DR remains unmet; G2 blocked | ☐ |
+| 16 | Approve **maintenance window** (~60–120 min) + rollback decision deadline | Low-traffic window; T+90 rollback checkpoint | MD + COO | No agreed cutover time | ☐ |
+
+Same governance: no item is recorded as approved unless the MD gives it; **M42 stays `NO_GO`**.

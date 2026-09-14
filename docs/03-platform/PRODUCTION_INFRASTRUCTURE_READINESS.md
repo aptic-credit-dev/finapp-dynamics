@@ -6,6 +6,28 @@
 > action, not in repo). **No production environment, DB, secrets, DNS/TLS, or off-server backup exists yet.** Do not
 > copy `.env.staging` to production; do not reuse any staging DB/keys/passwords/cookies/accounts.
 
+## 0. UPDATE — In-place promotion decision + live hosting truth (MD, 2026-09-14)
+
+The MD chose **in-place promotion** of the existing host `169.58.194.151` (staging → sole production); staging
+ceases to exist after cutover. Full plan + read-only host audit + item classifications:
+`INPLACE_STAGING_TO_PRODUCTION_PROMOTION_PLAN.md`. Production candidate now = main `6cfa426`.
+
+| Hosting fact | Value | Basis / status |
+|---|---|---|
+| Registrar | HostAfrica Kenya | MD |
+| DNS / proxy | Cloudflare (`dynamics.finappay.co.ke`) | MD; DNS already targets the origin (no DNS change at cutover — cache purge only) |
+| Origin provider | **Contabo** | reverse DNS `vmi3515072.contaboserver.net` |
+| **Physical DC region** | **OPEN — not proven** | host TZ `Europe/Berlin` **signals Germany/EU**; retrieve authoritative region from Contabo panel → Legal/Risk/CTO ruling before real data |
+| Host spec | Ubuntu 24.04.4, **12 vCPU / 47 GiB RAM / 358 GB free** | read-only audit — ample for Day-1 |
+| Live stack | api `127.0.0.1:3000` (healthy), web `:8080`, db `postgres:16.15` `127.0.0.1:5432`; only `:22` public | read-only audit |
+| Deployed SHA on host | **`223fd1c`** (stale vs `6cfa426`) | MUST redeploy pinned candidate |
+| Staging DB | `finapp_staging` 44 MB, **synthetic-only** (8 `stg_tenant_*`, emails `staging.local`/`synthetic.staging`) | → clean prod init, not G4 |
+| Controls verified live | `finapp_app` super=false/bypassrls=false; **FORCE RLS 506/506**; `DATABASE_APP_ROLE` set | SAFE TO RETAIN |
+| Must replace pre-cutover | `NODE_ENV=staging`→prod; `COOKIE_SECURE=false`→true; `ALLOWED_ORIGINS=localhost`→`https://dynamics.finappay.co.ke`; OpenBao unbound (`ADDR` empty); staging secrets rotated; 3 web files with "staging" banner | see promotion plan Phase 2/3 |
+
+**Consequence recorded:** the production host **cannot be its own DR host** — G2 still needs a separate second host;
+same-host backup/restore is not G2.
+
 ## A. Architecture, network, host
 
 | Concern | Status | Evidence / action |

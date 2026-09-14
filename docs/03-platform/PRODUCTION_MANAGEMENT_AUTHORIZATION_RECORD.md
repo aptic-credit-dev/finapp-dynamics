@@ -77,6 +77,25 @@ affected gate can be accepted.
    of the pentester**. The Auditor attests the result; the pentester must not self-attest. If "Alex Maunda" is an
    individual rather than a firm, record the individual's credentials and professional indemnity explicitly.
 
+## 4a. In-place production promotion (infrastructure decision — recorded)
+
+The MD/CEO confirmed an **in-place promotion** infrastructure decision (not an M42 GO, not a cutover
+authorization):
+
+- **Domain registrar:** HostAfrica Kenya.
+- **DNS / proxy:** Cloudflare (proxies `dynamics.finappay.co.ke`).
+- **Production origin:** the existing host **`169.58.194.151`** (currently Stage-7 staging) is **promoted in place**
+  to production. Verified provider = **Contabo** (reverse DNS `vmi3515072.contaboserver.net`).
+- **Environment model:** after cutover the host **ceases to be staging**; **no separate staging remains** on it.
+
+**Recorded consequences** (detail in `INPLACE_STAGING_TO_PRODUCTION_PROMOTION_PLAN.md`): the production host
+**cannot be its own DR host** — a genuinely separate second host is still mandatory for G2, and same-host
+backup/restore is **not** G2; the host is **rebuilt, not copied** (fresh prod secrets, clean DB init, staging-secret
+rotation, synthetic-data removal); and the **exact DC region is OPEN** — host timezone `Europe/Berlin` signals a
+Germany/EU datacenter, so the Kenya-DPA data-residency ruling must be made from authoritative Contabo panel records
+before any real data. **Staging DB audited read-only = synthetic-only** → clean-production initialization, not a G4
+migration.
+
 ## 5. Governance
 
 Readiness work only. No production deployment; no DNS change; no real customer data outside the approved,
