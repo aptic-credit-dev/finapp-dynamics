@@ -33,17 +33,24 @@
 | Domain registrar | **HostAfrica Kenya** | MD decision | Recorded |
 | DNS / proxy | **Cloudflare** (proxies `dynamics.finappay.co.ke`) | MD decision | Recorded |
 | Origin / server provider | **Contabo** | reverse DNS `169.58.194.151 → vmi3515072.contaboserver.net` (provider signal) | Recorded |
-| **Exact physical DC country/region** | **OPEN — NOT PROVEN** | host TZ `Europe/Berlin (+0200)` **signals a Germany DC** (Contabo has no Kenya DC). TZ is a signal, **not** authoritative residency proof | **OPEN — operator must retrieve** |
+| **Region** | **EU REGION CONFIRMED** — exact country/datacenter NOT displayed | Contabo panel (operator evidence): instance `vmi3515072`, IP `169.58.194.151`, product `Cloud VPS 12`, status `Running`, **Region = EU** (corroborates host TZ `Europe/Berlin`) | **EU CONFIRMED; cross-border LEGAL/RISK ruling PENDING** |
+| **Kenya hosting / data residency** | **NO — origin is outside Kenya (EU)** | EU-region confirmed | **Cross-border transfer assessment REQUIRED** |
 | Backup-storage region (B2) | not set | Backblaze B2 approved; region unchosen | OPEN |
 | Proposed 2nd DR-host region | not named | G2 host outstanding | OPEN |
 | OpenBao-host region | not named | G5 host outstanding | OPEN |
 
-**Kenya-DPA hosting-region ruling: OPEN.** Do **not** infer residency from registrar (Kenya) or DNS (Cloudflare).
-The `Europe/Berlin` timezone strongly indicates the data currently sits in **Germany/EU**, which for Kenyan
-personal/financial data raises a **cross-border transfer** question under the Kenya Data Protection Act. **Operator
-action (exact):** in the **Contabo customer control panel → your VPS → "Region"/"Data center"** field, read the
-datacenter location; capture a screenshot/record. Provide that authoritative record to Legal (Reuben Mwangi) + Head
-of Risk (Njeri Muchina) + CTO (Kelvin Maina) for the formal residency ruling **before any real data** (G6/G9).
+**Kenya-DPA hosting-region ruling: EU REGION CONFIRMED — EXACT COUNTRY/DATACENTER NOT DISPLAYED — CROSS-BORDER
+LEGAL/RISK RULING PENDING.** Authoritative Contabo panel evidence confirms **Region = EU** (instance `vmi3515072`,
+`Cloud VPS 12`, Running), corroborating the `Europe/Berlin` timezone. The origin is therefore **outside Kenya**, so
+hosting Kenyan personal/financial data is a **cross-border transfer** under the Kenya Data Protection Act. **EU
+hosting is NOT automatically compliant.** The exact country/datacenter is not shown in the panel and does not by
+itself settle lawful basis or safeguards. A formal ruling by Legal (Reuben Mwangi) + Head of Risk (Njeri Muchina) +
+CTO (Kelvin Maina) is **required before any real data** — see `PRODUCTION_HOSTING_REGION_RULING_RECORD.md` (12
+required confirmations; APPROVED-WITH-CONDITIONS wording; sign-offs blank). This ruling is **not** an M42 GO.
+
+Evidence classification: provider EU-region confirmation **PASS**; exact country/datacenter **NOT SHOWN**; Kenya
+hosting/residency **NO (outside Kenya)**; cross-border assessment **REQUIRED**; Legal approval **PENDING**; Risk
+approval **PENDING**; production authorization **NOT GRANTED**; **M42 NO_GO**.
 
 ---
 

@@ -39,7 +39,7 @@ Following the in-place promotion of `169.58.194.151` (see `INPLACE_STAGING_TO_PR
 
 | # | Decision required | Recommended | Owner | Impact if not supplied | Decision |
 |---|---|---|---|---|---|
-| 11 | Retrieve **authoritative Contabo DC region** for `169.58.194.151` and rule Kenya-DPA residency | Read region in Contabo panel; Legal/Risk/CTO rule before real data | Legal (Mwangi) + Risk (Muchina) + CTO (Maina) | TZ signals Germany/EU → cross-border transfer risk; real data blocked | ☐ region OPEN |
+| 11 | Rule the **Kenya-DPA cross-border transfer** for the Contabo **EU** origin | Complete the 12-point ruling (`PRODUCTION_HOSTING_REGION_RULING_RECORD.md`); APPROVED-WITH-CONDITIONS | Legal (Mwangi) + Risk (Muchina) + CTO (Maina) | EU confirmed but outside Kenya → real data blocked until safeguards evidenced | ◑ EU CONFIRMED; cross-border ruling PENDING |
 | 12 | Approve **clean-production initialization** (discard synthetic DB) | Approve; synthetic-only confirmed by audit — no G4 needed for Day-1 | MD + CFO + Legal (N/A record) | Cannot initialize prod DB; risk of promoting unknown data | ☐ |
 | 13 | Approve **synthetic-data disposal + deletion evidence** | Approve pre-removal encrypted dump + row-count snapshot + drop confirmation | COO/Ops + CTO | No deletion audit trail | ☐ |
 | 14 | Accept **loss of a separate staging environment** post-cutover | Acknowledge residual risk (no parity host for future change) | COO/Ops + Head of Risk | Unmanaged change-validation risk | ☐ |
