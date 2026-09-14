@@ -17,7 +17,7 @@ ceases to exist after cutover. Full plan + read-only host audit + item classific
 | Registrar | HostAfrica Kenya | MD |
 | DNS / proxy | Cloudflare (`dynamics.finappay.co.ke`) | MD; DNS already targets the origin (no DNS change at cutover — cache purge only) |
 | Origin provider | **Contabo** | reverse DNS `vmi3515072.contaboserver.net` |
-| **Physical DC region** | **OPEN — not proven** | host TZ `Europe/Berlin` **signals Germany/EU**; retrieve authoritative region from Contabo panel → Legal/Risk/CTO ruling before real data |
+| **Region** | **EU CONFIRMED** — exact country/DC not shown; cross-border ruling PENDING | Contabo panel (operator evidence): `vmi3515072`, `Cloud VPS 12`, Running, **Region=EU** → outside Kenya → cross-border transfer; Legal/Risk/CTO ruling required before real data (`PRODUCTION_HOSTING_REGION_RULING_RECORD.md`). EU ≠ automatically compliant. |
 | Host spec | Ubuntu 24.04.4, **12 vCPU / 47 GiB RAM / 358 GB free** | read-only audit — ample for Day-1 |
 | Live stack | api `127.0.0.1:3000` (healthy), web `:8080`, db `postgres:16.15` `127.0.0.1:5432`; only `:22` public | read-only audit |
 | Deployed SHA on host | **`223fd1c`** (stale vs `6cfa426`) | MUST redeploy pinned candidate |

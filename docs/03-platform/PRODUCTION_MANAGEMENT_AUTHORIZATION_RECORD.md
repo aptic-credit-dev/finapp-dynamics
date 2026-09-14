@@ -91,9 +91,11 @@ authorization):
 **Recorded consequences** (detail in `INPLACE_STAGING_TO_PRODUCTION_PROMOTION_PLAN.md`): the production host
 **cannot be its own DR host** — a genuinely separate second host is still mandatory for G2, and same-host
 backup/restore is **not** G2; the host is **rebuilt, not copied** (fresh prod secrets, clean DB init, staging-secret
-rotation, synthetic-data removal); and the **exact DC region is OPEN** — host timezone `Europe/Berlin` signals a
-Germany/EU datacenter, so the Kenya-DPA data-residency ruling must be made from authoritative Contabo panel records
-before any real data. **Staging DB audited read-only = synthetic-only** → clean-production initialization, not a G4
+rotation, synthetic-data removal); and the **region is EU-CONFIRMED** (Contabo panel: `vmi3515072`, `Cloud VPS 12`,
+Running, Region=EU) — **exact country/datacenter not displayed**. The origin is **outside Kenya**, so hosting
+Kenyan data is a **cross-border transfer**; **EU hosting is not automatically compliant**. The Kenya-DPA ruling is
+**PENDING** with Legal/Risk/CTO (`PRODUCTION_HOSTING_REGION_RULING_RECORD.md`, APPROVED-WITH-CONDITIONS) and is
+**not** an M42 GO. **Staging DB audited read-only = synthetic-only** → clean-production initialization, not a G4
 migration.
 
 ## 5. Governance
