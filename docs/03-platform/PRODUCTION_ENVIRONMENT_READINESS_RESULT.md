@@ -9,8 +9,8 @@
 | # | Item | Result | Note |
 |---|---|---|---|
 | 1 | Separate production host/environment | OPERATOR REQUIRED | Contabo prod host, separate from staging (runbook Phase 3). Not provisioned. |
-| 2 | Kenya-DPA-acceptable hosting-region record | OPERATOR REQUIRED | Region ruling by Technology/Risk/Legal (OQ#16). Hard precondition before real data. |
-| 3 | Production hostname | OPERATOR REQUIRED | No prod DNS name committed; staging is IP-only. |
+| 2 | Kenya-DPA-acceptable hosting-region record | OPERATOR REQUIRED | MD intent "host africa" recorded; **precise** Kenya-DPA data-residency ruling by Legal (Mwangi)/Risk (Muchina)/CTO (Maina) still OUTSTANDING (OQ#16). Hard precondition before real data. |
+| 3 | Production hostname | APPROVED (name) / DNS DEFERRED | MD approved `dynamics.finappay.co.ke`; **no DNS change until M42 authorizes cutover**. TLS cert to be issued for this name at the prod 443 proxy. |
 | 4 | DNS cutover plan with reduced TTL | PRESENT (plan) / OPERATOR REQUIRED (execution) | Plan in cutover runbook; TTL reduction + cutover is an operator DNS action — not performed. |
 | 5 | TLS certificate + renewal | OPERATOR REQUIRED | Public 443 cert + auto-renew at the reverse proxy; none in repo. |
 | 6 | Reverse proxy | PARTIAL / OPERATOR REQUIRED | Staging nginx proxies SPA+`/api` over HTTP:8080 (plaintext); a prod 443 terminator with HSTS is required. |

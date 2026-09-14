@@ -6,6 +6,14 @@
 > PRODUCTION CUTOVER".** A production `EFFECTIVE/GO` certificate must NOT exist until deployment succeeds AND the
 > authorised M42 GO is recorded. Never copy `.env.staging`; never reuse staging DB/keys/cookies/accounts; never print
 > or commit a production secret.
+>
+> **IN-PLACE PROMOTION VARIANT (MD decision, 2026-09-14).** Production is an **in-place promotion** of the existing
+> host `169.58.194.151` (staging → sole production), not a fresh separate host. For the in-place-specific
+> preconditions (fresh secrets, clean DB init, staging-secret rotation, synthetic-data removal, `NODE_ENV`
+> flip, staging-banner removal, Cloudflare cache purge, and the read-only host audit), follow
+> `INPLACE_STAGING_TO_PRODUCTION_PROMOTION_PLAN.md` **Phase 3** as the authoritative pre-cutover control set; it
+> supplements — does not replace — the gate/M42 preconditions below. Production candidate SHA is now main `6cfa426`.
+> DNS already targets the origin via Cloudflare, so cutover needs **no DNS change** — cache purge only.
 
 ## Pre-conditions (all must hold before Step 1)
 - M42 decision recorded (GO or CONDITIONAL_GO) by the authorised authority; residual conditions listed if B.
