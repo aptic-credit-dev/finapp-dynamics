@@ -21,6 +21,14 @@ identifiers, billing details, or credentials:
 Corroboration: host timezone `Europe/Berlin (+0200)`; reverse DNS `vmi3515072.contaboserver.net` (Contabo).
 The screenshot is retained by the operator as the primary artefact; it must **not** be committed with account/billing/credential fields visible.
 
+Contractual context (public sources, `EU_HOSTING_SAFEGUARDS_EVIDENCE_PACK.md`): the contracting entity is **Contabo
+GmbH** (Munich, HRB 180722); the EU region resolves to **Lauterbourg, France** (Contabo also runs Munich/Nuremberg
+DE) — the instance must remain **pinned to EU** (3 of ~11 Contabo DCs are US). **Key residual risk: Contabo is
+majority-owned by KKR (US) since 2022** → potential CLOUD-Act / group-level access that EU region alone does not
+close. The Art. 28 DPA, TOMs, breach terms, deletion-on-termination and support-access geography are **contractual
+and not public** — they must be obtained from the DPA concluded in the Contabo Control Panel, not asserted from
+marketing copy.
+
 ## 2. Evidence classification
 
 | Item | Result |
@@ -54,20 +62,24 @@ with evidence, each of the following before any real data is hosted:
 
 Each item is recorded PASS/FAIL with an evidence reference; any FAIL blocks the use of real data.
 
-| # | Confirmation | Evidence ref | Result (PASS/FAIL) | Confirmed by |
+Preliminary public-evidence status is from `EU_HOSTING_SAFEGUARDS_EVIDENCE_PACK.md` (authoritative public sources
+only). The **reviewer Result** column stays ☐ PENDING until each named officer records their decision — public
+evidence does not substitute for the committee's ruling.
+
+| # | Confirmation | Evidence ref (public status) | Result (PASS/FAIL) | Confirmed by |
 |---|---|---|---|---|
-| 1 | Lawful basis for cross-border transfer | | ☐ | |
-| 2 | Appropriate safeguards | | ☐ | |
-| 3 | Contabo DPA | | ☐ | |
-| 4 | Subprocessors + processing locations | | ☐ | |
-| 5 | Encryption in transit + at rest | | ☐ | |
-| 6 | Access + support-location controls | | ☐ | |
-| 7 | Retention + deletion | | ☐ | |
-| 8 | Incident/breach notification | | ☐ | |
-| 9 | Data-subject transparency / privacy notice | | ☐ | |
-| 10 | DPIA required / updated | | ☐ | |
-| 11 | Sensitive personal data treatment | | ☐ | |
-| 12 | Backup + DR storage regions | | ☐ | |
+| 1 | Lawful basis for cross-border transfer | Evidence pack §0/§1.3 — EU/Lauterbourg region; Kenya-DPA adequacy argument; **US-parent (KKR) residual risk** | ☐ PENDING | |
+| 2 | Appropriate safeguards | §1.2 — DPA per-panel (not public) → obtain; SCCs for US-parent risk | ☐ PENDING | |
+| 3 | Contabo DPA | §1.2 — **PARTIAL**: DPA exists, concluded in-panel, text not public → obtain signed PDF | ☐ PENDING | |
+| 4 | Subprocessors + processing locations | §1.4 — **PARTIAL**: corporate subprocessors listed; hosting list not public → obtain from DPA | ☐ PENDING | |
+| 5 | Encryption in transit + at rest | §1.5 — TLS in transit **CONFIRMED**; at-rest **NOT public** → customer-managed encryption | ☐ PENDING | |
+| 6 | Access + support-location controls | §1.6 — **NOT public** → obtain access-geography boundary; weigh US access | ☐ PENDING | |
+| 7 | Retention + deletion | §1.7 — **PARTIAL**: deletion-on-termination not public → obtain from DPA | ☐ PENDING | |
+| 8 | Incident/breach notification | §1.8 — **NOT public** → obtain Art. 33 clause + timelines from DPA | ☐ PENDING | |
+| 9 | Data-subject transparency / privacy notice | §1.9 — Contabo processor stance **CONFIRMED** → update Aptic privacy notice | ☐ PENDING | |
+| 10 | DPIA required / updated | §1.10 — no Contabo statement → **complete/update DPIA** (US-parent, certs, at-rest, region) | ☐ PENDING | |
+| 11 | Sensitive personal data treatment | opaque subject refs / no PII columns by design; committee to confirm scope vs Kenya-DPA sensitive categories | ☐ PENDING | |
+| 12 | Backup + DR storage regions | §1.12 — object storage EU/Nuremberg selectable; **pin B2 + DR host to EU** (ties G2/G8) | ☐ PENDING | |
 
 ## 4. Proposed decision wording
 
