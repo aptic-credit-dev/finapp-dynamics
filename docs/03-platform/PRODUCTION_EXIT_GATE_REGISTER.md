@@ -29,8 +29,8 @@ signed risk acceptance instead of full proof.
 
 ### G1 — Independent penetration test
 - **Requirement:** ADR-131 `:1081` — independent EXTERNAL pentest cleared (no release-blocking finding) + Auditor assurance.
-- **Evidence:** Tier-1 internal SAST/DAST/dep+secret scan complete, 0 prod vulns (`STAGE_7_TIER1_COMPLETION_VERIFICATION.md:36`); provider brief/RoE authored (`STAGE_7_PENTEST_*`). **No external provider engaged.**
-- **Status: BLOCKED.** Owner: Head of Risk & Compliance (accountable), external provider (executor), Auditor (assurance). Missing: engage provider, test staging, clear+retest. Exec now: **No**. Human accept mandatory: **Yes**. Risk-accept permitted: **No** (release-blocking, ADR-133). Proof: independent report + retest + Auditor attestation → opaque refs into M42.
+- **Evidence:** Tier-1 internal SAST/DAST/dep+secret scan complete, 0 prod vulns (`STAGE_7_TIER1_COMPLETION_VERIFICATION.md:36`); provider brief/RoE authored (`STAGE_7_PENTEST_*`). **ACTIVATION IN PROGRESS** — provider **Alex Maunda** named (MD-authorized); activation control record + provider/auditor independence declarations authored (`G1_PENTEST_ACTIVATION_RECORD.md`, `G1_PROVIDER_INDEPENDENCE_DECLARATION.md`, `G1_AUDITOR_INDEPENDENCE_DECLARATION.md`). **No signed declarations yet; no test access granted; no external report.**
+- **Status: BLOCKED (activation pending declarations).** Owner: Head of Risk & Compliance — **Njeri Muchina** (accountable), external provider **Alex Maunda** (executor), Auditor **Simon Nganga** (assurance). Missing: signed provider CoI + external-status + quals + NDA; Auditor independence signed; isolated synthetic instance + operator-created credentials; approved window + source IPs; then test → clear → **retest** → Auditor attestation. Exec now: **No**. Human accept mandatory: **Yes**. Risk-accept permitted: **No** (release-blocking, ADR-133). Proof: independent report + retest + Auditor attestation → opaque refs into M42.
 
 ### G2 — Cross-host disaster-recovery drill
 - **Requirement:** ADR-131 `:1082` — independent DR assurance + COO/Ops acceptance; RTO/RPO within target; restore+failback+reconcile.
