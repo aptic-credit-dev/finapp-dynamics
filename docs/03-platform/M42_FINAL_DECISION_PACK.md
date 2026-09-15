@@ -5,6 +5,10 @@
 > authority) records a governance-valid decision after reviewing the evidence. **No AI, developer, provider, or
 > technical owner may self-certify production GO.** Production GO is deny-by-default and DERIVED only by the human
 > decision (ADR-129/130/131/132/133). A gate is **never** marked PASS from internal Tier-1 evidence alone.
+>
+> **Candidate advanced to `5b27a4a` (PR #198; docs-only over `dad369e` — product code unchanged, so the technical
+> battery evidence remains valid). Intake status as of `5b27a4a`: no new external/human/infrastructure evidence
+> received; the gate table below is unchanged — 0/12 PASS.**
 
 ## 1. Gate-by-gate evidence table
 

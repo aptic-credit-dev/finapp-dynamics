@@ -8,10 +8,12 @@
 > committed to Git; they are recorded here by **opaque reference, custodian, date and checksum** only. M42 remains
 > `NO_GO`.
 
-## 1. Confidential-artefact register (opaque references — NOT the documents themselves)
+## 1. Operator evidence-intake checklist (opaque references — NOT the documents themselves)
 
-Do **not** commit the contractual documents. When received, the custodian records each below (the document stays in
-the custodian's secure store):
+**Intake status as of `5b27a4a`: NO artefact received.** Do **not** commit the contractual documents. Follow the
+evidence-handling protocol in `PRODUCTION_EXTERNAL_GATE_CLOSURE_REPORT.md` §1 — verify completeness + internal
+consistency; record date, signer, custodian, version, **SHA-256 checksum**; store the document outside Git; record
+only the opaque reference + conclusion below; a typed name is **not** a signature unless governance permits.
 
 | Artefact | Opaque ref | Custodian | Date received | SHA-256 checksum | Status |
 |---|---|---|---|---|---|

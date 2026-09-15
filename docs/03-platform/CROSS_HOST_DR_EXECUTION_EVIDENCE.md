@@ -4,6 +4,9 @@
 > `dad369e…`. **Not executed.** The operator has **not** supplied the prerequisites, so no DR drill has run.
 > **G2/G8 = BLOCKED.** A same-host restore is **never** represented as cross-host DR. No backup key or credential
 > appears in this document, logs, Git, or shell history. M42 remains `NO_GO`.
+>
+> **Intake status as of `5b27a4a` (PR #198): no second host, B2 config, or backup credentials supplied; status
+> unchanged — G2/G8 BLOCKED.**
 
 ## 1. Prerequisites (operator-supplied) — current status
 
