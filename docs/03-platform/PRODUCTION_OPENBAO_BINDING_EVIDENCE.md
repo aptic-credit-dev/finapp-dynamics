@@ -5,6 +5,9 @@
 > material, so no production binding exists. **G5 = BLOCKED.** M41 secrets provider remains **fail-closed**
 > (`UnavailableSecretProvider`). **Zero production secret values** appear in this document, logs, Git, or output.
 > M42 remains `NO_GO`.
+>
+> **Intake status as of `5b27a4a` (PR #198): no dedicated OpenBao host, custodians, or connection material supplied;
+> status unchanged — G5 BLOCKED.**
 
 ## 1. Prerequisites (operator-supplied) — current status
 

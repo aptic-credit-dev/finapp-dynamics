@@ -4,6 +4,9 @@
 > Limited**. This document **proposes** a classification and assembles its supporting controls; it does **not**
 > declare G4 N/A. **Only the named human authorities (CFO, Legal/DPO, business owner, Head of Risk) may approve the
 > classification.** No real customer data is extracted, copied, or processed in this task. M42 remains `NO_GO`.
+>
+> **Intake status as of `5b27a4a` (PR #198): no CFO/Legal/business-owner/Risk approval received; the N/A
+> classification remains a proposal — status unchanged (REQUIRES_REVIEW).**
 
 ## 1. Question
 
